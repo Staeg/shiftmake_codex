@@ -13,114 +13,89 @@ This document defines Rift generation, properties, enemy composition, and reward
 Each Rift is defined by a bundle of properties:
 
 * `tier`: baseline challenge level.
-* `biome`: thematic ruleset (e.g., Ruins, Wilds, Ashfields, Crystal).
-* `stability`: how volatile outcomes/modifiers are.
-* `enemy profile`: faction mix + role distribution + special tags.
 * `reward package`: immediate + optional bonus rewards.
 * `mutators`: optional temporary battle modifiers.
-* `timer` (optional): expires after N cycles.
+* `timer`: expires after a number of Overworld cycles.
 
-## Suggested Rift properties
+## Rift properties
 
 ### Tier
 
-* Controls enemy stat scaling and composition budget.
+* Controls enemy stat scaling and composition budget. Each tier above 1 gives the enemies +20% to Health, Damage and Speed.
 * Influences reward budget directly.
-* Can gate rare mutators and unique drops.
+* Each tier of Rift gives it 1 mutator at random.
 
-### Biome
+### Number of Rifts per cycle
 
-Biome can apply one passive rule to all battles in this Rift.
-Examples:
-
-* Ruins: higher armor prevalence.
-* Wilds: faster chaff and ambush-style role mixes.
-* Ashfields: reduced healing/recovery efficiency.
-* Crystal: higher ranged prevalence and fragile high-damage enemies.
-
-### Stability
-
-* Stable: predictable enemy roster and rewards.
-* Unstable: 1-2 hidden encounter twists revealed at assignment lock.
-* Fractured: stronger reward multipliers but includes harsh mutators.
+* The first cycle should have 3 Rifts, one of which is tier 2 and the others tier 1. The notation used to represent this is 2/1/1. The cycles after that should have the following Rift tiers:
+  * 2/1/1/1
+  * 2/2/1/1
+  * 3/2/1/1
+  * 3/2/1/1/1
+  * 3/2/2/1/1
+  * 3/2/2/2/1
+  * 3/3/2/2/1
+  * 4/3/2/2/1
+  * 4/3/3/2/1
+  * 4/3/3/2/2
+  * Finally, cycle 12 and onwards should be 4/3/3/3/2: one tier 4 Rift, three tier 3 Rifts, one tier 2 Rift.
 
 ### Mutators (battle-level)
 
 Examples:
 
-* `Momentum`: all units gain +X initiative on Beat 1.
-* `Thin Lines`: saturation limit reduced by 1.
-* `Heavy Air`: ranged attack damage reduced by Y.
-* `Blood Price`: knockout events accelerate initiative for all alive units.
+* `Momentum`: all units gain +10 initiative every Beat.
+* `Heavy Air`: ranged attack damage reduced by 50%.
+* `Red Hands`: knocking out an enemy gives the unit another turn.
+* `Rich`: enemy budget increased by 50%. Rewards doubled (traits give another batch to choose from).
+* `Outpost`: enemy budget decreased by 20%.
+* `Quagmire`: enemy budget decreased by 50%. Troops sent here spend twice as long recovering, victory or defeat.
 
-Mutators should always be visible before assignment unless explicitly marked as hidden by a Rift property.
+Mutators should always be visible before assignment.
 
-## Enemy generation (draft)
+## Enemy generation
 
 Enemy armies are generated from a threat budget:
 
-* Base budget from tier.
-* Biome and mutators convert budget into specific stats/roles.
-* Role quotas maintain readable shape (frontline/chaff/backline proportions).
-
-Suggested composition archetypes:
-
-* Bulwark: heavy frontline + low ranged.
-* Swarm: high chaff count, low individual stats.
-* Spearline: moderate frontline + strong backline.
-* Glass Cannon: fragile units with high damage/speed.
-* Mixed Patrol: balanced spread for neutral baseline.
+* Base budget: 500 per tier.
+* Mutators increase or decrease the budget.
+* A random faction and unit type are selected. An additional combination is selected for each tier of the Rift. This means tier 1 Rifts have 2 kinds of enemies and tier 4 Rifts have 5.
+* Each troop gets units based on its cost, as many as possible without exceeding budget.
 
 ## Rift enemy preview UX
 
 Before commitment, show:
 
-* Total threat rating.
-* Unit count by role.
-* Notable tags (armor-heavy, ranged-heavy, fast, etc.).
-* Any mutators and whether they are fixed or hidden.
+* Full per-unit table.
+* Any mutators.
+* All rewards, taking into account mutator effects.
 
-Optional advanced view:
+## Reward model
 
-* Full per-unit archetype table.
-* Simulated matchup hints against selected troop.
-
-## Reward model (draft)
-
-Each Rift grants one primary reward plus optional bonuses.
+Each Rift grants one primary reward as well as additional rewards for each tier above 1. For example, a tier 3 Rift might offer 150 gold, a T2 trait unlock and 50 essence.
 
 ### Primary reward categories
 
-* Resources (currency, materials).
-* Unlock progress (new faction, troop, or node access).
-* Upgrade tokens (faction-wide or unit-type-wide).
-* Rare blueprint/trait unlock chance.
+* Resources (currency, materials). 50 gold or 50 essence per tier of reward slot used.
+* Blueprint/upgrade unlock. Both variants gives a choice of 3 as yet unpicked options. If possible, each blueprint and upgrade will give a selection of 2 picks that already affect a faction type the player has unlocked and 1 will affect ones that are not yet useful; if not possible, random ones of the correct tier will be chosen.
+* If a Rift offers either blueprints or upgrades when the player has no more possible unlocks of that tier, it is replaced with 29 gold and 20 essence per tier of that reward.
 
-### Bonus rewards
-
-* Perfect-clear bonus (minimal knockouts or damage thresholds).
-* Speed bonus (resolve under N beats).
-* Risk bonus (unstable/fractured Rifts).
+Note: Blueprint implementation is for next version. That means that any Rift that rolls blueprints as a reward will trigger the replacement clause.
 
 ### Reward scaling rules
 
-* Higher tier = larger reward budget.
+* Higher tier = larger reward budget. 
+* Tier 1 Rifts just have a gold or essence reward.
+* Each tier above that chooses a type of reward that hasn't been assigned before and elevates it to the tier level.
+* Rifts go up to tier 4, which will have gold, essence, blueprint and trait rewards.
 * Hard mutators increase reward multipliers.
-* Very safe/predictable Rifts pay less than volatile/high-risk Rifts.
-
-## Failure and retreat outcomes (draft)
-
-* Defeat still grants small consolation rewards (optional, tuned low).
-* Defeat increases recovery time for deployed troops.
-* Failed Rifts may persist for one cycle with changed modifiers, or close permanently.
 
 ## Rift lifecycle states
 
 * `discovered`: visible, unassigned.
 * `assigned`: troop locked in.
-* `resolving`: battle in progress or queued.
 * `resolved_victory` / `resolved_defeat`.
-* `expired` or `collapsed`.
+* `expired`.
 
 ## Suggested data shape
 
@@ -129,21 +104,10 @@ interface Rift {
   id: string;
   seed: number;
   tier: number;
-  biome: string;
-  stability: 'stable' | 'unstable' | 'fractured';
   mutators: string[];
-  threatRating: number;
   enemyArmy: Army;
   reward: RewardPackage;
-  bonusRewards: RewardPackage[];
   expiresInCycles?: number;
-  state: 'discovered' | 'assigned' | 'resolving' | 'resolved_victory' | 'resolved_defeat' | 'expired';
+  state: 'discovered' | 'assigned' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 }
 ```
-
-## Open design questions
-
-* Should hidden mutators be allowed at all, or only in specific stability classes?
-* Should failed Rifts mutate and remain, or always disappear after resolution?
-* How much of enemy composition should be exact versus summarized before assignment?
-* Should certain factions gain affinity bonuses in matching biomes?

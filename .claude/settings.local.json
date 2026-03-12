@@ -42,7 +42,9 @@
       "Bash(echo:*)",
       "Bash(git config:*)",
       "Bash(winget install:*)",
-      "Bash(export:*)"
+      "Bash(export:*)",
+      "Bash(cd \"C:\\\\Users\\\\staeg\\\\shiftmake - Codex\" && npm run build 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\staeg\\\\shiftmake - Codex\" && npm run test 2>&1)"
     ]
   }
 }

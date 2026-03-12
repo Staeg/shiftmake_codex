@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   export let replayLength = 0;
   export let currentStep = -1;
   export let autoPlay = false;
@@ -37,7 +37,7 @@
   </div>
 
   <div class="meta">
-    <div>Step: {currentStep < 0 ? 'Initial board' : `${currentStep + 1} / ${replayLength}`}</div>
+    <div>Step: {Math.max(0, currentStep + 1)}/{replayLength}</div>
     <label>
       <span>Speed</span>
       <select bind:value={speedSelection} on:change={handleSpeedChange}>
@@ -109,5 +109,3 @@
     }
   }
 </style>
-
-

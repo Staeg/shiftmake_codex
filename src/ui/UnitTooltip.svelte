@@ -1,6 +1,7 @@
 ﻿<script lang="ts">
   import { tick } from 'svelte';
-  import { BASIC_UNIT_TYPES } from '../engine/unitCatalog';
+  import { formatFixed } from '../engine/fixed';
+  import { getTroopDefinitionOrThrow } from '../engine/unitCatalog';
   import type { BattleUnit } from '../engine/types';
 
   export let unit: BattleUnit;
@@ -142,7 +143,7 @@
     updateRolePopoverPosition();
   }
 
-  $: archetype = BASIC_UNIT_TYPES[unit.typeId];
+  $: troop = getTroopDefinitionOrThrow(unit.troopId);
 
   $: if (locked && showRoleDetail) {
     tick().then(updateRolePopoverPosition);
@@ -161,21 +162,22 @@
 
 <aside class="tooltip" class:docked={docked} style={docked ? '' : `left:${x + 14}px; top:${y - 10}px;`}>
   <header>
-    <strong>{archetype.label}</strong>
+    <strong>{troop.label}</strong>
     <small>{unit.id}</small>
   </header>
 
   <div class="rows">
-    <div><span>Health</span><b>{Math.max(0, Math.floor(unit.hp))}/{archetype.stats.health}</b></div>
-    <div><span>Damage</span><b>{archetype.stats.damage}</b></div>
-    <div><span>Armor</span><b>{archetype.stats.armor}</b></div>
-    <div><span>Speed</span><b>{archetype.stats.speed}</b></div>
-    <div><span>Range</span><b>{archetype.stats.range}</b></div>
-    <div><span>Size/Cap</span><b>{archetype.stats.size}/{archetype.stats.capacity}</b></div>
+    <div><span>Health</span><b>{formatFixed(Math.max(0, unit.hp))}/{formatFixed(Math.max(0, unit.maxHp))}</b></div>
+    <div><span>Damage</span><b>{formatFixed(troop.stats.damage)}</b></div>
+    <div><span>Armor</span><b>{formatFixed(troop.stats.armor)}</b></div>
+    <div><span>Speed</span><b>{formatFixed(troop.stats.speed)}</b></div>
+    <div><span>Range</span><b>{formatFixed(troop.stats.range)}</b></div>
+    <div><span>Size/Cap</span><b>{formatFixed(troop.stats.size)}/{formatFixed(troop.stats.capacity)}</b></div>
   </div>
 
   <div class="meta">
-    <span>Types: {archetype.types.join(', ')}</span>
+    <span>Types: {troop.types.join(', ')}</span>
+    <span>Abilities: {troop.abilities.length === 0 ? 'none' : troop.abilities.map((ability) => ability.label).join(', ')}</span>
     <button
       type="button"
       class="role-button"
@@ -185,7 +187,7 @@
       on:mouseenter={handleRoleEnter}
       on:mouseleave={handleRoleLeave}
     >
-      Role: {archetype.role}
+      Role: {troop.role}
     </button>
   </div>
 
@@ -196,11 +198,22 @@
     {:else}
       <ul>
         {#each engagedUnits as other}
-          <li>{BASIC_UNIT_TYPES[other.typeId].label} ({other.id})</li>
+          <li>{getTroopDefinitionOrThrow(other.troopId).label} ({other.id})</li>
         {/each}
       </ul>
     {/if}
   </div>
+
+  {#if troop.abilities.length > 0}
+    <div class="abilities">
+      <span>Ability Details</span>
+      <ul>
+        {#each troop.abilities as ability}
+          <li><strong>{ability.label}</strong>: {ability.shortText}</li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
 
   {#if locked}
     <footer>Locked selection (click unit again to unlock)</footer>
@@ -209,7 +222,7 @@
 
 {#if locked && showRoleDetail}
   <div class="role-popover" bind:this={rolePopoverEl} style={rolePopoverStyle}>
-    {ROLE_DETAILS[archetype.role]}
+    {ROLE_DETAILS[troop.role]}
   </div>
 {/if}
 
@@ -280,7 +293,8 @@
     font-size: 0.78rem;
   }
 
-  .meta {
+  .meta,
+  .abilities {
     display: grid;
     gap: 0.2rem;
     color: #bfccd8;
@@ -299,7 +313,8 @@
     cursor: help;
   }
 
-  .engaged {
+  .engaged,
+  .abilities {
     border-top: 1px solid #28384a;
     padding-top: 0.35rem;
     display: grid;
@@ -321,4 +336,3 @@
     color: #95a5b5;
   }
 </style>
-

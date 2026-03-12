@@ -1,6 +1,8 @@
 import { writable } from 'svelte/store';
 import { resolveDebugBattle } from '../engine/battle';
-import type { ArmyDebugSelection, BattleReplay, BattleStep } from '../engine/types';
+import { getTroopStartingQuantity, TROOP_TYPE_IDS } from '../engine/unitCatalog';
+import type { BattleReplay, BattleStep, TroopTypeId } from '../engine/types';
+import type { ArmyDebugSelection } from '../engine/debugTypes';
 
 interface DebugState {
   player: ArmyDebugSelection;
@@ -13,11 +15,23 @@ interface DebugState {
   speedMs: number;
 }
 
-const DEFAULT_ARMY: ArmyDebugSelection = {
-  swordsman: 4,
-  peasant: 6,
-  archer: 3,
-};
+function createDefaultArmy(): ArmyDebugSelection {
+  const defaults = Object.fromEntries(TROOP_TYPE_IDS.map((troopId) => [troopId, 0])) as ArmyDebugSelection;
+
+  if ('human/soldier' in defaults) {
+    defaults['human/soldier'] = getTroopStartingQuantity('human/soldier');
+  }
+  if ('human/militia' in defaults) {
+    defaults['human/militia'] = getTroopStartingQuantity('human/militia');
+  }
+  if ('elf/archer' in defaults) {
+    defaults['elf/archer'] = getTroopStartingQuantity('elf/archer');
+  }
+
+  return defaults;
+}
+
+const DEFAULT_ARMY = createDefaultArmy();
 
 const initialState: DebugState = {
   player: { ...DEFAULT_ARMY },
@@ -86,7 +100,7 @@ export const debugBattleStore = (() => {
 
   return {
     subscribe,
-    setArmy(side: 'player' | 'enemy', key: keyof ArmyDebugSelection, value: number) {
+    setArmy(side: 'player' | 'enemy', key: TroopTypeId, value: number) {
       update((state) => ({
         ...state,
         [side]: {
@@ -201,8 +215,3 @@ export const debugBattleStore = (() => {
     },
   };
 })();
-
-
-
-
-

@@ -1,8 +1,8 @@
-import { allHexes, equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
+﻿import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
+import { fixed, fixedAdd, fixedClamp, fixedMax, fixedSub, fixedSum, formatFixed } from './fixed';
 import { createRng, type Rng } from './rng';
-import { BASIC_UNIT_TYPES } from './unitCatalog';
+import { getTroopDefinitionOrThrow, TROOP_CATALOG } from './unitCatalog';
 import type {
-  BattleDebugInput,
   BattleReplay,
   BattleStateSnapshot,
   BattleStep,
@@ -11,8 +11,9 @@ import type {
   HexCoord,
   RoleId,
   SideId,
-  UnitTypeId,
+  TroopTypeId,
 } from './types';
+import type { BattleDebugInput } from './debugTypes';
 
 type InternalUnit = BattleUnit & {
   engagedWith: Set<string>;
@@ -37,16 +38,23 @@ const BASE_MAP_RADIUS = 3;
 const SATURATION = 10;
 const MAX_BEATS = 1000;
 
+function troop(troopId: TroopTypeId) {
+  return getTroopDefinitionOrThrow(troopId);
+}
+
 function cloneSnapshot(units: Map<string, InternalUnit>): BattleStateSnapshot {
   return {
     units: [...units.values()].map((unit) => ({
       id: unit.id,
-      typeId: unit.typeId,
+      troopId: unit.troopId,
+      unitTypeId: unit.unitTypeId,
+      factionId: unit.factionId,
       side: unit.side,
       role: unit.role,
       position: { ...unit.position },
-      hp: unit.hp,
-      initiative: unit.initiative,
+      hp: fixed(unit.hp),
+      maxHp: fixed(unit.maxHp),
+      initiative: fixed(unit.initiative),
       alive: unit.alive,
       engagedWithIds: [...unit.engagedWith],
     })),
@@ -76,15 +84,21 @@ function randomSeed(): number {
   return (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
 }
 
-function toUnitList(selection: BattleDebugInput['player']): UnitTypeId[] {
-  const unitTypes: UnitTypeId[] = [];
-  (Object.keys(selection) as UnitTypeId[]).forEach((typeId) => {
-    const count = Math.max(0, Math.floor(selection[typeId]));
+function toUnitList(selection: BattleDebugInput['player']): TroopTypeId[] {
+  const troopIds: TroopTypeId[] = [];
+
+  Object.entries(selection).forEach(([troopId, rawCount]) => {
+    if (!(troopId in TROOP_CATALOG)) {
+      return;
+    }
+
+    const count = Math.max(0, Math.floor(rawCount ?? 0));
     for (let i = 0; i < count; i += 1) {
-      unitTypes.push(typeId);
+      troopIds.push(troopId);
     }
   });
-  return unitTypes;
+
+  return troopIds;
 }
 
 function startingCorner(side: SideId, radius: number): HexCoord {
@@ -142,7 +156,7 @@ function expandSpawnCells(
 }
 
 function placeUnitWithExpandableCells(
-  unitTypeId: UnitTypeId,
+  troopId: TroopTypeId,
   side: SideId,
   origin: HexCoord,
   radius: number,
@@ -151,7 +165,7 @@ function placeUnitWithExpandableCells(
   forbidden: Set<string>,
   occupancy: Map<string, number>,
 ): HexCoord | null {
-  const size = BASIC_UNIT_TYPES[unitTypeId].stats.size;
+  const size = troop(troopId).stats.size;
   if (size > context.saturation) {
     return null;
   }
@@ -164,13 +178,13 @@ function placeUnitWithExpandableCells(
           return null;
         }
         const used = occupancy.get(key) ?? 0;
-        if (used + size > context.saturation) {
+        if (fixedAdd(used, size) > context.saturation) {
           return null;
         }
         return {
           cell,
           used,
-          utilization: used / context.saturation,
+          utilization: fixed(used / context.saturation),
         };
       })
       .filter((item): item is { cell: HexCoord; used: number; utilization: number } => item !== null);
@@ -182,7 +196,7 @@ function placeUnitWithExpandableCells(
       const finalists = utilizationFinalists.filter((item) => item.used === minUsed);
       const selected = context.rng.pick(finalists).cell;
       const key = hexKey(selected);
-      occupancy.set(key, (occupancy.get(key) ?? 0) + size);
+      occupancy.set(key, fixedAdd(occupancy.get(key) ?? 0, size));
       return selected;
     }
 
@@ -195,18 +209,18 @@ function placeUnitWithExpandableCells(
 
 function spawnGroup(
   side: SideId,
-  unitTypeIds: UnitTypeId[],
+  troopIds: TroopTypeId[],
   origin: HexCoord,
   radius: number,
   context: SpawnContext,
   idCounter: { value: number },
   forbidden: Set<string>,
 ): Set<string> | null {
-  if (unitTypeIds.length === 0) {
+  if (troopIds.length === 0) {
     return new Set<string>();
   }
 
-  const totalGroupSize = unitTypeIds.reduce((sum, unitTypeId) => sum + BASIC_UNIT_TYPES[unitTypeId].stats.size, 0);
+  const totalGroupSize = fixedSum(troopIds.map((troopId) => troop(troopId).stats.size));
   const targetCellCount = Math.max(1, Math.ceil(totalGroupSize / context.saturation));
   const activeCells: HexCoord[] = forbidden.has(hexKey(origin)) ? [] : [origin];
   const occupancy = new Map<string, number>();
@@ -219,25 +233,28 @@ function spawnGroup(
     }
   }
 
-  for (const unitTypeId of unitTypeIds) {
-    const slot = placeUnitWithExpandableCells(unitTypeId, side, origin, radius, activeCells, context, forbidden, occupancy);
+  for (const troopId of troopIds) {
+    const slot = placeUnitWithExpandableCells(troopId, side, origin, radius, activeCells, context, forbidden, occupancy);
     if (!slot) {
       return null;
     }
 
-    const archetype = BASIC_UNIT_TYPES[unitTypeId];
-    const unitId = `${side}_${unitTypeId}_${idCounter.value}`;
+    const definition = troop(troopId);
+    const unitId = `${side}_${definition.factionId}_${definition.unitTypeId}_${idCounter.value}`;
     idCounter.value += 1;
     usedHexes.add(hexKey(slot));
 
     context.units.set(unitId, {
       id: unitId,
-      typeId: unitTypeId,
+      troopId,
+      unitTypeId: definition.unitTypeId,
+      factionId: definition.factionId,
       side,
-      role: archetype.role,
+      role: definition.role,
       position: { ...slot },
-      hp: archetype.stats.health,
-      initiative: context.rng.int(11),
+      hp: definition.stats.health,
+      maxHp: definition.stats.health,
+      initiative: fixed(context.rng.int(11)),
       alive: true,
       engagedWith: new Set<string>(),
     });
@@ -248,13 +265,13 @@ function spawnGroup(
 
 function spawnUnitsForSide(
   side: SideId,
-  unitTypes: UnitTypeId[],
+  troopIds: TroopTypeId[],
   radius: number,
   context: SpawnContext,
   idCounter: { value: number },
 ): boolean {
-  const ranged = unitTypes.filter((typeId) => BASIC_UNIT_TYPES[typeId].stats.range > 0);
-  const melee = unitTypes.filter((typeId) => BASIC_UNIT_TYPES[typeId].stats.range === 0);
+  const ranged = troopIds.filter((troopId) => troop(troopId).stats.range > 0);
+  const melee = troopIds.filter((troopId) => troop(troopId).stats.range === 0);
   const meleeForbidden = new Set<string>();
 
   const rangedHexes = spawnGroup(side, ranged, startingCorner(side, radius), radius, context, idCounter, new Set<string>());
@@ -268,8 +285,8 @@ function spawnUnitsForSide(
 }
 
 function initializeUnits(
-  playerUnits: UnitTypeId[],
-  enemyUnits: UnitTypeId[],
+  playerUnits: TroopTypeId[],
+  enemyUnits: TroopTypeId[],
   rng: Rng,
 ): { units: Map<string, InternalUnit>; mapRadius: number } {
   let radius = BASE_MAP_RADIUS;
@@ -324,27 +341,14 @@ function clearStaleEngagements(state: InternalState): void {
   });
 }
 
-function availableCapacity(unit: InternalUnit): number {
-  let used = 0;
-  unit.engagedWith.forEach((enemyId) => {
-    const enemyType = statefulLookupType(enemyId);
-    if (enemyType) {
-      used += enemyType.stats.size;
-    }
-  });
-  return Math.max(0, BASIC_UNIT_TYPES[unit.typeId].stats.capacity - used);
-}
-
-let typeLookupState: Map<string, InternalUnit> | null = null;
-function statefulLookupType(unitId: string) {
-  if (!typeLookupState) {
-    return null;
-  }
-  const unit = typeLookupState.get(unitId);
-  if (!unit) {
-    return null;
-  }
-  return BASIC_UNIT_TYPES[unit.typeId];
+function availableCapacity(state: InternalState, unit: InternalUnit): number {
+  const used = fixedSum(
+    [...unit.engagedWith]
+      .map((enemyId) => state.units.get(enemyId))
+      .filter((enemy): enemy is InternalUnit => Boolean(enemy))
+      .map((enemy) => troop(enemy.troopId).stats.size),
+  );
+  return fixedMax(fixedSub(troop(unit.troopId).stats.capacity, used), 0);
 }
 
 function enemyUnitsOnHex(state: InternalState, unit: InternalUnit): InternalUnit[] {
@@ -391,15 +395,15 @@ function fight(state: InternalState, actor: InternalUnit): boolean {
 function drawAttention(state: InternalState, actor: InternalUnit, roles: RoleId[] = []): boolean {
   const currentHexEnemies = nonEngagedEnemiesOnHex(state, actor).filter((enemy) => matchesRoleFilter(enemy, roles));
 
-  let remainingCapacity = availableCapacity(actor);
+  let remainingCapacity = availableCapacity(state, actor);
   const engagedTargets: InternalUnit[] = [];
 
   if (remainingCapacity > 0 && currentHexEnemies.length > 0) {
     state.rng.shuffle(currentHexEnemies).forEach((enemy) => {
-      const enemySize = BASIC_UNIT_TYPES[enemy.typeId].stats.size;
+      const enemySize = troop(enemy.troopId).stats.size;
       if (enemySize <= remainingCapacity && enemy.alive && enemy.engagedWith.size === 0) {
         createEngagement(state, actor, enemy);
-        remainingCapacity -= enemySize;
+        remainingCapacity = fixedSub(remainingCapacity, enemySize);
         engagedTargets.push(enemy);
       }
     });
@@ -419,15 +423,17 @@ function drawAttention(state: InternalState, actor: InternalUnit, roles: RoleId[
 }
 
 function allySizeOnHex(state: InternalState, side: SideId, coord: HexCoord, exceptId?: string): number {
-  return getAliveUnits(state, side)
-    .filter((unit) => equalsHex(unit.position, coord) && unit.id !== exceptId)
-    .reduce((sum, unit) => sum + BASIC_UNIT_TYPES[unit.typeId].stats.size, 0);
+  return fixedSum(
+    getAliveUnits(state, side)
+      .filter((unit) => equalsHex(unit.position, coord) && unit.id !== exceptId)
+      .map((unit) => troop(unit.troopId).stats.size),
+  );
 }
 
 function validMovementHexes(state: InternalState, actor: InternalUnit): HexCoord[] {
   const adjacent = neighbors(actor.position).filter((coord) => inRadius(coord, state.mapRadius));
-  const size = BASIC_UNIT_TYPES[actor.typeId].stats.size;
-  return adjacent.filter((coord) => allySizeOnHex(state, actor.side, coord, actor.id) + size <= state.saturation);
+  const size = troop(actor.troopId).stats.size;
+  return adjacent.filter((coord) => fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), size) <= state.saturation);
 }
 
 function findClosestEnemy(
@@ -468,7 +474,6 @@ function moveToward(state: InternalState, actor: InternalUnit, target: InternalU
     };
   });
 
-  // Prefer moves that make concrete progress toward the chosen target.
   const progressMoves = scored.filter((item) => item.distance < currentDistance);
   const distancePool = progressMoves.length > 0 ? progressMoves : scored;
 
@@ -492,20 +497,74 @@ function moveToward(state: InternalState, actor: InternalUnit, target: InternalU
 }
 
 function enemiesInRange(state: InternalState, actor: InternalUnit): InternalUnit[] {
-  const range = BASIC_UNIT_TYPES[actor.typeId].stats.range;
+  const range = troop(actor.troopId).stats.range;
   return getAliveUnits(state).filter((enemy) => enemy.side !== actor.side && hexDistance(actor.position, enemy.position) <= range);
 }
 
+function healUnit(state: InternalState, healer: InternalUnit, target: InternalUnit, amount: number): void {
+  if (!target.alive || target.hp >= target.maxHp) {
+    return;
+  }
+  const newHp = fixedClamp(fixedAdd(target.hp, amount), 0, target.maxHp);
+  const actual = fixedSub(newHp, target.hp);
+  if (actual <= 0) {
+    return;
+  }
+  target.hp = newHp;
+  buildStep(
+    state,
+    'heal',
+    [healer.id],
+    [target.id],
+    `${healer.id} heals ${target.id} for ${formatFixed(actual)}.`,
+    { amount: actual },
+  );
+}
+
+function executeEndOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
+  troop(actor.troopId).abilities.forEach((ability) => {
+    if (ability.trigger !== 'endOfTurn' || ability.baselineId !== 'heal') {
+      return;
+    }
+    if (ability.target.kind === 'self') {
+      healUnit(state, actor, actor, ability.amount);
+    } else if (ability.target.kind === 'friendlyInRangeMostDamaged') {
+      const allies = getAliveUnits(state, actor.side);
+      if (allies.length === 0) {
+        return;
+      }
+      const mostDamaged = allies.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+      if (mostDamaged) {
+        healUnit(state, actor, mostDamaged, ability.amount);
+      }
+    }
+  });
+}
+
+function executeOnKillAbilities(state: InternalState, actor: InternalUnit): void {
+  troop(actor.troopId).abilities.forEach((ability) => {
+    if (ability.trigger !== 'onKill' || ability.baselineId !== 'heal') {
+      return;
+    }
+    if (ability.target.kind === 'area') {
+      const radius = ability.target.radius ?? 0;
+      getAliveUnits(state, actor.side)
+        .filter((ally) => hexDistance(actor.position, ally.position) <= radius)
+        .forEach((ally) => healUnit(state, actor, ally, ability.amount));
+    }
+  });
+}
+
 function attack(state: InternalState, actor: InternalUnit, target: InternalUnit, mode: 'melee' | 'ranged'): void {
-  const damage = Math.max(0, BASIC_UNIT_TYPES[actor.typeId].stats.damage - BASIC_UNIT_TYPES[target.typeId].stats.armor);
-  target.hp -= damage;
+  const damage = fixedMax(fixedSub(troop(actor.troopId).stats.damage, troop(target.troopId).stats.armor), 0);
+  target.hp = fixedSub(target.hp, damage);
 
   buildStep(
     state,
     'attack',
     [actor.id],
     [target.id],
-    `${actor.id} hits ${target.id} for ${damage}.`,
+    `${actor.id} hits ${target.id} for ${formatFixed(damage)}.`,
     {
       damage,
       mode,
@@ -517,6 +576,7 @@ function attack(state: InternalState, actor: InternalUnit, target: InternalUnit,
     target.hp = 0;
     removeAllEngagements(state, target);
     buildStep(state, 'knockout', [actor.id], [target.id], `${target.id} is knocked out.`);
+    executeOnKillAbilities(state, actor);
   }
 }
 
@@ -600,14 +660,14 @@ function carefulAdvance(state: InternalState, actor: InternalUnit): boolean {
     return false;
   }
 
-  const ownRange = BASIC_UNIT_TYPES[actor.typeId].stats.range;
+  const ownRange = troop(actor.troopId).stats.range;
   const options = validMovementHexes(state, actor).filter((coord) => {
     const becomesCloser = hexDistance(coord, target.position) < hexDistance(actor.position, target.position);
     if (!becomesCloser) {
       return false;
     }
     const alliesOnTarget = getAliveUnits(state, actor.side).filter((ally) => equalsHex(ally.position, coord));
-    return alliesOnTarget.every((ally) => BASIC_UNIT_TYPES[ally.typeId].stats.range >= ownRange);
+    return alliesOnTarget.every((ally) => troop(ally.troopId).stats.range >= ownRange);
   });
 
   if (options.length === 0) {
@@ -623,11 +683,7 @@ function carefulAdvance(state: InternalState, actor: InternalUnit): boolean {
   return true;
 }
 
-function executeTurn(state: InternalState, actor: InternalUnit): void {
-  if (!actor.alive) {
-    return;
-  }
-
+function executeTurnActions(state: InternalState, actor: InternalUnit): void {
   clearStaleEngagements(state);
 
   const engagedEnemies = [...actor.engagedWith]
@@ -671,6 +727,16 @@ function executeTurn(state: InternalState, actor: InternalUnit): void {
   carefulAdvance(state, actor);
 }
 
+function executeTurn(state: InternalState, actor: InternalUnit): void {
+  if (!actor.alive) {
+    return;
+  }
+  executeTurnActions(state, actor);
+  if (actor.alive) {
+    executeEndOfTurnAbilities(state, actor);
+  }
+}
+
 function isBattleOver(state: InternalState): boolean {
   const playerAlive = getAliveUnits(state, 'player').length;
   const enemyAlive = getAliveUnits(state, 'enemy').length;
@@ -693,7 +759,6 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
     rng,
     beatCount: 0,
   };
-  typeLookupState = state.units;
 
   const initial = cloneSnapshot(state.units);
 
@@ -701,7 +766,7 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
     state.beatCount += 1;
 
     getAliveUnits(state).forEach((unit) => {
-      unit.initiative += BASIC_UNIT_TYPES[unit.typeId].stats.speed;
+      unit.initiative = fixedAdd(unit.initiative, troop(unit.troopId).stats.speed);
     });
 
     buildStep(state, 'beat', [], [], `Beat ${state.beatCount}: initiative increases for all units.`, {
@@ -719,12 +784,10 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
       if (!unit?.alive) {
         return;
       }
-      unit.initiative -= 100;
+      unit.initiative = fixedSub(unit.initiative, 100);
       executeTurn(state, unit);
     });
   }
-
-  typeLookupState = null;
 
   return {
     seed,
@@ -735,28 +798,3 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
     outcome: resolveBattleOutcome(state),
   };
 }
-
-export function createEmptySnapshot(radius: number): BattleStateSnapshot {
-  const cells = allHexes(radius);
-  return {
-    units: cells.map((cell, index) => ({
-      id: `cell_${index}`,
-      typeId: 'peasant',
-      side: 'player',
-      role: 'chaff',
-      position: cell,
-      hp: 0,
-      initiative: 0,
-      alive: false,
-      engagedWithIds: [],
-    })),
-  };
-}
-
-
-
-
-
-
-
-

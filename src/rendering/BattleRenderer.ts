@@ -5,6 +5,7 @@ import {
   FederatedPointerEvent,
   Graphics,
   Sprite,
+  Text,
   Texture,
 } from 'pixi.js';
 import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/types';
@@ -15,9 +16,11 @@ import archerUrl from '../assets/sprites/archer.svg';
 import projectileUrl from '../assets/sprites/projectile.svg';
 
 const UNIT_TEXTURES = {
-  swordsman: swordsmanUrl,
-  peasant: peasantUrl,
+  soldier: swordsmanUrl,
+  champion: swordsmanUrl,
+  militia: peasantUrl,
   archer: archerUrl,
+  wizard: archerUrl,
 } as const;
 
 const HEX_SIZE = 42;
@@ -161,9 +164,11 @@ export class BattleRenderer {
   }
 
   async init(): Promise<void> {
-    this.textures.swordsman = await Assets.load(UNIT_TEXTURES.swordsman);
-    this.textures.peasant = await Assets.load(UNIT_TEXTURES.peasant);
+    this.textures.soldier = await Assets.load(UNIT_TEXTURES.soldier);
+    this.textures.champion = await Assets.load(UNIT_TEXTURES.champion);
+    this.textures.militia = await Assets.load(UNIT_TEXTURES.militia);
     this.textures.archer = await Assets.load(UNIT_TEXTURES.archer);
+    this.textures.wizard = await Assets.load(UNIT_TEXTURES.wizard);
     this.textures.projectile = await Assets.load(projectileUrl);
   }
 
@@ -285,7 +290,7 @@ export class BattleRenderer {
       if (this.unitSprites.has(unit.id)) {
         return;
       }
-      const texture = this.textures[unit.typeId] ?? Texture.WHITE;
+      const texture = this.textures[unit.unitTypeId] ?? Texture.WHITE;
       const sprite = new Sprite(texture);
       sprite.anchor.set(0.5, 0.5);
       sprite.eventMode = 'static';
@@ -462,6 +467,14 @@ export class BattleRenderer {
       return;
     }
 
+    if (step.kind === 'heal') {
+      const amount = (step.metadata?.amount as number | undefined) ?? 0;
+      step.targetIds.forEach((targetId) => {
+        this.stopEffects.push(this.showHealPopup(targetId, amount));
+      });
+      return;
+    }
+
     if (step.kind === 'move') {
       const actorId = step.actorIds[0];
       const previousUnit = getUnitById(prevUnits, actorId ?? '');
@@ -617,6 +630,54 @@ export class BattleRenderer {
     };
   }
 
+  private showHealPopup(unitId: string, amount: number): () => void {
+    const sprite = this.unitSprites.get(unitId);
+    if (!sprite) {
+      return () => {};
+    }
+
+    const label = `+${Math.round(amount)}`;
+    const text = new Text(label, {
+      fontSize: 13,
+      fontWeight: 'bold',
+      fill: 0x55dd77,
+      stroke: 0x112211,
+      strokeThickness: 3,
+    });
+    text.anchor.set(0.5, 1);
+    text.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.6);
+    this.effectLayer.addChild(text);
+
+    const startY = text.y;
+    const floatDistance = 22;
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      if (text.parent) {
+        text.parent.removeChild(text);
+      }
+      text.destroy();
+    };
+
+    const stop = animate(
+      this.scaledDurationMs(800),
+      (t) => {
+        text.y = startY - floatDistance * t;
+        text.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+      },
+      cleanup,
+      cleanup,
+    );
+
+    return () => {
+      stop();
+    };
+  }
+
   private applyHighlights(): void {
     this.unitSprites.forEach((sprite, unitId) => {
       const ring = this.selectionRings.get(unitId);
@@ -660,20 +721,3 @@ export class BattleRenderer {
     });
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
