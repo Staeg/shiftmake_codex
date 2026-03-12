@@ -21,11 +21,11 @@
 
 ### Upgrade options available by default
 
-### Upgrade options found in Rifts
-
 Humans united
 * Cost: 20 gold
 * Effect: all human troops get "United"
+
+### Upgrade options found in Rifts
 
 #### Tier 2
 
@@ -55,12 +55,11 @@ Human combined arms
 
 ### Upgrade options available by default
 
-### Upgrade options found in Rifts
-
 Elven eyes
 * Cost: 60 gold
 * Effect: All non-melee elven troops gain +1 range
-(Note: because it increases starting range, the ordinary range upgrades do not become more expensive)
+
+### Upgrade options found in Rifts
 
 #### Tier 2
 

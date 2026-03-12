@@ -5,6 +5,7 @@
   export let steps: BattleStep[] = [];
   export let selected: number | null = null;
   export let currentStep = -1;
+  export let showTitle = true;
   export let onSelect: (index: number) => void;
 
   let logEl: HTMLDivElement;
@@ -28,7 +29,9 @@
 </script>
 
 <section class="panel">
-  <h2>Event Log</h2>
+  {#if showTitle}
+    <h2>Event Log</h2>
+  {/if}
   <div class="log" bind:this={logEl}>
     {#if steps.length === 0}
       <p>No battle yet.</p>

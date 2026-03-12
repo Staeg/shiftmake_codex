@@ -6,6 +6,7 @@ import type {
   AbilityDefinition,
   BattleInput,
   BattleReplay,
+  ReplayTroopProfile,
   BattleStateSnapshot,
   BattleStep,
   BattleStepKind,
@@ -129,6 +130,31 @@ function createAliveCount(snapshot: BattleStateSnapshot): BattleReplay['aliveCou
   });
 
   return { player, enemy, byTroopLabel };
+}
+
+function buildTroopProfiles(input: BattleInput): ReplayTroopProfile[] {
+  const seen = new Set<string>();
+  const profiles: ReplayTroopProfile[] = [];
+
+  [...input.playerCombatants, ...input.enemyCombatants].forEach((combatant) => {
+    const key = `${combatant.side}:${combatant.label}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    profiles.push({
+      side: combatant.side,
+      troopLabel: combatant.label,
+      unitTypeId: combatant.unitTypeId,
+      factionId: combatant.factionId,
+      role: combatant.role,
+      types: [...combatant.types],
+      stats: { ...combatant.stats },
+      abilities: combatant.abilities.map((ability) => ({ ...ability })),
+    });
+  });
+
+  return profiles;
 }
 
 function buildStep(
@@ -870,6 +896,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     steps: state.steps,
     outcome: resolveBattleOutcome(state),
     troopLabels,
+    troopProfiles: buildTroopProfiles(input),
     aliveCounts: snapshots.map(createAliveCount),
     summary: {
       playerTroops: input.playerCombatants.map((combatant) => combatant.label),

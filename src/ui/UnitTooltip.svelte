@@ -1,8 +1,9 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
-  import type { BattleUnit } from '../engine/types';
+  import type { BattleUnit, ReplayTroopProfile } from '../engine/types';
 
-  export let unit: BattleUnit;
+  export let unit: BattleUnit | null = null;
+  export let profile: ReplayTroopProfile | null = null;
   export let engagedUnits: BattleUnit[] = [];
   export let x = 0;
   export let y = 0;
@@ -14,43 +15,98 @@
     chaff: 'Chaff units swarm vulnerable targets and reinforce crowded hexes.',
     backline: 'Backline units prefer space, ranged attacks, and careful retreating.',
   };
+
+  $: display = unit || profile
+    ? {
+        troopLabel: unit?.troopLabel ?? profile?.troopLabel ?? '',
+        id: unit?.id ?? null,
+        hp: unit?.hp ?? profile?.stats.health ?? 0,
+        maxHp: unit?.maxHp ?? profile?.stats.health ?? 0,
+        initiative: unit ? unit.initiative : null,
+        role: unit?.role ?? profile?.role ?? 'frontline',
+        position: unit?.position ?? null,
+        types: unit?.types ?? profile?.types ?? [],
+        side: unit?.side ?? profile?.side ?? 'player',
+        stats: profile?.stats ?? null,
+        abilities: profile?.abilities ?? [],
+      }
+    : null;
 </script>
 
-<aside class="tooltip" class:docked={docked} style={docked ? '' : `left:${x + 14}px; top:${y - 10}px;`}>
-  <header>
-    <strong>{unit.troopLabel}</strong>
-    <small>{unit.id}</small>
-  </header>
+{#if display}
+  <aside class="tooltip" class:docked={docked} style={docked ? '' : `left:${x + 14}px; top:${y - 10}px;`}>
+    <header>
+      <div>
+        <p>{display.side === 'player' ? 'Player Unit' : 'Enemy Unit'}</p>
+        <strong>{display.troopLabel}</strong>
+      </div>
+      {#if display.id}
+        <small>{display.id}</small>
+      {/if}
+    </header>
 
-  <div class="rows">
-    <div><span>Health</span><b>{formatFixed(Math.max(0, unit.hp))}/{formatFixed(Math.max(0, unit.maxHp))}</b></div>
-    <div><span>Initiative</span><b>{formatFixed(unit.initiative)}</b></div>
-    <div><span>Role</span><b>{unit.role}</b></div>
-    <div><span>Hex</span><b>{unit.position.q},{unit.position.r}</b></div>
-  </div>
+    <div class="rows">
+      <div><span>Health</span><b>{formatFixed(Math.max(0, display.hp))}/{formatFixed(Math.max(0, display.maxHp))}</b></div>
+      <div><span>Role</span><b>{display.role}</b></div>
+      {#if display.initiative !== null}
+        <div><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
+      {/if}
+      {#if display.position}
+        <div><span>Hex</span><b>{display.position.q},{display.position.r}</b></div>
+      {/if}
+      {#if display.stats}
+        <div><span>Damage</span><b>{formatFixed(display.stats.damage)}</b></div>
+        <div><span>Armor</span><b>{formatFixed(display.stats.armor)}</b></div>
+        <div><span>Speed</span><b>{formatFixed(display.stats.speed)}</b></div>
+        <div><span>Range</span><b>{formatFixed(display.stats.range)}</b></div>
+        <div><span>Size</span><b>{formatFixed(display.stats.size)}</b></div>
+        <div><span>Capacity</span><b>{formatFixed(display.stats.capacity)}</b></div>
+      {/if}
+    </div>
 
-  <div class="meta">
-    <span>Types: {unit.types.join(', ')}</span>
-    <span>{ROLE_DETAILS[unit.role]}</span>
-  </div>
+    <div class="meta">
+      <span>Types: {display.types.join(', ')}</span>
+      <span>{ROLE_DETAILS[display.role]}</span>
+    </div>
 
-  <div class="engaged">
-    <span>Engaged With ({engagedUnits.length})</span>
-    {#if engagedUnits.length === 0}
-      <small>None</small>
-    {:else}
-      <ul>
-        {#each engagedUnits as other}
-          <li>{other.troopLabel}</li>
-        {/each}
-      </ul>
+    {#if display.stats}
+      <div class="abilities">
+        <span>Abilities</span>
+        {#if display.abilities.length === 0}
+          <small>None</small>
+        {:else}
+          <ul>
+            {#each display.abilities as ability}
+              <li>
+                <strong>{ability.label}</strong>
+                <small>{ability.shortText}</small>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
     {/if}
-  </div>
 
-  {#if locked}
-    <footer>Locked selection (click unit again to unlock)</footer>
-  {/if}
-</aside>
+    {#if display.id}
+      <div class="engaged">
+        <span>Engaged With ({engagedUnits.length})</span>
+        {#if engagedUnits.length === 0}
+          <small>None</small>
+        {:else}
+          <ul>
+            {#each engagedUnits as other}
+              <li>{other.troopLabel}</li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
+
+    {#if locked}
+      <footer>Locked selection (click unit again to unlock)</footer>
+    {/if}
+  </aside>
+{/if}
 
 <style>
   .tooltip {
@@ -78,8 +134,19 @@
   }
 
   header {
-    display: grid;
-    margin-bottom: 0.45rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: start;
+    margin-bottom: 0.65rem;
+  }
+
+  header p {
+    margin: 0 0 0.15rem;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #9cb0bf;
   }
 
   header small {
@@ -105,7 +172,8 @@
   }
 
   .meta,
-  .engaged {
+  .engaged,
+  .abilities {
     display: grid;
     gap: 0.22rem;
     color: #bfccd8;
@@ -113,14 +181,27 @@
     margin-bottom: 0.35rem;
   }
 
-  .engaged {
+  .engaged,
+  .abilities {
     border-top: 1px solid #28384a;
     padding-top: 0.35rem;
   }
 
-  ul {
+  .abilities ul,
+  .engaged ul {
     margin: 0;
     padding-left: 1rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .abilities li {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .abilities li small {
+    color: #9fb1bf;
   }
 
   footer {

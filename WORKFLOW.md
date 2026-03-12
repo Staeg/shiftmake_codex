@@ -15,6 +15,7 @@ Codex working checklist for this repository.
 - If a change touches game rules, state transitions, battle outcomes, rift logic, or upgrades, implement it in `src/engine/`.
 - If a change is visual-only, keep behavior unchanged and avoid leaking logic into UI/rendering.
 - Prefer deterministic, testable engine functions that return new state rather than mutating in place.
+- When fixing bugs, verify that the bug is fixed and no other issues exist to avoid partial fixes.
 
 ## Source of Truth
 

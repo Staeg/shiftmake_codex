@@ -57,10 +57,11 @@ Mutators should always be visible before assignment.
 
 Enemy armies are generated from a threat budget:
 
-* Base budget: 500 per tier.
+* Base budget: 150 per tier.
+* The base budget randomly gets -10%, -5%, no changes, +5% or +10% with equal probability.
 * Mutators increase or decrease the budget.
 * A random faction and unit type are selected. An additional combination is selected for each tier of the Rift. This means tier 1 Rifts have 2 kinds of enemies and tier 4 Rifts have 5.
-* Each troop gets units based on its cost, as many as possible without exceeding budget.
+* Each troop gets units based on its cost, as many as possible without exceeding budget. Unlike player-bought units, their cost scales linearly with their quantity. This means that a unit like Human Soldiers with cost 90 and quantity 5 would get 8 units in a tier 1 Rift, as each one is worth 18.
 
 ## Rift enemy preview UX
 

@@ -28,7 +28,6 @@
 </script>
 
 <section class="panel">
-  <h2>Playback</h2>
   <div class="controls">
     <button on:click={onJumpStart} disabled={currentStep < 0}>Start</button>
     <button on:click={onStepBack} disabled={currentStep < 0}>Step -</button>
@@ -57,10 +56,6 @@
     padding: 1rem;
     display: grid;
     gap: 0.8rem;
-  }
-
-  h2 {
-    margin: 0;
   }
 
   .controls {

@@ -187,6 +187,7 @@ export interface BattleReplay {
   steps: BattleStep[];
   outcome: BattleOutcome;
   troopLabels: Record<string, string>;
+  troopProfiles: ReplayTroopProfile[];
   aliveCounts: Array<{
     player: number;
     enemy: number;
@@ -198,6 +199,22 @@ export interface BattleReplay {
     finalPlayerAlive: number;
     finalEnemyAlive: number;
   };
+}
+
+export interface ReplayTroopProfile {
+  side: SideId;
+  troopLabel: string;
+  unitTypeId: UnitTypeId;
+  factionId: FactionId;
+  role: RoleId;
+  types: string[];
+  stats: UnitStats;
+  abilities: AbilityDefinition[];
+}
+
+export interface StoredReplayPayload {
+  version: 1;
+  input: BattleInput;
 }
 
 export interface ReplayIndexEntry {
@@ -269,6 +286,7 @@ export interface ValidationResult {
 export interface RiftResolutionRecord {
   riftId: string;
   assignedTroopIds: TroopId[];
+  battleInput: BattleInput;
   replay: BattleReplay;
   outcome: BattleOutcome;
   rewardPackage: RewardPackage;
@@ -281,7 +299,7 @@ export interface CycleResolution {
 
 export interface ReplayPayloadWrite {
   key: string;
-  replay: BattleReplay;
+  replay: StoredReplayPayload;
   estimatedBytes: number;
 }
 
