@@ -34,31 +34,31 @@ describe('troop composition', () => {
       size: 3,
       capacity: 2,
     });
-    expect(troop.abilityIds).toEqual(['valor-20', 'regen-5']);
     expect(troop.abilities.map((ability) => ability.label)).toEqual(['Valor 20', 'Regen 5']);
     expect(troop.quantity).toBe(1);
-    expect(troop.cost).toBe(325);
+    expect(troop.cost).toBe(78);
   });
 
   it('resolves named abilities from baseline effects plus modifiers', () => {
     expect(resolveAbilityDefinition('blast-5')).toMatchObject({
       label: 'Blast 5',
       trigger: 'onAttack',
-      target: { kind: 'attackedEnemyHex' },
+      effect: 'blast',
       amount: 5,
     });
 
     expect(resolveAbilityDefinition('valor-20')).toMatchObject({
       label: 'Valor 20',
       trigger: 'onKill',
-      target: { kind: 'area', radius: 0 },
+      effect: 'heal',
+      radius: 0,
       amount: 20,
     });
 
     expect(resolveAbilityDefinition('regen-5')).toMatchObject({
       label: 'Regen 5',
       trigger: 'endOfTurn',
-      target: { kind: 'self' },
+      effect: 'heal',
       amount: 5,
     });
   });
@@ -78,7 +78,7 @@ describe('selection cost helpers', () => {
         'human/soldier': 5,
         'elf/archer': 5,
       }),
-    ).toBe(172.5);
+    ).toBe(200);
   });
 });
 

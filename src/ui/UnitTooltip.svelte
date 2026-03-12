@@ -1,7 +1,5 @@
-﻿<script lang="ts">
-  import { tick } from 'svelte';
+<script lang="ts">
   import { formatFixed } from '../engine/fixed';
-  import { getTroopDefinitionOrThrow } from '../engine/unitCatalog';
   import type { BattleUnit } from '../engine/types';
 
   export let unit: BattleUnit;
@@ -11,184 +9,29 @@
   export let locked = false;
   export let docked = false;
 
-  let showRoleDetail = false;
-  let roleButtonEl: HTMLButtonElement | null = null;
-  let rolePopoverEl: HTMLDivElement | null = null;
-  let rolePopoverStyle = '';
-
   const ROLE_DETAILS: Record<string, string> = {
-    frontline: 'Draw attention when possible. If none are available, it overruns toward Frontline/Chaff targets.',
-    chaff: 'If no non-engaged enemies share its hex, it pursues Backline. Otherwise, it piles on nearby enemies.',
-    backline: 'Retreats if enemies share its hex. Otherwise shoots enemies in range, or advances carefully.',
+    frontline: 'Frontline troops close distance and try to tie enemies up in engagements.',
+    chaff: 'Chaff units swarm vulnerable targets and reinforce crowded hexes.',
+    backline: 'Backline units prefer space, ranged attacks, and careful retreating.',
   };
-
-  const POPUP_GAP = 10;
-  const VIEWPORT_PAD = 8;
-
-  type Placement = 'bottom' | 'left' | 'right' | 'top';
-
-  function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
-  }
-
-  function candidatePosition(
-    placement: Placement,
-    anchor: DOMRect,
-    popup: DOMRect,
-  ): { left: number; top: number } {
-    if (placement === 'left') {
-      return {
-        left: anchor.left - popup.width - POPUP_GAP,
-        top: anchor.top + anchor.height / 2 - popup.height / 2,
-      };
-    }
-
-    if (placement === 'right') {
-      return {
-        left: anchor.right + POPUP_GAP,
-        top: anchor.top + anchor.height / 2 - popup.height / 2,
-      };
-    }
-
-    if (placement === 'top') {
-      return {
-        left: anchor.left + anchor.width / 2 - popup.width / 2,
-        top: anchor.top - popup.height - POPUP_GAP,
-      };
-    }
-
-    return {
-      left: anchor.left + anchor.width / 2 - popup.width / 2,
-      top: anchor.bottom + POPUP_GAP,
-    };
-  }
-
-  function fullyFits(left: number, top: number, popup: DOMRect): boolean {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    return (
-      left >= VIEWPORT_PAD &&
-      top >= VIEWPORT_PAD &&
-      left + popup.width <= vw - VIEWPORT_PAD &&
-      top + popup.height <= vh - VIEWPORT_PAD
-    );
-  }
-
-  function visibleScore(left: number, top: number, popup: DOMRect): number {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    const x1 = Math.max(VIEWPORT_PAD, left);
-    const y1 = Math.max(VIEWPORT_PAD, top);
-    const x2 = Math.min(vw - VIEWPORT_PAD, left + popup.width);
-    const y2 = Math.min(vh - VIEWPORT_PAD, top + popup.height);
-
-    const width = Math.max(0, x2 - x1);
-    const height = Math.max(0, y2 - y1);
-    return width * height;
-  }
-
-  function updateRolePopoverPosition(): void {
-    if (!showRoleDetail || !roleButtonEl || !rolePopoverEl) {
-      return;
-    }
-
-    const anchor = roleButtonEl.getBoundingClientRect();
-    const popup = rolePopoverEl.getBoundingClientRect();
-
-    const preferredOrder: Placement[] = ['bottom', 'left', 'right', 'top'];
-
-    let chosen = candidatePosition(preferredOrder[0], anchor, popup);
-
-    for (const placement of preferredOrder) {
-      const position = candidatePosition(placement, anchor, popup);
-      if (fullyFits(position.left, position.top, popup)) {
-        chosen = position;
-        rolePopoverStyle = `left:${Math.round(chosen.left)}px; top:${Math.round(chosen.top)}px;`;
-        return;
-      }
-    }
-
-    const best = preferredOrder
-      .map((placement) => {
-        const position = candidatePosition(placement, anchor, popup);
-        return {
-          position,
-          score: visibleScore(position.left, position.top, popup),
-        };
-      })
-      .sort((a, b) => b.score - a.score)[0];
-
-    if (best) {
-      chosen = best.position;
-    }
-
-    const clampedLeft = clamp(chosen.left, VIEWPORT_PAD, window.innerWidth - popup.width - VIEWPORT_PAD);
-    const clampedTop = clamp(chosen.top, VIEWPORT_PAD, window.innerHeight - popup.height - VIEWPORT_PAD);
-    rolePopoverStyle = `left:${Math.round(clampedLeft)}px; top:${Math.round(clampedTop)}px;`;
-  }
-
-  function handleRoleEnter(): void {
-    if (!locked) {
-      return;
-    }
-    showRoleDetail = true;
-  }
-
-  function handleRoleLeave(): void {
-    showRoleDetail = false;
-  }
-
-  function refreshRolePopup(): void {
-    updateRolePopoverPosition();
-  }
-
-  $: troop = getTroopDefinitionOrThrow(unit.troopId);
-
-  $: if (locked && showRoleDetail) {
-    tick().then(updateRolePopoverPosition);
-  }
-
-  $: if (!locked) {
-    showRoleDetail = false;
-  }
-
-  $: if (showRoleDetail) {
-    window.addEventListener('resize', refreshRolePopup);
-  } else {
-    window.removeEventListener('resize', refreshRolePopup);
-  }
 </script>
 
 <aside class="tooltip" class:docked={docked} style={docked ? '' : `left:${x + 14}px; top:${y - 10}px;`}>
   <header>
-    <strong>{troop.label}</strong>
+    <strong>{unit.troopLabel}</strong>
     <small>{unit.id}</small>
   </header>
 
   <div class="rows">
     <div><span>Health</span><b>{formatFixed(Math.max(0, unit.hp))}/{formatFixed(Math.max(0, unit.maxHp))}</b></div>
-    <div><span>Damage</span><b>{formatFixed(troop.stats.damage)}</b></div>
-    <div><span>Armor</span><b>{formatFixed(troop.stats.armor)}</b></div>
-    <div><span>Speed</span><b>{formatFixed(troop.stats.speed)}</b></div>
-    <div><span>Range</span><b>{formatFixed(troop.stats.range)}</b></div>
-    <div><span>Size/Cap</span><b>{formatFixed(troop.stats.size)}/{formatFixed(troop.stats.capacity)}</b></div>
+    <div><span>Initiative</span><b>{formatFixed(unit.initiative)}</b></div>
+    <div><span>Role</span><b>{unit.role}</b></div>
+    <div><span>Hex</span><b>{unit.position.q},{unit.position.r}</b></div>
   </div>
 
   <div class="meta">
-    <span>Types: {troop.types.join(', ')}</span>
-    <span>Abilities: {troop.abilities.length === 0 ? 'none' : troop.abilities.map((ability) => ability.label).join(', ')}</span>
-    <button
-      type="button"
-      class="role-button"
-      class:role-chip={locked}
-      disabled={!locked}
-      bind:this={roleButtonEl}
-      on:mouseenter={handleRoleEnter}
-      on:mouseleave={handleRoleLeave}
-    >
-      Role: {troop.role}
-    </button>
+    <span>Types: {unit.types.join(', ')}</span>
+    <span>{ROLE_DETAILS[unit.role]}</span>
   </div>
 
   <div class="engaged">
@@ -198,33 +41,16 @@
     {:else}
       <ul>
         {#each engagedUnits as other}
-          <li>{getTroopDefinitionOrThrow(other.troopId).label} ({other.id})</li>
+          <li>{other.troopLabel}</li>
         {/each}
       </ul>
     {/if}
   </div>
 
-  {#if troop.abilities.length > 0}
-    <div class="abilities">
-      <span>Ability Details</span>
-      <ul>
-        {#each troop.abilities as ability}
-          <li><strong>{ability.label}</strong>: {ability.shortText}</li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
-
   {#if locked}
     <footer>Locked selection (click unit again to unlock)</footer>
   {/if}
 </aside>
-
-{#if locked && showRoleDetail}
-  <div class="role-popover" bind:this={rolePopoverEl} style={rolePopoverStyle}>
-    {ROLE_DETAILS[troop.role]}
-  </div>
-{/if}
 
 <style>
   .tooltip {
@@ -249,21 +75,6 @@
     box-shadow: none;
     background: linear-gradient(145deg, rgba(20, 24, 32, 0.95), rgba(11, 13, 18, 0.95));
     border-color: #2f3b49;
-  }
-
-  .role-popover {
-    position: fixed;
-    z-index: 20;
-    max-width: 280px;
-    background: rgba(8, 14, 22, 0.98);
-    border: 1px solid #4d6c8f;
-    border-radius: 7px;
-    padding: 0.42rem 0.5rem;
-    font-size: 0.74rem;
-    color: #d4e4f3;
-    line-height: 1.3;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
-    pointer-events: auto;
   }
 
   header {
@@ -294,40 +105,22 @@
   }
 
   .meta,
-  .abilities {
+  .engaged {
     display: grid;
-    gap: 0.2rem;
+    gap: 0.22rem;
     color: #bfccd8;
     font-size: 0.75rem;
     margin-bottom: 0.35rem;
   }
 
-  .role-button {
-    all: unset;
-    color: inherit;
-    width: fit-content;
-  }
-
-  .role-chip {
-    border-bottom: 1px dashed #9dc0e8;
-    cursor: help;
-  }
-
-  .engaged,
-  .abilities {
+  .engaged {
     border-top: 1px solid #28384a;
     padding-top: 0.35rem;
-    display: grid;
-    gap: 0.2rem;
-    font-size: 0.75rem;
   }
 
   ul {
     margin: 0;
-    padding-left: 1.05rem;
-    color: #cbd8e5;
-    max-height: 90px;
-    overflow: auto;
+    padding-left: 1rem;
   }
 
   footer {

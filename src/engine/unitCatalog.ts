@@ -1,16 +1,13 @@
-﻿import { fixed, fixedClamp, fixedMax, fixedMul, formatFixed } from './fixed';
+import { fixed, fixedClamp, fixedMax, fixedMul } from './fixed';
 import type {
-  AbilityBaselineDefinition,
+  AbilityDefinition,
   AbilityId,
-  AbilityModifier,
-  BaselineAbilityId,
   FactionDefinition,
   FactionId,
-  NamedAbilityDefinition,
-  ResolvedAbility,
-  StatAdjustment,
+  FactionUpgradeDefinition,
+  MutatorDefinition,
   TroopDefinition,
-  TroopTypeId,
+  TroopStatKey,
   UnitStats,
   UnitTypeDefinition,
   UnitTypeId,
@@ -18,102 +15,97 @@ import type {
 import { fixedAdd, fixedSum } from './fixed';
 
 const STAT_KEYS: Array<keyof UnitStats> = ['health', 'damage', 'speed', 'range', 'armor', 'size', 'capacity'];
-const FACTION_SINGULAR_LABELS: Record<FactionId, string> = {
-  human: 'Human',
-  elf: 'Elf',
-  goblin: 'Goblin',
-  troll: 'Troll',
-};
 
-function applyAdjustment(value: number, adjustment?: StatAdjustment): number {
-  const multiplier = adjustment?.multiplier ?? 1;
-  const flat = adjustment?.flat ?? 0;
-  return fixed(fixedMul(value, multiplier) + flat);
+function makeAbility(definition: AbilityDefinition): AbilityDefinition {
+  return definition;
 }
 
-function clampStat(key: keyof UnitStats, value: number): number {
-  if (key === 'damage') {
-    return fixedMax(value, 0);
-  }
-  if (key === 'speed') {
-    return fixedClamp(value, 1, 100);
-  }
-  if (key === 'range') {
-    return fixedMax(value, 0);
-  }
-  if (key === 'size') {
-    return fixedMax(value, 1);
-  }
-  if (key === 'capacity') {
-    return fixedMax(value, 0);
-  }
-  if (key === 'health') {
-    return fixedMax(value, 1);
-  }
-  return fixed(value);
-}
-
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
-}
-
-function resolveAbilityText(ability: ResolvedAbility): string {
-  const amount = formatFixed(ability.amount);
-
-  if (ability.baselineId === 'heal') {
-    if (ability.target.kind === 'self') {
-      return `End of turn: heal self for ${amount}.`;
-    }
-
-    if (ability.trigger === 'onKill' && ability.target.kind === 'area') {
-      return `On kill: heal all allies within ${formatFixed(ability.target.radius ?? 0)} hexes for ${amount}.`;
-    }
-
-    return `End of turn: heal the most damaged ally in range for ${amount}.`;
-  }
-
-  return `On attack: deal ${amount} damage to all enemies on the attacked hex.`;
-}
-
-export const ABILITY_BASELINES: Record<BaselineAbilityId, AbilityBaselineDefinition> = {
-  heal: {
-    id: 'heal',
-    label: 'Heal',
-    defaultTrigger: 'endOfTurn',
-    defaultTarget: 'friendlyInRangeMostDamaged',
-    descriptionTemplate: 'Restore health to a friendly target.',
-  },
-  blast: {
-    id: 'blast',
-    label: 'Blast',
-    defaultTrigger: 'onAttack',
-    defaultTarget: 'attackedEnemyHex',
-    descriptionTemplate: 'Damage all enemies on the attacked hex.',
-  },
-};
-
-export const NAMED_ABILITIES: Record<AbilityId, NamedAbilityDefinition> = {
-  'blast-5': {
+export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
+  'blast-5': makeAbility({
     id: 'blast-5',
     label: 'Blast 5',
-    baselineId: 'blast',
+    trigger: 'onAttack',
+    effect: 'blast',
     amount: 5,
-    modifiers: [],
-  },
-  'regen-5': {
+    shortText: 'On attack: all enemies on the attacked hex take 5 damage.',
+  }),
+  'regen-5': makeAbility({
     id: 'regen-5',
     label: 'Regen 5',
-    baselineId: 'heal',
+    trigger: 'endOfTurn',
+    effect: 'heal',
     amount: 5,
-    modifiers: [{ id: 'self' }],
-  },
-  'valor-20': {
+    shortText: 'End of turn: heal self for 5.',
+  }),
+  'valor-20': makeAbility({
     id: 'valor-20',
     label: 'Valor 20',
-    baselineId: 'heal',
+    trigger: 'onKill',
+    effect: 'heal',
     amount: 20,
-    modifiers: [{ id: 'onKill' }, { id: 'aoe', value: 0 }],
-  },
+    radius: 0,
+    shortText: 'On kill: heal allies on this hex for 20.',
+  }),
+  united: makeAbility({
+    id: 'united',
+    label: 'United',
+    trigger: 'passive',
+    effect: 'boost',
+    amount: 0,
+    overworldEffectId: 'united',
+    shortText: 'Overworld: troops of this faction may enter the same Rift together.',
+  }),
+  'combined-arms-boost-20': makeAbility({
+    id: 'combined-arms-boost-20',
+    label: 'Combined Arms: Boost 20',
+    trigger: 'startOfBattle',
+    effect: 'boost',
+    amount: 20,
+    repeatPerDistinctFriendlyTroopType: true,
+    shortText: 'Start of battle: gain 20% health, damage, and speed for each other friendly troop type.',
+  }),
+  'forsaken-boost-80': makeAbility({
+    id: 'forsaken-boost-80',
+    label: 'Forsaken: Boost 80',
+    trigger: 'startOfBattle',
+    effect: 'boost',
+    amount: 80,
+    condition: 'forsaken',
+    shortText: 'Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.',
+  }),
+  'goblin-farewell': makeAbility({
+    id: 'goblin-farewell',
+    label: 'Goblin Farewell',
+    trigger: 'onDeath',
+    effect: 'strike',
+    amount: 1,
+    radius: 0,
+    shortText: 'On death: strike a random enemy on this hex one extra time.',
+  }),
+  'pack-1': makeAbility({
+    id: 'pack-1',
+    label: 'Pack 1',
+    trigger: 'passive',
+    effect: 'pack',
+    amount: 1,
+    shortText: 'Passive: gain +1 damage per allied unit on this hex.',
+  }),
+  'ramp-1': makeAbility({
+    id: 'ramp-1',
+    label: 'Ramp 1',
+    trigger: 'endOfTurn',
+    effect: 'ramp',
+    amount: 1,
+    shortText: 'End of turn: gain +1 damage for the battle.',
+  }),
+  'frenzy-ramp-1': makeAbility({
+    id: 'frenzy-ramp-1',
+    label: 'Frenzy: Ramp 1',
+    trigger: 'onDamaged',
+    effect: 'ramp',
+    amount: 1,
+    shortText: 'After taking damage: gain +1 damage for the battle.',
+  }),
 };
 
 export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
@@ -122,15 +114,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     label: 'Soldier',
     role: 'frontline',
     types: ['soldier', 'melee'],
-    stats: {
-      health: 100,
-      damage: 10,
-      speed: 10,
-      range: 0,
-      armor: 2,
-      size: 1,
-      capacity: 2,
-    },
+    stats: { health: 100, damage: 10, speed: 10, range: 0, armor: 2, size: 1, capacity: 2 },
     quantity: 5,
     cost: 100,
     abilityIds: [],
@@ -140,17 +124,9 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     label: 'Champion',
     role: 'frontline',
     types: ['champion', 'melee'],
-    stats: {
-      health: 150,
-      damage: 20,
-      speed: 17,
-      range: 0,
-      armor: 0,
-      size: 2,
-      capacity: 1,
-    },
+    stats: { health: 150, damage: 20, speed: 17, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
-    cost: 250,
+    cost: 60,
     abilityIds: ['valor-20'],
   },
   militia: {
@@ -158,17 +134,9 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     label: 'Militia',
     role: 'chaff',
     types: ['militia', 'melee', 'expendable'],
-    stats: {
-      health: 40,
-      damage: 8,
-      speed: 12,
-      range: 0,
-      armor: 0,
-      size: 1,
-      capacity: 1,
-    },
+    stats: { health: 40, damage: 8, speed: 12, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 10,
-    cost: 25,
+    cost: 60,
     abilityIds: [],
   },
   archer: {
@@ -176,17 +144,9 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     label: 'Archer',
     role: 'backline',
     types: ['archer', 'ranged'],
-    stats: {
-      health: 30,
-      damage: 10,
-      speed: 10,
-      range: 2,
-      armor: 0,
-      size: 1,
-      capacity: 0,
-    },
+    stats: { health: 30, damage: 10, speed: 10, range: 2, armor: 0, size: 1, capacity: 0 },
     quantity: 5,
-    cost: 75,
+    cost: 100,
     abilityIds: [],
   },
   wizard: {
@@ -194,17 +154,9 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     label: 'Wizard',
     role: 'backline',
     types: ['wizard', 'caster'],
-    stats: {
-      health: 20,
-      damage: 5,
-      speed: 8,
-      range: 2,
-      armor: 0,
-      size: 1,
-      capacity: 0,
-    },
+    stats: { health: 20, damage: 10, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
     quantity: 3,
-    cost: 75,
+    cost: 60,
     abilityIds: ['blast-5'],
   },
 };
@@ -213,6 +165,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
   human: {
     id: 'human',
     label: 'Humans',
+    singularLabel: 'Human',
     description: 'Slightly better at pretty much everything. Boring but solid.',
     addedTypes: ['human'],
     defaultUnitTypeIds: ['soldier', 'champion', 'militia', 'archer'],
@@ -229,6 +182,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
   elf: {
     id: 'elf',
     label: 'Elves',
+    singularLabel: 'Elven',
     description: 'Feared from afar. Less so up close.',
     addedTypes: ['elf'],
     defaultUnitTypeIds: ['soldier', 'archer', 'wizard'],
@@ -244,6 +198,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
   goblin: {
     id: 'goblin',
     label: 'Goblins',
+    singularLabel: 'Goblin',
     description: "The one good thing you can say about goblins is that there's more than one of them.",
     addedTypes: ['goblin', 'expendable'],
     defaultUnitTypeIds: ['soldier', 'militia', 'wizard'],
@@ -261,6 +216,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
   troll: {
     id: 'troll',
     label: 'Trolls',
+    singularLabel: 'Troll',
     description: 'Never down for the count, never down for counting.',
     addedTypes: ['troll'],
     defaultUnitTypeIds: ['soldier', 'champion'],
@@ -276,152 +232,304 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
   },
 };
 
-export function resolveAbilityDefinition(abilityId: AbilityId): ResolvedAbility {
-  const definition = NAMED_ABILITIES[abilityId];
-  if (!definition) {
-    throw new Error(`Unknown ability: ${abilityId}`);
+export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
+  'human-united': {
+    id: 'human-united',
+    factionId: 'human',
+    label: 'Humans United',
+    tier: 1,
+    cost: 20,
+    source: 'rift',
+    description: 'All human troops become United.',
+    effects: [{ kind: 'addAbility', abilityId: 'united' }],
+  },
+  'human-combined-arms': {
+    id: 'human-combined-arms',
+    factionId: 'human',
+    label: 'Human Combined Arms',
+    tier: 2,
+    cost: 80,
+    source: 'rift',
+    description: 'All human troops gain Combined Arms: Boost 20.',
+    effects: [{ kind: 'addAbility', abilityId: 'combined-arms-boost-20' }],
+  },
+  'elven-eyes': {
+    id: 'elven-eyes',
+    factionId: 'elf',
+    label: 'Elven Eyes',
+    tier: 1,
+    cost: 60,
+    source: 'rift',
+    description: 'All non-melee elven troops gain +1 range.',
+    effects: [{ kind: 'modifyStats', unitFilter: 'nonMelee', statModifiers: { range: { flat: 1 } } }],
+  },
+  'elven-forsaken': {
+    id: 'elven-forsaken',
+    factionId: 'elf',
+    label: 'Elven Forsaken',
+    tier: 3,
+    cost: 60,
+    source: 'rift',
+    description: 'All elven troops gain Forsaken: Boost 80.',
+    effects: [{ kind: 'addAbility', abilityId: 'forsaken-boost-80' }],
+  },
+  'goblin-farewell-upgrade': {
+    id: 'goblin-farewell-upgrade',
+    factionId: 'goblin',
+    label: 'Goblin Farewell',
+    tier: 1,
+    cost: 20,
+    source: 'default',
+    description: 'All goblin units gain Goblin Farewell.',
+    effects: [{ kind: 'addAbility', abilityId: 'goblin-farewell' }],
+  },
+  'goblin-pack': {
+    id: 'goblin-pack',
+    factionId: 'goblin',
+    label: 'Goblin Pack',
+    tier: 2,
+    cost: 60,
+    source: 'rift',
+    description: 'All goblin units gain Pack 1.',
+    effects: [{ kind: 'addAbility', abilityId: 'pack-1' }],
+  },
+  'troll-momentum': {
+    id: 'troll-momentum',
+    factionId: 'troll',
+    label: 'Troll Momentum',
+    tier: 1,
+    cost: 100,
+    source: 'default',
+    description: 'All troll units gain Ramp 1.',
+    effects: [{ kind: 'addAbility', abilityId: 'ramp-1' }],
+  },
+  'troll-frenzy': {
+    id: 'troll-frenzy',
+    factionId: 'troll',
+    label: 'Troll Frenzy',
+    tier: 3,
+    cost: 20,
+    source: 'rift',
+    description: 'All troll units gain Frenzy: Ramp 1.',
+    effects: [{ kind: 'addAbility', abilityId: 'frenzy-ramp-1' }],
+  },
+};
+
+export const MUTATORS: Record<string, MutatorDefinition> = {
+  momentum: {
+    id: 'momentum',
+    label: 'Momentum',
+    description: 'All units gain +10 initiative every beat.',
+    enemyBudgetMultiplier: 1,
+    rewardMultiplier: 1,
+    initiativeBonusPerBeat: 10,
+  },
+  'heavy-air': {
+    id: 'heavy-air',
+    label: 'Heavy Air',
+    description: 'Ranged attack damage is reduced by 50%.',
+    enemyBudgetMultiplier: 1,
+    rewardMultiplier: 1,
+    rangedDamageMultiplier: 0.5,
+  },
+  rich: {
+    id: 'rich',
+    label: 'Rich',
+    description: 'Enemy budget increased by 50%. Rewards doubled.',
+    enemyBudgetMultiplier: 1.5,
+    rewardMultiplier: 2,
+  },
+  outpost: {
+    id: 'outpost',
+    label: 'Outpost',
+    description: 'Enemy budget decreased by 20%.',
+    enemyBudgetMultiplier: 0.8,
+    rewardMultiplier: 1,
+  },
+  quagmire: {
+    id: 'quagmire',
+    label: 'Quagmire',
+    description: 'Enemy budget decreased by 50%. Recovery time is doubled.',
+    enemyBudgetMultiplier: 0.5,
+    rewardMultiplier: 1,
+    recoveryMultiplier: 2,
+  },
+};
+
+export const STARTING_FACTION_COUNT = 3;
+
+export function getAbility(id: AbilityId): AbilityDefinition {
+  const ability = ABILITIES[id];
+  if (!ability) {
+    throw new Error(`Unknown ability ${id}`);
   }
-
-  const baseline = ABILITY_BASELINES[definition.baselineId];
-  let trigger = baseline.defaultTrigger;
-  let target: ResolvedAbility['target'] = { kind: baseline.defaultTarget };
-
-  definition.modifiers.forEach((modifier: AbilityModifier) => {
-    if (modifier.id === 'onKill') {
-      trigger = 'onKill';
-    }
-
-    if (modifier.id === 'self') {
-      target = { kind: 'self' };
-    }
-
-    if (modifier.id === 'aoe') {
-      target = {
-        kind: 'area',
-        radius: modifier.value ?? 0,
-      };
-    }
-  });
-
-  const resolved: ResolvedAbility = {
-    id: definition.id,
-    label: definition.label,
-    baselineId: definition.baselineId,
-    amount: fixed(definition.amount),
-    trigger,
-    target,
-    modifiers: definition.modifiers.map((modifier) => ({ ...modifier })),
-    shortText: '',
-  };
-
-  resolved.shortText = resolveAbilityText(resolved);
-  return resolved;
+  return ability;
 }
 
-export function composeTroopId(factionId: FactionId, unitTypeId: UnitTypeId): TroopTypeId {
-  return `${factionId}/${unitTypeId}`;
-}
-
-export function composeTroopDefinition(factionId: FactionId, unitTypeId: UnitTypeId): TroopDefinition {
-  const faction = FACTIONS[factionId];
-  const unitType = UNIT_TYPES[unitTypeId];
-
+export function getFaction(id: FactionId): FactionDefinition {
+  const faction = FACTIONS[id];
   if (!faction) {
-    throw new Error(`Unknown faction: ${factionId}`);
+    throw new Error(`Unknown faction ${id}`);
   }
+  return faction;
+}
 
+export function getUnitType(id: UnitTypeId): UnitTypeDefinition {
+  const unitType = UNIT_TYPES[id];
   if (!unitType) {
-    throw new Error(`Unknown unit type: ${unitTypeId}`);
+    throw new Error(`Unknown unit type ${id}`);
   }
+  return unitType;
+}
 
-  const stats = STAT_KEYS.reduce<UnitStats>((result, key) => {
-    const nextValue = applyAdjustment(unitType.stats[key], faction.statAdjustments[key]);
-    result[key] = clampStat(key, nextValue);
-    return result;
-  }, {
-    health: 0,
-    damage: 0,
-    speed: 0,
-    range: 0,
-    armor: 0,
-    size: 0,
-    capacity: 0,
-  });
+export function getFactionUpgrade(id: string): FactionUpgradeDefinition {
+  const upgrade = FACTION_UPGRADES[id];
+  if (!upgrade) {
+    throw new Error(`Unknown faction upgrade ${id}`);
+  }
+  return upgrade;
+}
 
-  const cost = fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 0);
-  const abilityIds = unique([...unitType.abilityIds, ...faction.abilityIds]);
+export function getMutator(id: string): MutatorDefinition {
+  const mutator = MUTATORS[id];
+  if (!mutator) {
+    throw new Error(`Unknown mutator ${id}`);
+  }
+  return mutator;
+}
 
+function applyAdjustment(value: number, adjustment?: { flat?: number; multiplier?: number }): number {
+  const multiplier = adjustment?.multiplier ?? 1;
+  const flat = adjustment?.flat ?? 0;
+  return fixed(value * multiplier + flat);
+}
+
+export function clampStat(key: keyof UnitStats, value: number): number {
+  if (key === 'damage') return fixedMax(value, 0);
+  if (key === 'speed') return fixedClamp(value, 1, 100);
+  if (key === 'range') return fixedMax(value, 0);
+  if (key === 'size') return fixedMax(value, 1);
+  if (key === 'capacity') return fixedMax(value, 0);
+  if (key === 'health') return fixedMax(value, 1);
+  return fixed(value);
+}
+
+export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: UnitTypeId): TroopDefinition {
+  const faction = getFaction(factionId);
+  const unitType = getUnitType(unitTypeId);
+  const stats = STAT_KEYS.reduce<UnitStats>(
+    (result, key) => {
+      result[key] = clampStat(key, applyAdjustment(unitType.stats[key], faction.statAdjustments[key]));
+      return result;
+    },
+    { health: 0, damage: 0, speed: 0, range: 0, armor: 0, size: 0, capacity: 0 },
+  );
+  const abilities = [...unitType.abilityIds, ...faction.abilityIds].map(getAbility);
   return {
-    id: composeTroopId(factionId, unitTypeId),
+    id: `${factionId}/${unitTypeId}`,
     factionId,
     unitTypeId,
-    label: `${FACTION_SINGULAR_LABELS[factionId]} ${unitType.label}`,
+    label: `${faction.singularLabel} ${unitType.label}`,
     role: unitType.role,
-    types: unique([...unitType.types, ...faction.addedTypes]),
+    types: [...new Set([...unitType.types, ...faction.addedTypes])],
     stats,
     quantity: unitType.quantity,
-    cost,
-    abilityIds,
-    abilities: abilityIds.map(resolveAbilityDefinition),
+    cost: fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 1),
+    abilities,
   };
 }
 
-export const TROOP_CATALOG: Record<TroopTypeId, TroopDefinition> = Object.values(FACTIONS).reduce<Record<TroopTypeId, TroopDefinition>>(
-  (catalog, faction) => {
-    faction.defaultUnitTypeIds.forEach((unitTypeId) => {
-      const resolvedTroop = composeTroopDefinition(faction.id, unitTypeId);
-      catalog[resolvedTroop.id] = resolvedTroop;
-    });
-    return catalog;
-  },
-  {},
-);
+export const TROOP_CATALOG = Object.values(FACTIONS).reduce<Record<string, TroopDefinition>>((acc, faction) => {
+  Object.keys(UNIT_TYPES).forEach((unitTypeId) => {
+    acc[`${faction.id}/${unitTypeId}`] = composeBaseTroopDefinition(faction.id, unitTypeId);
+  });
+  return acc;
+}, {});
 
-export const TROOP_TYPE_IDS = Object.keys(TROOP_CATALOG) as TroopTypeId[];
+export const TROOP_TYPE_IDS = Object.keys(TROOP_CATALOG);
 
-export function getTroopDefinitionOrThrow(troopId: TroopTypeId): TroopDefinition {
-  const troop = TROOP_CATALOG[troopId];
+export function getTroopDefinitionOrThrow(id: string): TroopDefinition {
+  const troop = TROOP_CATALOG[id];
   if (!troop) {
-    throw new Error(`Unknown troop: ${troopId}`);
+    throw new Error(`Unknown troop ${id}`);
   }
   return troop;
 }
 
-export function getTroopStartingQuantity(troopId: TroopTypeId): number {
+export function composeTroopDefinition(factionId: FactionId, unitTypeId: UnitTypeId): TroopDefinition {
+  return composeBaseTroopDefinition(factionId, unitTypeId);
+}
+
+export function resolveAbilityDefinition(id: AbilityId): AbilityDefinition {
+  return getAbility(id);
+}
+
+export function getTroopStartingQuantity(troopId: string): number {
   return getTroopDefinitionOrThrow(troopId).quantity;
 }
 
-export function getTroopSelectionCost(troopId: TroopTypeId, quantity: number): number {
+export function getTroopSelectionCost(troopId: string, quantity: number): number {
   const troop = getTroopDefinitionOrThrow(troopId);
   const unitCount = Math.max(0, Math.floor(quantity));
-
   if (unitCount === 0) {
     return 0;
   }
-
-  const startingQuantity = troop.quantity;
-  const perStartingUnitCost = fixed(troop.cost / startingQuantity);
-
-  if (unitCount <= startingQuantity) {
+  const perStartingUnitCost = fixed(troop.cost / troop.quantity);
+  if (unitCount <= troop.quantity) {
     return fixedMul(perStartingUnitCost, unitCount);
   }
 
   const extraUnitCosts: number[] = [];
-  for (let currentQuantity = startingQuantity; currentQuantity < unitCount; currentQuantity += 1) {
-    extraUnitCosts.push(fixedMul(perStartingUnitCost, currentQuantity - startingQuantity + 1));
+  for (let currentQuantity = troop.quantity; currentQuantity < unitCount; currentQuantity += 1) {
+    extraUnitCosts.push(fixedMul(perStartingUnitCost, currentQuantity - troop.quantity + 1));
   }
-
   return fixedAdd(troop.cost, fixedSum(extraUnitCosts));
 }
 
-export function getArmySelectionCost(selection: Partial<Record<TroopTypeId, number>>): number {
+export function getArmySelectionCost(selection: Partial<Record<string, number>>): number {
   return fixedSum(
     Object.entries(selection).map(([troopId, quantity]) => {
       if (!(troopId in TROOP_CATALOG)) {
         return 0;
       }
-
-      return getTroopSelectionCost(troopId as TroopTypeId, quantity ?? 0);
+      return getTroopSelectionCost(troopId, quantity ?? 0);
     }),
   );
+}
+
+export function getBaseTroopCost(factionId: FactionId, unitTypeId: UnitTypeId): number {
+  return composeBaseTroopDefinition(factionId, unitTypeId).cost;
+}
+
+export function getUpgradeableStatsForUnitType(unitTypeId: UnitTypeId): TroopStatKey[] {
+  const stats: TroopStatKey[] = ['health', 'damage'];
+  if (unitTypeId === 'champion' || unitTypeId === 'wizard') {
+    stats.push('speed');
+  }
+  if (unitTypeId === 'archer') {
+    stats.push('range');
+  }
+  if (unitTypeId === 'soldier') {
+    stats.push('armor');
+  }
+  return stats;
+}
+
+export function applyStatModifier(
+  stats: UnitStats,
+  modifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>,
+): UnitStats {
+  const next = { ...stats };
+  (Object.keys(modifiers) as TroopStatKey[]).forEach((key) => {
+    next[key] = clampStat(key, applyAdjustment(next[key], modifiers[key]));
+  });
+  return next;
+}
+
+export function applyPercentageUpgrade(value: number, levels: number): number {
+  let current = value;
+  for (let i = 0; i < levels; i += 1) {
+    current = fixedMul(current, 1.1);
+  }
+  return fixed(current);
 }
