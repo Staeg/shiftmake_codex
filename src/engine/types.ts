@@ -226,7 +226,7 @@ export interface ReplayIndexEntry {
   playerTroopLabels: string[];
   mutatorIds: MutatorId[];
   summary: string;
-  storageKey: string;
+  replayId: string;
   estimatedBytes: number;
   summaryOnly?: boolean;
 }
@@ -298,13 +298,13 @@ export interface CycleResolution {
 }
 
 export interface ReplayPayloadWrite {
-  key: string;
+  replayId: string;
   replay: StoredReplayPayload;
   estimatedBytes: number;
 }
 
 export interface ReplayPayloadDelete {
-  key: string;
+  replayId: string;
 }
 
 export interface ApplyCycleOutcomeResult {

@@ -8,6 +8,7 @@
   import { composeBaseTroopDefinition, FACTION_UPGRADES, FACTIONS, UNIT_TYPES, getFaction, getFactionUpgrade, getMutator, getUnitType } from '../engine/unitCatalog';
   import type { AbilityDefinition, BattleUnit, FactionId, RiftInstance, TroopId, TroopStatKey, UnitTypeId } from '../engine/types';
   import { gameStore } from '../store/gameStore';
+  import type { SaveSlotId, SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
   import EventLog from './EventLog.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
@@ -30,6 +31,7 @@
   let lockedPointer: UnitPointerInfo | null = null;
   let replayAliveCountsExpanded = false;
   let replayEventLogCollapsed = false;
+  let selectedMenuSlotId: SaveSlotId | null = null;
   let hoveredDetail:
     | {
         kind: 'mutator';
@@ -124,8 +126,12 @@
     selectedFactionId = null;
   }
 
-  function selectReplay(storageKey: string): void {
-    selectedReplayStorageKey = selectedReplayStorageKey === storageKey ? null : storageKey;
+  function selectReplay(replayId: string): void {
+    selectedReplayStorageKey = selectedReplayStorageKey === replayId ? null : replayId;
+  }
+
+  function selectMenuSlot(slotId: SaveSlotId): void {
+    selectedMenuSlotId = selectedMenuSlotId === slotId ? null : slotId;
   }
 
   function selectFaction(factionId: FactionId): void {
@@ -171,7 +177,7 @@
   }
 
   onMount(async () => {
-    gameStore.hydrate();
+    gameStore.initialize();
   });
 
   onDestroy(() => {
@@ -259,10 +265,10 @@
   $: selectedTroop = selectedTroopId ? $state.game.troops.find((troop) => troop.id === selectedTroopId) ?? null : null;
   $: selectedRift = selectedRiftId ? $state.game.openRifts.find((rift) => rift.id === selectedRiftId) ?? null : null;
   $: selectedReplayEntry = selectedReplayStorageKey
-    ? $state.game.replayIndex.find((replay) => replay.storageKey === selectedReplayStorageKey) ?? null
+    ? $state.game.replayIndex.find((replay) => replay.replayId === selectedReplayStorageKey) ?? null
     : null;
   $: selectedReplayAvailable =
-    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.storageKey) : false;
+    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
   $: factionTroops = selectedFactionId ? getFactionTroops($state.game, selectedFactionId) : [];
   $: availableFactionTroopUnlocks = selectedFactionId ? getAvailableFactionTroopUnlocks($state.game, selectedFactionId) : [];
   $: selectedFactionDefaultUpgrades = selectedFactionId
@@ -393,18 +399,56 @@
 
   function openSelectedReplay(): void {
     if (selectedReplayEntry) {
-      gameStore.openReplay(selectedReplayEntry.storageKey);
+      gameStore.openReplay(selectedReplayEntry.replayId);
     }
   }
 
-  function resetCampaign(): void {
-    if (window.confirm('Start a new campaign? This will erase the current save and all archived replays.')) {
-      selectedTroopId = null;
-      selectedRiftId = null;
-      selectedFactionId = null;
-      selectedReplayStorageKey = null;
-      gameStore.resetGame();
+  function clearCampaignSelections(): void {
+    selectedTroopId = null;
+    selectedRiftId = null;
+    selectedFactionId = null;
+    selectedReplayStorageKey = null;
+    pendingPurchase = null;
+  }
+
+  function returnToMainMenu(): void {
+    clearCampaignSelections();
+    gameStore.returnToMainMenu();
+  }
+
+  function loadSelectedSlot(): void {
+    if (!selectedMenuSlotId) {
+      return;
     }
+    clearCampaignSelections();
+    gameStore.loadSlot(selectedMenuSlotId);
+  }
+
+  function startSelectedSlotCampaign(): void {
+    if (!selectedMenuSlotId) {
+      return;
+    }
+    const slot = $state.slots.find((entry) => entry.slotId === selectedMenuSlotId) ?? null;
+    const shouldOverwrite =
+      slot?.status === 'occupied'
+        ? window.confirm(`Overwrite save slot ${selectedMenuSlotId}? This will replace that campaign and its archived replays.`)
+        : true;
+    if (!shouldOverwrite) {
+      return;
+    }
+
+    clearCampaignSelections();
+    gameStore.startNewCampaign(selectedMenuSlotId);
+  }
+
+  function formatSlotTimestamp(slot: SaveSlotSummary): string {
+    if (!slot.lastPlayedAt) {
+      return 'Never played';
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(slot.lastPlayedAt));
   }
 
   function attemptEndCycle(): void {
@@ -492,7 +536,53 @@
   }
 </script>
 
-{#if $state.game.phase === 'faction_draft'}
+{#if $state.screen === 'main_menu'}
+  <main class="menu-screen">
+    <section class="menu-panel">
+      <div class="menu-copy">
+        <p class="eyebrow">Shiftmake</p>
+        <h1>Choose A Save Slot</h1>
+        <p class="intro">Each slot keeps its own campaign and battle archive. Load an existing command table or begin a fresh campaign in any slot.</p>
+      </div>
+
+      <div class="slot-grid">
+        {#each $state.slots as slot}
+          <button class="slot-card" class:selected={selectedMenuSlotId === slot.slotId} on:click={() => selectMenuSlot(slot.slotId)}>
+            <div class="slot-card-header">
+              <span class="slot-label">Slot {slot.slotId}</span>
+              <strong>{slot.status === 'occupied' ? 'Occupied' : 'Empty'}</strong>
+            </div>
+
+            {#if slot.status === 'occupied'}
+              <div class="slot-meta">
+                <span>{slot.factionLabel ?? 'Unchosen Banner'}</span>
+                <span>Cycle {slot.cycleNumber}</span>
+                <span>{slot.phase === 'faction_draft' ? 'Faction Draft' : slot.phase === 'reward_claims' ? 'Reward Claims' : 'Planning'}</span>
+                <span>{formatSlotTimestamp(slot)}</span>
+              </div>
+            {:else}
+              <p>This slot is ready for a new campaign.</p>
+            {/if}
+          </button>
+        {/each}
+      </div>
+
+      <div class="menu-actions">
+        <button class="large" on:click={() => (selectedMenuSlotId = null)} disabled={selectedMenuSlotId === null}>Clear Selection</button>
+        <button
+          class="large"
+          on:click={() => loadSelectedSlot()}
+          disabled={selectedMenuSlotId === null || !($state.slots.find((slot) => slot.slotId === selectedMenuSlotId)?.status === 'occupied')}
+        >
+          Load Campaign
+        </button>
+        <button class="primary large" on:click={() => startSelectedSlotCampaign()} disabled={selectedMenuSlotId === null}>
+          {$state.slots.find((slot) => slot.slotId === selectedMenuSlotId)?.status === 'occupied' ? 'Overwrite With New Campaign' : 'Start New Campaign'}
+        </button>
+      </div>
+    </section>
+  </main>
+{:else if $state.game.phase === 'faction_draft'}
   <main class="draft-screen">
     <section class="draft-panel">
       <p class="eyebrow">Shiftmake</p>
@@ -690,7 +780,7 @@
       <div class="mode-toggle">
         <button class:selected={$state.centerMode === 'rifts'} on:click={() => gameStore.setCenterMode('rifts')}>Rifts</button>
         <button class:selected={$state.centerMode === 'troops'} on:click={() => gameStore.setCenterMode('troops')}>Factions & Troops</button>
-        <button on:click={() => resetCampaign()}>New Campaign</button>
+        <button on:click={() => returnToMainMenu()}>Main Menu</button>
       </div>
     </header>
 
@@ -1086,7 +1176,7 @@
           {:else}
             <div class="archive-list">
               {#each $state.game.replayIndex as replay}
-                <button class="archive-card" class:selected={selectedReplayStorageKey === replay.storageKey} on:click={() => selectReplay(replay.storageKey)}>
+                <button class="archive-card" class:selected={selectedReplayStorageKey === replay.replayId} on:click={() => selectReplay(replay.replayId)}>
                   <strong>{replay.summary}</strong>
                   <small>Cycle {replay.cycleNumber} | {replay.mutatorIds.map((id) => getMutator(id).label).join(', ') || 'No mutators'}</small>
                   {#if replay.summaryOnly}
@@ -1243,6 +1333,7 @@
   .troop-chip,
   .list-button,
   .draft-card,
+  .slot-card,
   .title-button {
     border: 1px solid rgba(126, 157, 181, 0.2);
     border-radius: 14px;
@@ -1552,6 +1643,73 @@
     display: grid;
     place-items: center;
     padding: 2rem;
+  }
+
+  .menu-screen {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+  }
+
+  .menu-panel {
+    width: min(1180px, 100%);
+    display: grid;
+    gap: 1.4rem;
+    padding: 2rem;
+    border-radius: 28px;
+    border: 1px solid rgba(193, 162, 114, 0.22);
+    background:
+      linear-gradient(150deg, rgba(17, 29, 41, 0.96), rgba(10, 15, 22, 0.98)),
+      radial-gradient(circle at top left, rgba(197, 154, 90, 0.18), transparent 38%);
+  }
+
+  .menu-copy {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+
+  .slot-card {
+    min-height: 220px;
+    display: grid;
+    gap: 0.8rem;
+    align-content: start;
+    text-align: left;
+  }
+
+  .slot-card.selected {
+    outline: 2px solid #d4ad73;
+    background:
+      linear-gradient(145deg, rgba(44, 31, 15, 0.96), rgba(17, 22, 30, 0.96)),
+      radial-gradient(circle at top left, rgba(212, 173, 115, 0.18), transparent 42%);
+  }
+
+  .slot-card-header,
+  .slot-meta,
+  .menu-actions {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .slot-label {
+    color: #c7b18b;
+    font-size: 0.76rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .slot-meta {
+    color: #9db2c4;
+  }
+
+  .menu-actions {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
   .draft-panel {
