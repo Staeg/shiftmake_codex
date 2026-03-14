@@ -1,6 +1,6 @@
 # TECHNICAL.md
 
-Technical implementation reference for Shiftmake. Read alongside the design docs in `design documents/` and `CLAUDE.md` (project guidance).
+Technical implementation reference for Shiftmake. Read alongside the design docs in `design documents/` and `AGENTS.md`.
 
 ---
 
@@ -12,199 +12,266 @@ Technical implementation reference for Shiftmake. Read alongside the design docs
 | Build | Vite |
 | UI framework | Svelte |
 | Battle renderer | PixiJS |
-| Pixel art authoring | Aseprite |
 | Testing | Vitest |
-| Save state | localStorage (serialized game state) |
+| Save state | localStorage + serialized replay payloads |
 | Android (stretch) | Capacitor |
 | Multiplayer server (stretch) | Node.js + `ws` |
 
 ---
 
-## Foundational Architecture Principle
+## Core Rule
 
-**The game engine must have zero dependencies on rendering or the DOM.**
+**All game logic lives in `src/engine/` with no rendering or DOM dependencies.**
 
-All game logic lives in `src/engine/` as pure TypeScript. It takes game state and inputs, returns new game state and event logs. No PixiJS, no Svelte, no `document` anywhere in this layer. This enables:
+The UI and Pixi layers consume engine outputs. They do not decide battle outcomes, mutate combat logic, or maintain parallel gameplay state.
 
-- Unit testing all game logic with Vitest, no browser required
-- Running the same engine on a Node.js multiplayer server
-- Completely replacing the renderer without touching game logic
+This keeps the project testable, deterministic, and portable to a future server-authoritative or mobile setup.
 
 ---
 
-## Directory Structure
+## Project Shape
 
-```
+```text
 src/
-  engine/           # Pure TypeScript. Zero rendering deps.
-    types.ts        # All shared data types/interfaces
-    battle.ts       # Battle resolution — takes two armies, returns BattleLog
-    army.ts         # Faction/troop/unit state and mutations
-    rift.ts         # Rift generation and reward logic
-    upgrades.ts     # Upgrade tree definitions and application
-    save.ts         # serializeGameState / deserializeGameState
+  engine/
+    types.ts        # Shared game/battle/catalog data contracts
+    unitCatalog.ts  # Factions, unit types, abilities, upgrades, mutators
+    army.ts         # Troop instance resolution and upgrade application
+    battle.ts       # Deterministic battle simulator + replay generation
+    game.ts         # Campaign loop / cycle resolution
+    rift.ts         # Rift generation and reward setup
+    save.ts         # Save/load validation and serialization
 
-  ui/               # Svelte components
+  store/
+    gameStore.ts    # Svelte-facing campaign state and actions
+    debugBattleStore.ts
+    saveSlots.ts
+
+  ui/
     App.svelte
-    screens/        # Full-screen views (strategic map, upgrade screen, etc.)
-    components/     # Reusable UI elements
+    UnitTooltip.svelte
+    EventLog.svelte
 
-  rendering/        # PixiJS battle viewer
-    BattleRenderer.ts   # Owns the PixiJS Application instance
-    animations/         # Per-unit-type sprite animation logic
-
-  store.ts          # Single Svelte store wrapping GameState
-  main.ts           # Entry point
+  rendering/
+    BattleRenderer.ts
 ```
 
 ---
 
-## Data Flow
+## Data Model
 
-```
-User input (Svelte UI)
-  → calls engine function (e.g. engine/rift.ts)
-  → returns new GameState + optional BattleLog
-  → store.ts updates the Svelte store
-  → Svelte UI re-renders reactively
-  → if BattleLog present, rendering/ plays it back via PixiJS
-```
+### Unit identity
 
-Game state is a single serializable plain object (`GameState`). Mutations never happen in place — engine functions return new state. This makes save/load and future undo/replay straightforward.
+Every resolved combatant now has:
+
+- `type`: one primary troop identity such as `soldier`, `archer`, or `shaman`
+- `attributes`: secondary tags such as `melee`, `caster`, `ranged`, faction tags, and special traits
+
+This split matters in code:
+
+- target filters such as `Only`, `Not`, and `Prio` match against the combined visible tag set of `type + attributes`
+- Combined Arms counts distinct friendly primary `type` values only
+- faction composition adds attributes, not extra primary types
+
+### Catalog composition
+
+The catalog layer is declarative:
+
+- `UnitTypeDefinition` provides primary `type`, base `attributes`, stats, quantity, cost, and ability ids
+- `FactionDefinition` provides stat adjustments, default roster, added faction attributes, and faction-wide ability ids
+- `FactionUpgradeDefinition` can inject abilities, attributes, or stat modifiers
+- `composeBaseTroopDefinition()` in `src/engine/unitCatalog.ts` builds the base troop
+- `resolveTroopCombatant()` in `src/engine/army.ts` applies troop upgrade levels, faction upgrades, and enemy tier scaling
+
+### Ability model
+
+Abilities are fully data-driven and split into four axes:
+
+- `trigger`: when the ability is allowed to fire
+- `duration`: how long its effects last
+- `target`: how recipients are selected
+- `effects`: what actually happens
+
+Current timing support:
+
+- `startOfBattle`
+- `startOfTurn`
+- `endOfTurn`
+- `onAttack`
+- `onKill`
+- `onDeath`
+- `onDamaged`
+- `onFallen`
+- `passive` for non-battle or non-triggered catalog presence
+
+Current duration support:
+
+- `instant`
+- `battle`
+- `turns`
+
+Current trigger modifiers include:
+
+- `chargeEvery`
+- `maxUses`
+- `condition: 'forsaken'`
+- `repeatPerDistinctFriendlyTroopType`
+- `repeatPerOtherFriendlyUnitOnHex`
+- `fallen` trigger geometry
+
+Current target filters include:
+
+- `notTypes`
+- `onlyTypes`
+- `prioritizeTypes`
+- `unengaged`
+
+Current effect kinds include:
+
+- `blast`
+- `bolster`
+- `haste`
+- `heal`
+- `ramp`
+- `rangeset`
+- `roleset`
+- `strike`
+- `redirect`
+
+`redirect` is the engagement effect used by Taunt-style abilities. It routes through normal targeting instead of bespoke taunt-only logic.
 
 ---
 
-## Key Type Definitions (starting point for `engine/types.ts`)
+## Battle Runtime
 
-```typescript
-type UnitTypeId = string;   // e.g. "archer", "berserker"
-type FactionId = string;    // e.g. "elves", "trolls"
+### Public contract
 
-interface UnitType {
-  id: UnitTypeId;
-  baseStats: UnitStats;
-}
+Battle entrypoint:
 
-interface Faction {
-  id: FactionId;
-  defaultUnitTypes: UnitTypeId[];
-}
-
-interface Troop {
-  factionId: FactionId;
-  unitTypeId: UnitTypeId;
-  count: number;
-  upgrades: UpgradeId[];
-}
-
-interface Army {
-  troops: Troop[];
-}
-
-interface Rift {
-  id: string;
-  reward: Reward;
-  enemyArmy: Army;
-}
-
-interface BattleLogEvent {
-  type: string;    // "attack", "defeat", etc.
-  // event-specific payload
-}
-
-interface BattleLog {
-  events: BattleLogEvent[];
-  outcome: "victory" | "defeat";
-}
-
-interface GameState {
-  playerArmy: Army;
-  resources: Record<string, number>;
-  openRifts: Rift[];
-  recoveryTimers: Record<string, number>;  // troopId → turns remaining
-  unlockedFactions: FactionId[];
-}
+```ts
+resolveBattle(input: BattleInput): BattleReplay
 ```
+
+The battle engine is deterministic for a fixed seed and input. The replay contains:
+
+- initial snapshot
+- ordered `BattleStep[]`
+- final outcome
+- troop profiles used for tooltip/UI display
+- alive-count summaries over time
+
+The renderer is a replay consumer only.
+
+### Internal execution model
+
+`battle.ts` uses a mutable internal working state during simulation, but that state is local to the battle resolver. No live engine state is shared with the UI.
+
+The turn loop is:
+
+1. Apply per-beat initiative gain
+2. Select ready units
+3. For each acting unit:
+   - fire `startOfTurn` abilities
+   - execute tactical behavior from its role/engagement state
+   - fire `endOfTurn` abilities
+   - expire temporary timed effects on that unit
+
+### Temporary effects
+
+Timed abilities are implemented through per-unit active effect instances.
+
+Each temporary runtime entry stores:
+
+- source ability id
+- source unit id
+- remaining own-turn expirations
+- enough applied state to roll the effect back cleanly
+
+The current reversible timed-effect system supports:
+
+- `bolster`
+- `haste`
+- `ramp`
+- `rangeset`
+- `roleset`
+
+This is what allows effects like Pack to exist as normal authored abilities instead of special-case damage math.
+
+### Engagements
+
+Engagement capacity and size are enforced at runtime:
+
+- a unit's `capacity` limits how much enemy `size` it can engage
+- a unit's `size` determines how much capacity it consumes when targeted
+- engagements are tracked symmetrically on both units
+
+`redirect` does not steal existing engagements. It only creates a new engagement when the target is valid and the actor still has spare capacity.
 
 ---
 
-## Battle System
+## Replay/UI Boundary
 
-Battle resolution is a pure function:
+The replay snapshot and troop profile data intentionally duplicate resolved battle-facing information so the UI does not need to recompute gameplay state.
 
-```typescript
-function resolveBattle(playerTroop: Troop, enemyArmy: Army): BattleLog
-```
+That includes:
 
-It produces a complete ordered log of events — every attack, counter, defeat — that fully describes what happened. The renderer plays this log back as animation; it never computes battle outcomes itself.
+- `type`
+- `attributes`
+- role
+- resolved stats
+- abilities
 
-**Determinism is required.** Given the same inputs, `resolveBattle` must always produce the same log. If randomness is used, seed the RNG and include the seed in the log so replays are reproducible.
-
----
-
-## Battle Screen & Information Layer
-
-The battle screen layers two systems:
-
-```
-<div style="position: relative; width: 100%; height: 100%">
-  <canvas />                    <!-- PixiJS: sprites, animations -->
-  <div id="overlay" />          <!-- Svelte: tooltips, stat panels, combat log -->
-</div>
-```
-
-PixiJS handles all animated/sprite content. Svelte handles all informational content (unit stat tooltips, ability descriptions, combat log, etc.).
-
-**Hover interaction pattern:**
-1. PixiJS sprite sets `eventMode = 'static'`, fires `pointerover` with canvas coordinates
-2. Store updates with `hoveredEntity` and screen-space position
-3. Svelte tooltip component reactively appears at that position
-
-No game-logic decisions are made on the battle screen — it is a viewer only. Richness of information display is encouraged; interactivity is limited to panning/zooming the view and hovering for info.
+Tooltips and overlays should read from replay/profile data, not from catalog assumptions.
 
 ---
 
 ## Save System
 
-State is saved to `localStorage` as JSON. The save boundary is explicit:
+Campaign state is serialized as plain JSON. Replay payloads are also stored as serializable data, keyed separately from the main campaign save.
 
-```typescript
-// engine/save.ts
-export function serialize(state: GameState): string
-export function deserialize(json: string): GameState
-```
+Rules:
 
-All game state must be expressible as plain JSON — no class instances, no circular references, no non-serializable values anywhere in `GameState`. Enforce this at the type level (no methods on state objects).
+- no classes in persistent state
+- no functions or non-JSON values
+- replay payloads must be reconstructible from saved battle input
 
-Auto-save after every player decision. Keep a small circular buffer of recent saves for basic undo support.
+The save/load boundary lives in `src/engine/save.ts`.
 
 ---
 
-## Build & Development Commands
+## Testing Strategy
 
-```bash
-npm install
-npm run dev       # Vite dev server with hot reload
-npm run build     # Production build
-npm run test      # Vitest (engine logic only, no browser required)
-npm run preview   # Preview production build locally
-```
+`npm run test` covers the engine and store layers. The most important battle tests currently verify:
+
+- deterministic battle resolution
+- faction/unit composition
+- ability definition resolution
+- charge and max-use behavior
+- forsaken gating
+- Combined Arms repeat logic
+- temporary Pack-style turn buffs and expiry
+- type/attribute-based targeting
+
+When adding new ability modifiers or effect kinds, add tests in `src/engine/battle.test.ts` before wiring the UI.
 
 ---
 
 ## Coding Conventions
 
-- Engine functions are pure: `(state, input) => newState`. No mutation.
-- IDs are `string` type aliases (`FactionId`, `UnitTypeId`) for self-documenting code.
-- `BattleLog` is the only communication channel between engine and renderer — never pass live game state into PixiJS code.
-- Svelte stores hold `GameState`. Components read from the store; they never hold game state locally.
-- No class hierarchies in game data. Prefer interfaces + standalone functions over OOP inheritance. Composition via interfaces.
+- Keep catalog data declarative in `unitCatalog.ts`
+- Prefer standalone pure-ish functions over classes or inheritance
+- Keep the renderer passive; it should never infer outcomes
+- Use replay steps as the source of truth for battle presentation
+- When extending ability behavior, prefer adding typed fields and generic runtime helpers before adding one-off branches
 
 ---
 
-## Stretch Goal Notes
+## Build Commands
 
-**Android (Capacitor):** The Vite web build wraps directly. No code changes required if `GameState` serialization is clean and no desktop-only browser APIs are used.
-
-**Multiplayer:** The server imports `src/engine/` directly (same TypeScript, compiled for Node.js). It is the authority on battle outcomes. Clients send troop selections; server returns `BattleLog`. The clean engine boundary makes this straightforward to add later without refactoring.
-
+```bash
+npm install
+npm run dev
+npm run build
+npm run test
+npm run preview
+```

@@ -27,18 +27,13 @@ Each Rift is defined by a bundle of properties:
 
 ### Number of Rifts per cycle
 
-* The first cycle should have 3 Rifts, one of which is tier 2 and the others tier 1. The notation used to represent this is 2/1/1. The cycles after that should have the following Rift tiers:
+* The first cycle should have 3 Rifts, one of which is tier 2 and the others tier 1. The notation used to represent this is 1/1/1/1. The cycles after that should have the following Rift tiers:
   * 2/1/1/1
   * 2/2/1/1
   * 3/2/1/1
-  * 3/2/1/1/1
-  * 3/2/2/1/1
-  * 3/2/2/2/1
-  * 3/3/2/2/1
-  * 4/3/2/2/1
-  * 4/3/3/2/1
-  * 4/3/3/2/2
-  * Finally, cycle 12 and onwards should be 4/3/3/3/2: one tier 4 Rift, three tier 3 Rifts, one tier 2 Rift.
+  * 3/2/2/1
+  * 3/3/2/1
+  * Finally, cycle 7 and onwards should be 4/3/2/1: one Rift of each tier.
 
 ### Mutators (battle-level)
 

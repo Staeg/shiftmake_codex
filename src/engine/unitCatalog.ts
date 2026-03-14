@@ -1,11 +1,17 @@
 import { fixed, fixedClamp, fixedMax, fixedMul } from './fixed';
 import type {
   AbilityDefinition,
+  AbilityDurationDefinition,
+  AbilityEffectDefinition,
   AbilityId,
+  AbilityTargetFilters,
+  AbilityTiming,
+  AbilityTriggerDefinition,
   FactionDefinition,
   FactionId,
   FactionUpgradeDefinition,
   MutatorDefinition,
+  RoleId,
   TroopDefinition,
   TroopStatKey,
   UnitStats,
@@ -20,91 +26,178 @@ function makeAbility(definition: AbilityDefinition): AbilityDefinition {
   return definition;
 }
 
+function instantDuration(): AbilityDurationDefinition {
+  return { kind: 'instant' };
+}
+
+function battleDuration(): AbilityDurationDefinition {
+  return { kind: 'battle' };
+}
+
+function turnsDuration(turns: number): AbilityDurationDefinition {
+  return { kind: 'turns', turns };
+}
+
+function selfTarget() {
+  return { mode: 'self' as const };
+}
+
+function randomTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number, filters?: AbilityTargetFilters) {
+  return { mode: 'random' as const, allegiance, radius, filters };
+}
+
+function aoeTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number, filters?: AbilityTargetFilters) {
+  return { mode: 'aoe' as const, allegiance, radius, filters };
+}
+
+function statEffect(kind: 'bolster' | 'haste' | 'heal' | 'ramp', amount: number, mode: 'flat' | 'percent'): AbilityEffectDefinition {
+  return { kind, amount, mode };
+}
+
+function roleset(role: RoleId): AbilityEffectDefinition {
+  return { kind: 'roleset', role };
+}
+
+function redirectEffect(): AbilityEffectDefinition {
+  return { kind: 'redirect' };
+}
+
+// Factory for abilities that apply one or more effects to self on a given timing.
+// Pass triggerOpts to layer on charge, maxUses, forsaken, combined-arms, etc.
+function makeSelfStatAbility(
+  id: AbilityId,
+  label: string,
+  timing: AbilityTiming,
+  effects: AbilityEffectDefinition[],
+  shortText: string,
+  duration: AbilityDurationDefinition = battleDuration(),
+  triggerOpts?: Partial<Omit<AbilityTriggerDefinition, 'timing'>>,
+): AbilityDefinition {
+  return makeAbility({ id, label, trigger: { timing, ...triggerOpts }, duration, target: selfTarget(), effects, shortText });
+}
+
+// Factory for the common triple-boost pattern (bolster + haste + ramp, all percent, startOfBattle).
+function makeTripleBoostAbility(
+  id: AbilityId,
+  label: string,
+  amount: number,
+  shortText: string,
+  triggerOpts?: Partial<Omit<AbilityTriggerDefinition, 'timing'>>,
+): AbilityDefinition {
+  return makeSelfStatAbility(
+    id,
+    label,
+    'startOfBattle',
+    [statEffect('bolster', amount, 'percent'), statEffect('haste', amount, 'percent'), statEffect('ramp', amount, 'percent')],
+    shortText,
+    battleDuration(),
+    triggerOpts,
+  );
+}
+
 export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
   'blast-5': makeAbility({
     id: 'blast-5',
     label: 'Blast 5',
-    trigger: 'onAttack',
-    effect: 'blast',
-    amount: 5,
+    trigger: { timing: 'onAttack' },
+    duration: instantDuration(),
+    effects: [{ kind: 'blast', amount: 5 }],
     shortText: 'On attack: all enemies on the attacked hex take 5 damage.',
   }),
-  'regen-5': makeAbility({
-    id: 'regen-5',
-    label: 'Regen 5',
-    trigger: 'endOfTurn',
-    effect: 'heal',
-    amount: 5,
-    shortText: 'End of turn: heal self for 5.',
-  }),
+  'regen-5': makeSelfStatAbility('regen-5', 'Regen 5', 'endOfTurn', [statEffect('heal', 5, 'flat')], 'End of turn: heal self for 5.', instantDuration()),
   'valor-20': makeAbility({
     id: 'valor-20',
     label: 'Valor 20',
-    trigger: 'onKill',
-    effect: 'heal',
-    amount: 20,
-    radius: 0,
+    trigger: { timing: 'onKill' },
+    duration: instantDuration(),
+    target: aoeTarget('ally', 0),
+    effects: [statEffect('heal', 20, 'flat')],
     shortText: 'On kill: heal allies on this hex for 20.',
   }),
   united: makeAbility({
     id: 'united',
     label: 'United',
-    trigger: 'passive',
-    effect: 'boost',
-    amount: 0,
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
     overworldEffectId: 'united',
     shortText: 'Overworld: troops of this faction may enter the same Rift together.',
   }),
-  'combined-arms-boost-20': makeAbility({
-    id: 'combined-arms-boost-20',
-    label: 'Combined Arms: Boost 20',
-    trigger: 'startOfBattle',
-    effect: 'boost',
-    amount: 20,
-    repeatPerDistinctFriendlyTroopType: true,
-    shortText: 'Start of battle: gain 20% health, damage, and speed for each other friendly troop type.',
-  }),
-  'forsaken-boost-80': makeAbility({
-    id: 'forsaken-boost-80',
-    label: 'Forsaken: Boost 80',
-    trigger: 'startOfBattle',
-    effect: 'boost',
-    amount: 80,
-    condition: 'forsaken',
-    shortText: 'Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.',
-  }),
+  'combined-arms-boost-20': makeTripleBoostAbility(
+    'combined-arms-boost-20',
+    'Power of Friendship',
+    20,
+    'Start of battle: gain 20% health, damage, and speed for each other friendly troop type.',
+    { repeatPerDistinctFriendlyTroopType: true },
+  ),
+  'forsaken-boost-80': makeTripleBoostAbility(
+    'forsaken-boost-80',
+    'Forsaken: Boost 80',
+    80,
+    'Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.',
+    { condition: 'forsaken' },
+  ),
   'goblin-farewell': makeAbility({
     id: 'goblin-farewell',
     label: 'Goblin Farewell',
-    trigger: 'onDeath',
-    effect: 'strike',
-    amount: 1,
-    radius: 0,
+    trigger: { timing: 'onDeath' },
+    duration: instantDuration(),
+    target: randomTarget('enemy', 0),
+    effects: [{ kind: 'strike', amount: 1 }],
     shortText: 'On death: strike a random enemy on this hex one extra time.',
   }),
-  'pack-1': makeAbility({
-    id: 'pack-1',
-    label: 'Pack 1',
-    trigger: 'passive',
-    effect: 'pack',
-    amount: 1,
-    shortText: 'Passive: gain +1 damage per allied unit on this hex.',
+  'pack-1': makeSelfStatAbility(
+    'pack-1',
+    'Pack 1',
+    'startOfTurn',
+    [statEffect('ramp', 1, 'flat')],
+    'Start of turn: gain +1 damage per other friendly unit on this hex until end of turn.',
+    turnsDuration(1),
+    { repeatPerOtherFriendlyUnitOnHex: true },
+  ),
+  'ramp-1': makeSelfStatAbility('ramp-1', 'Ramp 1', 'endOfTurn', [statEffect('ramp', 1, 'flat')], 'End of turn: gain +1 damage for the battle.'),
+  'frenzy-ramp-1': makeSelfStatAbility('frenzy-ramp-1', 'Frenzy: Ramp 1', 'onDamaged', [statEffect('ramp', 1, 'flat')], 'After taking damage: gain +1 damage for the battle.'),
+  taunt: makeAbility({
+    id: 'taunt',
+    label: 'Taunt',
+    trigger: { timing: 'endOfTurn' },
+    duration: instantDuration(),
+    target: aoeTarget('enemy', 0, { unengaged: true }),
+    effects: [redirectEffect()],
+    shortText: 'End of turn: engage unengaged enemies on this hex up to Capacity.',
   }),
-  'ramp-1': makeAbility({
-    id: 'ramp-1',
-    label: 'Ramp 1',
-    trigger: 'endOfTurn',
-    effect: 'ramp',
-    amount: 1,
-    shortText: 'End of turn: gain +1 damage for the battle.',
+  'vengeance-1': makeAbility({
+    id: 'vengeance-1',
+    label: 'Vengeance 1',
+    trigger: { timing: 'onFallen', fallen: { allegiance: 'ally', radius: 0 } },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
+    shortText: 'When an ally is knocked out on this hex, gain +1 speed and +1 damage for the battle.',
   }),
-  'frenzy-ramp-1': makeAbility({
-    id: 'frenzy-ramp-1',
-    label: 'Frenzy: Ramp 1',
-    trigger: 'onDamaged',
-    effect: 'ramp',
-    amount: 1,
-    shortText: 'After taking damage: gain +1 damage for the battle.',
+  'enhance-1': makeAbility({
+    id: 'enhance-1',
+    label: 'Enhance 1',
+    trigger: { timing: 'endOfTurn' },
+    duration: battleDuration(),
+    target: randomTarget('ally', 2, { notTypes: ['caster'] }),
+    effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
+    shortText: 'End of turn: a random nearby allied non-caster gains +1 speed and +1 damage for the battle.',
+  }),
+  'shapeshift-bear': makeAbility({
+    id: 'shapeshift-bear',
+    label: 'Shapeshift - Bear',
+    trigger: { timing: 'endOfTurn', chargeEvery: 5, maxUses: 1 },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [
+      statEffect('bolster', 100, 'flat'),
+      statEffect('haste', 5, 'flat'),
+      statEffect('ramp', 20, 'flat'),
+      { kind: 'rangeset', value: 0 },
+      roleset('frontline'),
+    ],
+    shortText: 'After 5 turns, transform once: gain health, speed, and damage, then become a frontline melee unit.',
   }),
 };
 
@@ -113,7 +206,8 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     id: 'soldier',
     label: 'Soldier',
     role: 'frontline',
-    types: ['soldier', 'melee'],
+    type: 'soldier',
+    attributes: ['melee'],
     stats: { health: 100, damage: 10, speed: 10, range: 0, armor: 2, size: 1, capacity: 2 },
     quantity: 5,
     cost: 100,
@@ -123,17 +217,52 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     id: 'champion',
     label: 'Champion',
     role: 'frontline',
-    types: ['champion', 'melee'],
+    type: 'champion',
+    attributes: ['melee'],
     stats: { health: 150, damage: 20, speed: 17, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ['valor-20'],
   },
+  avenger: {
+    id: 'avenger',
+    label: 'Avenger',
+    role: 'frontline',
+    type: 'avenger',
+    attributes: ['melee'],
+    stats: { health: 200, damage: 10, speed: 10, range: 0, armor: 0, size: 2, capacity: 1 },
+    quantity: 1,
+    cost: 40,
+    abilityIds: ['vengeance-1'],
+  },
+  druid: {
+    id: 'druid',
+    label: 'Druid',
+    role: 'backline',
+    type: 'druid',
+    attributes: ['caster'],
+    stats: { health: 20, damage: 10, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    quantity: 3,
+    cost: 80,
+    abilityIds: ['shapeshift-bear'],
+  },
+  knight: {
+    id: 'knight',
+    label: 'Knight',
+    role: 'frontline',
+    type: 'knight',
+    attributes: ['melee'],
+    stats: { health: 200, damage: 20, speed: 7, range: 0, armor: 10, size: 2, capacity: 5 },
+    quantity: 1,
+    cost: 60,
+    abilityIds: ['taunt'],
+  },
   militia: {
     id: 'militia',
     label: 'Militia',
     role: 'chaff',
-    types: ['militia', 'melee', 'expendable'],
+    type: 'militia',
+    attributes: ['melee', 'expendable'],
     stats: { health: 40, damage: 8, speed: 12, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 10,
     cost: 60,
@@ -143,7 +272,8 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     id: 'archer',
     label: 'Archer',
     role: 'backline',
-    types: ['archer', 'ranged'],
+    type: 'archer',
+    attributes: ['ranged'],
     stats: { health: 30, damage: 10, speed: 10, range: 2, armor: 0, size: 1, capacity: 0 },
     quantity: 5,
     cost: 100,
@@ -153,11 +283,23 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     id: 'wizard',
     label: 'Wizard',
     role: 'backline',
-    types: ['wizard', 'caster'],
+    type: 'wizard',
+    attributes: ['caster'],
     stats: { health: 20, damage: 10, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
     quantity: 3,
     cost: 60,
     abilityIds: ['blast-5'],
+  },
+  shaman: {
+    id: 'shaman',
+    label: 'Shaman',
+    role: 'backline',
+    type: 'shaman',
+    attributes: ['caster'],
+    stats: { health: 20, damage: 10, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    quantity: 3,
+    cost: 60,
+    abilityIds: ['enhance-1'],
   },
 };
 
@@ -167,8 +309,8 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     label: 'Humans',
     singularLabel: 'Human',
     description: 'Slightly better at pretty much everything. Boring but solid.',
-    addedTypes: ['human'],
-    defaultUnitTypeIds: ['soldier', 'champion', 'militia', 'archer'],
+    addedAttributes: ['human'],
+    defaultUnitTypeIds: ['soldier', 'champion', 'knight', 'militia', 'archer'],
     statAdjustments: {
       health: { multiplier: 1.1 },
       damage: { multiplier: 1.1 },
@@ -184,8 +326,8 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     label: 'Elves',
     singularLabel: 'Elven',
     description: 'Feared from afar. Less so up close.',
-    addedTypes: ['elf'],
-    defaultUnitTypeIds: ['soldier', 'archer', 'wizard'],
+    addedAttributes: ['elf'],
+    defaultUnitTypeIds: ['archer', 'druid', 'soldier', 'wizard'],
     statAdjustments: {
       health: { multiplier: 0.9 },
       damage: { multiplier: 1.2 },
@@ -200,8 +342,8 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     label: 'Goblins',
     singularLabel: 'Goblin',
     description: "The one good thing you can say about goblins is that there's more than one of them.",
-    addedTypes: ['goblin', 'expendable'],
-    defaultUnitTypeIds: ['soldier', 'militia', 'wizard'],
+    addedAttributes: ['goblin', 'expendable'],
+    defaultUnitTypeIds: ['shaman', 'soldier', 'militia', 'wizard'],
     statAdjustments: {
       health: { multiplier: 0.7 },
       damage: { multiplier: 0.8 },
@@ -218,8 +360,8 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     label: 'Trolls',
     singularLabel: 'Troll',
     description: 'Never down for the count, never down for counting.',
-    addedTypes: ['troll'],
-    defaultUnitTypeIds: ['soldier', 'champion'],
+    addedAttributes: ['troll'],
+    defaultUnitTypeIds: ['avenger', 'champion', 'shaman', 'soldier'],
     statAdjustments: {
       health: { multiplier: 1.3 },
       damage: { multiplier: 1.2 },
@@ -431,7 +573,8 @@ export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: Uni
     unitTypeId,
     label: `${faction.singularLabel} ${unitType.label}`,
     role: unitType.role,
-    types: [...new Set([...unitType.types, ...faction.addedTypes])],
+    type: unitType.type,
+    attributes: [...new Set([...unitType.attributes, ...faction.addedAttributes])],
     stats,
     quantity: unitType.quantity,
     cost: fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 1),
@@ -509,7 +652,7 @@ export function getUpgradeableStatsForUnitType(unitTypeId: UnitTypeId): TroopSta
   if (unitTypeId === 'archer') {
     stats.push('range');
   }
-  if (unitTypeId === 'soldier') {
+  if (unitTypeId === 'soldier' || unitTypeId === 'knight') {
     stats.push('armor');
   }
   return stats;

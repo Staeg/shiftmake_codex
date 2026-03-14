@@ -105,11 +105,11 @@ function applyFactionUpgradeEffects(
   unitTypeId: UnitTypeId,
   stats: UnitStats,
   abilities: AbilityDefinition[],
-  types: string[],
-): { stats: UnitStats; abilities: AbilityDefinition[]; types: string[] } {
+  attributes: string[],
+): { stats: UnitStats; abilities: AbilityDefinition[]; attributes: string[] } {
   let nextStats = { ...stats };
   const nextAbilities = [...abilities];
-  const nextTypes = [...types];
+  const nextAttributes = [...attributes];
 
   state.factionUpgradeIds
     .map(getFactionUpgrade)
@@ -124,9 +124,9 @@ function applyFactionUpgradeEffects(
           return;
         }
 
-        if (effect.kind === 'addTag') {
-          if (!nextTypes.includes(effect.tag)) {
-            nextTypes.push(effect.tag);
+        if (effect.kind === 'addAttribute') {
+          if (!nextAttributes.includes(effect.attribute)) {
+            nextAttributes.push(effect.attribute);
           }
           return;
         }
@@ -139,7 +139,7 @@ function applyFactionUpgradeEffects(
       });
     });
 
-  return { stats: nextStats, abilities: nextAbilities, types: nextTypes };
+  return { stats: nextStats, abilities: nextAbilities, attributes: nextAttributes };
 }
 
 export function resolveTroopCombatant(
@@ -152,7 +152,7 @@ export function resolveTroopCombatant(
   const base = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
   const scaled = applyTierScaling(base.stats, side === 'enemy' ? enemyTier : null);
   const upgraded = applyUpgradeLevels(scaled, troop);
-  const withFactionEffects = applyFactionUpgradeEffects(state, troop.factionId, troop.unitTypeId, upgraded, base.abilities, base.types);
+  const withFactionEffects = applyFactionUpgradeEffects(state, troop.factionId, troop.unitTypeId, upgraded, base.abilities, base.attributes);
 
   return {
     combatantId,
@@ -161,7 +161,8 @@ export function resolveTroopCombatant(
     troopInstanceId: troop.id,
     label: base.label,
     role: base.role,
-    types: withFactionEffects.types,
+    type: base.type,
+    attributes: withFactionEffects.attributes,
     stats: withFactionEffects.stats,
     abilities: withFactionEffects.abilities,
     quantity: troop.quantity,

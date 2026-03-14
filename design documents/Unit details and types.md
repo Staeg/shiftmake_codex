@@ -3,7 +3,8 @@ Factions have
 
 Per-unit battle stats:
 
-* Types: faction and troop-type tags. They do nothing on their own, but abilities/upgrades can reference them.
+* Type: the unit's single primary troop identity. This is what Combined Arms counts.
+* Attributes: secondary tags such as faction, ranged/caster/melee, expendable, etc. Type-based ability filters match against the combined set of `Type + Attributes`.
 * Health: damage required to knock the unit out.
 * Damage: health removed from the target on a normal attack. Cannot go below 0.
 * Speed: initiative gained each Beat. Cannot go below 1 or above 100.
@@ -23,54 +24,10 @@ Notes on Size and Capacity:
 
 ## Unit types
 
-### Soldier
-
-* Types: soldier, melee
-* Health: 100
-* Damage: 10
-* Speed: 10
-* Range: 0
-* Armor: 2
-* Size: 1
-* Capacity: 2
-* Role: Frontline
-* Abilities: none
-* Quantity: 5
-* Cost: 100
-
-### Champion
-
-* Types: champion, melee
-* Health: 150
-* Damage: 20
-* Speed: 17
-* Range: 0
-* Armor: 0
-* Size: 2
-* Capacity: 1
-* Role: Frontline
-* Abilities: Valor 20
-* Quantity: 1
-* Cost: 60
-
-### Militia
-
-* Types: militia, melee, expendable
-* Health: 40
-* Damage: 8
-* Speed: 12
-* Range: 0
-* Armor: 0
-* Size: 1
-* Capacity: 1
-* Role: Chaff
-* Abilities: none
-* Quantity: 10
-* Cost: 60
-
 ### Archer
 
-* Types: archer, ranged
+* Type: archer
+* Attributes: ranged
 * Health: 30
 * Damage: 10
 * Speed: 10
@@ -83,8 +40,119 @@ Notes on Size and Capacity:
 * Quantity: 5
 * Cost: 100
 
+### Avenger
+
+* Type: avenger
+* Attributes: melee
+* Health: 200
+* Damage: 10
+* Speed: 10
+* Range: 0
+* Armor: 0
+* Size: 2
+* Capacity: 1
+* Role: Frontline
+* Abilities: Vengeance 1
+* Quantity: 1
+* Cost: 40
+
+### Champion
+
+* Type: champion
+* Attributes: melee
+* Health: 150
+* Damage: 20
+* Speed: 17
+* Range: 0
+* Armor: 0
+* Size: 2
+* Capacity: 1
+* Role: Frontline
+* Abilities: Valor 20
+* Quantity: 1
+* Cost: 60
+
+### Druid
+* Type: druid
+* Attributes: caster
+* Health: 20
+* Damage: 10
+* Speed: 8
+* Range: 2
+* Armor: 0
+* Size: 1
+* Capacity: 0
+* Role: Backline
+* Abilities: Shapeshift - Bear
+* Quantity: 3
+* Cost: 80
+
+### Knight
+
+* Type: knight
+* Attributes: melee
+* Health: 200
+* Damage: 20
+* Speed: 7
+* Range: 0
+* Armor: 10
+* Size: 2
+* Capacity: 5
+* Role: Frontline
+* Abilities: Taunt
+* Quantity: 1
+* Cost: 60
+
+### Militia
+
+* Type: militia
+* Attributes: melee, expendable
+* Health: 40
+* Damage: 8
+* Speed: 12
+* Range: 0
+* Armor: 0
+* Size: 1
+* Capacity: 1
+* Role: Chaff
+* Abilities: none
+* Quantity: 10
+* Cost: 60
+
+### Shaman
+* Type: shaman
+* Attributes: caster
+* Health: 20
+* Damage: 10
+* Speed: 8
+* Range: 2
+* Armor: 0
+* Size: 1
+* Capacity: 0
+* Role: Backline
+* Abilities: Enhance 1
+* Quantity: 3
+* Cost: 60
+
+### Soldier
+
+* Type: soldier
+* Attributes: melee
+* Health: 100
+* Damage: 10
+* Speed: 10
+* Range: 0
+* Armor: 2
+* Size: 1
+* Capacity: 2
+* Role: Frontline
+* Abilities: none
+* Quantity: 5
+* Cost: 100
+
 ### Wizard
-* Types: wizard, caster
+* Type: wizard
+* Attributes: caster
 * Health: 20
 * Damage: 10
 * Speed: 8
@@ -102,7 +170,8 @@ Notes on Size and Capacity:
 
 ### Human Soldier
 
-* Types: soldier, melee, human
+* Type: soldier
+* Attributes: melee, human
 * Health: 110
 * Damage: 11
 * Speed: 11
@@ -117,7 +186,8 @@ Notes on Size and Capacity:
 
 ### Troll Champion
 
-* Types: champion, melee, troll
+* Type: champion
+* Attributes: melee, troll
 * Health: 195
 * Damage: 24
 * Speed: 13.6
@@ -133,7 +203,8 @@ Notes on Size and Capacity:
 
 ### Goblin Wizard
 
-* Types: wizard, caster, goblin, expendable
+* Type: wizard
+* Attributes: caster, goblin, expendable
 * Health: 14
 * Damage: 4
 * Speed: 8

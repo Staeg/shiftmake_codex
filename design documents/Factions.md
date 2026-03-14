@@ -1,46 +1,12 @@
 
 # Factions
 
-## Humans
-
-### Default impact
-
-* Description: "Slightly better at pretty much everything. Boring but solid."
-* Types +human
-* Health +10%
-* Damage +10%
-* Speed +10%
-* Range 
-* Armor +1
-* Size 
-* Capacity +1
-* Abilities
-* Quantity
-* Cost -10%
-* Default available troops: Soldier, Champion, Militia, Archer
-
-### Upgrade options available by default
-
-Humans united
-* Cost: 20 gold
-* Effect: all human troops get "United"
-
-### Upgrade options found in Rifts
-
-#### Tier 2
-
-Human combined arms
-* Cost: 80 gold
-* Effect: all human troops get "Combined arms: Boost 20"
-
-#### Tier 3
-
 ## Elves 
 
 ### Default impact
 
 * Description: "Feared from afar. Less so up close."
-* Types +elf
+* Attributes +elf
 * Health -10%
 * Damage +20%
 * Speed +20%
@@ -51,7 +17,7 @@ Human combined arms
 * Abilities
 * Quantity
 * Cost +10%
-* Default available troops: Soldier, Archer, Wizard
+* Default available troops: Archer, Druid, Soldier, Wizard
 
 ### Upgrade options available by default
 
@@ -74,7 +40,7 @@ Elven forsaken
 ### Default impact
 
 * Description: "The one good thing you can say about goblins is that there's more than one of them."
-* Types +goblin +expendable
+* Attributes +goblin +expendable
 * Health -30%
 * Damage -20%
 * Speed
@@ -85,7 +51,7 @@ Elven forsaken
 * Abilities
 * Quantity
 * Cost -60%
-* Default available troops: Soldier, Militia, Wizard
+* Default available troops: Shaman, Soldier, Militia, Wizard
 
 ### Upgrade options available by default
 
@@ -101,15 +67,50 @@ Goblin pack
 * Cost: 60 gold
 * Effect: All goblin units gain "Pack 1"
 
+#### Tier 3
+
+
+## Humans
+
+### Default impact
+
+* Description: "Slightly better at pretty much everything. Boring but solid."
+* Attributes +human
+* Health +10%
+* Damage +10%
+* Speed +10%
+* Range 
+* Armor +1
+* Size 
+* Capacity +1
+* Abilities
+* Quantity
+* Cost -10%
+* Default available troops: Champion, Archer, Knight, Soldier, Militia
+
+### Upgrade options available by default
+
+Humans united
+* Cost: 20 gold
+* Effect: all human troops get "United"
+
+### Upgrade options found in Rifts
+
+#### Tier 2
+
+Human combined arms
+* Cost: 80 gold
+* Effect: all human troops get "Power of friendship"
 
 #### Tier 3
+
 
 ## Trolls
 
 ### Default impact
 
 * Description: "Never down for the count, never down for counting."
-* Types +troll
+* Attributes +troll
 * Health +30%
 * Damage +20%
 * Speed -20%
@@ -120,7 +121,7 @@ Goblin pack
 * Abilities +Regen 5
 * Quantity
 * Cost +30%
-* Default available troops: Soldier, Champion
+* Default available troops: Avenger, Champion, Shaman, Soldier
 
 ### Upgrade options available by default
 

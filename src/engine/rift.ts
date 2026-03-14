@@ -15,17 +15,11 @@ import type {
 } from './types';
 
 const CYCLE_RIFT_TIERS: number[][] = [
-  [2, 1, 1],
   [2, 1, 1, 1],
   [2, 2, 1, 1],
   [3, 2, 1, 1],
-  [3, 2, 1, 1, 1],
-  [3, 2, 2, 1, 1],
-  [3, 2, 2, 2, 1],
-  [3, 3, 2, 2, 1],
-  [4, 3, 2, 2, 1],
-  [4, 3, 3, 2, 1],
-  [4, 3, 3, 2, 2],
+  [3, 2, 2, 1],
+  [3, 3, 2, 1],
 ];
 
 const MUTATOR_POOL: MutatorId[] = ['momentum', 'heavy-air', 'rich', 'outpost', 'quagmire'];
@@ -34,10 +28,20 @@ export function deriveSeed(seed: number, salt: number): number {
   return (seed * 1664525 + 1013904223 + salt * 2654435761) >>> 0;
 }
 
+function mixSeed(seed: number): number {
+  let value = seed >>> 0;
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x7feb352d);
+  value ^= value >>> 15;
+  value = Math.imul(value, 0x846ca68b);
+  value ^= value >>> 16;
+  return value >>> 0;
+}
+
 export function getCycleTierSchedule(cycleNumber: number): number[] {
   return cycleNumber <= CYCLE_RIFT_TIERS.length
     ? [...CYCLE_RIFT_TIERS[cycleNumber - 1]]
-    : [4, 3, 3, 3, 2];
+    : [4, 3, 2, 1];
 }
 
 function randomFactionUnitPairs(): Array<{ factionId: FactionId; unitTypeId: UnitTypeId }> {
@@ -50,8 +54,10 @@ function randomFactionUnitPairs(): Array<{ factionId: FactionId; unitTypeId: Uni
 }
 
 function pickMutators(tier: number, seed: number): MutatorId[] {
-  const rng = createRng(seed);
-  const count = Math.max(0, tier);
+  // Hash the Rift seed before drawing the first mutator so adjacent Rifts/cycles
+  // do not collapse into visible streak patterns.
+  const rng = createRng(mixSeed(seed));
+  const count = tier > 0 ? 1 : 0;
   const selected: MutatorId[] = [];
   let pool = [...MUTATOR_POOL];
   for (let i = 0; i < count && pool.length > 0; i += 1) {

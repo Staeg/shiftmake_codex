@@ -6,7 +6,7 @@
   import { formatFixed } from '../engine/fixed';
   import { validateAssignments } from '../engine/game';
   import { composeBaseTroopDefinition, FACTION_UPGRADES, FACTIONS, UNIT_TYPES, getFaction, getFactionUpgrade, getMutator, getUnitType } from '../engine/unitCatalog';
-  import type { AbilityDefinition, BattleUnit, FactionId, RiftInstance, TroopId, TroopStatKey, UnitTypeId } from '../engine/types';
+  import type { AbilityDefinition, BattleUnit, FactionId, RewardPackage, RiftInstance, TroopId, TroopStatKey, UnitTypeId } from '../engine/types';
   import { gameStore } from '../store/gameStore';
   import type { SaveSlotId, SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
@@ -534,6 +534,20 @@
         return `${key}: ${pct > 0 ? '+' : ''}${formatFixed(pct)}%`;
       });
   }
+
+  function describeRewardPackage(rewardPackage: RewardPackage): string {
+    const parts: string[] = [];
+    if (rewardPackage.resources.gold > 0) {
+      parts.push(`${formatFixed(rewardPackage.resources.gold)} gold`);
+    }
+    if (rewardPackage.resources.essence > 0) {
+      parts.push(`${formatFixed(rewardPackage.resources.essence)} essence`);
+    }
+    if (rewardPackage.upgradeChoiceBatches > 0) {
+      parts.push(`upgrade x${rewardPackage.upgradeChoiceBatches}`);
+    }
+    return parts.join(', ');
+  }
 </script>
 
 {#if $state.screen === 'main_menu'}
@@ -810,7 +824,23 @@
               {/if}
             </div>
           </div>
-          <p>Rewards: {selectedRift.rewardPackage.summaryParts.join(', ')}</p>
+          <div class="reward-summary" aria-label={`Rewards: ${describeRewardPackage(selectedRift.rewardPackage)}`}>
+            {#if selectedRift.rewardPackage.resources.gold > 0}
+              <span class="reward-pill">
+                <i class="resource-icon gold"></i>
+                {formatFixed(selectedRift.rewardPackage.resources.gold)}
+              </span>
+            {/if}
+            {#if selectedRift.rewardPackage.resources.essence > 0}
+              <span class="reward-pill">
+                <i class="resource-icon essence"></i>
+                {formatFixed(selectedRift.rewardPackage.resources.essence)}
+              </span>
+            {/if}
+            {#if selectedRift.rewardPackage.upgradeChoiceBatches > 0}
+              <span class="reward-pill upgrade-pill">Upgrade x{selectedRift.rewardPackage.upgradeChoiceBatches}</span>
+            {/if}
+          </div>
           <div class="compact-list">
             {#each selectedRift.enemyArmy as group}
               <div>
@@ -1038,7 +1068,23 @@
                   <span>{rift.id}</span>
                 </header>
               </button>
-              <p>{rift.rewardPackage.summaryParts.join(', ')}</p>
+              <div class="reward-summary" aria-label={`Rewards: ${describeRewardPackage(rift.rewardPackage)}`}>
+                {#if rift.rewardPackage.resources.gold > 0}
+                  <span class="reward-pill">
+                    <i class="resource-icon gold"></i>
+                    {formatFixed(rift.rewardPackage.resources.gold)}
+                  </span>
+                {/if}
+                {#if rift.rewardPackage.resources.essence > 0}
+                  <span class="reward-pill">
+                    <i class="resource-icon essence"></i>
+                    {formatFixed(rift.rewardPackage.resources.essence)}
+                  </span>
+                {/if}
+                {#if rift.rewardPackage.upgradeChoiceBatches > 0}
+                  <span class="reward-pill upgrade-pill">Upgrade x{rift.rewardPackage.upgradeChoiceBatches}</span>
+                {/if}
+              </div>
               <div class="mutator-list">
                 {#if rift.mutatorIds.length === 0}
                   <span class="mutator-chip empty">No mutators</span>
@@ -1169,8 +1215,7 @@
         </div>
       {:else}
         <div class="panel">
-          <p class="eyebrow">Battle Archive</p>
-          <h2>Recent Replays</h2>
+          <h2>Battle Archive</h2>
           {#if $state.game.replayIndex.length === 0}
             <p>No archived battles yet.</p>
           {:else}
@@ -1247,6 +1292,12 @@
     grid-template-rows: auto 1fr auto;
     gap: 1rem;
     padding: 1rem;
+  }
+
+  .shell {
+    height: 100vh;
+    overflow-y: auto;
+    align-content: start;
   }
 
   .topbar {
@@ -1483,6 +1534,31 @@
     gap: 0.45rem;
   }
 
+  .reward-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .reward-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid rgba(117, 145, 168, 0.18);
+    background: rgba(16, 27, 38, 0.85);
+    color: #dce9f4;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .upgrade-pill {
+    border-color: rgba(212, 173, 115, 0.24);
+    background: rgba(31, 24, 16, 0.82);
+    color: #f1d7ae;
+  }
+
   .ability-row {
     display: grid;
     gap: 0.45rem;
@@ -1589,19 +1665,17 @@
   .resource-icon {
     display: inline-block;
     flex: 0 0 auto;
+    width: 0.78rem;
+    height: 0.78rem;
   }
 
   .resource-icon.gold {
-    width: 0.72rem;
-    height: 0.72rem;
     border-radius: 999px;
     background: radial-gradient(circle at 35% 35%, #fff2a8, #f3cc63 58%, #b8871d 100%);
     box-shadow: 0 0 0 1px rgba(255, 218, 117, 0.2);
   }
 
   .resource-icon.essence {
-    width: 0.72rem;
-    height: 0.72rem;
     background: linear-gradient(180deg, #efccff, #a866ff 70%, #6e35c2 100%);
     border-radius: 60% 60% 60% 0;
     transform: rotate(-45deg);

@@ -1,14 +1,21 @@
-# Troop types
-This file describes the effects of various types.
+# Types
+This file describes the effects of various types for the unit's "types" stat field.
 
-# Soldier
-Can upgrade armor.
+## Troop types
 
-# Champion
-Can upgrade speed.
-
-# Archer
+### Archer
 Can upgrade range.
 
-# Goblin
+### Champion
+Can upgrade speed.
+
+### Knight
+Can upgrade armor.
+
+### Soldier
+Can upgrade armor.
+
+## Faction types
+
+### Goblin
 Can upgrade speed.

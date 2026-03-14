@@ -1,14 +1,16 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { resolveDebugBattle } from './battle';
-import { composeTroopDefinition, resolveAbilityDefinition, TROOP_CATALOG } from './unitCatalog';
+import { resolveDebugBattle, resolveBattle } from './battle';
+import { composeTroopDefinition, resolveAbilityDefinition, TROOP_CATALOG, getAbility, getTroopDefinitionOrThrow } from './unitCatalog';
 import { getArmySelectionCost, getTroopSelectionCost } from './unitCatalog';
+import type { AbilityDefinition, BattleInput, ResolvedCombatantDefinition } from './types';
 
 describe('troop composition', () => {
   it('composes faction and unit type stats into a resolved troop', () => {
     const troop = composeTroopDefinition('human', 'soldier');
 
     expect(troop.label).toBe('Human Soldier');
-    expect(troop.types).toEqual(['soldier', 'melee', 'human']);
+    expect(troop.type).toBe('soldier');
+    expect(troop.attributes).toEqual(['melee', 'human']);
     expect(troop.stats).toEqual({
       health: 110,
       damage: 11,
@@ -39,27 +41,70 @@ describe('troop composition', () => {
     expect(troop.cost).toBe(78);
   });
 
+  it('composes knight stats and abilities', () => {
+    const troop = composeTroopDefinition('human', 'knight');
+
+    expect(troop.label).toBe('Human Knight');
+    expect(troop.type).toBe('knight');
+    expect(troop.attributes).toEqual(['melee', 'human']);
+    expect(troop.stats).toEqual({
+      health: 220,
+      damage: 22,
+      speed: 7.7,
+      range: 0,
+      armor: 11,
+      size: 2,
+      capacity: 6,
+    });
+    expect(troop.abilities.map((ability) => ability.label)).toEqual(['Taunt']);
+    expect(troop.quantity).toBe(1);
+    expect(troop.cost).toBe(54);
+  });
+
+  it('adds new faction roster units with their abilities', () => {
+    expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 1', 'Regen 5']);
+    expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
+    expect(composeTroopDefinition('goblin', 'shaman').abilities.map((ability) => ability.label)).toEqual(['Enhance 1']);
+  });
+
   it('resolves named abilities from baseline effects plus modifiers', () => {
     expect(resolveAbilityDefinition('blast-5')).toMatchObject({
       label: 'Blast 5',
-      trigger: 'onAttack',
-      effect: 'blast',
-      amount: 5,
+      trigger: { timing: 'onAttack' },
+      effects: [{ kind: 'blast', amount: 5 }],
     });
 
     expect(resolveAbilityDefinition('valor-20')).toMatchObject({
       label: 'Valor 20',
-      trigger: 'onKill',
-      effect: 'heal',
-      radius: 0,
-      amount: 20,
+      trigger: { timing: 'onKill' },
+      target: { mode: 'aoe', allegiance: 'ally', radius: 0 },
+      effects: [{ kind: 'heal', amount: 20, mode: 'flat' }],
     });
 
     expect(resolveAbilityDefinition('regen-5')).toMatchObject({
       label: 'Regen 5',
-      trigger: 'endOfTurn',
-      effect: 'heal',
-      amount: 5,
+      trigger: { timing: 'endOfTurn' },
+      duration: { kind: 'instant' },
+      target: { mode: 'self' },
+      effects: [{ kind: 'heal', amount: 5, mode: 'flat' }],
+    });
+
+    expect(resolveAbilityDefinition('taunt')).toMatchObject({
+      label: 'Taunt',
+      trigger: { timing: 'endOfTurn' },
+      duration: { kind: 'instant' },
+      target: { mode: 'aoe', allegiance: 'enemy', radius: 0, filters: { unengaged: true } },
+      effects: [{ kind: 'redirect' }],
+    });
+
+    expect(resolveAbilityDefinition('enhance-1')).toMatchObject({
+      label: 'Enhance 1',
+      trigger: { timing: 'endOfTurn' },
+      target: { mode: 'random', allegiance: 'ally', radius: 2, filters: { notTypes: ['caster'] } },
+      effects: [
+        { kind: 'haste', amount: 1, mode: 'flat' },
+        { kind: 'ramp', amount: 1, mode: 'flat' },
+      ],
     });
   });
 });
@@ -175,5 +220,160 @@ describe('resolveDebugBattle', () => {
     const maxTotal = Math.max(...totals);
     const minTotal = Math.min(...totals);
     expect(maxTotal - minTotal).toBeLessThanOrEqual(1);
+  });
+
+  it('triggers charged shapeshift once through the generic ability runtime', () => {
+    const replay = resolveDebugBattle({
+      seed: 17,
+      player: { 'elf/druid': 3 },
+      enemy: { 'human/knight': 1 },
+    });
+
+    expect(replay.steps.filter((step) => step.message.includes('becomes frontline.')).length).toBeGreaterThan(0);
+    expect(replay.steps.some((step) => step.message.includes('sets range to 0'))).toBe(true);
+  });
+
+  it('lets Enhance target a nearby non-caster ally', () => {
+    const replay = resolveDebugBattle({
+      seed: 33,
+      player: { 'goblin/shaman': 1, 'goblin/soldier': 1 },
+      enemy: { 'human/knight': 1 },
+    });
+
+    expect(
+      replay.steps.some(
+        (step) => step.kind === 'buff' && step.message.includes('Goblin Soldier') && step.message.includes('+1'),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('ability mechanics', () => {
+  // Builds a minimal ResolvedCombatantDefinition from a catalog troop, with optional extra abilities.
+  function makeBattleCombatant(
+    troopId: string,
+    side: 'player' | 'enemy',
+    extraAbilities: AbilityDefinition[] = [],
+  ): ResolvedCombatantDefinition {
+    const troop = getTroopDefinitionOrThrow(troopId);
+    return {
+      combatantId: `test-${side}-${troopId}`,
+      troopInstanceId: null,
+      factionId: troop.factionId,
+      unitTypeId: troop.unitTypeId,
+      label: troop.label,
+      role: troop.role,
+      type: troop.type,
+      attributes: troop.attributes,
+      stats: troop.stats,
+      abilities: [...troop.abilities, ...extraAbilities],
+      quantity: 1,
+      cost: troop.cost,
+      side,
+    };
+  }
+
+  function makeBattleInput(
+    playerCombatants: ResolvedCombatantDefinition[],
+    enemyCombatants: ResolvedCombatantDefinition[],
+    seed = 1,
+  ): BattleInput {
+    return { seed, riftId: null, tier: null, mutatorIds: [], playerCombatants, enemyCombatants };
+  }
+
+  it('maxUses: charged ability fires at most once per unit over the entire battle', () => {
+    // shapeshift-bear has chargeEvery: 5, maxUses: 1 — should fire exactly once with 1 druid
+    const replay = resolveDebugBattle({
+      seed: 17,
+      player: { 'elf/druid': 1, 'elf/soldier': 3 },
+      enemy: { 'human/knight': 1 },
+    });
+
+    const shapeshiftCount = replay.steps.filter((step) => step.message.includes('becomes frontline')).length;
+    expect(shapeshiftCount).toBe(1);
+  });
+
+  it('chargeEvery: ability cannot fire before the unit has taken that many turns', () => {
+    // shapeshift-bear requires 5 endOfTurn events — at least 5 beats must elapse first
+    const replay = resolveDebugBattle({
+      seed: 17,
+      player: { 'elf/druid': 1, 'elf/soldier': 3 },
+      enemy: { 'human/knight': 1 },
+    });
+
+    const shapeshiftStepIndex = replay.steps.findIndex((step) => step.message.includes('becomes frontline'));
+    expect(shapeshiftStepIndex).toBeGreaterThan(-1);
+
+    const beatsBeforeShapeshift = replay.steps.slice(0, shapeshiftStepIndex).filter((step) => step.kind === 'beat').length;
+    // Even at maximum speed (100), a unit can take at most one turn per beat.
+    // So chargeEvery: 5 requires at least 5 beats to elapse before it can fire.
+    expect(beatsBeforeShapeshift).toBeGreaterThanOrEqual(5);
+  });
+
+  it('forsaken: triggers for a solo troop but not when an ally of a different type is present', () => {
+    const forsakenAbility = getAbility('forsaken-boost-80');
+    const enemy = makeBattleCombatant('human/soldier', 'enemy');
+
+    const soloReplay = resolveBattle(makeBattleInput([makeBattleCombatant('elf/archer', 'player', [forsakenAbility])], [enemy]));
+
+    const alliedReplay = resolveBattle(
+      makeBattleInput([makeBattleCombatant('elf/archer', 'player', [forsakenAbility]), makeBattleCombatant('elf/soldier', 'player')], [enemy]),
+    );
+
+    // forsaken fires at startOfBattle — buff steps appear before the first beat step
+    const countPreBeatBuffs = (replay: ReturnType<typeof resolveBattle>) => {
+      const firstBeat = replay.steps.findIndex((step) => step.kind === 'beat');
+      return replay.steps.slice(0, firstBeat).filter((step) => step.kind === 'buff').length;
+    };
+
+    expect(countPreBeatBuffs(soloReplay)).toBeGreaterThan(0); // forsaken fires when alone
+    expect(countPreBeatBuffs(alliedReplay)).toBe(0); // forsaken blocked when ally is present
+  });
+
+  it('combined arms: fires once per distinct other friendly troop type at startOfBattle', () => {
+    const combinedArmsAbility = getAbility('combined-arms-boost-20');
+
+    const countStartOfBattleBuffs = (extraAllies: string[]) => {
+      const playerCombatants = [
+        makeBattleCombatant('human/soldier', 'player', [combinedArmsAbility]),
+        ...extraAllies.map((id) => makeBattleCombatant(id, 'player')),
+      ];
+      const replay = resolveBattle(makeBattleInput(playerCombatants, [makeBattleCombatant('human/knight', 'enemy')]));
+      const firstBeat = replay.steps.findIndex((step) => step.kind === 'beat');
+      return replay.steps.slice(0, firstBeat).filter((step) => step.kind === 'buff').length;
+    };
+
+    // combined-arms-boost-20 has 3 effects (bolster, haste, ramp) per repeat
+    expect(countStartOfBattleBuffs([])).toBe(0); // solo: 0 other troop types → 0 repeats
+    expect(countStartOfBattleBuffs(['human/archer'])).toBe(3); // 1 other type → 1 repeat × 3 effects
+    expect(countStartOfBattleBuffs(['human/archer', 'human/militia'])).toBe(6); // 2 other types → 2 repeats × 3 effects
+  });
+
+  it('pack: grants temporary damage at start of turn and expires after the acting unit turn', () => {
+    const replay = resolveBattle(
+      makeBattleInput(
+        [
+          makeBattleCombatant('goblin/soldier', 'player', [getAbility('pack-1')]),
+          makeBattleCombatant('goblin/soldier', 'player'),
+        ],
+        [makeBattleCombatant('human/knight', 'enemy')],
+        41,
+      ),
+    );
+
+    expect(replay.steps.some((step) => step.message.includes('gains +1 damage until end of turn'))).toBe(true);
+    expect(replay.steps.some((step) => step.message.includes('loses +1 damage'))).toBe(true);
+  });
+
+  it('taunt: is authored as unengaged redirect rather than bespoke taunt logic', () => {
+    const taunt = resolveAbilityDefinition('taunt');
+
+    expect(taunt.target).toMatchObject({
+      mode: 'aoe',
+      allegiance: 'enemy',
+      radius: 0,
+      filters: { unengaged: true },
+    });
+    expect(taunt.effects).toEqual([{ kind: 'redirect' }]);
   });
 });

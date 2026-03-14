@@ -25,7 +25,8 @@
         initiative: unit ? unit.initiative : null,
         role: unit?.role ?? profile?.role ?? 'frontline',
         position: unit?.position ?? null,
-        types: unit?.types ?? profile?.types ?? [],
+        type: unit?.type ?? profile?.type ?? '',
+        attributes: unit?.attributes ?? profile?.attributes ?? [],
         side: unit?.side ?? profile?.side ?? 'player',
         stats: profile?.stats ?? null,
         abilities: profile?.abilities ?? [],
@@ -65,7 +66,7 @@
     </div>
 
     <div class="meta">
-      <span>Types: {display.types.join(', ')}</span>
+      <span>Type: {display.type}{display.attributes.length > 0 ? ` | Attributes: ${display.attributes.join(', ')}` : ''}</span>
       <span>{ROLE_DETAILS[display.role]}</span>
     </div>
 

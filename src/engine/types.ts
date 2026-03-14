@@ -9,6 +9,9 @@ export type RoleId = 'frontline' | 'chaff' | 'backline';
 export type SideId = 'player' | 'enemy';
 export type ResourceId = 'gold' | 'essence';
 export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
+export type AbilityTiming = 'startOfBattle' | 'startOfTurn' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'onFallen' | 'passive';
+export type AbilityAllegiance = 'ally' | 'enemy' | 'all';
+export type AbilityMagnitudeMode = 'flat' | 'percent';
 export type CampaignPhase = 'faction_draft' | 'planning' | 'reward_claims';
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
@@ -33,15 +36,78 @@ export interface ResourceAmounts {
   essence: number;
 }
 
+export interface AbilityTriggerDefinition {
+  timing: AbilityTiming;
+  chargeEvery?: number;
+  maxUses?: number;
+  condition?: 'forsaken';
+  repeatPerDistinctFriendlyTroopType?: boolean;
+  repeatPerOtherFriendlyUnitOnHex?: boolean;
+  fallen?: {
+    allegiance: AbilityAllegiance;
+    radius: number;
+  };
+}
+
+export interface AbilityTargetFilters {
+  notTypes?: string[];
+  onlyTypes?: string[];
+  prioritizeTypes?: string[];
+  unengaged?: boolean;
+}
+
+export interface AbilityTargetDefinition {
+  mode: 'default' | 'self' | 'random' | 'aoe';
+  allegiance?: AbilityAllegiance;
+  radius?: number;
+  filters?: AbilityTargetFilters;
+}
+
+export type AbilityDurationDefinition =
+  | {
+      kind: 'instant';
+    }
+  | {
+      kind: 'battle';
+    }
+  | {
+      kind: 'turns';
+      turns: number;
+    };
+
+export type AbilityEffectDefinition =
+  | {
+      kind: 'blast';
+      amount: number;
+    }
+  | {
+      kind: 'bolster' | 'haste' | 'heal' | 'ramp';
+      amount: number;
+      mode: AbilityMagnitudeMode;
+    }
+  | {
+      kind: 'rangeset';
+      value: number;
+    }
+  | {
+      kind: 'roleset';
+      role: RoleId;
+    }
+  | {
+      kind: 'strike';
+      amount: number;
+    }
+  | {
+      kind: 'redirect';
+    };
+
 export interface AbilityDefinition {
   id: AbilityId;
   label: string;
-  trigger: 'startOfBattle' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'passive';
-  effect: 'heal' | 'blast' | 'boost' | 'pack' | 'ramp' | 'strike';
-  amount: number;
-  radius?: number;
-  condition?: 'forsaken';
-  repeatPerDistinctFriendlyTroopType?: boolean;
+  trigger: AbilityTriggerDefinition;
+  duration: AbilityDurationDefinition;
+  target?: AbilityTargetDefinition;
+  effects: AbilityEffectDefinition[];
   overworldEffectId?: 'united';
   shortText: string;
 }
@@ -50,7 +116,8 @@ export interface UnitTypeDefinition {
   id: UnitTypeId;
   label: string;
   role: RoleId;
-  types: string[];
+  type: string;
+  attributes: string[];
   stats: UnitStats;
   quantity: number;
   cost: number;
@@ -62,7 +129,7 @@ export interface FactionDefinition {
   label: string;
   singularLabel: string;
   description: string;
-  addedTypes: string[];
+  addedAttributes: string[];
   defaultUnitTypeIds: UnitTypeId[];
   statAdjustments: Partial<Record<keyof UnitStats | 'cost', { flat?: number; multiplier?: number }>>;
   abilityIds: AbilityId[];
@@ -82,8 +149,8 @@ export interface FactionUpgradeDefinition {
         abilityId: AbilityId;
       }
     | {
-        kind: 'addTag';
-        tag: string;
+        kind: 'addAttribute';
+        attribute: string;
       }
     | {
         kind: 'modifyStats';
@@ -99,7 +166,8 @@ export interface TroopDefinition {
   unitTypeId: UnitTypeId;
   label: string;
   role: RoleId;
-  types: string[];
+  type: string;
+  attributes: string[];
   stats: UnitStats;
   quantity: number;
   cost: number;
@@ -124,7 +192,8 @@ export interface ResolvedCombatantDefinition {
   troopInstanceId: TroopId | null;
   label: string;
   role: RoleId;
-  types: string[];
+  type: string;
+  attributes: string[];
   stats: UnitStats;
   abilities: AbilityDefinition[];
   quantity: number;
@@ -150,7 +219,8 @@ export interface BattleUnit {
   factionId: FactionId;
   side: SideId;
   role: RoleId;
-  types: string[];
+  type: string;
+  attributes: string[];
   position: HexCoord;
   hp: number;
   maxHp: number;
@@ -207,7 +277,8 @@ export interface ReplayTroopProfile {
   unitTypeId: UnitTypeId;
   factionId: FactionId;
   role: RoleId;
-  types: string[];
+  type: string;
+  attributes: string[];
   stats: UnitStats;
   abilities: AbilityDefinition[];
 }
