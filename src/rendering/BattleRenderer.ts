@@ -4,36 +4,33 @@ import {
   Container,
   FederatedPointerEvent,
   Graphics,
+  Rectangle,
   Sprite,
   Text,
   Texture,
 } from 'pixi.js';
 import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/types';
 
-import swordsmanUrl from '../assets/sprites/swordsman.svg';
-import peasantUrl from '../assets/sprites/peasant.svg';
-import archerUrl from '../assets/sprites/archer.svg';
 import projectileUrl from '../assets/sprites/projectile.svg';
-
-const UNIT_TEXTURES = {
-  soldier: swordsmanUrl,
-  champion: swordsmanUrl,
-  militia: peasantUrl,
-  archer: archerUrl,
-  wizard: archerUrl,
-} as const;
+import { loadFactionUnitTextures } from './unitVisuals';
 
 const HEX_SIZE = 42;
 const UNIT_PIXEL_SIZE = 32;
 const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const BASE_PLAYBACK_STEP_MS = 500;
+const VIEWPORT_PADDING = 18;
+const MIN_ZOOM_FACTOR = 0.6;
+const MAX_ZOOM_FACTOR = 3;
+const ZOOM_STEP_FACTOR = 1.18;
+const DRAG_THRESHOLD_PX = 6;
 
 type PixelPoint = { x: number; y: number };
 type LayoutResult = {
   positions: Map<string, PixelPoint>;
   densityScales: Map<string, number>;
 };
+type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 
 export type UnitPointerInfo = {
   unitId: string;
@@ -123,6 +120,8 @@ function densityScaleForHexUnitCount(unitCount: number): number {
 export class BattleRenderer {
   private app: Application;
 
+  private worldLayer = new Container();
+
   private boardLayer = new Container();
 
   private unitLayer = new Container();
@@ -132,8 +131,6 @@ export class BattleRenderer {
   private textures: Record<string, Texture> = {};
 
   private unitSprites = new Map<string, Sprite>();
-
-  private unitSides = new Map<string, 'player' | 'enemy'>();
 
   private unitBaseScales = new Map<string, number>();
 
@@ -157,18 +154,44 @@ export class BattleRenderer {
 
   private playbackStepMs = 500;
 
+  private currentMapRadius = 0;
+
+  private boardBounds: Bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+  private baseFitZoom = 1;
+
+  private zoom = 1;
+
+  private minZoom = 1;
+
+  private maxZoom = 1;
+
+  private cameraOffset: PixelPoint = { x: 0, y: 0 };
+
+  private dragPointerId: number | null = null;
+
+  private dragStartGlobal: PixelPoint | null = null;
+
+  private dragStartOffset: PixelPoint = { x: 0, y: 0 };
+
+  private didDragDuringPointer = false;
+
   constructor(container: HTMLElement) {
     this.app = new Application({ background: '#111117', antialias: true, resizeTo: container });
     container.appendChild(this.app.view as HTMLCanvasElement);
-    this.app.stage.addChild(this.boardLayer, this.unitLayer, this.effectLayer);
+    this.worldLayer.addChild(this.boardLayer, this.unitLayer, this.effectLayer);
+    this.app.stage.addChild(this.worldLayer);
+    this.app.stage.eventMode = 'static';
+    this.syncStageHitArea();
+    this.app.stage.on('pointerdown', this.handlePointerDown);
+    this.app.stage.on('pointermove', this.handlePointerMove);
+    this.app.stage.on('pointerup', this.handlePointerUp);
+    this.app.stage.on('pointerupoutside', this.handlePointerUp);
+    this.setCanvasCursor('grab');
   }
 
   async init(): Promise<void> {
-    this.textures.soldier = await Assets.load(UNIT_TEXTURES.soldier);
-    this.textures.champion = await Assets.load(UNIT_TEXTURES.champion);
-    this.textures.militia = await Assets.load(UNIT_TEXTURES.militia);
-    this.textures.archer = await Assets.load(UNIT_TEXTURES.archer);
-    this.textures.wizard = await Assets.load(UNIT_TEXTURES.wizard);
+    this.textures = await loadFactionUnitTextures();
     this.textures.projectile = await Assets.load(projectileUrl);
   }
 
@@ -183,16 +206,47 @@ export class BattleRenderer {
 
   destroy(): void {
     this.clearEffects();
+    this.app.stage.off('pointerdown', this.handlePointerDown);
+    this.app.stage.off('pointermove', this.handlePointerMove);
+    this.app.stage.off('pointerup', this.handlePointerUp);
+    this.app.stage.off('pointerupoutside', this.handlePointerUp);
     this.app.destroy(true, { children: true, texture: false, baseTexture: false });
   }
 
   setReplay(replay: BattleReplay): void {
     this.replay = replay;
     this.currentStep = -1;
+    this.currentMapRadius = replay.mapRadius;
     this.clearLayers();
     this.drawBoard(replay.mapRadius);
+    this.resetCameraToFit();
     this.mountUnitSprites(replay.initial.units);
     this.renderSnapshot(replay.initial.units);
+  }
+
+  zoomIn(): void {
+    this.setZoom(this.zoom * ZOOM_STEP_FACTOR);
+  }
+
+  zoomOut(): void {
+    this.setZoom(this.zoom / ZOOM_STEP_FACTOR);
+  }
+
+  refreshViewport(): void {
+    this.syncStageHitArea();
+
+    if (!this.currentMapRadius) {
+      this.applyCameraTransform();
+      return;
+    }
+
+    const previousBaseZoom = this.baseFitZoom || 1;
+    const relativeZoom = this.zoom / previousBaseZoom;
+
+    this.recalculateZoomBounds();
+    this.zoom = this.clampZoom(this.baseFitZoom * relativeZoom);
+    this.clampCameraOffset();
+    this.applyCameraTransform();
   }
 
   setHighlights(strongIds: string[], faintIds: string[]): void {
@@ -247,7 +301,6 @@ export class BattleRenderer {
     this.boardLayer.removeChildren();
     this.unitLayer.removeChildren();
     this.unitSprites.clear();
-    this.unitSides.clear();
     this.unitBaseScales.clear();
     this.unitAlive.clear();
     this.selectionRings.clear();
@@ -255,7 +308,7 @@ export class BattleRenderer {
 
   private drawBoard(radius: number): void {
     const root = new Container();
-    root.position.set(this.app.screen.width / 2, this.app.screen.height / 2);
+    this.boardBounds = this.computeBoardBounds(radius);
 
     for (let q = -radius; q <= radius; q += 1) {
       const rMin = Math.max(-radius, -q - radius);
@@ -290,7 +343,7 @@ export class BattleRenderer {
       if (this.unitSprites.has(unit.id)) {
         return;
       }
-      const texture = this.textures[unit.unitTypeId] ?? Texture.WHITE;
+      const texture = this.textures[`${unit.factionId}/${unit.unitTypeId}`] ?? Texture.WHITE;
       const sprite = new Sprite(texture);
       sprite.anchor.set(0.5, 0.5);
       sprite.eventMode = 'static';
@@ -306,17 +359,20 @@ export class BattleRenderer {
         this.interactionHandlers.onUnitHover?.(null);
       });
       sprite.on('pointertap', (event: FederatedPointerEvent) => {
+        if (this.didDragDuringPointer) {
+          return;
+        }
         this.interactionHandlers.onUnitClick?.(this.pointerInfo(unit.id, event));
       });
 
       const textureSize = Math.max(texture.width, texture.height, 1);
       const baseScale = UNIT_PIXEL_SIZE / textureSize;
-      sprite.scale.set(baseScale);
+      sprite.scale.set(unit.side === 'enemy' ? -baseScale : baseScale, baseScale);
       sprite.alpha = 1;
+      sprite.tint = 0xffffff;
 
       this.unitLayer.addChild(sprite);
       this.unitSprites.set(unit.id, sprite);
-      this.unitSides.set(unit.id, unit.side);
       this.unitBaseScales.set(unit.id, baseScale);
 
       const ring = new Graphics();
@@ -326,13 +382,6 @@ export class BattleRenderer {
       this.unitLayer.addChild(ring);
       this.selectionRings.set(unit.id, ring);
     });
-  }
-
-  private toScreen(point: PixelPoint): PixelPoint {
-    return {
-      x: this.app.screen.width / 2 + point.x,
-      y: this.app.screen.height / 2 + point.y,
-    };
   }
 
   private computeDisplayLayout(units: BattleUnit[]): LayoutResult {
@@ -414,18 +463,19 @@ export class BattleRenderer {
       }
 
       const pos = layout.positions.get(unit.id) ?? axialToPixel(unit.position);
-      const screen = this.toScreen(pos);
       const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
       const densityScale = layout.densityScales.get(unit.id) ?? 1;
+      const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale;
+      const yScale = baseScale * densityScale;
 
-      sprite.position.set(screen.x, screen.y);
+      sprite.position.set(pos.x, pos.y);
       ring.position.set(sprite.x, sprite.y);
       ring.scale.set(densityScale);
 
-      sprite.tint = unit.side === 'player' ? 0x8ec8ff : 0xff9d9d;
+      sprite.tint = 0xffffff;
       sprite.visible = true;
       sprite.alpha = 1;
-      sprite.scale.set(baseScale * densityScale);
+      sprite.scale.set(xScale, yScale);
     });
   }
 
@@ -486,13 +536,11 @@ export class BattleRenderer {
 
       const start = prevLayout.positions.get(previousUnit.id) ?? axialToPixel(previousUnit.position);
       const end = nextLayout.positions.get(nextUnit.id) ?? axialToPixel(nextUnit.position);
-      const startScreen = this.toScreen(start);
-      const endScreen = this.toScreen(end);
 
       this.stopEffects.push(
         animate(this.scaledDurationMs(220), (t) => {
-          sprite.x = startScreen.x + (endScreen.x - startScreen.x) * t;
-          sprite.y = startScreen.y + (endScreen.y - startScreen.y) * t;
+          sprite.x = start.x + (end.x - start.x) * t;
+          sprite.y = start.y + (end.y - start.y) * t;
           const ring = this.selectionRings.get(actorId as string);
           if (ring) {
             ring.position.set(sprite.x, sprite.y);
@@ -503,15 +551,12 @@ export class BattleRenderer {
   }
 
   private fireProjectile(from: PixelPoint, to: PixelPoint, durationMs: number): () => void {
-    const start = this.toScreen(from);
-    const end = this.toScreen(to);
-
     const sprite = new Sprite(this.textures.projectile);
     sprite.anchor.set(0.5, 0.5);
     sprite.width = 14;
     sprite.height = 14;
-    sprite.position.set(start.x, start.y);
-    sprite.rotation = Math.atan2(end.y - start.y, end.x - start.x);
+    sprite.position.set(from.x, from.y);
+    sprite.rotation = Math.atan2(to.y - from.y, to.x - from.x);
     this.effectLayer.addChild(sprite);
 
     let cleaned = false;
@@ -529,8 +574,8 @@ export class BattleRenderer {
     const stop = animate(
       durationMs,
       (t) => {
-        sprite.x = start.x + (end.x - start.x) * t;
-        sprite.y = start.y + (end.y - start.y) * t;
+        sprite.x = from.x + (to.x - from.x) * t;
+        sprite.y = from.y + (to.y - from.y) * t;
         sprite.alpha = 1 - t;
       },
       cleanup,
@@ -690,20 +735,11 @@ export class BattleRenderer {
         return;
       }
 
-      const side = this.unitSides.get(unitId) ?? 'player';
-      const baseTint = side === 'player' ? 0x8ec8ff : 0xff9d9d;
-      const faintTint = side === 'player' ? 0xb9e4ff : 0xffc8b2;
-
       const isStrong = this.strongHighlightIds.has(unitId);
       const isFaint = !isStrong && this.faintHighlightIds.has(unitId);
 
-      if (isStrong) {
-        sprite.tint = 0xfff2a2;
-      } else if (isFaint) {
-        sprite.tint = faintTint;
-      } else {
-        sprite.tint = baseTint;
-      }
+      sprite.tint = 0xffffff;
+      sprite.alpha = isFaint ? 0.75 : 1;
 
       if (ring) {
         if (isStrong) {
@@ -720,4 +756,130 @@ export class BattleRenderer {
       }
     });
   }
+
+  private computeBoardBounds(radius: number): Bounds {
+    const hexExtentX = HEX_SIZE * Math.cos(Math.PI / 6);
+    const hexExtentY = HEX_SIZE;
+    const bounds: Bounds = {
+      minX: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    };
+
+    for (let q = -radius; q <= radius; q += 1) {
+      const rMin = Math.max(-radius, -q - radius);
+      const rMax = Math.min(radius, -q + radius);
+      for (let r = rMin; r <= rMax; r += 1) {
+        const center = axialToPixel({ q, r });
+        bounds.minX = Math.min(bounds.minX, center.x - hexExtentX);
+        bounds.maxX = Math.max(bounds.maxX, center.x + hexExtentX);
+        bounds.minY = Math.min(bounds.minY, center.y - hexExtentY);
+        bounds.maxY = Math.max(bounds.maxY, center.y + hexExtentY);
+      }
+    }
+
+    return bounds;
+  }
+
+  private resetCameraToFit(): void {
+    this.recalculateZoomBounds();
+    this.zoom = this.baseFitZoom;
+    this.cameraOffset = { x: 0, y: 0 };
+    this.applyCameraTransform();
+  }
+
+  private recalculateZoomBounds(): void {
+    const availableWidth = Math.max(1, this.app.screen.width - VIEWPORT_PADDING * 2);
+    const availableHeight = Math.max(1, this.app.screen.height - VIEWPORT_PADDING * 2);
+    const boardWidth = Math.max(1, this.boardBounds.maxX - this.boardBounds.minX);
+    const boardHeight = Math.max(1, this.boardBounds.maxY - this.boardBounds.minY);
+
+    this.baseFitZoom = Math.min(availableWidth / boardWidth, availableHeight / boardHeight);
+    this.minZoom = this.baseFitZoom * MIN_ZOOM_FACTOR;
+    this.maxZoom = this.baseFitZoom * MAX_ZOOM_FACTOR;
+  }
+
+  private setZoom(nextZoom: number): void {
+    this.zoom = this.clampZoom(nextZoom);
+    this.clampCameraOffset();
+    this.applyCameraTransform();
+  }
+
+  private clampZoom(zoom: number): number {
+    return Math.max(this.minZoom, Math.min(this.maxZoom, zoom));
+  }
+
+  private applyCameraTransform(): void {
+    this.worldLayer.scale.set(this.zoom);
+    this.worldLayer.position.set(
+      this.app.screen.width / 2 + this.cameraOffset.x,
+      this.app.screen.height / 2 + this.cameraOffset.y,
+    );
+  }
+
+  private clampCameraOffset(): void {
+    const boardWidth = this.boardBounds.maxX - this.boardBounds.minX;
+    const boardHeight = this.boardBounds.maxY - this.boardBounds.minY;
+    const availableWidth = Math.max(1, this.app.screen.width - VIEWPORT_PADDING * 2);
+    const availableHeight = Math.max(1, this.app.screen.height - VIEWPORT_PADDING * 2);
+    const maxOffsetX = Math.max(0, (boardWidth * this.zoom - availableWidth) / 2);
+    const maxOffsetY = Math.max(0, (boardHeight * this.zoom - availableHeight) / 2);
+
+    this.cameraOffset.x = Math.max(-maxOffsetX, Math.min(maxOffsetX, this.cameraOffset.x));
+    this.cameraOffset.y = Math.max(-maxOffsetY, Math.min(maxOffsetY, this.cameraOffset.y));
+  }
+
+  private syncStageHitArea(): void {
+    this.app.stage.hitArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
+  }
+
+  private setCanvasCursor(cursor: string): void {
+    (this.app.view as HTMLCanvasElement).style.cursor = cursor;
+  }
+
+  private handlePointerDown = (event: FederatedPointerEvent): void => {
+    this.dragPointerId = event.pointerId;
+    this.dragStartGlobal = { x: event.global.x, y: event.global.y };
+    this.dragStartOffset = { ...this.cameraOffset };
+    this.didDragDuringPointer = false;
+  };
+
+  private handlePointerMove = (event: FederatedPointerEvent): void => {
+    if (this.dragPointerId !== event.pointerId || !this.dragStartGlobal) {
+      return;
+    }
+
+    const deltaX = event.global.x - this.dragStartGlobal.x;
+    const deltaY = event.global.y - this.dragStartGlobal.y;
+    if (!this.didDragDuringPointer && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD_PX) {
+      return;
+    }
+
+    this.didDragDuringPointer = true;
+    this.cameraOffset = {
+      x: this.dragStartOffset.x + deltaX,
+      y: this.dragStartOffset.y + deltaY,
+    };
+    this.clampCameraOffset();
+    this.applyCameraTransform();
+    this.setCanvasCursor('grabbing');
+  };
+
+  private handlePointerUp = (event: FederatedPointerEvent): void => {
+    if (this.dragPointerId !== event.pointerId) {
+      return;
+    }
+
+    this.dragPointerId = null;
+    this.dragStartGlobal = null;
+    this.dragStartOffset = { ...this.cameraOffset };
+    this.setCanvasCursor('grab');
+
+    if (this.didDragDuringPointer) {
+      window.setTimeout(() => {
+        this.didDragDuringPointer = false;
+      }, 0);
+    }
+  };
 }

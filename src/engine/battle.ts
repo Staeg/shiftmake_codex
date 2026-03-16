@@ -115,7 +115,7 @@ interface SpawnContext {
 }
 
 const BASE_MAP_RADIUS = 3;
-const SATURATION = 10;
+const DEFAULT_SATURATION = 10;
 const MAX_BEATS = 1000;
 
 function randomSeed(): number {
@@ -153,6 +153,7 @@ function cloneSnapshot(units: Map<string, InternalUnit>): BattleStateSnapshot {
       type: unit.type,
       attributes: [...unit.attributes],
       position: { ...unit.position },
+      stats: { ...unit.resolvedStats },
       hp: fixed(unit.hp),
       maxHp: fixed(unit.maxHp),
       initiative: fixed(unit.initiative),
@@ -232,6 +233,17 @@ function buildTroopProfiles(input: BattleInput): ReplayTroopProfile[] {
       attributes: [...combatant.attributes],
       stats: { ...combatant.stats },
       abilities: combatant.abilities.map(cloneAbilityDefinition),
+      statBreakdowns:
+        combatant.statBreakdowns ??
+        {
+          health: { stat: 'health', finalValue: combatant.stats.health, lines: [{ label: 'Resolved', value: combatant.stats.health, kind: 'base' }] },
+          damage: { stat: 'damage', finalValue: combatant.stats.damage, lines: [{ label: 'Resolved', value: combatant.stats.damage, kind: 'base' }] },
+          speed: { stat: 'speed', finalValue: combatant.stats.speed, lines: [{ label: 'Resolved', value: combatant.stats.speed, kind: 'base' }] },
+          armor: { stat: 'armor', finalValue: combatant.stats.armor, lines: [{ label: 'Resolved', value: combatant.stats.armor, kind: 'base' }] },
+          range: { stat: 'range', finalValue: combatant.stats.range, lines: [{ label: 'Resolved', value: combatant.stats.range, kind: 'base' }] },
+          capacity: { stat: 'capacity', finalValue: combatant.stats.capacity, lines: [{ label: 'Resolved', value: combatant.stats.capacity, kind: 'base' }] },
+          size: { stat: 'size', finalValue: combatant.stats.size, lines: [{ label: 'Resolved', value: combatant.stats.size, kind: 'base' }] },
+        },
     });
   });
 
@@ -442,10 +454,11 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
   let radius = BASE_MAP_RADIUS;
   const playerUnits = expandCombatants(input.playerCombatants);
   const enemyUnits = expandCombatants(input.enemyCombatants);
+  const saturation = input.saturation ?? DEFAULT_SATURATION;
 
   while (true) {
     const units = new Map<string, InternalUnit>();
-    const context: SpawnContext = { units, rng, saturation: SATURATION };
+    const context: SpawnContext = { units, rng, saturation };
     const playerOk = spawnUnitsForSide('player', playerUnits, radius, context);
     const enemyOk = playerOk && spawnUnitsForSide('enemy', enemyUnits, radius, context);
     if (playerOk && enemyOk) {
@@ -563,7 +576,13 @@ function evaluateScaledAmount(base: number, amount: number, mode: 'flat' | 'perc
   return mode === 'percent' ? fixedMul(base, amount / 100) : amount;
 }
 
-function applyBolster(state: InternalState, actor: InternalUnit, target: InternalUnit, effect: Extract<AbilityEffectDefinition, { kind: 'bolster' }>): boolean {
+function applyBolster(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'bolster' }>,
+): boolean {
   const maxIncrease = evaluateScaledAmount(target.maxHp, effect.amount, effect.mode);
   const currentIncrease = evaluateScaledAmount(target.hp, effect.amount, effect.mode);
   if (maxIncrease <= 0 && currentIncrease <= 0) {
@@ -575,11 +594,19 @@ function applyBolster(state: InternalState, actor: InternalUnit, target: Interna
   buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(maxIncrease)} health.`, {
     amount: maxIncrease,
     effect: 'bolster',
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
 
-function applyRamp(state: InternalState, actor: InternalUnit, target: InternalUnit, effect: Extract<AbilityEffectDefinition, { kind: 'ramp' }>): boolean {
+function applyRamp(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'ramp' }>,
+): boolean {
   const increase = evaluateScaledAmount(target.resolvedStats.damage, effect.amount, effect.mode);
   if (increase <= 0) {
     return false;
@@ -588,11 +615,19 @@ function applyRamp(state: InternalState, actor: InternalUnit, target: InternalUn
   buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(increase)} damage.`, {
     amount: increase,
     effect: 'ramp',
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
 
-function applyHaste(state: InternalState, actor: InternalUnit, target: InternalUnit, effect: Extract<AbilityEffectDefinition, { kind: 'haste' }>): boolean {
+function applyHaste(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'haste' }>,
+): boolean {
   const increase = evaluateScaledAmount(target.resolvedStats.speed, effect.amount, effect.mode);
   if (increase <= 0) {
     return false;
@@ -601,6 +636,8 @@ function applyHaste(state: InternalState, actor: InternalUnit, target: InternalU
   buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(increase)} speed.`, {
     amount: increase,
     effect: 'haste',
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
@@ -629,7 +666,13 @@ function healUnit(
   return true;
 }
 
-function applyRangeSet(state: InternalState, actor: InternalUnit, target: InternalUnit, effect: Extract<AbilityEffectDefinition, { kind: 'rangeset' }>): boolean {
+function applyRangeSet(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'rangeset' }>,
+): boolean {
   if (target.resolvedStats.range === effect.value) {
     return false;
   }
@@ -637,11 +680,19 @@ function applyRangeSet(state: InternalState, actor: InternalUnit, target: Intern
   buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} sets range to ${formatFixed(target.resolvedStats.range)}.`, {
     value: target.resolvedStats.range,
     effect: 'rangeset',
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
 
-function applyRoleSet(state: InternalState, actor: InternalUnit, target: InternalUnit, effect: Extract<AbilityEffectDefinition, { kind: 'roleset' }>): boolean {
+function applyRoleSet(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'roleset' }>,
+): boolean {
   if (target.role === effect.role) {
     return false;
   }
@@ -649,6 +700,8 @@ function applyRoleSet(state: InternalState, actor: InternalUnit, target: Interna
   buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} becomes ${effect.role}.`, {
     effect: 'roleset',
     role: effect.role,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
@@ -685,6 +738,8 @@ function applyTemporaryEffect(
     buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(maxApplied)} health until end of turn.`, {
       amount: maxApplied,
       effect: 'bolster',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
       temporary: true,
     });
     return true;
@@ -706,6 +761,8 @@ function applyTemporaryEffect(
     buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(amountApplied)} speed until end of turn.`, {
       amount: amountApplied,
       effect: 'haste',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
       temporary: true,
     });
     return true;
@@ -727,6 +784,8 @@ function applyTemporaryEffect(
     buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(amountApplied)} damage until end of turn.`, {
       amount: amountApplied,
       effect: 'ramp',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
       temporary: true,
     });
     return true;
@@ -748,6 +807,8 @@ function applyTemporaryEffect(
     buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} sets range to ${formatFixed(target.resolvedStats.range)} until end of turn.`, {
       value: target.resolvedStats.range,
       effect: 'rangeset',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
       temporary: true,
     });
     return true;
@@ -768,6 +829,8 @@ function applyTemporaryEffect(
   buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} becomes ${effect.role} until end of turn.`, {
     effect: 'roleset',
     role: effect.role,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
     temporary: true,
   });
   return true;
@@ -789,6 +852,7 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
       buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.maxApplied)} health.`, {
         amount: effect.maxApplied,
         effect: 'bolster',
+        sourceAbilityId: effect.sourceAbilityId,
         expired: true,
       });
       return;
@@ -799,6 +863,7 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
       buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.amountApplied)} speed.`, {
         amount: effect.amountApplied,
         effect: 'haste',
+        sourceAbilityId: effect.sourceAbilityId,
         expired: true,
       });
       return;
@@ -809,6 +874,7 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
       buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.amountApplied)} damage.`, {
         amount: effect.amountApplied,
         effect: 'ramp',
+        sourceAbilityId: effect.sourceAbilityId,
         expired: true,
       });
       return;
@@ -819,6 +885,7 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
       buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} resets range to ${formatFixed(unit.resolvedStats.range)}.`, {
         value: unit.resolvedStats.range,
         effect: 'rangeset',
+        sourceAbilityId: effect.sourceAbilityId,
         expired: true,
       });
       return;
@@ -828,6 +895,7 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
     buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} returns to ${effect.previousRole}.`, {
       role: effect.previousRole,
       effect: 'roleset',
+      sourceAbilityId: effect.sourceAbilityId,
       expired: true,
     });
   });
@@ -986,6 +1054,7 @@ function getAbilityRepeatCount(state: InternalState, actor: InternalUnit, runtim
 type PerTargetEffectHandler = (
   state: InternalState,
   actor: InternalUnit,
+  runtime: RuntimeAbilityState,
   target: InternalUnit,
   effect: AbilityEffectDefinition,
   event: AbilityTriggerEvent,
@@ -997,13 +1066,15 @@ type PerTargetEffectHandler = (
 // 'taunt' is absent: it bypasses target resolution and uses engageEnemiesOnHex directly.
 // 'pack' is absent: it is a passive bonus computed in getPackBonus, not a triggered effect.
 const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind'], PerTargetEffectHandler>> = {
-  blast: (state, actor, target, effect) => {
+  blast: (state, actor, runtime, target, effect) => {
     const e = effect as Extract<AbilityEffectDefinition, { kind: 'blast' }>;
     const damage = fixedMax(e.amount, 0);
     target.hp = fixedSub(target.hp, damage);
     buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} splashes ${formatFixed(damage)} blast damage.`, {
       damage,
       mode: 'blast',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
     });
     if (target.hp <= 0 && target.alive) {
       handleKnockout(state, actor, target);
@@ -1012,13 +1083,13 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     }
     return true;
   },
-  bolster: (state, actor, target, effect) => applyBolster(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'bolster' }>),
-  haste: (state, actor, target, effect) => applyHaste(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'haste' }>),
-  heal: (state, actor, target, effect) => healUnit(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'heal' }>),
-  ramp: (state, actor, target, effect) => applyRamp(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'ramp' }>),
-  rangeset: (state, actor, target, effect) => applyRangeSet(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'rangeset' }>),
-  roleset: (state, actor, target, effect) => applyRoleSet(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'roleset' }>),
-  strike: (state, actor, target, effect) => {
+  bolster: (state, actor, runtime, target, effect) => applyBolster(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'bolster' }>),
+  haste: (state, actor, runtime, target, effect) => applyHaste(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'haste' }>),
+  heal: (state, actor, _runtime, target, effect) => healUnit(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'heal' }>),
+  ramp: (state, actor, runtime, target, effect) => applyRamp(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'ramp' }>),
+  rangeset: (state, actor, runtime, target, effect) => applyRangeSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'rangeset' }>),
+  roleset: (state, actor, runtime, target, effect) => applyRoleSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'roleset' }>),
+  strike: (state, actor, _runtime, target, effect) => {
     const e = effect as Extract<AbilityEffectDefinition, { kind: 'strike' }>;
     const strikeCount = Math.max(0, Math.floor(e.amount));
     if (strikeCount > 0 && target.alive) {
@@ -1032,7 +1103,7 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     }
     return false;
   },
-  redirect: (state, actor, target) => {
+  redirect: (state, actor, runtime, target) => {
     if (!target.alive || target.engagedWith.size > 0 || actor.engagedWith.has(target.id)) {
       return false;
     }
@@ -1042,6 +1113,8 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     createEngagement(state, actor, target);
     buildStep(state, 'engage', [actor.id], [target.id], `${actor.troopLabel} redirects ${target.troopLabel}.`, {
       effect: 'redirect',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
     });
     return true;
   },
@@ -1076,7 +1149,7 @@ function executeAbilityEffect(
       applied = applyTemporaryEffect(state, actor, target, runtime, effect) || applied;
       return;
     }
-    applied = handler(state, actor, target, effect, event) || applied;
+    applied = handler(state, actor, runtime, target, effect, event) || applied;
   });
 
   return applied;
@@ -1391,11 +1464,12 @@ export function resolveBattle(input: BattleInput): BattleReplay {
   const seed = input.seed ?? randomSeed();
   const rng = createRng(seed);
   const init = initializeUnits(input, rng);
+  const saturation = input.saturation ?? DEFAULT_SATURATION;
   const state: InternalState = {
     units: init.units,
     steps: [],
     mapRadius: init.mapRadius,
-    saturation: SATURATION,
+    saturation,
     rng,
     beatCount: 0,
     effects: buildEffects(input.mutatorIds),
@@ -1439,7 +1513,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     tier: input.tier,
     mutatorIds: [...input.mutatorIds],
     mapRadius: state.mapRadius,
-    saturation: SATURATION,
+    saturation: state.saturation,
     initial,
     steps: state.steps,
     outcome: resolveBattleOutcome(state),
@@ -1512,8 +1586,9 @@ export function buildBattleInputFromResolvedCombatants(
   riftId: string | null,
   tier: number | null,
   mutatorIds: string[],
+  saturation: number | undefined,
   playerCombatants: ResolvedCombatantDefinition[],
   enemyCombatants: ResolvedCombatantDefinition[],
 ): BattleInput {
-  return { seed, riftId, tier, mutatorIds, playerCombatants, enemyCombatants };
+  return { seed, riftId, tier, mutatorIds, saturation, playerCombatants, enemyCombatants };
 }

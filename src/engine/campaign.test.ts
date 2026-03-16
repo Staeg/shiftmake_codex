@@ -46,7 +46,7 @@ describe('campaign balance helpers', () => {
         (sum, troop) => sum + troop.quantity * getEnemyUnitBudgetCost(troop.factionId, troop.unitTypeId),
         0,
       );
-      expect(spentBudget).toBeGreaterThanOrEqual(75);
+      expect(spentBudget).toBeGreaterThanOrEqual(60);
       expect(spentBudget).toBeLessThanOrEqual(170);
     });
   });

@@ -1,6 +1,6 @@
 import { createRng } from './rng';
 import { fixed } from './fixed';
-import { composeBaseTroopDefinition, getMutator, FACTIONS, UNIT_TYPES } from './unitCatalog';
+import { composeBaseTroopDefinition, getFaction, getMutator, FACTIONS } from './unitCatalog';
 import { resolveEnemyCombatant } from './army';
 import { getFallbackRewardForExhaustedUpgradeSlots } from './upgrades';
 import type {
@@ -46,9 +46,9 @@ export function getCycleTierSchedule(cycleNumber: number): number[] {
 
 function randomFactionUnitPairs(): Array<{ factionId: FactionId; unitTypeId: UnitTypeId }> {
   return Object.keys(FACTIONS).flatMap((factionId) =>
-    Object.keys(UNIT_TYPES).map((unitTypeId) => ({
+    getFaction(factionId as FactionId).defaultUnitTypeIds.map((unitTypeId) => ({
       factionId: factionId as FactionId,
-      unitTypeId: unitTypeId as UnitTypeId,
+      unitTypeId,
     })),
   );
 }
@@ -88,50 +88,70 @@ function makeResourceAmounts(): ResourceAmounts {
   return { gold: 0, essence: 0 };
 }
 
+type RandomRewardCategory = 'gold' | 'essence' | 'upgrade' | 'blueprint';
+
+function applyRewardCategory(
+  rewardPackage: RewardPackage,
+  category: RandomRewardCategory,
+  slotTier: number,
+  availableUpgradeIds: UpgradeId[],
+): void {
+  if (category === 'gold') {
+    rewardPackage.resources.gold += 50 * slotTier;
+    rewardPackage.summaryParts.push(`${50 * slotTier} gold`);
+    return;
+  }
+
+  if (category === 'essence') {
+    rewardPackage.resources.essence += 50 * slotTier;
+    rewardPackage.summaryParts.push(`${50 * slotTier} essence`);
+    return;
+  }
+
+  if (category === 'upgrade') {
+    if (availableUpgradeIds.length >= 3) {
+      rewardPackage.upgradeChoiceBatches += 1;
+      rewardPackage.summaryParts.push('upgrade choice x1');
+    } else {
+      const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
+      rewardPackage.resources.gold += fallback.gold;
+      rewardPackage.resources.essence += fallback.essence;
+      rewardPackage.summaryParts.push(`${fallback.gold} gold`, `${fallback.essence} essence`);
+    }
+    return;
+  }
+
+  const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
+  rewardPackage.resources.gold += fallback.gold;
+  rewardPackage.resources.essence += fallback.essence;
+  rewardPackage.summaryParts.push(`${fallback.gold} gold`, `${fallback.essence} essence`);
+}
+
 function buildRewardPackage(
   tier: number,
   mutatorIds: MutatorId[],
   availableUpgradeIds: UpgradeId[],
+  seed: number,
 ): RewardPackage {
-  const slots = Array.from({ length: tier }, (_, index) => index + 1);
   const base: RewardPackage = {
     resources: makeResourceAmounts(),
     upgradeChoiceBatches: 0,
     summaryParts: [],
   };
   const rewardMultiplier = mutatorIds.reduce((multiplier, id) => multiplier * getMutator(id).rewardMultiplier, 1);
-  const categories = ['gold', 'essence', 'upgrade', 'blueprint'] as const;
+  const rng = createRng(deriveSeed(seed, 401));
+  const firstReward = rng.pick<RandomRewardCategory>(['gold', 'essence']);
+  applyRewardCategory(base, firstReward, 1, availableUpgradeIds);
 
-  slots.forEach((slotTier, index) => {
-    const category = categories[index] ?? 'gold';
-    if (category === 'gold') {
-      base.resources.gold += 50 * slotTier;
-      base.summaryParts.push(`${50 * slotTier} gold`);
-      return;
-    }
-    if (category === 'essence') {
-      base.resources.essence += 50 * slotTier;
-      base.summaryParts.push(`${50 * slotTier} essence`);
-      return;
-    }
-    if (category === 'upgrade') {
-      if (availableUpgradeIds.length >= 3) {
-        base.upgradeChoiceBatches += 1;
-        base.summaryParts.push(`upgrade choice x1`);
-      } else {
-        const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
-        base.resources.gold += fallback.gold;
-        base.resources.essence += fallback.essence;
-        base.summaryParts.push(`${fallback.gold} gold`, `${fallback.essence} essence`);
-      }
-      return;
-    }
+  let remainingCategories = (['gold', 'essence', 'upgrade', 'blueprint'] as RandomRewardCategory[]).filter(
+    (category) => category !== firstReward,
+  );
 
-    const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
-    base.resources.gold += fallback.gold;
-    base.resources.essence += fallback.essence;
-    base.summaryParts.push(`${fallback.gold} gold`, `${fallback.essence} essence`);
-  });
+  for (let slotTier = 2; slotTier <= tier; slotTier += 1) {
+    const category = rng.pick(remainingCategories);
+    applyRewardCategory(base, category, slotTier, availableUpgradeIds);
+    remainingCategories = remainingCategories.filter((entry) => entry !== category);
+  }
 
   base.resources.gold = fixed(base.resources.gold * rewardMultiplier);
   base.resources.essence = fixed(base.resources.essence * rewardMultiplier);
@@ -159,6 +179,11 @@ function buildEnemyArmy(tier: number, seed: number, mutatorIds: MutatorId[]) {
   });
 }
 
+function pickRiftSaturation(seed: number): number {
+  const rng = createRng(deriveSeed(seed, 809));
+  return 3 + rng.int(13);
+}
+
 export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycleNumber'>): RiftInstance[] {
   const tiers = getCycleTierSchedule(state.cycleNumber);
   const cycleSeed = deriveSeed(state.campaignSeed, state.cycleNumber);
@@ -174,7 +199,8 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
       tier,
       mutatorIds,
       enemyArmy,
-      rewardPackage: buildRewardPackage(tier, mutatorIds, []),
+      rewardPackage: buildRewardPackage(tier, mutatorIds, [], riftSeed),
+      saturation: pickRiftSaturation(riftSeed),
       expiresInCycles: 2,
       state: 'discovered',
     };
@@ -184,7 +210,7 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
 export function enrichRiftRewards(rifts: RiftInstance[], availableUpgradeIds: UpgradeId[]): RiftInstance[] {
   return rifts.map((rift) => ({
     ...rift,
-    rewardPackage: buildRewardPackage(rift.tier, rift.mutatorIds, availableUpgradeIds),
+    rewardPackage: buildRewardPackage(rift.tier, rift.mutatorIds, availableUpgradeIds, rift.seed),
   }));
 }
 

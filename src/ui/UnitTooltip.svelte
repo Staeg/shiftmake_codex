@@ -1,6 +1,8 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
-  import type { BattleUnit, ReplayTroopProfile } from '../engine/types';
+  import type { BattleUnit, ExplainedStatKey, ReplayTroopProfile, StatBreakdown, StatBreakdownLine } from '../engine/types';
+  import { formatAbilityExact, formatRoleExact, statIcon } from './inspectText';
+  import StatBreakdownGrid from './StatBreakdownGrid.svelte';
 
   export let unit: BattleUnit | null = null;
   export let profile: ReplayTroopProfile | null = null;
@@ -9,12 +11,9 @@
   export let y = 0;
   export let locked = false;
   export let docked = false;
-
-  const ROLE_DETAILS: Record<string, string> = {
-    frontline: 'Frontline troops close distance and try to tie enemies up in engagements.',
-    chaff: 'Chaff units swarm vulnerable targets and reinforce crowded hexes.',
-    backline: 'Backline units prefer space, ranged attacks, and careful retreating.',
-  };
+  export let liveBuffLines: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> = {};
+  let hoveredRoleText: { label: string; description: string } | null = null;
+  let hoveredAbilityText: { label: string; description: string } | null = null;
 
   $: display = unit || profile
     ? {
@@ -24,14 +23,58 @@
         maxHp: unit?.maxHp ?? profile?.stats.health ?? 0,
         initiative: unit ? unit.initiative : null,
         role: unit?.role ?? profile?.role ?? 'frontline',
-        position: unit?.position ?? null,
         type: unit?.type ?? profile?.type ?? '',
         attributes: unit?.attributes ?? profile?.attributes ?? [],
         side: unit?.side ?? profile?.side ?? 'player',
-        stats: profile?.stats ?? null,
+        stats: unit?.stats ?? profile?.stats ?? null,
         abilities: profile?.abilities ?? [],
       }
     : null;
+
+  function mergedBreakdown(stat: ExplainedStatKey): StatBreakdown | null {
+    if (!display || !profile) {
+      return null;
+    }
+
+    const base = profile.statBreakdowns?.[stat] ?? null;
+    const live = liveBuffLines[stat] ?? [];
+    if (!base && live.length === 0) {
+      return null;
+    }
+
+    const finalValue =
+      stat === 'health'
+        ? display.maxHp
+        : stat === 'damage'
+          ? display.stats?.damage ?? 0
+          : stat === 'armor'
+            ? display.stats?.armor ?? 0
+            : stat === 'speed'
+              ? display.stats?.speed ?? 0
+              : stat === 'range'
+                ? display.stats?.range ?? 0
+                : stat === 'size'
+                  ? display.stats?.size ?? 0
+                  : display.stats?.capacity ?? 0;
+
+    return {
+      stat,
+      finalValue,
+      lines: [...(base?.lines ?? []), ...live],
+    };
+  }
+
+  $: statEntries = display?.stats
+    ? [
+        { key: 'health' as const, label: statIcon('health'), value: `${formatFixed(Math.max(0, display.hp))}/${formatFixed(Math.max(0, display.maxHp))}`, breakdown: mergedBreakdown('health') },
+        { key: 'damage' as const, label: statIcon('damage'), value: formatFixed(display.stats.damage), breakdown: mergedBreakdown('damage') },
+        { key: 'armor' as const, label: statIcon('armor'), value: formatFixed(display.stats.armor), breakdown: mergedBreakdown('armor') },
+        { key: 'speed' as const, label: statIcon('speed'), value: formatFixed(display.stats.speed), breakdown: mergedBreakdown('speed') },
+        { key: 'range' as const, label: statIcon('range'), value: formatFixed(display.stats.range), breakdown: mergedBreakdown('range') },
+        { key: 'size' as const, label: statIcon('size'), value: formatFixed(display.stats.size), breakdown: mergedBreakdown('size') },
+        { key: 'capacity' as const, label: statIcon('capacity'), value: formatFixed(display.stats.capacity), breakdown: mergedBreakdown('capacity') },
+      ]
+    : [];
 </script>
 
 {#if display}
@@ -47,27 +90,35 @@
     </header>
 
     <div class="rows">
-      <div><span>Health</span><b>{formatFixed(Math.max(0, display.hp))}/{formatFixed(Math.max(0, display.maxHp))}</b></div>
-      <div><span>Role</span><b>{display.role}</b></div>
+      <button
+        type="button"
+        class="inspect-chip"
+        on:mouseenter={() => (hoveredRoleText = { label: display.role, description: formatRoleExact(display.role) })}
+        on:focus={() => (hoveredRoleText = { label: display.role, description: formatRoleExact(display.role) })}
+        on:mouseleave={() => (hoveredRoleText = null)}
+        on:blur={() => (hoveredRoleText = null)}
+      >
+        <span>Role</span>
+        <b>{display.role}</b>
+      </button>
       {#if display.initiative !== null}
         <div><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
       {/if}
-      {#if display.position}
-        <div><span>Hex</span><b>{display.position.q},{display.position.r}</b></div>
-      {/if}
-      {#if display.stats}
-        <div><span>Damage</span><b>{formatFixed(display.stats.damage)}</b></div>
-        <div><span>Armor</span><b>{formatFixed(display.stats.armor)}</b></div>
-        <div><span>Speed</span><b>{formatFixed(display.stats.speed)}</b></div>
-        <div><span>Range</span><b>{formatFixed(display.stats.range)}</b></div>
-        <div><span>Size</span><b>{formatFixed(display.stats.size)}</b></div>
-        <div><span>Capacity</span><b>{formatFixed(display.stats.capacity)}</b></div>
-      {/if}
     </div>
+
+    {#if hoveredRoleText}
+      <div class="inspect-tooltip role-tooltip">
+        <strong>{hoveredRoleText.label}</strong>
+        <p>{hoveredRoleText.description}</p>
+      </div>
+    {/if}
+
+    {#if display.stats}
+      <StatBreakdownGrid stats={statEntries} columns={2} />
+    {/if}
 
     <div class="meta">
       <span>Type: {display.type}{display.attributes.length > 0 ? ` | Attributes: ${display.attributes.join(', ')}` : ''}</span>
-      <span>{ROLE_DETAILS[display.role]}</span>
     </div>
 
     {#if display.stats}
@@ -76,15 +127,28 @@
         {#if display.abilities.length === 0}
           <small>None</small>
         {:else}
-          <ul>
+          <div class="ability-chips">
             {#each display.abilities as ability}
-              <li>
-                <strong>{ability.label}</strong>
-                <small>{ability.shortText}</small>
-              </li>
+              <button
+                type="button"
+                class="ability-chip"
+                on:mouseenter={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityExact(ability) })}
+                on:focus={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityExact(ability) })}
+                on:mouseleave={() => (hoveredAbilityText = null)}
+                on:blur={() => (hoveredAbilityText = null)}
+              >
+                {ability.label}
+              </button>
             {/each}
-          </ul>
+          </div>
         {/if}
+      </div>
+    {/if}
+
+    {#if hoveredAbilityText}
+      <div class="inspect-tooltip">
+        <strong>{hoveredAbilityText.label}</strong>
+        <p>{hoveredAbilityText.description}</p>
       </div>
     {/if}
 
@@ -162,7 +226,8 @@
     margin-bottom: 0.45rem;
   }
 
-  .rows div {
+  .rows div,
+  .inspect-chip {
     display: flex;
     justify-content: space-between;
     background: rgba(22, 32, 44, 0.65);
@@ -170,6 +235,17 @@
     border-radius: 6px;
     padding: 0.2rem 0.35rem;
     font-size: 0.78rem;
+  }
+
+  .inspect-chip {
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: help;
+  }
+
+  :global(.tooltip .stats-grid) {
+    margin-bottom: 0.45rem;
   }
 
   .meta,
@@ -188,7 +264,6 @@
     padding-top: 0.35rem;
   }
 
-  .abilities ul,
   .engaged ul {
     margin: 0;
     padding-left: 1rem;
@@ -196,13 +271,38 @@
     gap: 0.35rem;
   }
 
-  .abilities li {
-    display: grid;
-    gap: 0.15rem;
+  .ability-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
   }
 
-  .abilities li small {
-    color: #9fb1bf;
+  .ability-chip {
+    padding: 0.3rem 0.65rem;
+    border: 1px solid rgba(212, 173, 115, 0.24);
+    border-radius: 999px;
+    background: rgba(31, 24, 16, 0.82);
+    color: #f1d7ae;
+    font: inherit;
+    cursor: help;
+  }
+
+  .inspect-tooltip {
+    display: grid;
+    gap: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid #28384a;
+    color: #bfccd8;
+    font-size: 0.75rem;
+  }
+
+  .inspect-tooltip p {
+    margin: 0;
+  }
+
+  .role-tooltip {
+    margin-top: -0.1rem;
+    margin-bottom: 0.45rem;
   }
 
   footer {

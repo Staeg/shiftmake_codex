@@ -1,3 +1,4 @@
+import { getEnemyStatBreakdowns } from './army';
 import type { GameState, LoadGameResult } from './types';
 
 function normalizeReplayIndex(state: Partial<GameState>): Partial<GameState> {
@@ -30,13 +31,48 @@ function normalizeReplayIndex(state: Partial<GameState>): Partial<GameState> {
   };
 }
 
+function normalizeOpenRifts(state: Partial<GameState>): Partial<GameState> {
+  if (!Array.isArray(state.openRifts)) {
+    return state;
+  }
+
+  return {
+    ...state,
+    openRifts: state.openRifts.map((rift) => {
+      if (!rift || typeof rift !== 'object') {
+        return rift;
+      }
+
+      return {
+        ...rift,
+        saturation: 'saturation' in rift && typeof rift.saturation === 'number' ? rift.saturation : 10,
+        enemyArmy: Array.isArray(rift.enemyArmy)
+          ? rift.enemyArmy.map((combatant) => {
+              if (!combatant || typeof combatant !== 'object') {
+                return combatant;
+              }
+
+              return {
+                ...combatant,
+                statBreakdowns:
+                  'statBreakdowns' in combatant && combatant.statBreakdowns
+                    ? combatant.statBreakdowns
+                    : getEnemyStatBreakdowns(combatant.factionId, combatant.unitTypeId, typeof rift.tier === 'number' ? rift.tier : 1),
+              };
+            })
+          : rift.enemyArmy,
+      };
+    }),
+  };
+}
+
 export function serializeGameState(state: GameState): string {
   return JSON.stringify(state);
 }
 
 export function deserializeGameState(json: string): LoadGameResult {
   try {
-    const parsed = normalizeReplayIndex(JSON.parse(json) as Partial<GameState>);
+    const parsed = normalizeOpenRifts(normalizeReplayIndex(JSON.parse(json) as Partial<GameState>));
     if (!parsed || parsed.version !== 1) {
       return { ok: false, error: 'unsupported_version' };
     }

@@ -2,15 +2,20 @@
   import { get } from 'svelte/store';
   import { onDestroy, onMount, tick } from 'svelte';
   import { BattleRenderer, type UnitPointerInfo } from '../rendering/BattleRenderer';
-  import { canUpgradeStat, getAvailableFactionTroopUnlocks, getFactionTroops, getFactionUnlockCost, getTroopAddUnitCost, getTroopEffectiveDefinition, getTroopStatUpgradeCost, getTroopStatusCounts, getTroopUnlockCost, getTroopsAssignedToRift } from '../engine/army';
+  import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisuals';
+  import { canUpgradeStat, getAvailableFactionTroopUnlocks, getFactionTroops, getFactionUnlockCost, getResolvedStatBreakdowns, getTroopAddUnitCost, getTroopEffectiveDefinition, getTroopStatUpgradeCost, getTroopStatusCounts, getTroopUnlockCost, getTroopsAssignedToRift } from '../engine/army';
   import { formatFixed } from '../engine/fixed';
-  import { validateAssignments } from '../engine/game';
-  import { composeBaseTroopDefinition, FACTION_UPGRADES, FACTIONS, UNIT_TYPES, getFaction, getFactionUpgrade, getMutator, getUnitType } from '../engine/unitCatalog';
-  import type { AbilityDefinition, BattleUnit, FactionId, RewardPackage, RiftInstance, TroopId, TroopStatKey, UnitTypeId } from '../engine/types';
+  import { getStartingFactionUnitType, validateAssignments } from '../engine/game';
+  import { composeBaseTroopDefinition, FACTION_UPGRADES, FACTIONS, UNIT_TYPES, getAbility, getFaction, getFactionUpgrade, getMutator, getUnitType } from '../engine/unitCatalog';
+  import type { AbilityDefinition, BattleReplay, BattleUnit, ExplainedStatKey, FactionId, RewardPackage, RiftInstance, SideId, StatBreakdown, StatBreakdownLine, TroopId, TroopStatKey, UnitTypeId } from '../engine/types';
   import { gameStore } from '../store/gameStore';
   import type { SaveSlotId, SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
+  import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry, type BattleRecapUnitEntry } from './battleRecap';
   import EventLog from './EventLog.svelte';
+  import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
+  import { getRiftVisual } from './riftVisuals';
+  import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
 
   const state = gameStore;
@@ -18,6 +23,7 @@
   let renderer: BattleRenderer | null = null;
   let rendererHost: HTMLDivElement | null = null;
   let rendererInitPromise: Promise<void> | null = null;
+  let viewportResizeObserver: ResizeObserver | null = null;
   let mountedReplayId: string | null = null;
   let replayUiId: string | null = null;
   let autoTimer: ReturnType<typeof setInterval> | null = null;
@@ -31,32 +37,91 @@
   let lockedPointer: UnitPointerInfo | null = null;
   let replayAliveCountsExpanded = false;
   let replayEventLogCollapsed = false;
-  let selectedMenuSlotId: SaveSlotId | null = null;
-  let hoveredDetail:
+  let replayRecapOpen = false;
+  let expandedReplayRecapTroopKey: string | null = null;
+  let detailHideTimer: ReturnType<typeof setTimeout> | null = null;
+  type HoveredDetail =
     | {
+        detailKey: string;
         kind: 'mutator';
         label: string;
         description: string;
       }
     | {
+        detailKey: string;
+        kind: 'faction';
+        label: string;
+        description: string;
+      }
+    | {
+        detailKey: string;
         kind: 'ability';
         label: string;
         description: string;
       }
     | {
+        detailKey: string;
         kind: 'upgrade' | 'troop';
         label: string;
         description: string;
       }
-    | null = null;
+    | {
+        detailKey: string;
+        kind: 'unit';
+        label: string;
+        description: string;
+        portraitUrl: string;
+        stats: Array<{ key: string; label: string; value: string; breakdown: StatBreakdown | null; action?: { label: string; cost: string; disabled?: boolean; onClick?: () => void; onMouseEnter?: () => void; onMouseLeave?: () => void } }>;
+        abilities: Array<{ label: string; description: string }>;
+      }
+    | null;
+
+  let selectedMenuSlotId: SaveSlotId | null = null;
+  let factionUnitPortraits: Record<string, string> = {};
+  let hoveredDetail: HoveredDetail = null;
+  let pinnedDetail: Exclude<HoveredDetail, null> | null = null;
+  let hoveredAbilityTooltip: { label: string; description: string } | null = null;
+  let hoveredUpgradeTooltip: { label: string; description: string } | null = null;
   let pendingPurchase:
     | { kind: 'unlockFaction'; factionId: FactionId; cost: number }
     | { kind: 'unlockTroop'; factionId: FactionId; unitTypeId: UnitTypeId; cost: number }
     | { kind: 'factionUpgrade'; upgradeId: string; factionId: FactionId; cost: number }
     | null = null;
 
-  const troopUpgradeOrder: TroopStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity'];
+  const explainedStatOrder: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
   const replayProfileKey = (side: 'player' | 'enemy', troopLabel: string): string => `${side}:${troopLabel}`;
+
+  function getFactionUnitPortrait(factionId: FactionId, unitTypeId: UnitTypeId): string {
+    return factionUnitPortraits[`${factionId}/${unitTypeId}`] ?? '';
+  }
+
+  function getFactionPortrait(factionId: FactionId): string {
+    return getFactionSpriteUrl(factionId);
+  }
+
+  function buildStatEntries(
+    stats: { health: number; damage: number; speed: number; armor: number; range: number; capacity: number; size?: number },
+    breakdowns?: Partial<Record<ExplainedStatKey, StatBreakdown>>,
+    includeSize = false,
+    quantity?: number,
+  ) {
+    const keys = includeSize ? explainedStatOrder : explainedStatOrder.filter((stat) => stat !== 'size');
+    const entries = keys.map((key) => ({
+      key,
+      label: displayIcon(key),
+      value: formatFixed(key === 'size' ? stats.size ?? 0 : stats[key as keyof typeof stats] as number),
+      breakdown: breakdowns?.[key] ?? null,
+    }));
+    if (typeof quantity === 'number') {
+      entries.push({
+        key: 'quantity',
+        label: displayIcon('quantity'),
+        value: formatFixed(quantity),
+        breakdown: null,
+      });
+    }
+    return entries;
+  }
 
   async function ensureRenderer(): Promise<void> {
     if (!viewport) {
@@ -112,7 +177,23 @@
     }
   }
 
+  function cancelDetailHideTimer(): void {
+    if (detailHideTimer) {
+      clearTimeout(detailHideTimer);
+      detailHideTimer = null;
+    }
+  }
+
+  function clearOverworldDetailState(): void {
+    cancelDetailHideTimer();
+    hoveredDetail = null;
+    pinnedDetail = null;
+    hoveredAbilityTooltip = null;
+    hoveredUpgradeTooltip = null;
+  }
+
   function selectTroop(troopId: TroopId): void {
+    clearOverworldDetailState();
     pendingPurchase = null;
     selectedTroopId = troopId;
     selectedRiftId = null;
@@ -120,6 +201,7 @@
   }
 
   function selectRift(riftId: string): void {
+    clearOverworldDetailState();
     pendingPurchase = null;
     selectedRiftId = riftId;
     selectedTroopId = null;
@@ -135,6 +217,7 @@
   }
 
   function selectFaction(factionId: FactionId): void {
+    clearOverworldDetailState();
     pendingPurchase = null;
     selectedFactionId = factionId;
     selectedTroopId = null;
@@ -142,6 +225,7 @@
   }
 
   function selectRecruitableFaction(factionId: FactionId): void {
+    clearOverworldDetailState();
     selectedFactionId = factionId;
     selectedTroopId = null;
     selectedRiftId = null;
@@ -153,6 +237,7 @@
   }
 
   function selectRecruitableTroop(factionId: FactionId, unitTypeId: UnitTypeId): void {
+    clearOverworldDetailState();
     selectedFactionId = factionId;
     selectedTroopId = null;
     selectedRiftId = null;
@@ -165,6 +250,7 @@
   }
 
   function selectFactionUpgradePurchase(upgradeId: string, factionId: FactionId): void {
+    clearOverworldDetailState();
     selectedFactionId = factionId;
     selectedTroopId = null;
     selectedRiftId = null;
@@ -178,10 +264,20 @@
 
   onMount(async () => {
     gameStore.initialize();
+    void loadFactionUnitPortraitUrls().then((portraits) => {
+      factionUnitPortraits = portraits;
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      viewportResizeObserver = new ResizeObserver(() => {
+        renderer?.refreshViewport();
+      });
+    }
   });
 
   onDestroy(() => {
     clearAutoTimer();
+    viewportResizeObserver?.disconnect();
     renderer?.destroy();
   });
 
@@ -192,12 +288,18 @@
     selectedReplayProfileKey = null;
     replayAliveCountsExpanded = false;
     replayEventLogCollapsed = false;
+    replayRecapOpen = false;
+    expandedReplayRecapTroopKey = null;
     hoveredDetail = null;
     lockedPointer = null;
     hoveredPointer = null;
   }
   $: if ($state.screen === 'replay' && currentReplay && viewport) {
     void ensureRenderer();
+  }
+  $: if (viewport) {
+    viewportResizeObserver?.disconnect();
+    viewportResizeObserver?.observe(viewport);
   }
   $: if (renderer && currentReplay && currentReplay.id !== mountedReplayId) {
     renderer.setReplay(currentReplay);
@@ -224,6 +326,7 @@
   $: activePointer = lockedPointer ?? hoveredPointer;
   $: activeUnit = activePointer ? currentUnitById.get(activePointer.unitId) ?? null : null;
   $: activeUnitProfile = activeUnit ? replayProfilesByKey.get(replayProfileKey(activeUnit.side, activeUnit.troopLabel)) ?? null : null;
+  $: activeUnitBuffLines = currentReplay && activeUnit ? buildReplayBuffLines(activeUnit.id, currentReplay, $state.currentStep) : {};
   $: hoveredReplayProfile = hoveredReplayProfileKey ? replayProfilesByKey.get(hoveredReplayProfileKey) ?? null : null;
   $: selectedReplayProfile = selectedReplayProfileKey ? replayProfilesByKey.get(selectedReplayProfileKey) ?? null : null;
   $: engagedUnits = activeUnit ? activeUnit.engagedWithIds.map((id) => currentUnitById.get(id)).filter(Boolean) as BattleUnit[] : [];
@@ -263,12 +366,40 @@
 
   $: discoveredRifts = $state.game.openRifts.filter((rift) => rift.state === 'discovered');
   $: selectedTroop = selectedTroopId ? $state.game.troops.find((troop) => troop.id === selectedTroopId) ?? null : null;
+  $: selectedTroopDef = selectedTroop ? getTroopEffectiveDefinition($state.game, selectedTroop.id) : null;
+  $: selectedTroopStatBreakdowns = selectedTroop ? getResolvedStatBreakdowns($state.game, selectedTroop, 'player') : null;
+  $: selectedTroopStatEntries =
+    selectedTroop && selectedTroopDef && selectedTroopStatBreakdowns
+      ? buildStatEntries(selectedTroopDef.stats, selectedTroopStatBreakdowns, true, selectedTroop.quantity).map((entry) => {
+          if (entry.key === 'quantity' || entry.key === 'size') {
+            return entry;
+          }
+
+          const stat = entry.key as TroopStatKey;
+          if (!canUpgradeStat(selectedTroop.unitTypeId, stat)) {
+            return entry;
+          }
+
+          return {
+            ...entry,
+            action: {
+              label: '+',
+              cost: formatFixed(getTroopStatUpgradeCost(selectedTroop, stat)),
+              disabled: !canAffordGold(getTroopStatUpgradeCost(selectedTroop, stat)),
+              onClick: () => gameStore.buyTroopStatUpgrade(selectedTroop.id, stat),
+              onMouseEnter: () => showUpgradeTooltip(selectedTroop, stat),
+              onMouseLeave: () => (hoveredUpgradeTooltip = null),
+            },
+          };
+        })
+      : [];
   $: selectedRift = selectedRiftId ? $state.game.openRifts.find((rift) => rift.id === selectedRiftId) ?? null : null;
   $: selectedReplayEntry = selectedReplayStorageKey
     ? $state.game.replayIndex.find((replay) => replay.replayId === selectedReplayStorageKey) ?? null
     : null;
   $: selectedReplayAvailable =
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
+  $: activeDetailKey = activeDetail?.detailKey ?? null;
   $: factionTroops = selectedFactionId ? getFactionTroops($state.game, selectedFactionId) : [];
   $: availableFactionTroopUnlocks = selectedFactionId ? getAvailableFactionTroopUnlocks($state.game, selectedFactionId) : [];
   $: selectedFactionDefaultUpgrades = selectedFactionId
@@ -303,7 +434,15 @@
   );
   $: alivePlayerGroups = Object.entries(aliveCountsBySide.player).sort((a, b) => a[0].localeCompare(b[0]));
   $: aliveEnemyGroups = Object.entries(aliveCountsBySide.enemy).sort((a, b) => a[0].localeCompare(b[0]));
+  $: replayRecap = currentReplay ? buildBattleRecap(currentReplay) : [] as BattleRecapTroopEntry[];
+  $: replayRecapPlayerTroops = replayRecap.filter((entry) => entry.side === 'player');
+  $: replayRecapEnemyTroops = replayRecap.filter((entry) => entry.side === 'enemy');
+  $: replayRecapSides = [
+    { side: 'player' as SideId, label: 'Player', troops: replayRecapPlayerTroops },
+    { side: 'enemy' as SideId, label: 'Enemy', troops: replayRecapEnemyTroops },
+  ];
   $: replayFocusProfile = hoveredReplayProfile ?? activeUnitProfile ?? selectedReplayProfile;
+  $: activeDetail = pinnedDetail ?? hoveredDetail;
   $: selectedRiftAssignableTroops = selectedRift
     ? $state.game.troops.filter(
         (troop) =>
@@ -337,26 +476,24 @@
 
   function getTroopEffectivePreview(factionId: FactionId, unitTypeId: UnitTypeId) {
     const base = composeBaseTroopDefinition(factionId, unitTypeId);
+    const previewTroop = {
+      id: '__preview__',
+      factionId,
+      unitTypeId,
+      quantity: base.quantity,
+      unlocked: false,
+      statUpgradeLevels: { health: 0, damage: 0, speed: 0, armor: 0, range: 0, capacity: 0 },
+      recoveryCyclesRemaining: 0,
+      assignmentRiftId: null,
+    };
+    const previewState = {
+      ...$state.game,
+      troops: [...$state.game.troops, previewTroop],
+    };
+
     return {
-      ...getTroopEffectiveDefinition(
-        {
-          ...$state.game,
-          troops: [
-            ...$state.game.troops,
-            {
-              id: '__preview__',
-              factionId,
-              unitTypeId,
-              quantity: base.quantity,
-              unlocked: false,
-              statUpgradeLevels: { health: 0, damage: 0, speed: 0, armor: 0, range: 0, capacity: 0 },
-              recoveryCyclesRemaining: 0,
-              assignmentRiftId: null,
-            },
-          ],
-        },
-        '__preview__',
-      ),
+      ...getTroopEffectiveDefinition(previewState, '__preview__'),
+      statBreakdowns: getResolvedStatBreakdowns(previewState, previewTroop, 'player'),
     };
   }
 
@@ -401,6 +538,14 @@
     if (selectedReplayEntry) {
       gameStore.openReplay(selectedReplayEntry.replayId);
     }
+  }
+
+  function zoomReplayIn(): void {
+    renderer?.zoomIn();
+  }
+
+  function zoomReplayOut(): void {
+    renderer?.zoomOut();
   }
 
   function clearCampaignSelections(): void {
@@ -481,42 +626,249 @@
     selectedReplayProfileKey = replayProfileKey(side, troopLabel);
   }
 
-  function showMutatorDetail(mutatorId: string): void {
+  function getReplayRecapTroopProfile(side: SideId, troopLabel: string) {
+    return replayProfilesByKey.get(replayProfileKey(side, troopLabel)) ?? null;
+  }
+
+  function getReplayRecapUnitState(unitId: string): BattleUnit | null {
+    return currentUnitById.get(unitId) ?? null;
+  }
+
+  function getReplayRecapBarWidth(value: number, totalValue: number): string {
+    if (value <= 0 || totalValue <= 0) {
+      return '0%';
+    }
+
+    return `${Math.min(100, (value / totalValue) * 100)}%`;
+  }
+
+  function getReplayRecapTeamDamageTotal(troops: BattleRecapTroopEntry[]): number {
+    return troops.reduce((sum, troop) => sum + troop.damageDone, 0);
+  }
+
+  function getReplayRecapTeamHealingTotal(troops: BattleRecapTroopEntry[]): number {
+    return troops.reduce((sum, troop) => sum + troop.healingDone, 0);
+  }
+
+  function getReplayRecapSharedScaleTotal(troops: BattleRecapTroopEntry[]): number {
+    return Math.max(getReplayRecapTeamDamageTotal(troops), getReplayRecapTeamHealingTotal(troops));
+  }
+
+  function toggleReplayRecap(): void {
+    replayRecapOpen = !replayRecapOpen;
+    if (!replayRecapOpen) {
+      expandedReplayRecapTroopKey = null;
+    }
+  }
+
+  function toggleReplayRecapTroop(side: SideId, troopLabel: string): void {
+    const key = replayProfileKey(side, troopLabel);
+    expandedReplayRecapTroopKey = expandedReplayRecapTroopKey === key ? null : key;
+  }
+
+  function selectReplayRecapUnit(unitId: string, side: SideId, troopLabel: string): void {
+    if (!currentReplay) {
+      return;
+    }
+
+    const currentStep = $state.currentStep;
+    const targetStep = isUnitAliveAtStep(currentReplay, unitId, currentStep)
+      ? currentStep
+      : findLastAliveStep(currentReplay, unitId, currentStep);
+
+    gameStore.setAutoPlay(false);
+    if (targetStep !== currentStep) {
+      gameStore.jumpTo(targetStep);
+    }
+
+    selectReplayProfile(side, troopLabel);
+    const pointer = { unitId, x: 0, y: 0 };
+    lockedPointer = pointer;
+    hoveredPointer = pointer;
+    replayRecapOpen = false;
+    expandedReplayRecapTroopKey = null;
+  }
+
+  function cycleReplayProfileUnit(side: 'player' | 'enemy', troopLabel: string): void {
+    const matchingUnits = currentUnits
+      .filter((unit) => unit.alive && unit.side === side && unit.troopLabel === troopLabel)
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    if (matchingUnits.length === 0) {
+      return;
+    }
+
+    selectReplayProfile(side, troopLabel);
+    const currentIndex = activeUnit?.side === side && activeUnit.troopLabel === troopLabel
+      ? matchingUnits.findIndex((unit) => unit.id === activeUnit.id)
+      : -1;
+    const nextUnit = matchingUnits[(currentIndex + 1 + matchingUnits.length) % matchingUnits.length];
+    if (!nextUnit) {
+      return;
+    }
+
+    const pointer = { unitId: nextUnit.id, x: 0, y: 0 };
+    lockedPointer = pointer;
+    hoveredPointer = pointer;
+  }
+
+  function sameDetail(left: Exclude<HoveredDetail, null>, right: Exclude<HoveredDetail, null>): boolean {
+    return left.detailKey === right.detailKey;
+  }
+
+  function hasPinnedDraftSelection(factionId: FactionId): boolean {
+    return activeDetailKey === `faction:${factionId}` || activeDetailKey?.startsWith(`troop-preview:${factionId}:`) === true;
+  }
+
+  function previewDetail(detail: Exclude<HoveredDetail, null>): void {
+    cancelDetailHideTimer();
+    if (!pinnedDetail) {
+      hoveredDetail = detail;
+    }
+  }
+
+  function togglePinnedDetail(detail: Exclude<HoveredDetail, null>): void {
+    cancelDetailHideTimer();
+    pinnedDetail = pinnedDetail && sameDetail(pinnedDetail, detail) ? null : detail;
+    hoveredDetail = null;
+    hoveredAbilityTooltip = null;
+  }
+
+  function buildMutatorDetail(mutatorId: string): Exclude<HoveredDetail, null> {
     const mutator = getMutator(mutatorId);
-    hoveredDetail = {
+    return {
+      detailKey: `mutator:${mutatorId}`,
       kind: 'mutator',
       label: mutator.label,
       description: mutator.description,
     };
   }
 
-  function showAbilityDetail(ability: AbilityDefinition): void {
-    hoveredDetail = {
-      kind: 'ability',
-      label: ability.label,
-      description: ability.shortText,
-    };
+  function showMutatorDetail(mutatorId: string): void {
+    previewDetail(buildMutatorDetail(mutatorId));
   }
 
   function clearDetail(): void {
-    hoveredDetail = null;
+    cancelDetailHideTimer();
+    detailHideTimer = setTimeout(() => {
+      if (!pinnedDetail) {
+        hoveredDetail = null;
+      }
+      hoveredAbilityTooltip = null;
+      detailHideTimer = null;
+    }, 140);
   }
 
   function showUpgradeDetail(upgradeId: string): void {
-    const upgrade = getFactionUpgrade(upgradeId);
-    hoveredDetail = {
-      kind: 'upgrade',
-      label: upgrade.label,
-      description: upgrade.description,
-    };
+    previewDetail(buildUpgradeDetail(upgradeId));
+  }
+
+  function buildTroopDetail(factionId: FactionId, unitTypeId: UnitTypeId): Exclude<HoveredDetail, null> {
+    const troop = getTroopEffectivePreview(factionId, unitTypeId);
+    return buildResolvedUnitDetail(
+      `troop-preview:${factionId}:${unitTypeId}`,
+      troop.label,
+      factionId,
+      unitTypeId,
+      troop.stats,
+      troop.quantity,
+      `${getFaction(factionId).label} troop preview`,
+      troop.abilities,
+      troop.statBreakdowns,
+    );
   }
 
   function showTroopDetail(factionId: FactionId, unitTypeId: UnitTypeId): void {
-    const troop = getTroopEffectivePreview(factionId, unitTypeId);
-    hoveredDetail = {
-      kind: 'troop',
-      label: troop.label,
-      description: `HP ${formatFixed(troop.stats.health)} | DMG ${formatFixed(troop.stats.damage)} | SPD ${formatFixed(troop.stats.speed)} | ARM ${formatFixed(troop.stats.armor)} | RNG ${formatFixed(troop.stats.range)} | CAP ${formatFixed(troop.stats.capacity)}`,
+    previewDetail(buildTroopDetail(factionId, unitTypeId));
+  }
+
+  function buildFactionDetail(factionId: FactionId): Exclude<HoveredDetail, null> {
+    const faction = getFaction(factionId);
+    const modifierLines = describeFactionModifiers(factionId);
+    return {
+      detailKey: `faction:${factionId}`,
+      kind: 'faction',
+      label: faction.label,
+      description:
+        modifierLines.length > 0
+          ? `${faction.description} Modifiers: ${modifierLines.join(' | ')}.`
+          : `${faction.description} No stat modifiers.`,
+    };
+  }
+
+  function showFactionDetail(factionId: FactionId): void {
+    previewDetail(buildFactionDetail(factionId));
+  }
+
+  function clearPreviewDetail(): void {
+    cancelDetailHideTimer();
+    if (!pinnedDetail) {
+      hoveredDetail = null;
+    }
+    hoveredAbilityTooltip = null;
+  }
+
+  function togglePinnedFactionDetail(factionId: FactionId): void {
+    togglePinnedDetail(buildFactionDetail(factionId));
+  }
+
+  function togglePinnedTroopDetail(factionId: FactionId, unitTypeId: UnitTypeId): void {
+    togglePinnedDetail(buildTroopDetail(factionId, unitTypeId));
+  }
+
+  function describeFactionUpgrade(upgradeId: string): string {
+    const upgrade = getFactionUpgrade(upgradeId);
+    const effectDescriptions = upgrade.effects.map((effect) => {
+      if (effect.kind === 'addAbility') {
+        const ability = getAbility(effect.abilityId);
+        return `${ability.label}: ${formatAbilityExact(ability)}`;
+      }
+      if (effect.kind === 'addAttribute') {
+        return `Adds attribute ${effect.attribute} to all faction troops.`;
+      }
+      const entries = Object.entries(effect.statModifiers).map(([stat, modifier]) => {
+        if ((modifier?.flat ?? 0) !== 0) {
+          const flat = modifier?.flat ?? 0;
+          return `${statIcon(stat as ExplainedStatKey)} ${flat > 0 ? '+' : ''}${formatFixed(flat)}`;
+        }
+        const pct = (((modifier?.multiplier ?? 1) - 1) * 100);
+        return `${statIcon(stat as ExplainedStatKey)} ${pct > 0 ? '+' : ''}${formatFixed(pct)}%`;
+      });
+      const scope = effect.unitFilter === 'nonMelee' ? 'for non-melee troops' : 'for all faction troops';
+      return `Adjusts ${entries.join(', ')} ${scope}.`;
+    });
+    return `Tier ${upgrade.tier}. Cost ${formatFixed(upgrade.cost)} gold. ${upgrade.description}${effectDescriptions.length > 0 ? ` ${effectDescriptions.join(' ')}` : ''}`;
+  }
+
+  function buildUpgradeDetail(upgradeId: string): Exclude<HoveredDetail, null> {
+    const upgrade = getFactionUpgrade(upgradeId);
+    return {
+      detailKey: `upgrade:${upgradeId}`,
+      kind: 'upgrade',
+      label: upgrade.label,
+      description: describeFactionUpgrade(upgradeId),
+    };
+  }
+
+  function buildResolvedUnitDetail(
+    detailKey: string,
+    label: string,
+    factionId: FactionId,
+    unitTypeId: UnitTypeId,
+    stats: { health: number; damage: number; speed: number; armor: number; range: number; capacity: number; size?: number },
+    quantity: number,
+    description: string,
+    abilities: AbilityDefinition[],
+    statBreakdowns?: Partial<Record<ExplainedStatKey, StatBreakdown>>,
+  ): Exclude<HoveredDetail, null> {
+    return {
+      detailKey,
+      kind: 'unit',
+      label,
+      description,
+      portraitUrl: getFactionUnitPortrait(factionId, unitTypeId),
+      stats: buildStatEntries(stats, statBreakdowns, true, quantity),
+      abilities: abilities.map((ability) => ({ label: ability.label, description: formatAbilityExact(ability) })),
     };
   }
 
@@ -526,12 +878,15 @@
     return entries
       .filter(([, adjustment]) => (adjustment?.flat ?? 0) !== 0 || (adjustment?.multiplier ?? 1) !== 1)
       .map(([key, adjustment]) => {
+        const label = key in { health: 1, damage: 1, speed: 1, armor: 1, range: 1, capacity: 1, size: 1 }
+          ? statIcon(key as ExplainedStatKey)
+          : key;
         if ((adjustment?.flat ?? 0) !== 0) {
           const flat = adjustment?.flat ?? 0;
-          return `${key}: ${flat > 0 ? '+' : ''}${formatFixed(flat)}`;
+          return `${label}: ${flat > 0 ? '+' : ''}${formatFixed(flat)}`;
         }
         const pct = (((adjustment?.multiplier ?? 1) - 1) * 100);
-        return `${key}: ${pct > 0 ? '+' : ''}${formatFixed(pct)}%`;
+        return `${label}: ${pct > 0 ? '+' : ''}${formatFixed(pct)}%`;
       });
   }
 
@@ -547,6 +902,101 @@
       parts.push(`upgrade x${rewardPackage.upgradeChoiceBatches}`);
     }
     return parts.join(', ');
+  }
+
+  function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
+    hoveredAbilityTooltip = {
+      label: ability.label,
+      description: 'shortText' in ability ? formatAbilityExact(ability) : ability.description,
+    };
+  }
+
+  function showUpgradeTooltip(troop: NonNullable<typeof selectedTroop>, stat: TroopStatKey): void {
+    const current = getTroopEffectiveDefinition($state.game, troop.id);
+    const previewTroop = {
+      ...troop,
+      statUpgradeLevels: {
+        ...troop.statUpgradeLevels,
+        [stat]: (troop.statUpgradeLevels[stat] ?? 0) + 1,
+      },
+    };
+    const previewState = {
+      ...$state.game,
+      troops: $state.game.troops.map((entry) => (entry.id === troop.id ? previewTroop : entry)),
+    };
+    const next = getTroopEffectiveDefinition(previewState, troop.id);
+    const gain = next.stats[stat] - current.stats[stat];
+
+    hoveredUpgradeTooltip = {
+      label: `${statIcon(stat)} upgrade`,
+      description: `Next purchase: ${gain > 0 ? '+' : ''}${formatFixed(gain)} ${statIcon(stat)} (${formatFixed(current.stats[stat])} -> ${formatFixed(next.stats[stat])}).`,
+    };
+  }
+
+  function buildReplayBuffLines(unitId: string, replay: BattleReplay, currentStep: number): Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> {
+    if (currentStep < 0) {
+      return {};
+    }
+
+    const additive = new Map<ExplainedStatKey, Map<string, number>>();
+    const rangeSets: Array<{ label: string; value: number }> = [];
+    const stepLimit = Math.min(currentStep, replay.steps.length - 1);
+    const effectToStat: Partial<Record<string, ExplainedStatKey>> = {
+      bolster: 'health',
+      haste: 'speed',
+      ramp: 'damage',
+    };
+
+    for (let index = 0; index <= stepLimit; index += 1) {
+      const step = replay.steps[index];
+      if (!step || step.kind !== 'buff' || !step.targetIds.includes(unitId) || !step.metadata) {
+        continue;
+      }
+
+      const effect = typeof step.metadata.effect === 'string' ? step.metadata.effect : null;
+      const labelBase =
+        typeof step.metadata.sourceAbilityLabel === 'string'
+          ? step.metadata.sourceAbilityLabel
+          : typeof step.metadata.sourceAbilityId === 'string'
+            ? step.metadata.sourceAbilityId
+            : 'Battle effect';
+      const label = `${labelBase} (battle)`;
+      const expired = step.metadata.expired === true;
+
+      if (effect && effectToStat[effect]) {
+        const stat = effectToStat[effect];
+        const amount = typeof step.metadata.amount === 'number' ? step.metadata.amount : 0;
+        if (!additive.has(stat)) {
+          additive.set(stat, new Map<string, number>());
+        }
+        const byLabel = additive.get(stat);
+        byLabel?.set(label, (byLabel.get(label) ?? 0) + (expired ? -amount : amount));
+        continue;
+      }
+
+      if (effect === 'rangeset' && typeof step.metadata.value === 'number') {
+        if (expired) {
+          rangeSets.pop();
+        } else {
+          rangeSets.push({ label, value: step.metadata.value });
+        }
+      }
+    }
+
+    const result: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> = {};
+    additive.forEach((byLabel, stat) => {
+      const lines = [...byLabel.entries()]
+        .filter(([, value]) => value !== 0)
+        .map(([label, value]) => ({ label, value, kind: 'delta' as const }));
+      if (lines.length > 0) {
+        result[stat] = lines;
+      }
+    });
+    if (rangeSets.length > 0) {
+      const active = rangeSets[rangeSets.length - 1];
+      result.range = [{ label: active.label, value: active.value, kind: 'set' }];
+    }
+    return result;
   }
 </script>
 
@@ -599,18 +1049,140 @@
 {:else if $state.game.phase === 'faction_draft'}
   <main class="draft-screen">
     <section class="draft-panel">
-      <p class="eyebrow">Shiftmake</p>
-      <h1>Choose Your First Banner</h1>
-      <p class="intro">Pick one faction to lead for free. Your first soldier troop joins immediately, and the first cycle of Rifts will open once the banner is raised.</p>
+      <div class="draft-layout">
+        <aside class="panel draft-focus-panel" role="presentation">
+          {#if activeDetail}
+            <div class="detail-panel">
+              <p class="eyebrow">
+                {activeDetail.kind === 'faction'
+                  ? 'Faction Modifiers'
+                  : activeDetail.kind === 'upgrade'
+                    ? 'Upgrade Preview'
+                    : activeDetail.kind === 'unit'
+                      ? 'Troop Preview'
+                      : activeDetail.kind === 'ability'
+                        ? 'Ability Effect'
+                        : 'Draft Detail'}
+              </p>
+              <h2>{activeDetail.label}</h2>
+              {#if activeDetail.kind === 'unit'}
+                <div class="hover-unit-detail">
+                  <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
+                  <p>{activeDetail.description}</p>
+                </div>
+                <StatBreakdownGrid stats={activeDetail.stats} columns={activeDetail.stats.length} />
+                <div class="ability-row detail-ability-row">
+                  <span>Abilities</span>
+                  <div class="ability-list">
+                    {#if activeDetail.abilities.length === 0}
+                      <span class="mutator-chip empty">None</span>
+                    {:else}
+                      {#each activeDetail.abilities as ability}
+                        <button
+                          class="mutator-chip ability-chip"
+                          on:mouseenter={() => showAbilityTooltip(ability)}
+                          on:focus={() => showAbilityTooltip(ability)}
+                          on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                          on:blur={() => (hoveredAbilityTooltip = null)}
+                        >
+                          {ability.label}
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
+                  {#if hoveredAbilityTooltip}
+                    <div class="ability-hover-tooltip">
+                      <strong>{hoveredAbilityTooltip.label}</strong>
+                      <p>{hoveredAbilityTooltip.description}</p>
+                    </div>
+                  {/if}
+                </div>
+              {:else}
+                <p>{activeDetail.description}</p>
+              {/if}
+            </div>
+          {:else}
+            <div class="focus-empty draft-focus-empty">
+              <p class="eyebrow">Choose Your First Banner</p>
+              <h2>Inspect Your Options</h2>
+              <p>Every faction is available at campaign start. Hover a faction sprite to inspect modifiers and flavor, and hover troop icons to compare full stats and abilities. Click any sprite or troop icon to pin its details in place.</p>
+            </div>
+          {/if}
+        </aside>
 
-      <div class="draft-grid">
-        {#each $state.game.availableFactionDraft as factionId}
-          <button class="draft-card" on:click={() => gameStore.chooseStartingFaction(factionId)}>
-            <strong>{getFaction(factionId).label}</strong>
-            <span>{getFaction(factionId).description}</span>
-            <small>Starts with {getFaction(factionId).singularLabel} Soldiers</small>
-          </button>
-        {/each}
+        <div class="draft-grid">
+          {#each $state.game.availableFactionDraft as factionId}
+            {@const faction = getFaction(factionId)}
+            {@const startingUnitTypeId = getStartingFactionUnitType(factionId)}
+            {@const factionDetail = buildFactionDetail(factionId)}
+            {@const startingTroopDetail = buildTroopDetail(factionId, startingUnitTypeId)}
+            <article class="draft-card" class:locked-focus={hasPinnedDraftSelection(factionId)}>
+              <header class="draft-card-header">
+                <div class="draft-card-title">
+                  <strong>{faction.label}</strong>
+                  <button
+                    type="button"
+                    class="sprite-inspect-button"
+                    class:selected={activeDetailKey === factionDetail.detailKey}
+                    aria-label={`Inspect ${faction.label} faction modifiers`}
+                    on:mouseenter={() => previewDetail(factionDetail)}
+                    on:focus={() => previewDetail(factionDetail)}
+                    on:mouseleave={() => clearPreviewDetail()}
+                    on:blur={() => clearPreviewDetail()}
+                    on:click={() => togglePinnedDetail(factionDetail)}
+                  >
+                    <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                  </button>
+                </div>
+              </header>
+
+              <div class="draft-section">
+                <span class="draft-section-label">Starts With</span>
+                <div class="draft-icon-row">
+                  <button
+                    type="button"
+                    class="draft-troop-icon"
+                    class:selected={activeDetailKey === startingTroopDetail.detailKey}
+                    aria-label={composeBaseTroopDefinition(factionId, startingUnitTypeId).label}
+                    on:mouseenter={() => previewDetail(startingTroopDetail)}
+                    on:focus={() => previewDetail(startingTroopDetail)}
+                    on:mouseleave={() => clearPreviewDetail()}
+                    on:blur={() => clearPreviewDetail()}
+                    on:click={() => togglePinnedDetail(startingTroopDetail)}
+                  >
+                    <img class="unit-button-art" src={getFactionUnitPortrait(factionId, startingUnitTypeId)} alt="" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <div class="draft-section">
+                <span class="draft-section-label">Recruitable Troops</span>
+                <div class="draft-icon-row">
+                  {#each faction.defaultUnitTypeIds.filter((unitTypeId) => unitTypeId !== startingUnitTypeId) as unitTypeId}
+                    {@const troopDetail = buildTroopDetail(factionId, unitTypeId)}
+                    <button
+                      type="button"
+                      class="draft-troop-icon"
+                      class:selected={activeDetailKey === troopDetail.detailKey}
+                      aria-label={composeBaseTroopDefinition(factionId, unitTypeId).label}
+                      on:mouseenter={() => previewDetail(troopDetail)}
+                      on:focus={() => previewDetail(troopDetail)}
+                      on:mouseleave={() => clearPreviewDetail()}
+                      on:blur={() => clearPreviewDetail()}
+                      on:click={() => togglePinnedDetail(troopDetail)}
+                    >
+                      <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              <button class="primary draft-choose-button" on:click={() => gameStore.chooseStartingFaction(factionId)}>
+                Choose {faction.label}
+              </button>
+            </article>
+          {/each}
+        </div>
       </div>
     </section>
   </main>
@@ -668,7 +1240,7 @@
         {:else if hoveredReplayProfile}
           <UnitTooltip unit={null} profile={hoveredReplayProfile} engagedUnits={[]} x={0} y={0} docked={true} />
         {:else if activeUnit}
-          <UnitTooltip unit={activeUnit} profile={activeUnitProfile} engagedUnits={engagedUnits} x={0} y={0} locked={Boolean(lockedPointer)} docked={true} />
+          <UnitTooltip unit={activeUnit} profile={activeUnitProfile} engagedUnits={engagedUnits} x={0} y={0} locked={Boolean(lockedPointer)} docked={true} liveBuffLines={activeUnitBuffLines} />
         {:else if replayFocusProfile}
           <UnitTooltip unit={null} profile={replayFocusProfile} engagedUnits={[]} x={0} y={0} docked={true} />
         {:else}
@@ -682,7 +1254,13 @@
     </section>
 
     <section class="center replay-center">
-      <div class="viewport" bind:this={viewport}></div>
+      <div class="viewport-shell">
+        <div class="viewport" bind:this={viewport}></div>
+        <div class="replay-zoom-controls" aria-label="Replay zoom controls">
+          <button class="replay-zoom-button" type="button" aria-label="Zoom in" on:click={zoomReplayIn}>+</button>
+          <button class="replay-zoom-button" type="button" aria-label="Zoom out" on:click={zoomReplayOut}>-</button>
+        </div>
+      </div>
     </section>
 
     <section class="right replay-right">
@@ -704,18 +1282,31 @@
               {#if replayAliveCountsExpanded}
                 <div class="count-grid side-grid">
                   {#each alivePlayerGroups as [label, count]}
-                    <button
+                    <div
                       class="alive-unit-card"
                       class:selected={selectedReplayProfileKey === replayProfileKey('player', label)}
-                      on:click={() => selectReplayProfile('player', label)}
-                      on:mouseenter={() => (hoveredReplayProfileKey = replayProfileKey('player', label))}
-                      on:focus={() => (hoveredReplayProfileKey = replayProfileKey('player', label))}
-                      on:mouseleave={() => (hoveredReplayProfileKey = null)}
-                      on:blur={() => (hoveredReplayProfileKey = null)}
                     >
-                      <span>{label}</span>
-                      <strong>{count}</strong>
-                    </button>
+                      <button
+                        type="button"
+                        class="alive-unit-main"
+                        on:click={() => selectReplayProfile('player', label)}
+                        on:mouseenter={() => (hoveredReplayProfileKey = replayProfileKey('player', label))}
+                        on:focus={() => (hoveredReplayProfileKey = replayProfileKey('player', label))}
+                        on:mouseleave={() => (hoveredReplayProfileKey = null)}
+                        on:blur={() => (hoveredReplayProfileKey = null)}
+                      >
+                        <span>{label}</span>
+                        <strong>{count}</strong>
+                      </button>
+                      <button
+                        type="button"
+                        class="alive-cycle-button"
+                        aria-label={`Cycle ${label} units`}
+                        on:click={() => cycleReplayProfileUnit('player', label)}
+                      >
+                        ↻
+                      </button>
+                    </div>
                   {/each}
                 </div>
               {/if}
@@ -729,18 +1320,31 @@
               {#if replayAliveCountsExpanded}
                 <div class="count-grid side-grid">
                   {#each aliveEnemyGroups as [label, count]}
-                    <button
+                    <div
                       class="alive-unit-card"
                       class:selected={selectedReplayProfileKey === replayProfileKey('enemy', label)}
-                      on:click={() => selectReplayProfile('enemy', label)}
-                      on:mouseenter={() => (hoveredReplayProfileKey = replayProfileKey('enemy', label))}
-                      on:focus={() => (hoveredReplayProfileKey = replayProfileKey('enemy', label))}
-                      on:mouseleave={() => (hoveredReplayProfileKey = null)}
-                      on:blur={() => (hoveredReplayProfileKey = null)}
                     >
-                      <span>{label}</span>
-                      <strong>{count}</strong>
-                    </button>
+                      <button
+                        type="button"
+                        class="alive-unit-main"
+                        on:click={() => selectReplayProfile('enemy', label)}
+                        on:mouseenter={() => (hoveredReplayProfileKey = replayProfileKey('enemy', label))}
+                        on:focus={() => (hoveredReplayProfileKey = replayProfileKey('enemy', label))}
+                        on:mouseleave={() => (hoveredReplayProfileKey = null)}
+                        on:blur={() => (hoveredReplayProfileKey = null)}
+                      >
+                        <span>{label}</span>
+                        <strong>{count}</strong>
+                      </button>
+                      <button
+                        type="button"
+                        class="alive-cycle-button"
+                        aria-label={`Cycle ${label} units`}
+                        on:click={() => cycleReplayProfileUnit('enemy', label)}
+                      >
+                        ↻
+                      </button>
+                    </div>
                   {/each}
                 </div>
               {/if}
@@ -771,9 +1375,133 @@
       </section>
     </section>
 
-    <div class="replay-exit">
+    <div class="replay-exit replay-actions">
       <button class="replay-exit-button" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
+      <button class="replay-exit-button replay-recap-button" on:click={toggleReplayRecap}>
+        {replayRecapOpen ? 'Close Battle Recap' : 'Battle Recap'}
+      </button>
     </div>
+
+    {#if replayRecapOpen}
+      <div class="replay-recap-backdrop">
+        <button
+          class="replay-recap-dismiss"
+          type="button"
+          aria-label="Close battle recap"
+          on:click={toggleReplayRecap}
+        ></button>
+        <section
+          class="panel replay-recap-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="battle-recap-title"
+        >
+          <div class="replay-recap-header">
+            <div>
+              <p class="eyebrow">Battle Recap</p>
+              <h2 id="battle-recap-title">Damage And Healing By Troop</h2>
+              <p>Click a troop to open its units. Clicking a unit focuses it on the battlefield and rewinds if needed.</p>
+            </div>
+            <button class="replay-recap-close" type="button" aria-label="Close battle recap" on:click={toggleReplayRecap}>Close</button>
+          </div>
+
+          <div class="replay-recap-sides">
+            {#each replayRecapSides as sideGroup}
+              <section class="replay-recap-side">
+                <div class="alive-side-header" class:enemy={sideGroup.side === 'enemy'}>
+                  <span>{sideGroup.label}</span>
+                  <strong>{sideGroup.troops.length}</strong>
+                </div>
+
+                {#if sideGroup.troops.length === 0}
+                  <p class="replay-recap-empty">No troops recorded.</p>
+                {:else}
+                  {@const sharedScaleTotal = getReplayRecapSharedScaleTotal(sideGroup.troops)}
+                  <div class="replay-recap-list">
+                    {#each sideGroup.troops as troop}
+                      {@const troopProfile = getReplayRecapTroopProfile(troop.side, troop.troopLabel)}
+                      <div class="replay-recap-group">
+                        <button
+                          type="button"
+                          class="replay-recap-row troop"
+                          class:expanded={expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel)}
+                          on:click={() => toggleReplayRecapTroop(troop.side, troop.troopLabel)}
+                        >
+                          {#if troopProfile}
+                            <img
+                              class="replay-recap-art"
+                              src={getFactionUnitPortrait(troopProfile.factionId, troopProfile.unitTypeId)}
+                              alt=""
+                              aria-hidden="true"
+                            />
+                          {/if}
+                          <div class="replay-recap-main">
+                            <strong>{troop.troopLabel}</strong>
+                            <small>{expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel) ? 'Hide units' : 'Show units'}</small>
+                            <div class="replay-recap-bars">
+                              <div class="replay-recap-bar damage">
+                                <span style={`width: ${getReplayRecapBarWidth(troop.damageDone, sharedScaleTotal)}`}></span>
+                              </div>
+                              <div class="replay-recap-bar healing">
+                                <span style={`width: ${getReplayRecapBarWidth(troop.healingDone, sharedScaleTotal)}`}></span>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="replay-recap-stats">
+                            <span>Dmg {formatFixed(troop.damageDone)}</span>
+                            <span>Heal {formatFixed(troop.healingDone)}</span>
+                            <span>Kills {troop.kills}</span>
+                          </div>
+                        </button>
+
+                        {#if expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel)}
+                          <div class="replay-recap-units">
+                            {#each troop.units as unit}
+                              {@const unitState = getReplayRecapUnitState(unit.unitId)}
+                              <button
+                                type="button"
+                                class="replay-recap-row unit"
+                                on:click={() => selectReplayRecapUnit(unit.unitId, troop.side, troop.troopLabel)}
+                              >
+                                {#if troopProfile}
+                                  <img
+                                    class="replay-recap-art small"
+                                    src={getFactionUnitPortrait(troopProfile.factionId, troopProfile.unitTypeId)}
+                                    alt=""
+                                    aria-hidden="true"
+                                  />
+                                {/if}
+                                <div class="replay-recap-main">
+                                  <strong>{unit.unitLabel}</strong>
+                                  <small>{unitState?.alive ? 'Alive at this step' : 'Knocked out at this step'}</small>
+                                  <div class="replay-recap-bars">
+                                    <div class="replay-recap-bar damage">
+                                      <span style={`width: ${getReplayRecapBarWidth(unit.damageDone, sharedScaleTotal)}`}></span>
+                                    </div>
+                                    <div class="replay-recap-bar healing">
+                                      <span style={`width: ${getReplayRecapBarWidth(unit.healingDone, sharedScaleTotal)}`}></span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div class="replay-recap-stats">
+                                  <span>Dmg {formatFixed(unit.damageDone)}</span>
+                                  <span>Heal {formatFixed(unit.healingDone)}</span>
+                                  <span>Kills {unit.kills}</span>
+                                </div>
+                              </button>
+                            {/each}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </section>
+            {/each}
+          </div>
+        </section>
+      </div>
+    {/if}
   </main>
 {:else}
   <main class="shell">
@@ -801,9 +1529,28 @@
     <section class="left-column">
       <div class="panel">
         {#if selectedRift}
+          {@const selectedRiftVisual = getRiftVisual(selectedRift)}
           <p class="eyebrow">Selected Rift</p>
-          <h2>{selectedRift.id}</h2>
-          <p>Tier {selectedRift.tier}</p>
+          <div
+            class="title-button rift-title-card featured"
+            style={`--rift-tint:${selectedRiftVisual.tint}; --rift-glow:${selectedRiftVisual.glow}; --rift-rotation:${selectedRiftVisual.rotationDeg}deg;`}
+          >
+            <header>
+              <strong>Tier {selectedRift.tier}</strong>
+              <span>{selectedRift.id}</span>
+            </header>
+            <div class="rift-visual-shell inline">
+              <div class="rift-visual-frame">
+                <img
+                  class="rift-visual-image"
+                  src={selectedRiftVisual.imageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  style={`filter:${selectedRiftVisual.filter};`}
+                />
+              </div>
+            </div>
+          </div>
           <div class="mutator-row">
             <span>Mutators</span>
             <div class="mutator-list">
@@ -815,6 +1562,7 @@
                     class="mutator-chip"
                     on:mouseenter={() => showMutatorDetail(mutatorId)}
                     on:focus={() => showMutatorDetail(mutatorId)}
+                    on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
                     on:mouseleave={() => clearDetail()}
                     on:blur={() => clearDetail()}
                   >
@@ -825,6 +1573,9 @@
             </div>
           </div>
           <div class="reward-summary" aria-label={`Rewards: ${describeRewardPackage(selectedRift.rewardPackage)}`}>
+            <span class="reward-pill">
+              Hex Fit {selectedRift.saturation}
+            </span>
             {#if selectedRift.rewardPackage.resources.gold > 0}
               <span class="reward-pill">
                 <i class="resource-icon gold"></i>
@@ -843,10 +1594,19 @@
           </div>
           <div class="compact-list">
             {#each selectedRift.enemyArmy as group}
-              <div>
-                <span>{group.label}</span>
+              {@const enemyDetail = buildResolvedUnitDetail(`enemy:${group.combatantId}`, group.label, group.factionId, group.unitTypeId, group.stats, group.quantity, 'Enemy troop', group.abilities, group.statBreakdowns)}
+              <button
+                class="unit-tile enemy-tile"
+                class:selected={activeDetailKey === enemyDetail.detailKey}
+                on:mouseenter={() => previewDetail(enemyDetail)}
+                on:focus={() => previewDetail(enemyDetail)}
+                on:click={() => togglePinnedDetail(enemyDetail)}
+                on:mouseleave={() => clearDetail()}
+                on:blur={() => clearDetail()}
+              >
+                <img class="unit-tile-art" src={getFactionUnitPortrait(group.factionId, group.unitTypeId)} alt="" aria-hidden="true" />
                 <strong>x{group.quantity}</strong>
-              </div>
+              </button>
             {/each}
           </div>
           <div class="assignment-panel">
@@ -857,11 +1617,28 @@
               <div class="assignment-list">
                 {#each selectedRiftAssignableTroops as troop}
                   {@const troopDef = getTroopEffectiveDefinition($state.game, troop.id)}
+                  {@const troopDetail = buildResolvedUnitDetail(
+                    `rift-ready:${selectedRift.id}:${troop.id}`,
+                    troopDef.label,
+                    troop.factionId,
+                    troop.unitTypeId,
+                    troopDef.stats,
+                    troop.quantity,
+                    troopAssignedTo(selectedRift, troop.id) ? 'Assigned to this Rift' : `Qty ${troop.quantity}`,
+                    troopDef.abilities,
+                    troopDef.statBreakdowns,
+                  )}
                   <button
+                    class="unit-tile"
                     class:assigned={troopAssignedTo(selectedRift, troop.id)}
+                    class:selected={activeDetailKey === troopDetail.detailKey}
                     on:click={() => gameStore.assignTroopToRift(troop.id, selectedRift.id)}
+                    on:mouseenter={() => previewDetail(troopDetail)}
+                    on:focus={() => previewDetail(troopDetail)}
+                    on:mouseleave={() => clearDetail()}
+                    on:blur={() => clearDetail()}
                   >
-                    <span>{troopDef.label}</span>
+                    <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
                     <small>{troopAssignedTo(selectedRift, troop.id) ? 'Assigned' : `Qty ${troop.quantity}`}</small>
                   </button>
                 {/each}
@@ -872,14 +1649,7 @@
           <p class="eyebrow">Recruitable Troop</p>
           <h2>{selectedRecruitableTroop.troopDef.label}</h2>
           <p>For {selectedRecruitableTroop.faction.label}</p>
-          <div class="stats-grid">
-            <div><span>Health</span><strong>{formatFixed(selectedRecruitableTroop.troopDef.stats.health)}</strong></div>
-            <div><span>Damage</span><strong>{formatFixed(selectedRecruitableTroop.troopDef.stats.damage)}</strong></div>
-            <div><span>Speed</span><strong>{formatFixed(selectedRecruitableTroop.troopDef.stats.speed)}</strong></div>
-            <div><span>Armor</span><strong>{formatFixed(selectedRecruitableTroop.troopDef.stats.armor)}</strong></div>
-            <div><span>Range</span><strong>{formatFixed(selectedRecruitableTroop.troopDef.stats.range)}</strong></div>
-            <div><span>Capacity</span><strong>{formatFixed(selectedRecruitableTroop.troopDef.stats.capacity)}</strong></div>
-          </div>
+          <StatBreakdownGrid stats={buildStatEntries(selectedRecruitableTroop.troopDef.stats, selectedRecruitableTroop.troopDef.statBreakdowns, true, selectedRecruitableTroop.troopDef.quantity)} columns={4} />
           <div class="ability-row">
             <span>Abilities</span>
             <div class="ability-list">
@@ -889,66 +1659,70 @@
                 {#each selectedRecruitableTroop.troopDef.abilities as ability}
                   <button
                     class="mutator-chip ability-chip"
-                    on:mouseenter={() => showAbilityDetail(ability)}
-                    on:focus={() => showAbilityDetail(ability)}
-                    on:mouseleave={() => clearDetail()}
-                    on:blur={() => clearDetail()}
+                    on:mouseenter={() => showAbilityTooltip(ability)}
+                    on:focus={() => showAbilityTooltip(ability)}
+                    on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                    on:blur={() => (hoveredAbilityTooltip = null)}
                   >
                     {ability.label}
                   </button>
                 {/each}
               {/if}
             </div>
+            {#if hoveredAbilityTooltip}
+              <div class="ability-hover-tooltip">
+                <strong>{hoveredAbilityTooltip.label}</strong>
+                <p>{hoveredAbilityTooltip.description}</p>
+              </div>
+            {/if}
           </div>
           <p class="purchase-cost"><i class="resource-icon essence"></i>{pendingPurchase?.kind === 'unlockTroop' ? formatFixed(pendingPurchase.cost) : ''}</p>
           <p class="purchase-caption">This troop is not yet recruited.</p>
         {:else if selectedTroop}
-          {@const troopDef = getTroopEffectiveDefinition($state.game, selectedTroop.id)}
           <p class="eyebrow">Allied Troop</p>
-          <h2>{troopDef.label}</h2>
-          <p>Qty {selectedTroop.quantity} {selectedTroop.recoveryCyclesRemaining > 0 ? `| Recovering ${selectedTroop.recoveryCyclesRemaining}` : '| Ready'}</p>
-          <div class="stats-grid">
-            <div><span>Health</span><strong>{formatFixed(troopDef.stats.health)}</strong></div>
-            <div><span>Damage</span><strong>{formatFixed(troopDef.stats.damage)}</strong></div>
-            <div><span>Speed</span><strong>{formatFixed(troopDef.stats.speed)}</strong></div>
-            <div><span>Armor</span><strong>{formatFixed(troopDef.stats.armor)}</strong></div>
-            <div><span>Range</span><strong>{formatFixed(troopDef.stats.range)}</strong></div>
-            <div><span>Capacity</span><strong>{formatFixed(troopDef.stats.capacity)}</strong></div>
-          </div>
+          <h2>{selectedTroopDef?.label}</h2>
+          <p>{selectedTroop.recoveryCyclesRemaining > 0 ? `Recovering ${selectedTroop.recoveryCyclesRemaining}` : 'Ready'}</p>
+          {#if selectedTroopDef && selectedTroopStatBreakdowns}
+            <StatBreakdownGrid stats={selectedTroopStatEntries} columns={4} />
+          {/if}
           <div class="ability-row">
             <span>Abilities</span>
             <div class="ability-list">
-              {#if troopDef.abilities.length === 0}
+              {#if !selectedTroopDef || selectedTroopDef.abilities.length === 0}
                 <span class="mutator-chip empty">None</span>
               {:else}
-                {#each troopDef.abilities as ability}
+                {#each selectedTroopDef.abilities as ability}
                   <button
                     class="mutator-chip ability-chip"
-                    on:mouseenter={() => showAbilityDetail(ability)}
-                    on:focus={() => showAbilityDetail(ability)}
-                    on:mouseleave={() => clearDetail()}
-                    on:blur={() => clearDetail()}
+                    on:mouseenter={() => showAbilityTooltip(ability)}
+                    on:focus={() => showAbilityTooltip(ability)}
+                    on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                    on:blur={() => (hoveredAbilityTooltip = null)}
                   >
                     {ability.label}
                   </button>
                 {/each}
               {/if}
             </div>
+            {#if hoveredAbilityTooltip}
+              <div class="ability-hover-tooltip">
+                <strong>{hoveredAbilityTooltip.label}</strong>
+                <p>{hoveredAbilityTooltip.description}</p>
+              </div>
+            {/if}
           </div>
           <div class="actions-grid">
             <button class:unaffordable-button={!canAffordGold(getTroopAddUnitCost(selectedTroop))} disabled={!canAffordGold(getTroopAddUnitCost(selectedTroop))} on:click={() => gameStore.buyTroopUnit(selectedTroop.id)}>
-              <span>Add Unit</span>
+              <span>{displayIcon('quantity')} +</span>
               <small class:unaffordable={!canAffordGold(getTroopAddUnitCost(selectedTroop))}><i class="resource-icon gold"></i>{formatFixed(getTroopAddUnitCost(selectedTroop))}</small>
             </button>
-            {#each troopUpgradeOrder as stat}
-              {#if canUpgradeStat(selectedTroop.unitTypeId, stat)}
-                <button class:unaffordable-button={!canAffordGold(getTroopStatUpgradeCost(selectedTroop, stat))} disabled={!canAffordGold(getTroopStatUpgradeCost(selectedTroop, stat))} on:click={() => gameStore.buyTroopStatUpgrade(selectedTroop.id, stat)}>
-                  <span>{stat} +</span>
-                  <small class:unaffordable={!canAffordGold(getTroopStatUpgradeCost(selectedTroop, stat))}><i class="resource-icon gold"></i>{formatFixed(getTroopStatUpgradeCost(selectedTroop, stat))}</small>
-                </button>
-              {/if}
-            {/each}
           </div>
+          {#if hoveredUpgradeTooltip}
+            <div class="ability-hover-tooltip">
+              <strong>{hoveredUpgradeTooltip.label}</strong>
+              <p>{hoveredUpgradeTooltip.description}</p>
+            </div>
+          {/if}
         {:else if selectedFactionUpgrade}
           <p class="eyebrow">Faction Upgrade</p>
           <h2>{selectedFactionUpgrade.label}</h2>
@@ -1003,7 +1777,10 @@
           <p class="purchase-caption">This faction is not yet allied.</p>
         {:else if selectedFactionId}
           <p class="eyebrow">Allied Faction</p>
-          <h2>{getFaction(selectedFactionId).label}</h2>
+          <h2 class="faction-name-row">
+            <span>{getFaction(selectedFactionId).label}</span>
+            <img class="faction-name-art" src={getFactionPortrait(selectedFactionId)} alt="" aria-hidden="true" />
+          </h2>
           <p>{getFaction(selectedFactionId).description}</p>
           <div class="compact-list">
             {#each factionTroops as troop}
@@ -1020,16 +1797,20 @@
               {/each}
             </div>
           {/if}
-          <div class="actions-grid">
-            {#each availableFactionTroopUnlocks as unitTypeId}
-              <button
-                class:selected-action={pendingPurchase?.kind === 'unlockTroop' && pendingPurchase.factionId === selectedFactionId && pendingPurchase.unitTypeId === unitTypeId}
-                on:click={() => selectRecruitableTroop(selectedFactionId, unitTypeId)}
-              >
-                <span>Unlock {getUnitType(unitTypeId).label}</span>
-                <small class:unaffordable={!canAffordEssence(getTroopUnlockCost($state.game, selectedFactionId, unitTypeId))}><i class="resource-icon essence"></i>{formatFixed(getTroopUnlockCost($state.game, selectedFactionId, unitTypeId))}</small>
-              </button>
-            {/each}
+            <div class="actions-grid">
+              {#each availableFactionTroopUnlocks as unitTypeId}
+                <button
+                  class="unit-action"
+                  class:selected-action={pendingPurchase?.kind === 'unlockTroop' && pendingPurchase.factionId === selectedFactionId && pendingPurchase.unitTypeId === unitTypeId}
+                  on:click={() => selectRecruitableTroop(selectedFactionId, unitTypeId)}
+                >
+                  <span class="unit-button-copy">
+                    <img class="unit-button-art" src={getFactionUnitPortrait(selectedFactionId, unitTypeId)} alt="" aria-hidden="true" />
+                    <span>Unlock {getUnitType(unitTypeId).label}</span>
+                  </span>
+                  <small class:unaffordable={!canAffordEssence(getTroopUnlockCost($state.game, selectedFactionId, unitTypeId))}><i class="resource-icon essence"></i>{formatFixed(getTroopUnlockCost($state.game, selectedFactionId, unitTypeId))}</small>
+                </button>
+              {/each}
             {#each selectedFactionDefaultUpgrades as upgrade}
               <button
                 class:selected-action={pendingPurchase?.kind === 'factionUpgrade' && pendingPurchase.upgradeId === upgrade.id}
@@ -1061,12 +1842,28 @@
       {#if $state.centerMode === 'rifts'}
         <div class="rift-grid">
           {#each discoveredRifts as rift}
+            {@const riftVisual = getRiftVisual(rift)}
             <article class="rift-card" class:selected={selectedRiftId === rift.id}>
-              <button class="title-button" on:click={() => selectRift(rift.id)}>
+              <button
+                class="title-button rift-title-card"
+                on:click={() => selectRift(rift.id)}
+                style={`--rift-tint:${riftVisual.tint}; --rift-glow:${riftVisual.glow}; --rift-rotation:${riftVisual.rotationDeg}deg;`}
+              >
                 <header>
                   <strong>Tier {rift.tier}</strong>
                   <span>{rift.id}</span>
                 </header>
+                <div class="rift-visual-shell inline">
+                  <div class="rift-visual-frame">
+                    <img
+                      class="rift-visual-image"
+                      src={riftVisual.imageUrl}
+                      alt=""
+                      aria-hidden="true"
+                      style={`filter:${riftVisual.filter};`}
+                    />
+                  </div>
+                </div>
               </button>
               <div class="reward-summary" aria-label={`Rewards: ${describeRewardPackage(rift.rewardPackage)}`}>
                 {#if rift.rewardPackage.resources.gold > 0}
@@ -1092,11 +1889,12 @@
                   {#each rift.mutatorIds as mutatorId}
                     <button
                       class="mutator-chip"
-                      on:mouseenter={() => showMutatorDetail(mutatorId)}
-                      on:focus={() => showMutatorDetail(mutatorId)}
-                      on:mouseleave={() => clearDetail()}
-                      on:blur={() => clearDetail()}
-                    >
+                    on:mouseenter={() => showMutatorDetail(mutatorId)}
+                    on:focus={() => showMutatorDetail(mutatorId)}
+                    on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
+                    on:mouseleave={() => clearDetail()}
+                    on:blur={() => clearDetail()}
+                  >
                       {getMutator(mutatorId).label}
                     </button>
                   {/each}
@@ -1104,7 +1902,20 @@
               </div>
               <div class="assigned-strip">
                 {#each getTroopsAssignedToRift($state.game, rift.id) as troop}
-                  <span>{getTroopEffectiveDefinition($state.game, troop.id).label}</span>
+                  {@const troopDef = getTroopEffectiveDefinition($state.game, troop.id)}
+                  {@const assignedDetail = buildResolvedUnitDetail(`rift-assigned:${rift.id}:${troop.id}`, troopDef.label, troop.factionId, troop.unitTypeId, troopDef.stats, troop.quantity, 'Assigned to this Rift', troopDef.abilities, troopDef.statBreakdowns)}
+                  <button
+                    class="unit-tile assigned-summary-tile"
+                    class:selected={activeDetailKey === assignedDetail.detailKey}
+                    on:mouseenter={() => previewDetail(assignedDetail)}
+                    on:focus={() => previewDetail(assignedDetail)}
+                    on:click={() => togglePinnedDetail(assignedDetail)}
+                    on:mouseleave={() => clearDetail()}
+                    on:blur={() => clearDetail()}
+                  >
+                    <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
+                    <small>Assigned</small>
+                  </button>
                 {/each}
               </div>
               {#if selectedTroop}
@@ -1120,13 +1931,20 @@
           {#each $state.game.unlockedFactionIds as factionId}
             <section class="faction-card">
               <header>
-                <button class="title-button" on:click={() => selectFaction(factionId)}>{getFaction(factionId).label}</button>
+                <button class="title-button faction-name-button" on:click={() => selectFaction(factionId)}>
+                  <span>{getFaction(factionId).label}</span>
+                  <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                </button>
                 <small>{getFaction(factionId).description}</small>
               </header>
               <div class="troop-list">
                 {#each getFactionTroops($state.game, factionId) as troop}
+                  {@const troopDef = getTroopEffectiveDefinition($state.game, troop.id)}
                   <button class="troop-chip" on:click={() => selectTroop(troop.id)}>
-                    <span>{getTroopEffectiveDefinition($state.game, troop.id).label}</span>
+                    <span class="unit-button-copy">
+                      <img class="unit-button-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
+                      <span>{troopDef.label}</span>
+                    </span>
                     <small>Qty {troop.quantity}</small>
                   </button>
                 {/each}
@@ -1134,10 +1952,14 @@
               <div class="unlock-row">
                 {#each getAvailableFactionTroopUnlocks($state.game, factionId) as unitTypeId}
                   <button
+                    class="unit-action"
                     class:selected-action={pendingPurchase?.kind === 'unlockTroop' && pendingPurchase.factionId === factionId && pendingPurchase.unitTypeId === unitTypeId}
                     on:click={() => selectRecruitableTroop(factionId, unitTypeId)}
                   >
-                    <span>+ {getUnitType(unitTypeId).label}</span>
+                    <span class="unit-button-copy">
+                      <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
+                      <span>Unlock {getUnitType(unitTypeId).label}</span>
+                    </span>
                     <small class:unaffordable={!canAffordEssence(getTroopUnlockCost($state.game, factionId, unitTypeId))}><i class="resource-icon essence"></i>{formatFixed(getTroopUnlockCost($state.game, factionId, unitTypeId))}</small>
                   </button>
                 {/each}
@@ -1166,10 +1988,14 @@
             <div class="unlock-row">
               {#each lockedFactionIds as factionId}
                 <button
+                  class="faction-choice-button"
                   class:selected-action={pendingPurchase?.kind === 'unlockFaction' && pendingPurchase.factionId === factionId}
                   on:click={() => selectRecruitableFaction(factionId)}
                 >
-                  <span>+ {getFaction(factionId).label}</span>
+                  <span class="faction-name-row">
+                    <span>+ {getFaction(factionId).label}</span>
+                    <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                  </span>
                   <small class:unaffordable={!canAffordEssence(getFactionUnlockCost($state.game))}><i class="resource-icon essence"></i>{formatFixed(getFactionUnlockCost($state.game))}</small>
                 </button>
               {/each}
@@ -1199,22 +2025,60 @@
           </ul>
         </div>
       {/if}
-      {#if hoveredDetail}
-        <div class="panel detail-panel">
+      {#if activeDetail}
+        <div class="panel detail-panel" role="presentation" on:mouseenter={cancelDetailHideTimer} on:mouseleave={() => clearDetail()}>
           <p class="eyebrow">
-            {hoveredDetail.kind === 'mutator'
+            {activeDetail.kind === 'mutator'
               ? 'Mutator Effect'
-              : hoveredDetail.kind === 'ability'
+              : activeDetail.kind === 'ability'
                 ? 'Ability Effect'
-                : hoveredDetail.kind === 'upgrade'
-                  ? 'Upgrade Preview'
-                  : 'Troop Preview'}
+                : activeDetail.kind === 'faction'
+                  ? 'Faction Modifiers'
+                : activeDetail.kind === 'unit'
+                    ? 'Unit Inspect'
+                  : activeDetail.kind === 'upgrade'
+                    ? 'Upgrade Preview'
+                    : 'Troop Preview'}
           </p>
-          <h2>{hoveredDetail.label}</h2>
-          <p>{hoveredDetail.description}</p>
-        </div>
-      {:else}
-        <div class="panel">
+          <h2>{activeDetail.label}</h2>
+            {#if activeDetail.kind === 'unit'}
+              <div class="hover-unit-detail">
+                <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
+                <p>{activeDetail.description}</p>
+              </div>
+              <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+              <div class="ability-row detail-ability-row">
+                <span>Abilities</span>
+                <div class="ability-list">
+                  {#if activeDetail.abilities.length === 0}
+                    <span class="mutator-chip empty">None</span>
+                  {:else}
+                    {#each activeDetail.abilities as ability}
+                      <button
+                        class="mutator-chip ability-chip"
+                        on:mouseenter={() => showAbilityTooltip(ability)}
+                        on:focus={() => showAbilityTooltip(ability)}
+                        on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                        on:blur={() => (hoveredAbilityTooltip = null)}
+                      >
+                        {ability.label}
+                      </button>
+                    {/each}
+                  {/if}
+                </div>
+                {#if hoveredAbilityTooltip}
+                  <div class="ability-hover-tooltip">
+                    <strong>{hoveredAbilityTooltip.label}</strong>
+                    <p>{hoveredAbilityTooltip.description}</p>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <p>{activeDetail.description}</p>
+            {/if}
+          </div>
+        {:else}
+          <div class="panel">
           <h2>Battle Archive</h2>
           {#if $state.game.replayIndex.length === 0}
             <p>No archived battles yet.</p>
@@ -1277,7 +2141,7 @@
 
 <style>
   :global(body) {
-    overflow: hidden;
+    overflow: auto;
   }
 
   button {
@@ -1292,12 +2156,6 @@
     grid-template-rows: auto 1fr auto;
     gap: 1rem;
     padding: 1rem;
-  }
-
-  .shell {
-    height: 100vh;
-    overflow-y: auto;
-    align-content: start;
   }
 
   .topbar {
@@ -1336,8 +2194,7 @@
   }
 
   .resource-strip div,
-  .compact-list div,
-  .stats-grid div {
+  .compact-list div {
     display: grid;
     gap: 0.15rem;
     padding: 0.55rem 0.7rem;
@@ -1347,8 +2204,7 @@
   }
 
   .resource-strip span,
-  .compact-list span,
-  .stats-grid span {
+  .compact-list span {
     color: #93a9bc;
     font-size: 0.75rem;
   }
@@ -1436,7 +2292,7 @@
   .faction-card,
   .reward-card {
     display: grid;
-    gap: 0.8rem;
+    gap: 0.75rem;
     padding: 1rem;
     border-radius: 18px;
     border: 1px solid rgba(126, 157, 181, 0.16);
@@ -1449,10 +2305,111 @@
     outline: 2px solid #d4ad73;
   }
 
+  .rift-visual-shell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(126, 157, 181, 0.18);
+    background:
+      radial-gradient(circle at center, var(--rift-glow), transparent 60%),
+      linear-gradient(180deg, rgba(13, 22, 31, 0.92), rgba(8, 12, 18, 0.98));
+  }
+
+  .rift-visual-shell::before {
+    content: '';
+    position: absolute;
+    inset: 10%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at center, var(--rift-tint), transparent 65%);
+    opacity: 0.35;
+    filter: blur(18px);
+    pointer-events: none;
+  }
+
+  .rift-visual-frame {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    width: min(100%, 11rem);
+    aspect-ratio: 1;
+    place-items: center;
+    color: var(--rift-tint);
+  }
+
+  .rift-visual-image {
+    width: var(--rift-size);
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+    transform: rotate(var(--rift-rotation));
+  }
+
   .rift-card header,
   .faction-card header {
     display: grid;
     gap: 0.3rem;
+  }
+
+  .rift-title-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 5.8rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .rift-title-card.featured {
+    cursor: default;
+    min-height: 6.4rem;
+  }
+
+  .rift-title-card header strong {
+    font-size: 1.05rem;
+    line-height: 1.1;
+  }
+
+  .rift-title-card header span {
+    font-size: 0.9rem;
+    color: #e7edf3;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .rift-visual-shell.inline {
+    width: 4.6rem;
+    height: 4.6rem;
+    min-height: 4.6rem;
+    border-radius: 14px;
+    background:
+      radial-gradient(circle at center, var(--rift-glow), transparent 58%),
+      linear-gradient(180deg, rgba(13, 22, 31, 0.82), rgba(8, 12, 18, 0.94));
+  }
+
+  .rift-title-card.featured .rift-visual-shell.inline {
+    width: 5rem;
+    height: 5rem;
+    min-height: 5rem;
+  }
+
+  .rift-visual-shell.inline::before {
+    inset: 18%;
+    opacity: 0.42;
+    filter: blur(12px);
+  }
+
+  .rift-visual-shell.inline .rift-visual-frame,
+  .rift-title-card.featured .rift-visual-shell.inline .rift-visual-frame {
+    width: 100%;
+    height: 100%;
+  }
+
+  .rift-visual-shell.inline .rift-visual-image {
+    width: 72%;
   }
 
   .troop-list,
@@ -1466,26 +2423,12 @@
     gap: 0.55rem;
   }
 
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.55rem;
-  }
-
   .assigned-strip {
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .assignment-list {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  }
-
-  .assigned-strip span {
-    padding: 0.4rem 0.55rem;
-    border-radius: 999px;
-    background: rgba(212, 173, 115, 0.12);
-    color: #e4cca8;
-    font-size: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .archive-card,
@@ -1496,6 +2439,58 @@
     text-align: left;
   }
 
+  .unit-action,
+  .troop-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+  }
+
+  .unit-button-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .unit-button-copy > span {
+    min-width: 0;
+  }
+
+  .faction-name-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .faction-name-button,
+  .faction-choice-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+  }
+
+  .faction-name-art {
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
+  }
+
+  .unit-button-art {
+    width: 2.2rem;
+    height: 2.2rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
+  }
+
   .archive-card.selected {
     outline: 2px solid #d4ad73;
     background:
@@ -1504,8 +2499,7 @@
   }
 
   .archive-card small,
-  .troop-chip small,
-  .draft-card small {
+  .troop-chip small {
     color: #9db2c4;
   }
 
@@ -1608,6 +2602,76 @@
   .detail-panel {
     min-height: 180px;
     align-content: start;
+  }
+
+  .hover-unit-detail {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.85rem;
+    align-items: center;
+  }
+
+  .hover-unit-art {
+    width: 4rem;
+    height: 4rem;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.3));
+  }
+
+  .unit-tile {
+    display: grid;
+    justify-items: center;
+    gap: 0.45rem;
+    padding: 0.75rem 0.55rem;
+    text-align: center;
+    border: 1px solid rgba(126, 157, 181, 0.2);
+    border-radius: 16px;
+    background: rgba(22, 31, 42, 0.82);
+    color: #f4f7fb;
+    font: inherit;
+    position: relative;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      transform 120ms ease;
+  }
+
+  .unit-tile.enemy-tile {
+    cursor: default;
+  }
+
+  .unit-tile.assigned,
+  .unit-tile.assigned-summary-tile {
+    border-color: rgba(213, 178, 116, 0.55);
+    background:
+      linear-gradient(145deg, rgba(60, 42, 20, 0.9), rgba(20, 26, 34, 0.92)),
+      radial-gradient(circle at top left, rgba(212, 173, 115, 0.18), transparent 45%);
+  }
+
+  .unit-tile.selected {
+    border-color: rgba(213, 178, 116, 0.78);
+    box-shadow:
+      0 0 0 2px #d4ad73,
+      0 12px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .unit-tile-art {
+    width: 2.8rem;
+    height: 2.8rem;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
+  }
+
+  .unit-tile strong,
+  .unit-tile small {
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  .compact-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .purchase-cost {
@@ -1715,7 +2779,8 @@
   .draft-screen {
     min-height: 100vh;
     display: grid;
-    place-items: center;
+    justify-items: center;
+    align-items: start;
     padding: 2rem;
   }
 
@@ -1803,16 +2868,162 @@
     color: #b6c4d1;
   }
 
-  .draft-grid {
+  .draft-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "cards"
+      "focus";
+    align-items: start;
+  }
+
+  .draft-grid {
+    grid-area: cards;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
   }
 
   .draft-card {
     display: grid;
-    gap: 0.6rem;
-    min-height: 220px;
+    gap: 0.95rem;
+    align-content: start;
+    min-height: 100%;
+    padding: 1.15rem;
+    border-radius: 22px;
+    border: 1px solid rgba(126, 157, 181, 0.2);
+    background:
+      linear-gradient(145deg, rgba(24, 35, 49, 0.92), rgba(11, 17, 25, 0.96)),
+      radial-gradient(circle at top right, rgba(117, 145, 168, 0.12), transparent 40%);
+  }
+
+  .draft-card.locked-focus {
+    border-color: rgba(213, 178, 116, 0.5);
+    box-shadow:
+      inset 0 0 0 1px rgba(213, 178, 116, 0.22),
+      0 14px 28px rgba(0, 0, 0, 0.22);
+    background:
+      linear-gradient(145deg, rgba(38, 31, 22, 0.94), rgba(13, 19, 27, 0.97)),
+      radial-gradient(circle at top right, rgba(213, 178, 116, 0.15), transparent 42%);
+  }
+
+  .draft-card-header {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .draft-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  .draft-card-title strong {
+    font-size: 1.4rem;
+  }
+
+  .draft-section {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .draft-section-label {
+    color: #c7b18b;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .draft-icon-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .draft-troop-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 0.55rem;
+    border-radius: 16px;
+    border: 1px solid rgba(124, 153, 176, 0.15);
+    background: rgba(16, 25, 35, 0.82);
+    color: #f4f7fb;
+    font: inherit;
+    text-align: left;
+    transition:
+      border-color 120ms ease,
+      transform 120ms ease,
+      background 120ms ease;
+  }
+
+  .draft-troop-icon:hover,
+  .draft-troop-icon:focus-visible,
+  .draft-troop-icon.selected,
+  .sprite-inspect-button:hover,
+  .sprite-inspect-button:focus-visible,
+  .sprite-inspect-button.selected {
+    border-color: rgba(213, 178, 116, 0.55);
+    background: rgba(36, 28, 18, 0.75);
+    box-shadow:
+      inset 0 0 0 1px rgba(213, 178, 116, 0.18),
+      0 8px 18px rgba(0, 0, 0, 0.18);
+    transform: translateY(-1px);
+  }
+
+  .draft-troop-icon.selected,
+  .sprite-inspect-button.selected {
+    border-color: #d4ad73;
+    background: rgba(36, 28, 18, 0.82);
+    box-shadow:
+      inset 0 0 0 1px rgba(213, 178, 116, 0.32),
+      0 0 0 2px rgba(212, 173, 115, 0.28),
+      0 10px 22px rgba(0, 0, 0, 0.22);
+  }
+
+  .draft-troop-icon.selected::after,
+  .sprite-inspect-button.selected::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 19px;
+    border: 1px solid rgba(212, 173, 115, 0.65);
+    pointer-events: none;
+  }
+
+  .draft-troop-icon {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .sprite-inspect-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 3rem;
+    height: 3rem;
+    padding: 0;
+    border-radius: 16px;
+    border: 1px solid rgba(124, 153, 176, 0.15);
+    background: rgba(16, 25, 35, 0.82);
+  }
+
+  .draft-choose-button {
+    margin-top: auto;
+  }
+
+  .draft-focus-panel {
+    grid-area: focus;
+    min-height: 180px;
+    align-content: start;
+  }
+
+  .draft-focus-empty {
+    max-width: 80ch;
   }
 
   .replay-shell {
@@ -1953,6 +3164,52 @@
     box-shadow: inset 0 0 0 1px rgba(201, 171, 124, 0.06);
   }
 
+  .viewport-shell {
+    position: relative;
+    height: 100%;
+    min-height: 680px;
+  }
+
+  .replay-zoom-controls {
+    position: absolute;
+    right: 1rem;
+    bottom: 1rem;
+    display: grid;
+    gap: 0.45rem;
+    z-index: 1;
+  }
+
+  .replay-zoom-button {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(196, 214, 227, 0.22);
+    border-radius: 999px;
+    background: rgba(12, 18, 28, 0.48);
+    color: rgba(238, 245, 250, 0.9);
+    font-size: 1rem;
+    line-height: 1;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease,
+      transform 120ms ease;
+  }
+
+  .replay-zoom-button:hover {
+    background: rgba(18, 28, 41, 0.74);
+    border-color: rgba(242, 201, 122, 0.45);
+    color: #fff9eb;
+    transform: translateY(-1px);
+  }
+
+  .replay-zoom-button:active {
+    transform: translateY(0);
+  }
+
   .count-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -2005,22 +3262,56 @@
 
   .alive-unit-card {
     display: grid;
-    gap: 0.15rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
     width: 100%;
-    padding: 0.55rem 0.7rem;
+    padding: 0.45rem 0.5rem 0.45rem 0.55rem;
     border: 1px solid rgba(124, 153, 176, 0.15);
     border-radius: 14px;
     background: rgba(20, 28, 38, 0.7);
     color: #f4f7fb;
+  }
+
+  .alive-unit-card:hover,
+  .alive-unit-card.selected {
+    border-color: rgba(213, 178, 116, 0.55);
+    background: rgba(36, 28, 18, 0.75);
+  }
+
+  .alive-unit-main {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
     text-align: left;
     font: inherit;
   }
 
-  .alive-unit-card:hover,
-  .alive-unit-card:focus,
-  .alive-unit-card.selected {
-    border-color: rgba(213, 178, 116, 0.55);
-    background: rgba(36, 28, 18, 0.75);
+  .alive-cycle-button {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(196, 214, 227, 0.18);
+    border-radius: 999px;
+    background: rgba(12, 18, 28, 0.48);
+    color: rgba(238, 245, 250, 0.9);
+    font-size: 1rem;
+    line-height: 1;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      transform 120ms ease;
+  }
+
+  .alive-cycle-button:hover,
+  .alive-cycle-button:focus-visible {
+    background: rgba(18, 28, 41, 0.74);
+    border-color: rgba(242, 201, 122, 0.45);
+    transform: translateY(-1px);
   }
 
   .replay-exit {
@@ -2028,6 +3319,11 @@
     display: flex;
     justify-content: center;
     padding-top: 0.2rem;
+  }
+
+  .replay-actions {
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .replay-exit-button {
@@ -2038,6 +3334,179 @@
     background: rgba(20, 26, 34, 0.92);
     color: #f4f7fb;
     font: inherit;
+  }
+
+  .replay-recap-button {
+    border-color: rgba(120, 169, 219, 0.34);
+    background: rgba(15, 27, 39, 0.96);
+  }
+
+  .replay-recap-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 12;
+    display: grid;
+    place-items: center;
+    padding: 1.4rem;
+  }
+
+  .replay-recap-dismiss {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(3, 7, 12, 0.68);
+    backdrop-filter: blur(8px);
+  }
+
+  .replay-recap-modal {
+    position: relative;
+    z-index: 1;
+    width: min(960px, 100%);
+    max-height: min(82vh, 860px);
+    overflow: auto;
+    gap: 1rem;
+  }
+
+  .replay-recap-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .replay-recap-header h2 {
+    margin: 0.2rem 0 0.35rem;
+    font-size: 1.4rem;
+  }
+
+  .replay-recap-header p:last-child {
+    margin: 0;
+    color: #9db2c4;
+  }
+
+  .replay-recap-close {
+    padding: 0.55rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(196, 214, 227, 0.22);
+    background: rgba(12, 18, 28, 0.52);
+    color: #f4f7fb;
+    font: inherit;
+  }
+
+  .replay-recap-sides {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .replay-recap-side {
+    display: grid;
+    gap: 0.8rem;
+    align-content: start;
+  }
+
+  .replay-recap-list,
+  .replay-recap-units {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .replay-recap-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .replay-recap-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.8rem;
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    border-radius: 16px;
+    border: 1px solid rgba(124, 153, 176, 0.15);
+    background: rgba(20, 28, 38, 0.7);
+    color: #f4f7fb;
+    text-align: left;
+    font: inherit;
+  }
+
+  .replay-recap-row.troop.expanded,
+  .replay-recap-row:hover,
+  .replay-recap-row:focus-visible {
+    border-color: rgba(213, 178, 116, 0.55);
+    background: rgba(36, 28, 18, 0.75);
+  }
+
+  .replay-recap-row.unit {
+    margin-left: 1rem;
+    width: calc(100% - 1rem);
+    background: rgba(14, 21, 31, 0.88);
+  }
+
+  .replay-recap-main {
+    display: grid;
+    gap: 0.18rem;
+    min-width: 0;
+  }
+
+  .replay-recap-art {
+    width: 2.6rem;
+    height: 2.6rem;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
+  }
+
+  .replay-recap-art.small {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .replay-recap-bars {
+    display: grid;
+    gap: 0.28rem;
+    margin-top: 0.18rem;
+  }
+
+  .replay-recap-bar {
+    height: 0.4rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(116, 140, 161, 0.22);
+  }
+
+  .replay-recap-bar span {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    border-radius: inherit;
+  }
+
+  .replay-recap-bar.damage span {
+    background: linear-gradient(90deg, rgba(224, 123, 91, 0.9), rgba(255, 185, 122, 0.92));
+  }
+
+  .replay-recap-bar.healing span {
+    background: linear-gradient(90deg, rgba(82, 198, 140, 0.9), rgba(147, 240, 183, 0.95));
+  }
+
+  .replay-recap-main small {
+    color: #9db2c4;
+  }
+
+  .replay-recap-stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.7rem;
+    color: #d8e1e9;
+    font-size: 0.92rem;
+  }
+
+  .replay-recap-empty {
+    margin: 0;
+    color: #8fa3b5;
   }
 
   @media (max-width: 1280px) {
@@ -2055,10 +3524,6 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .stats-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .viewport {
       min-height: 420px;
     }
@@ -2067,8 +3532,22 @@
       grid-template-columns: 1fr;
     }
 
+    .replay-recap-sides {
+      grid-template-columns: 1fr;
+    }
+
+    .draft-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .replay-exit {
       grid-column: 1;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .draft-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

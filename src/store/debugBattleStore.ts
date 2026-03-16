@@ -1,8 +1,9 @@
 import { writable } from 'svelte/store';
 import { resolveDebugBattle } from '../engine/battle';
 import { getTroopStartingQuantity, TROOP_TYPE_IDS } from '../engine/unitCatalog';
-import type { BattleReplay, BattleStep, TroopTypeId } from '../engine/types';
+import type { BattleReplay, TroopTypeId } from '../engine/types';
 import type { ArmyDebugSelection } from '../engine/debugTypes';
+import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 
 interface DebugState {
   player: ArmyDebugSelection;
@@ -65,34 +66,6 @@ function makeReplay(state: DebugState): BattleReplay {
 
 function clampCount(value: number): number {
   return Math.max(0, Math.min(40, Math.floor(value)));
-}
-
-function isSkippableBeat(steps: BattleStep[], index: number): boolean {
-  const step = steps[index];
-  if (!step || step.kind !== 'beat') {
-    return false;
-  }
-  const next = steps[index + 1];
-  return !next || next.kind === 'beat';
-}
-
-function nextPlayableStep(current: number, replay: BattleReplay): number {
-  let idx = Math.min(current + 1, replay.steps.length - 1);
-  while (idx < replay.steps.length && isSkippableBeat(replay.steps, idx)) {
-    idx += 1;
-  }
-  if (idx >= replay.steps.length) {
-    return current;
-  }
-  return idx;
-}
-
-function previousPlayableStep(current: number, replay: BattleReplay): number {
-  let idx = Math.max(-1, current - 1);
-  while (idx >= 0 && isSkippableBeat(replay.steps, idx)) {
-    idx -= 1;
-  }
-  return idx;
 }
 
 export const debugBattleStore = (() => {

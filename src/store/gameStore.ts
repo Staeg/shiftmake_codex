@@ -25,6 +25,7 @@ import type {
   TroopStatKey,
 } from '../engine/types';
 import { createNewSlotCampaign, listSaveSlots, loadSaveSlot, migrateLegacySave, readSlotReplay, removeSlotReplay, type SaveSlotId, type SaveSlotSummary, saveToSlot } from './saveSlots';
+import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 
 export type CenterMode = 'rifts' | 'troops';
 export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
@@ -383,17 +384,22 @@ export const gameStore = (() => {
         }
         return {
           ...state,
-          currentStep: Math.min(state.currentStep + 1, state.loadedReplay.steps.length - 1),
+          currentStep: nextPlayableStep(state.currentStep, state.loadedReplay),
           selectedEvent: null,
         };
       });
     },
     stepBackward() {
-      update((state) => ({
-        ...state,
-        currentStep: Math.max(-1, state.currentStep - 1),
-        selectedEvent: null,
-      }));
+      update((state) => {
+        if (!state.loadedReplay) {
+          return state;
+        }
+        return {
+          ...state,
+          currentStep: previousPlayableStep(state.currentStep, state.loadedReplay),
+          selectedEvent: null,
+        };
+      });
     },
     jumpTo(step: number) {
       update((state) => ({

@@ -310,7 +310,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Human',
     description: 'Slightly better at pretty much everything. Boring but solid.',
     addedAttributes: ['human'],
-    defaultUnitTypeIds: ['soldier', 'champion', 'knight', 'militia', 'archer'],
+    defaultUnitTypeIds: ['soldier', 'knight', 'militia', 'archer'],
     statAdjustments: {
       health: { multiplier: 1.1 },
       damage: { multiplier: 1.1 },
@@ -343,7 +343,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Goblin',
     description: "The one good thing you can say about goblins is that there's more than one of them.",
     addedAttributes: ['goblin', 'expendable'],
-    defaultUnitTypeIds: ['shaman', 'soldier', 'militia', 'wizard'],
+    defaultUnitTypeIds: ['militia', 'shaman', 'soldier', 'wizard'],
     statAdjustments: {
       health: { multiplier: 0.7 },
       damage: { multiplier: 0.8 },
@@ -546,6 +546,10 @@ function applyAdjustment(value: number, adjustment?: { flat?: number; multiplier
   return fixed(value * multiplier + flat);
 }
 
+function canReceiveRangeAdjustment(attributes: string[]): boolean {
+  return !attributes.includes('melee');
+}
+
 export function clampStat(key: keyof UnitStats, value: number): number {
   if (key === 'damage') return fixedMax(value, 0);
   if (key === 'speed') return fixedClamp(value, 1, 100);
@@ -559,8 +563,13 @@ export function clampStat(key: keyof UnitStats, value: number): number {
 export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: UnitTypeId): TroopDefinition {
   const faction = getFaction(factionId);
   const unitType = getUnitType(unitTypeId);
+  const attributes = [...new Set([...unitType.attributes, ...faction.addedAttributes])];
   const stats = STAT_KEYS.reduce<UnitStats>(
     (result, key) => {
+      if (key === 'range' && !canReceiveRangeAdjustment(attributes)) {
+        result[key] = clampStat(key, unitType.stats[key]);
+        return result;
+      }
       result[key] = clampStat(key, applyAdjustment(unitType.stats[key], faction.statAdjustments[key]));
       return result;
     },
@@ -574,7 +583,7 @@ export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: Uni
     label: `${faction.singularLabel} ${unitType.label}`,
     role: unitType.role,
     type: unitType.type,
-    attributes: [...new Set([...unitType.attributes, ...faction.addedAttributes])],
+    attributes,
     stats,
     quantity: unitType.quantity,
     cost: fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 1),
@@ -661,9 +670,13 @@ export function getUpgradeableStatsForUnitType(unitTypeId: UnitTypeId): TroopSta
 export function applyStatModifier(
   stats: UnitStats,
   modifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>,
+  attributes: string[] = [],
 ): UnitStats {
   const next = { ...stats };
   (Object.keys(modifiers) as TroopStatKey[]).forEach((key) => {
+    if (key === 'range' && !canReceiveRangeAdjustment(attributes)) {
+      return;
+    }
     next[key] = clampStat(key, applyAdjustment(next[key], modifiers[key]));
   });
   return next;

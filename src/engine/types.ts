@@ -9,6 +9,7 @@ export type RoleId = 'frontline' | 'chaff' | 'backline';
 export type SideId = 'player' | 'enemy';
 export type ResourceId = 'gold' | 'essence';
 export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
+export type ExplainedStatKey = TroopStatKey | 'size';
 export type AbilityTiming = 'startOfBattle' | 'startOfTurn' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'onFallen' | 'passive';
 export type AbilityAllegiance = 'ally' | 'enemy' | 'all';
 export type AbilityMagnitudeMode = 'flat' | 'percent';
@@ -199,6 +200,7 @@ export interface ResolvedCombatantDefinition {
   quantity: number;
   cost: number;
   side: SideId;
+  statBreakdowns?: Record<ExplainedStatKey, StatBreakdown>;
 }
 
 export interface BattleInput {
@@ -206,6 +208,7 @@ export interface BattleInput {
   riftId: string | null;
   tier: number | null;
   mutatorIds: MutatorId[];
+  saturation?: number;
   playerCombatants: ResolvedCombatantDefinition[];
   enemyCombatants: ResolvedCombatantDefinition[];
 }
@@ -222,6 +225,7 @@ export interface BattleUnit {
   type: string;
   attributes: string[];
   position: HexCoord;
+  stats: UnitStats;
   hp: number;
   maxHp: number;
   initiative: number;
@@ -271,6 +275,18 @@ export interface BattleReplay {
   };
 }
 
+export interface StatBreakdownLine {
+  label: string;
+  value: number;
+  kind: 'base' | 'delta' | 'set';
+}
+
+export interface StatBreakdown {
+  stat: ExplainedStatKey;
+  finalValue: number;
+  lines: StatBreakdownLine[];
+}
+
 export interface ReplayTroopProfile {
   side: SideId;
   troopLabel: string;
@@ -281,6 +297,7 @@ export interface ReplayTroopProfile {
   attributes: string[];
   stats: UnitStats;
   abilities: AbilityDefinition[];
+  statBreakdowns: Record<ExplainedStatKey, StatBreakdown>;
 }
 
 export interface StoredReplayPayload {
@@ -323,6 +340,7 @@ export interface RiftInstance {
   mutatorIds: MutatorId[];
   enemyArmy: ResolvedCombatantDefinition[];
   rewardPackage: RewardPackage;
+  saturation: number;
   expiresInCycles: number;
   state: RiftState;
 }

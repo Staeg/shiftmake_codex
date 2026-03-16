@@ -233,6 +233,20 @@ describe('resolveDebugBattle', () => {
     expect(replay.steps.some((step) => step.message.includes('sets range to 0'))).toBe(true);
   });
 
+  it('stores live resolved stats in replay snapshots after shapeshift buffs apply', () => {
+    const replay = resolveDebugBattle({
+      seed: 17,
+      player: { 'elf/druid': 1, 'elf/soldier': 3 },
+      enemy: { 'human/knight': 1 },
+    });
+
+    const buffStep = replay.steps.find((step) => step.kind === 'buff' && step.message.includes('gains +20 damage.'));
+    const druid = buffStep?.snapshot.units.find((unit) => unit.troopLabel === 'Elven Druid');
+
+    expect(druid?.stats.damage).toBeGreaterThan(10);
+    expect(druid?.stats.health).toBeGreaterThan(20);
+  });
+
   it('lets Enhance target a nearby non-caster ally', () => {
     const replay = resolveDebugBattle({
       seed: 33,
@@ -245,6 +259,20 @@ describe('resolveDebugBattle', () => {
         (step) => step.kind === 'buff' && step.message.includes('Goblin Soldier') && step.message.includes('+1'),
       ),
     ).toBe(true);
+  });
+
+  it('preserves configured saturation in the replay payload', () => {
+    const replay = resolveBattle({
+      seed: 5,
+      riftId: 'test-rift',
+      tier: 2,
+      mutatorIds: [],
+      saturation: 3,
+      playerCombatants: [],
+      enemyCombatants: [],
+    });
+
+    expect(replay.saturation).toBe(3);
   });
 });
 

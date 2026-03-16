@@ -18,7 +18,6 @@ import {
 } from './army';
 import { fixed } from './fixed';
 import { deriveSeed, enrichRiftRewards, generateCycleRifts } from './rift';
-import { createRng } from './rng';
 import { deserializeGameState, serializeGameState } from './save';
 import { buildRewardChoice, getFallbackRewardForExhaustedUpgradeSlots } from './upgrades';
 import { FACTION_UPGRADES, FACTIONS, getFaction, getFactionUpgrade, getMutator, getUnitType } from './unitCatalog';
@@ -41,6 +40,17 @@ function allFactionIds(): FactionId[] {
   return Object.keys(FACTIONS) as FactionId[];
 }
 
+export function getStartingFactionUnitType(factionId: FactionId) {
+  return (
+    {
+      human: 'soldier',
+      elf: 'archer',
+      goblin: 'militia',
+      troll: 'soldier',
+    } as const
+  )[factionId];
+}
+
 function getRewardUpgradePool(state: GameState): string[] {
   return Object.values(FACTION_UPGRADES)
     .filter((upgrade) => !state.factionUpgradeIds.includes(upgrade.id))
@@ -49,8 +59,6 @@ function getRewardUpgradePool(state: GameState): string[] {
 }
 
 function buildInitialState(seed: number): GameState {
-  const rng = createRng(seed);
-  const draft = rng.shuffle(allFactionIds()).slice(0, 3);
   return {
     version: 1,
     campaignSeed: seed,
@@ -58,7 +66,7 @@ function buildInitialState(seed: number): GameState {
     phase: 'faction_draft',
     resources: { gold: 120, essence: 120 },
     unlockedFactionIds: [],
-    availableFactionDraft: draft,
+    availableFactionDraft: allFactionIds(),
     troops: [],
     factionUpgradeIds: [],
     openRifts: [],
@@ -112,7 +120,7 @@ export function chooseStartingFaction(state: GameState, factionId: FactionId): G
   if (!state.availableFactionDraft.includes(factionId)) {
     return state;
   }
-  const troop = createTroopInstance(factionId, 'soldier', 1);
+  const troop = createTroopInstance(factionId, getStartingFactionUnitType(factionId), 1);
   const unlockedState: GameState = {
     ...state,
     phase: 'planning',
@@ -290,6 +298,7 @@ export function resolveAssignedRifts(state: GameState): CycleResolution {
         rift.id,
         rift.tier,
         rift.mutatorIds,
+        rift.saturation,
         troops.map((troop) => resolveTroopCombatant(state, troop, 'player')),
         rift.enemyArmy,
       );
