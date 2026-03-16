@@ -5,13 +5,13 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
-    "types": ["vite/client", "vitest/globals"],
+    "types": ["vite/client", "vitest/globals", "node"],
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte", "vite.config.mts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte", "scripts/**/*.ts", "scripts/**/*.d.ts", "vite.config.mts"],
   "exclude": ["dist", "node_modules"]
 }
 

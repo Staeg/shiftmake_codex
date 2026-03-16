@@ -20,15 +20,15 @@ describe('troop composition', () => {
       size: 1,
       capacity: 3,
     });
-    expect(troop.quantity).toBe(5);
-    expect(troop.cost).toBe(90);
+    expect(troop.quantity).toBe(1);
+    expect(troop.cost).toBe(21.6);
   });
 
   it('clamps composed stats and merges unit and faction abilities', () => {
     const troop = composeTroopDefinition('troll', 'champion');
 
     expect(troop.stats).toEqual({
-      health: 195,
+      health: 169,
       damage: 24,
       speed: 13.6,
       range: 0,
@@ -49,7 +49,7 @@ describe('troop composition', () => {
     expect(troop.attributes).toEqual(['melee', 'human']);
     expect(troop.stats).toEqual({
       health: 220,
-      damage: 22,
+      damage: 17.6,
       speed: 7.7,
       range: 0,
       armor: 11,
@@ -62,7 +62,7 @@ describe('troop composition', () => {
   });
 
   it('adds new faction roster units with their abilities', () => {
-    expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 1', 'Regen 5']);
+    expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 3', 'Regen 5']);
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
     expect(composeTroopDefinition('goblin', 'shaman').abilities.map((ability) => ability.label)).toEqual(['Enhance 1']);
     expect(composeTroopDefinition('elf', 'elementalist').abilities.map((ability) => ability.label)).toEqual(['Charge 4 Summon Elemental']);
@@ -114,19 +114,19 @@ describe('troop composition', () => {
 
 describe('selection cost helpers', () => {
   it('matches the human soldier checksum across starting and upgraded quantities', () => {
-    expect(getTroopSelectionCost('human/soldier', 1)).toBe(18);
-    expect(getTroopSelectionCost('human/soldier', 5)).toBe(90);
-    expect(getTroopSelectionCost('human/soldier', 6)).toBe(108);
-    expect(getTroopSelectionCost('human/soldier', 7)).toBe(144);
+    expect(getTroopSelectionCost('human/soldier', 1)).toBe(21.6);
+    expect(getTroopSelectionCost('human/soldier', 5)).toBe(237.6);
+    expect(getTroopSelectionCost('human/soldier', 6)).toBe(345.6);
+    expect(getTroopSelectionCost('human/soldier', 7)).toBe(475.2);
   });
 
   it('sums side cost totals across multiple troop selections', () => {
     expect(
       getArmySelectionCost({
-        'human/soldier': 5,
-        'elf/archer': 5,
+        'human/soldier': 1,
+        'elf/archer': 1,
       }),
-    ).toBe(200);
+    ).toBe(43.6);
   });
 });
 

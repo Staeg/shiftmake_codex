@@ -379,21 +379,21 @@ export function getTroopStatUpgradeCost(troop: TroopInstance, stat: TroopStatKey
   if (!canUpgradeStat(troop.unitTypeId, stat)) {
     return Number.POSITIVE_INFINITY;
   }
-  const base = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
   const levels = troop.statUpgradeLevels[stat] ?? 0;
   const unitType = getUnitType(troop.unitTypeId);
+  const upgradeBaseCost = 100;
 
   if (stat === 'health' || stat === 'damage' || stat === 'speed') {
-    return fixed((base.cost / 10) * (levels + 1));
+    return fixed((upgradeBaseCost / 10) * (levels + 1));
   }
 
   if (stat === 'armor') {
-    return fixed((base.cost / 20 + unitType.stats.armor) * (levels + 1));
+    return fixed((upgradeBaseCost / 20 + unitType.stats.armor) * (levels + 1));
   }
 
   const starting = stat === 'range' ? unitType.stats.range : unitType.stats.capacity;
   const safeStarting = Math.max(1, starting);
-  return fixed((base.cost * (levels + safeStarting)) / (safeStarting * 2));
+  return fixed((upgradeBaseCost * (levels + safeStarting)) / (safeStarting * 2));
 }
 
 export function getFactionUnlockCost(state: GameState): number {
@@ -401,17 +401,10 @@ export function getFactionUnlockCost(state: GameState): number {
 }
 
 export function getTroopUnlockCost(state: GameState, factionId: FactionId, unitTypeId: UnitTypeId): number {
-  const unitType = getUnitType(unitTypeId);
-  const startingUnitTypeId =
-    factionId === 'human' || factionId === 'troll'
-      ? 'soldier'
-      : factionId === 'elf'
-        ? 'archer'
-        : 'militia';
-  const unlockedNonStartingTroops = state.troops.filter(
-    (troop) => troop.factionId === factionId && troop.unlocked && troop.unitTypeId !== startingUnitTypeId,
-  ).length;
-  return fixed(unitType.cost + (unitTypeId === startingUnitTypeId ? 0 : 100 * unlockedNonStartingTroops));
+  void factionId;
+  void unitTypeId;
+  const unlockedTroopCount = state.troops.filter((troop) => troop.unlocked).length;
+  return fixed(100 * unlockedTroopCount);
 }
 
 export function getTroopEffectiveDefinition(state: GameState, troopId: TroopId): ResolvedCombatantDefinition {

@@ -13,7 +13,7 @@ Current implementation:
 
 - At campaign start, the player chooses 1 starting faction for free.
 - Unlocking an additional faction costs `100 * current unlocked faction count` essence.
-- Unlocking a faction immediately creates that faction's Soldier troop.
+- Unlocking a faction immediately creates that faction's Soldier troop at quantity `1`.
 
 The older idea of random post-start faction draft choices is not currently implemented.
 
@@ -25,21 +25,20 @@ Rules:
 
 - Soldier is the only troop type granted automatically when a faction is unlocked.
 - A troop type cannot be unlocked twice for the same faction.
-- Troop unlock cost is:
-  - `unitType.cost`
-  - plus `100` for each already unlocked non-soldier troop in that faction
+- Newly unlocked troop types start at quantity `1`.
+- Troop unlock cost is `100` essence for each currently unlocked troop.
 
 ## Adding units to a troop
 
 Buying a unit increases that troop's quantity by 1.
 
-Cost is based on total troop-selection cost growth:
+Cost is based on total troop-selection cost growth using the troop's per-unit cost:
 
 - first compute the total cost of the troop at current quantity
 - compute it again at quantity +1
 - the purchase price is the difference
 
-This produces linear cost inside the starting quantity and escalating extra-unit costs beyond it.
+Because troops now start at quantity `1`, every extra unit after the first uses the escalating extra-unit curve.
 
 ## Troop stat upgrades
 
@@ -59,9 +58,9 @@ Upgrade effects:
 
 Current formulas:
 
-- health/damage/speed cost: `(troop cost / 10) * (existing levels + 1)`
-- armor cost: `(troop cost / 20 + starting armor) * (existing levels + 1)`
-- range/capacity style cost formula exists, but capacity upgrades are not currently granted to any unit type
+- health/damage/speed cost: `(100 / 10) * (existing levels + 1)`
+- armor cost: `(100 / 20 + starting armor) * (existing levels + 1)`
+- range/capacity style cost formula uses `100` as its base value; capacity upgrades are not currently granted to any unit type
 
 ## Faction upgrades
 

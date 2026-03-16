@@ -30,9 +30,9 @@ The campaign phases inside the overworld are:
 ### Army growth
 
 - Unlock a new faction.
-- Unlock a new troop type for an unlocked faction.
-- Add one unit to an existing troop.
-- Buy allowed stat upgrades for a troop.
+- Unlock a new troop type for an unlocked faction. New troop unlocks begin at quantity `1` and cost `100` essence per currently unlocked troop.
+- Add one unit to an existing troop. This is now the main way troop sizes grow beyond `1`.
+- Buy allowed stat upgrades for a troop. Stat-upgrade pricing uses a flat base value of `100`; Increase Quantity still uses troop-specific per-unit cost.
 - Buy an available default faction upgrade.
 
 ### Rift planning

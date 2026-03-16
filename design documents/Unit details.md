@@ -14,8 +14,8 @@ This document lists the current base unit types before faction modifiers, troop 
 - `size`: how much enemy capacity is needed to engage the unit
 - `capacity`: how much total enemy size the unit can engage
 - `role`: autonomous behavior profile
-- `quantity`: starting troop size when first created
-- `cost`: troop cost used by unlock and unit-add formulas
+- `quantity`: starting troop size when first created; currently `1` for every unit type
+- `cost`: per-unit troop cost used by the Increase Quantity formula
 
 ## Unit types
 
@@ -24,38 +24,54 @@ This document lists the current base unit types before faction modifiers, troop 
 - Type: `archer`
 - Attributes: `ranged`
 - Health: 30
-- Damage: 10
-- Speed: 10
+- Damage: 11
+- Speed: 11
 - Range: 2
 - Armor: 0
 - Size: 1
 - Capacity: 0
 - Role: backline
 - Abilities: none
-- Quantity: 5
-- Cost: 100
+- Quantity: 1
+- Cost: 20
 
 ### Avenger
 
 - Type: `avenger`
 - Attributes: `melee`
 - Health: 200
-- Damage: 10
+- Damage: 6
 - Speed: 10
 - Range: 0
 - Armor: 0
 - Size: 2
 - Capacity: 1
 - Role: frontline
-- Abilities: `Vengeance 1`
+- Abilities: `Vengeance 3`
 - Quantity: 1
 - Cost: 40
+
+### Beastmaster
+
+- Type: `beastmaster`
+- Attributes: `melee`, `summoner`
+- Health: 90
+- Damage: 8
+- Speed: 8
+- Range: 0
+- Armor: 0
+- Size: 2
+- Capacity: 1
+- Role: frontline
+- Abilities: `Summon Wolf 2`
+- Quantity: 1
+- Cost: 60
 
 ### Champion
 
 - Type: `champion`
 - Attributes: `melee`
-- Health: 150
+- Health: 130
 - Damage: 20
 - Speed: 17
 - Range: 0
@@ -71,8 +87,8 @@ This document lists the current base unit types before faction modifiers, troop 
 
 - Type: `druid`
 - Attributes: `caster`
-- Health: 20
-- Damage: 10
+- Health: 25
+- Damage: 11
 - Speed: 8
 - Range: 2
 - Armor: 0
@@ -80,15 +96,47 @@ This document lists the current base unit types before faction modifiers, troop 
 - Capacity: 0
 - Role: backline
 - Abilities: `Shapeshift - Bear`
-- Quantity: 3
-- Cost: 80
+- Quantity: 1
+- Cost: 30
+
+### Elemental
+
+- Type: `elemental`
+- Attributes: `melee`, `summoned`
+- Health: 60
+- Damage: 13
+- Speed: 7
+- Range: 2
+- Armor: 5
+- Size: 1
+- Capacity: 3
+- Role: frontline
+- Abilities: none
+- Quantity: 1
+- Cost: 20
+
+### Elementalist
+
+- Type: `elementalist`
+- Attributes: `caster`, `summoner`
+- Health: 25
+- Damage: 10
+- Speed: 9
+- Range: 2
+- Armor: 0
+- Size: 1
+- Capacity: 0
+- Role: backline
+- Abilities: `Charge 4 Summon Elemental`
+- Quantity: 1
+- Cost: 30
 
 ### Knight
 
 - Type: `knight`
 - Attributes: `melee`
 - Health: 200
-- Damage: 20
+- Damage: 16
 - Speed: 7
 - Range: 0
 - Armor: 10
@@ -105,14 +153,62 @@ This document lists the current base unit types before faction modifiers, troop 
 - Attributes: `melee`, `expendable`
 - Health: 40
 - Damage: 8
-- Speed: 12
+- Speed: 11
 - Range: 0
 - Armor: 0
 - Size: 1
 - Capacity: 1
 - Role: chaff
 - Abilities: none
-- Quantity: 10
+- Quantity: 1
+- Cost: 10
+
+### Necromancer
+
+- Type: `necromancer`
+- Attributes: `caster`, `summoner`
+- Health: 40
+- Damage: 16
+- Speed: 8
+- Range: 2
+- Armor: 0
+- Size: 1
+- Capacity: 0
+- Role: backline
+- Abilities: `Corpse Summon Skeleton`
+- Quantity: 1
+- Cost: 40
+
+### Priest
+
+- Type: `priest`
+- Attributes: `caster`
+- Health: 25
+- Damage: 7
+- Speed: 8
+- Range: 2
+- Armor: 0
+- Size: 1
+- Capacity: 0
+- Role: backline
+- Abilities: `Mend 4`
+- Quantity: 1
+- Cost: 20
+
+### Ranger
+
+- Type: `Ranger`
+- Attributes: `ranged`
+- Health: 50
+- Damage: 16
+- Speed: 13
+- Range: 3
+- Armor: 0
+- Size: 1
+- Capacity: 0
+- Role: backline
+- Abilities: `Haste 1`
+- Quantity: 1
 - Cost: 60
 
 ### Shaman
@@ -120,7 +216,7 @@ This document lists the current base unit types before faction modifiers, troop 
 - Type: `shaman`
 - Attributes: `caster`
 - Health: 20
-- Damage: 10
+- Damage: 11
 - Speed: 8
 - Range: 2
 - Armor: 0
@@ -128,8 +224,24 @@ This document lists the current base unit types before faction modifiers, troop 
 - Capacity: 0
 - Role: backline
 - Abilities: `Enhance 1`
-- Quantity: 3
-- Cost: 60
+- Quantity: 1
+- Cost: 20
+
+### Skeleton
+
+- Type: `skeleton`
+- Attributes: `melee`, `summoned`
+- Health: 40
+- Damage: 13
+- Speed: 7
+- Range: 0
+- Armor: 0
+- Size: 1
+- Capacity: 1
+- Role: chaff
+- Abilities: `Bonded`, `Fading`
+- Quantity: 1
+- Cost: 20
 
 ### Soldier
 
@@ -144,15 +256,15 @@ This document lists the current base unit types before faction modifiers, troop 
 - Capacity: 2
 - Role: frontline
 - Abilities: none
-- Quantity: 5
-- Cost: 100
+- Quantity: 1
+- Cost: 24
 
 ### Wizard
 
 - Type: `wizard`
 - Attributes: `caster`
 - Health: 20
-- Damage: 10
+- Damage: 9
 - Speed: 8
 - Range: 2
 - Armor: 0
@@ -160,8 +272,24 @@ This document lists the current base unit types before faction modifiers, troop 
 - Capacity: 0
 - Role: backline
 - Abilities: `Blast 5`
-- Quantity: 3
-- Cost: 60
+- Quantity: 1
+- Cost: 20
+
+### Wolf
+
+- Type: `wolf`
+- Attributes: `melee`, `summoned`
+- Health: 70
+- Damage: 5
+- Speed: 12
+- Range: 0
+- Armor: 0
+- Size: 1
+- Capacity: 1
+- Role: chaff
+- Abilities: `Bonded`, `Pack 1`
+- Quantity: 1
+- Cost: 20
 
 ## Example composed troops
 
@@ -177,8 +305,8 @@ This document lists the current base unit types before faction modifiers, troop 
 - Capacity: 3
 - Role: frontline
 - Abilities: none
-- Quantity: 5
-- Cost: 90
+- Quantity: 1
+- Cost: 18
 
 ### Troll Champion
 
@@ -207,5 +335,5 @@ This document lists the current base unit types before faction modifiers, troop 
 - Capacity: 0
 - Role: backline
 - Abilities: `Blast 5`
-- Quantity: 3
-- Cost: 24
+- Quantity: 1
+- Cost: 8

@@ -4,7 +4,7 @@ This document describes the game as it is currently implemented.
 
 Shiftmake is a browser-based singleplayer strategy game with an auto-battling combat layer and fully replayable battles.
 
-You manage a mixed-faction army, choose which troops to send into visible Rifts, and grow stronger through troop unlocks, faction upgrades, stat upgrades, and reward choices earned from victories.
+You manage a mixed-faction army, choose which troops to send into visible Rifts, and grow stronger through troop unlocks, faction upgrades, stat upgrades, quantity increases, and reward choices earned from victories.
 
 ## Current flow
 
@@ -29,9 +29,9 @@ You manage a mixed-faction army, choose which troops to send into visible Rifts,
 ## Current progression actions
 
 - Unlock a new faction with essence.
-- Unlock a new troop type within an unlocked faction with essence.
+- Unlock a new troop type within an unlocked faction with essence. Newly unlocked troops start at quantity `1`, and each troop unlock costs `100` essence for each troop you already have unlocked.
 - Add units to an existing troop with gold.
-- Buy troop stat upgrades with gold.
+- Buy troop stat upgrades with gold. Stat-upgrade formulas use a flat base value of `100`, while Increase Quantity uses each troop's per-unit cost.
 - Buy faction-wide upgrades with gold.
 - Claim free faction-upgrade rewards from victorious Rifts.
 

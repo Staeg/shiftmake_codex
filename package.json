@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "report:2v2": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations2v2.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations2v2.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations2v2.js @args\"",
+    "report:3v3": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations3v3.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations3v3.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations3v3.js @args\""
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",

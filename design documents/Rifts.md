@@ -70,7 +70,7 @@ Current rules:
 - budget is split evenly across those selections
 - quantity for each group is `floor(perSelectionBudget / perUnitCost)`, minimum 1
 
-Enemy per-unit budget cost is the troop's total cost divided by its default quantity.
+Enemy per-unit budget cost is the troop's per-unit cost. Because all troop types now start at quantity `1`, this is numerically the same as the troop's listed cost.
 
 ## Saturation
 

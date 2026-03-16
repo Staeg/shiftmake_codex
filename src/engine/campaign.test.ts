@@ -6,14 +6,14 @@ import { chooseStartingFaction, claimRewardChoice, startNewGame, unlockTroopType
 describe('campaign balance helpers', () => {
   it('prices added units as the next step in the troop curve', () => {
     const trollSoldiers = createTroopInstance('troll', 'soldier', 1);
-    expect(getTroopAddUnitCost(trollSoldiers)).toBe(26);
+    expect(getTroopAddUnitCost(trollSoldiers)).toBe(31.2);
 
     const trollChampions = createTroopInstance('troll', 'champion', 1);
     expect(getTroopAddUnitCost(trollChampions)).toBe(78);
   });
 
   it('uses per-starting-unit troop value for enemy budgeting', () => {
-    expect(getEnemyUnitBudgetCost('goblin', 'soldier')).toBe(8);
+    expect(getEnemyUnitBudgetCost('goblin', 'soldier')).toBe(9.6);
     expect(getEnemyUnitBudgetCost('goblin', 'champion')).toBe(24);
   });
 
@@ -36,10 +36,10 @@ describe('campaign balance helpers', () => {
   });
 
   it('keeps tier 1 Rift enemy budget spend within explicit per-mutator bands', () => {
-    const defaultBand = { min: 80, max: 161 };
+    const defaultBand = { min: 78, max: 161 };
     const budgetAffectingBands = {
-      outpost: { min: 77.33, max: 156 },
-      quagmire: { min: 36, max: 144 },
+      outpost: { min: 69, max: 156 },
+      quagmire: { min: 36, max: 156 },
       rich: { min: 130, max: 240 },
     } as const;
 
@@ -82,11 +82,24 @@ describe('campaign balance helpers', () => {
     const goblinState = chooseStartingFaction(startNewGame(9), 'goblin');
     const trollState = chooseStartingFaction(startNewGame(10), 'troll');
 
-    expect(getTroopUnlockCost(elfState, 'elf', 'druid')).toBe(80);
-    expect(getTroopUnlockCost(elfState, 'elf', 'wizard')).toBe(60);
-    expect(getTroopUnlockCost(goblinState, 'goblin', 'shaman')).toBe(60);
-    expect(getTroopUnlockCost(goblinState, 'goblin', 'wizard')).toBe(60);
-    expect(getTroopUnlockCost(trollState, 'troll', 'shaman')).toBe(60);
+    expect(getTroopUnlockCost(elfState, 'elf', 'druid')).toBe(100);
+    expect(getTroopUnlockCost(elfState, 'elf', 'wizard')).toBe(100);
+    expect(getTroopUnlockCost(goblinState, 'goblin', 'shaman')).toBe(100);
+    expect(getTroopUnlockCost(goblinState, 'goblin', 'wizard')).toBe(100);
+    expect(getTroopUnlockCost(trollState, 'troll', 'shaman')).toBe(100);
+  });
+
+  it('scales troop unlock cost by total currently unlocked troops', () => {
+    const startingState = {
+      ...chooseStartingFaction(startNewGame(14), 'human'),
+      resources: { gold: 1000, essence: 1000 },
+    };
+    const withSecondTroop = unlockTroopType(startingState, 'human', 'archer');
+    const withThirdTroop = unlockTroopType(withSecondTroop, 'human', 'knight');
+
+    expect(getTroopUnlockCost(startingState, 'human', 'knight')).toBe(100);
+    expect(getTroopUnlockCost(withSecondTroop, 'human', 'priest')).toBe(200);
+    expect(getTroopUnlockCost(withThirdTroop, 'human', 'priest')).toBe(300);
   });
 
   it('cheat blueprints unlock blueprint troop rewards from the start', () => {

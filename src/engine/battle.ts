@@ -1,7 +1,7 @@
 import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
 import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, formatFixed } from './fixed';
 import { createRng, type Rng } from './rng';
-import { composeBaseTroopDefinition, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
+import { composeBaseTroopDefinition, composeSummonedTroopDefinition, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
 import type {
   AbilityAllegiance,
   AbilityDefinition,
@@ -1132,7 +1132,7 @@ function summonUnit(
   effect: Extract<AbilityEffectDefinition, { kind: 'summon' }>,
   origin: HexCoord,
 ): boolean {
-  const troop = composeBaseTroopDefinition(actor.factionId, effect.unitTypeId);
+  const troop = composeSummonedTroopDefinition(actor.factionId, effect.unitTypeId);
   const summonHex = tryFindSummonHex(state, actor, origin, troop.stats.size);
   if (!summonHex) {
     return false;

@@ -109,6 +109,13 @@ The catalog is declarative. Composition happens in engine helpers:
 
 No classes or non-serializable values are persisted.
 
+Current progression defaults:
+
+- each newly created troop starts at quantity `1`
+- unlocking a troop type costs `100` essence for each troop currently unlocked
+- troop `cost` now represents per-unit cost for quantity-growth pricing
+- troop stat-upgrade formulas use a flat base value of `100`, except Increase Quantity, which still uses troop-specific per-unit cost
+
 ## Current Implemented Content
 
 ### Factions
