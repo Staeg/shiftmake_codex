@@ -1,8 +1,8 @@
 # TECHNICAL.md
 
-Technical implementation reference for Shiftmake. Read alongside the design docs in `design documents/` and `AGENTS.md`.
+Technical reference for the currently implemented version of Shiftmake.
 
----
+Read alongside `AGENTS.md` and the design docs in `design documents/`.
 
 ## Stack
 
@@ -13,86 +13,204 @@ Technical implementation reference for Shiftmake. Read alongside the design docs
 | UI framework | Svelte |
 | Battle renderer | PixiJS |
 | Testing | Vitest |
-| Save state | localStorage + serialized replay payloads |
-| Android (stretch) | Capacitor |
-| Multiplayer server (stretch) | Node.js + `ws` |
-
----
+| Persistence | `localStorage` |
 
 ## Core Rule
 
-**All game logic lives in `src/engine/` with no rendering or DOM dependencies.**
+All gameplay logic lives in `src/engine/` with no DOM or rendering dependencies.
 
-The UI and Pixi layers consume engine outputs. They do not decide battle outcomes, mutate combat logic, or maintain parallel gameplay state.
-
-This keeps the project testable, deterministic, and portable to a future server-authoritative or mobile setup.
-
----
+The Svelte and Pixi layers consume resolved engine data. They do not decide outcomes, apply combat rules, or maintain a second copy of gameplay state.
 
 ## Project Shape
 
 ```text
 src/
   engine/
-    types.ts        # Shared game/battle/catalog data contracts
-    unitCatalog.ts  # Factions, unit types, abilities, upgrades, mutators
-    army.ts         # Troop instance resolution and upgrade application
-    battle.ts       # Deterministic battle simulator + replay generation
-    game.ts         # Campaign loop / cycle resolution
-    rift.ts         # Rift generation and reward setup
-    save.ts         # Save/load validation and serialization
+    types.ts
+    unitCatalog.ts
+    army.ts
+    battle.ts
+    game.ts
+    rift.ts
+    upgrades.ts
+    save.ts
 
   store/
-    gameStore.ts    # Svelte-facing campaign state and actions
-    debugBattleStore.ts
+    gameStore.ts
     saveSlots.ts
+    replayNavigation.ts
 
   ui/
     App.svelte
-    UnitTooltip.svelte
+    BattleControls.svelte
     EventLog.svelte
+    StatBreakdownGrid.svelte
+    UnitTooltip.svelte
 
   rendering/
     BattleRenderer.ts
+    unitVisuals.ts
 ```
 
----
+## Runtime Structure
+
+The app has three UI screens:
+
+- `main_menu`: three save slots, load/start flow
+- `overworld`: campaign planning, upgrades, rewards, battle archive
+- `replay`: Pixi replay viewer with event log, alive counts, tooltips, and recap
+
+Campaign phases are:
+
+- `faction_draft`: opening faction choice
+- `planning`: normal overworld play
+- `reward_claims`: post-victory upgrade picks
 
 ## Data Model
 
 ### Unit identity
 
-Every resolved combatant now has:
+Resolved combatants expose both:
 
-- `type`: one primary troop identity such as `soldier`, `archer`, or `shaman`
-- `attributes`: secondary tags such as `melee`, `caster`, `ranged`, faction tags, and special traits
+- `type`: one primary troop identity such as `soldier` or `wizard`
+- `attributes`: secondary tags such as `melee`, `caster`, `ranged`, `human`, `goblin`, `expendable`
 
-This split matters in code:
+Ability filters match against the combined visible set of `type + attributes`.
 
-- target filters such as `Only`, `Not`, and `Prio` match against the combined visible tag set of `type + attributes`
-- Combined Arms counts distinct friendly primary `type` values only
-- faction composition adds attributes, not extra primary types
+Combined Arms style logic counts distinct friendly primary `type` values only.
 
-### Catalog composition
+### Catalog
 
-The catalog layer is declarative:
+`src/engine/unitCatalog.ts` defines:
 
-- `UnitTypeDefinition` provides primary `type`, base `attributes`, stats, quantity, cost, and ability ids
-- `FactionDefinition` provides stat adjustments, default roster, added faction attributes, and faction-wide ability ids
-- `FactionUpgradeDefinition` can inject abilities, attributes, or stat modifiers
-- `composeBaseTroopDefinition()` in `src/engine/unitCatalog.ts` builds the base troop
-- `resolveTroopCombatant()` in `src/engine/army.ts` applies troop upgrade levels, faction upgrades, and enemy tier scaling
+- abilities
+- unit types
+- factions
+- faction upgrades
+- battle mutators
 
-### Ability model
+The catalog is declarative. Composition happens in engine helpers:
 
-Abilities are fully data-driven and split into four axes:
+- `composeBaseTroopDefinition()`: unit type + faction adjustments
+- `resolveTroopCombatant()`: player troop with stat upgrades and faction upgrades applied
+- `resolveEnemyCombatant()`: enemy troop with tier scaling applied
 
-- `trigger`: when the ability is allowed to fire
-- `duration`: how long its effects last
-- `target`: how recipients are selected
-- `effects`: what actually happens
+### Campaign state
 
-Current timing support:
+`GameState` stores plain JSON only:
+
+- resources
+- unlocked factions
+- recruited troops
+- faction upgrades
+- open rifts
+- pending reward choices
+- replay index
+
+No classes or non-serializable values are persisted.
+
+## Current Implemented Content
+
+### Factions
+
+- `human`
+- `elf`
+- `goblin`
+- `troll`
+
+### Unit types
+
+- `soldier`
+- `champion`
+- `avenger`
+- `druid`
+- `knight`
+- `militia`
+- `archer`
+- `wizard`
+- `shaman`
+
+### Mutators
+
+- `momentum`
+- `heavy-air`
+- `rich`
+- `outpost`
+- `quagmire`
+
+## Battle Engine
+
+Battle entrypoint:
+
+```ts
+resolveBattle(input: BattleInput): BattleReplay
+```
+
+Important properties:
+
+- deterministic for fixed input and seed
+- replay-first architecture
+- auto-expanding hex map if spawn space is insufficient
+- configurable per-rift saturation limit
+
+### Turn flow
+
+Each beat:
+
+1. All alive units gain initiative equal to speed plus mutator bonus.
+2. A `beat` replay step is recorded.
+3. Units with initiative `>= 100` act in shuffled order.
+4. Each acting unit spends `100` initiative.
+
+Each acting unit:
+
+1. resolves `startOfTurn` abilities
+2. performs role/engagement behavior
+3. resolves `endOfTurn` abilities
+4. expires temporary turn-based effects on itself
+
+Battles stop on elimination or at `MAX_BEATS = 1000`, then resolve to `victory`, `defeat`, or `draw`.
+
+### Roles and tactics
+
+Implemented roles:
+
+- `frontline`
+- `chaff`
+- `backline`
+
+When not already engaged:
+
+- frontline draws attention to enemies on its hex, otherwise pursues frontline/chaff
+- chaff pursues backline if no unengaged enemies share the hex, otherwise piles on
+- backline retreats if enemies share its hex, otherwise shoots if in range, otherwise advances carefully
+
+### Engagement model
+
+- `size` is the cost to engage a unit
+- `capacity` is how much enemy size a unit may engage
+- engagements are symmetric
+- moving or death clears invalid engagements
+- taunt-style behavior uses the generic `redirect` effect instead of custom battle code
+
+### Replay payload
+
+`BattleReplay` includes:
+
+- initial snapshot
+- ordered `BattleStep[]`
+- outcome
+- resolved troop profiles for both sides
+- alive counts across time
+- summary info for archive UI
+
+The replay UI should always read resolved replay data, not recompute from catalog assumptions.
+
+## Ability System
+
+Abilities are fully data-driven.
+
+Implemented timing values:
 
 - `startOfBattle`
 - `startOfTurn`
@@ -102,15 +220,29 @@ Current timing support:
 - `onDeath`
 - `onDamaged`
 - `onFallen`
-- `passive` for non-battle or non-triggered catalog presence
+- `passive`
 
-Current duration support:
+Implemented duration values:
 
 - `instant`
 - `battle`
 - `turns`
 
-Current trigger modifiers include:
+Implemented target modes:
+
+- `self`
+- `random`
+- `aoe`
+- `default`
+
+Implemented target filters:
+
+- `notTypes`
+- `onlyTypes`
+- `prioritizeTypes`
+- `unengaged`
+
+Implemented trigger modifiers:
 
 - `chargeEvery`
 - `maxUses`
@@ -119,14 +251,7 @@ Current trigger modifiers include:
 - `repeatPerOtherFriendlyUnitOnHex`
 - `fallen` trigger geometry
 
-Current target filters include:
-
-- `notTypes`
-- `onlyTypes`
-- `prioritizeTypes`
-- `unengaged`
-
-Current effect kinds include:
+Implemented effect kinds:
 
 - `blast`
 - `bolster`
@@ -138,56 +263,7 @@ Current effect kinds include:
 - `strike`
 - `redirect`
 
-`redirect` is the engagement effect used by Taunt-style abilities. It routes through normal targeting instead of bespoke taunt-only logic.
-
----
-
-## Battle Runtime
-
-### Public contract
-
-Battle entrypoint:
-
-```ts
-resolveBattle(input: BattleInput): BattleReplay
-```
-
-The battle engine is deterministic for a fixed seed and input. The replay contains:
-
-- initial snapshot
-- ordered `BattleStep[]`
-- final outcome
-- troop profiles used for tooltip/UI display
-- alive-count summaries over time
-
-The renderer is a replay consumer only.
-
-### Internal execution model
-
-`battle.ts` uses a mutable internal working state during simulation, but that state is local to the battle resolver. No live engine state is shared with the UI.
-
-The turn loop is:
-
-1. Apply per-beat initiative gain
-2. Select ready units
-3. For each acting unit:
-   - fire `startOfTurn` abilities
-   - execute tactical behavior from its role/engagement state
-   - fire `endOfTurn` abilities
-   - expire temporary timed effects on that unit
-
-### Temporary effects
-
-Timed abilities are implemented through per-unit active effect instances.
-
-Each temporary runtime entry stores:
-
-- source ability id
-- source unit id
-- remaining own-turn expirations
-- enough applied state to roll the effect back cleanly
-
-The current reversible timed-effect system supports:
+Temporary reversible runtime effects currently exist for:
 
 - `bolster`
 - `haste`
@@ -195,78 +271,62 @@ The current reversible timed-effect system supports:
 - `rangeset`
 - `roleset`
 
-This is what allows effects like Pack to exist as normal authored abilities instead of special-case damage math.
+## Campaign Loop
 
-### Engagements
+`src/engine/game.ts` currently implements:
 
-Engagement capacity and size are enforced at runtime:
+1. Start a new run in `faction_draft`
+2. Choose one starting faction
+3. Generate that cycle's rifts
+4. In planning, recruit troops, buy units, buy stat upgrades, buy faction upgrades, unlock factions, unlock troop types, and assign troops
+5. Resolve every discovered rift that has assigned troops
+6. Apply recovery and rewards
+7. Enter `reward_claims` if any upgrade choices were earned, otherwise return to `planning`
+8. Generate the next cycle's rifts
 
-- a unit's `capacity` limits how much enemy `size` it can engage
-- a unit's `size` determines how much capacity it consumes when targeted
-- engagements are tracked symmetrically on both units
+Important current rule: all still-discovered rifts from the previous cycle are marked `expired` when the cycle advances, even though `RiftInstance` still carries an `expiresInCycles` field.
 
-`redirect` does not steal existing engagements. It only creates a new engagement when the target is valid and the actor still has spare capacity.
+## Persistence
 
----
+Save data uses `localStorage`:
 
-## Replay/UI Boundary
+- 3 save slots
+- one game-state payload per slot
+- replay payloads stored separately per slot
 
-The replay snapshot and troop profile data intentionally duplicate resolved battle-facing information so the UI does not need to recompute gameplay state.
+Replay payloads are stored as serialized `BattleInput`, not full replay output. Archived battles are reconstructed by re-running the deterministic resolver when opened.
 
-That includes:
+Replay archive retention:
 
-- `type`
-- `attributes`
-- role
-- resolved stats
-- abilities
+- max 40 archive entries
+- soft storage cap of about 4 MB for replay payloads
+- older payloads may be evicted and reduced to summary-only archive entries
 
-Tooltips and overlays should read from replay/profile data, not from catalog assumptions.
+Legacy single-save data is migrated into slot 1 on load.
 
----
+## Testing
 
-## Save System
+`npm run test` covers engine and store behavior.
 
-Campaign state is serialized as plain JSON. Replay payloads are also stored as serializable data, keyed separately from the main campaign save.
+Current tests cover:
 
-Rules:
+- battle determinism
+- troop composition
+- faction/unit stat resolution
+- rift generation
+- campaign flow
+- replay navigation
+- save-slot persistence helpers
+- ability behaviors such as charge, forsaken, combined arms, and temporary buffs
 
-- no classes in persistent state
-- no functions or non-JSON values
-- replay payloads must be reconstructible from saved battle input
+## Conventions
 
-The save/load boundary lives in `src/engine/save.ts`.
+- Keep engine code pure and UI-agnostic.
+- Add new mechanics to typed data models before adding one-off branches.
+- Keep replay data authoritative for presentation.
+- Put catalog content in `unitCatalog.ts`, not scattered through UI files.
 
----
-
-## Testing Strategy
-
-`npm run test` covers the engine and store layers. The most important battle tests currently verify:
-
-- deterministic battle resolution
-- faction/unit composition
-- ability definition resolution
-- charge and max-use behavior
-- forsaken gating
-- Combined Arms repeat logic
-- temporary Pack-style turn buffs and expiry
-- type/attribute-based targeting
-
-When adding new ability modifiers or effect kinds, add tests in `src/engine/battle.test.ts` before wiring the UI.
-
----
-
-## Coding Conventions
-
-- Keep catalog data declarative in `unitCatalog.ts`
-- Prefer standalone pure-ish functions over classes or inheritance
-- Keep the renderer passive; it should never infer outcomes
-- Use replay steps as the source of truth for battle presentation
-- When extending ability behavior, prefer adding typed fields and generic runtime helpers before adding one-off branches
-
----
-
-## Build Commands
+## Commands
 
 ```bash
 npm install

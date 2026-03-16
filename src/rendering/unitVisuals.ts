@@ -3,17 +3,25 @@ import type { FactionId, UnitTypeId } from '../engine/types';
 
 import archerUrl from '../../assets/unit sprites/archer.png';
 import avengerUrl from '../../assets/unit sprites/avenger.png';
+import beastmasterUrl from '../../assets/unit sprites/beastmaster.png';
 import championUrl from '../../assets/unit sprites/champion.png';
 import druidUrl from '../../assets/unit sprites/druid.png';
 import elfFactionUrl from '../../assets/faction sprites/elf.png';
+import elementalUrl from '../../assets/unit sprites/elemental.png';
+import elementalistUrl from '../../assets/unit sprites/elementalist.png';
 import goblinFactionUrl from '../../assets/faction sprites/goblin.png';
 import humanFactionUrl from '../../assets/faction sprites/human.png';
 import knightUrl from '../../assets/unit sprites/knight.png';
 import militiaUrl from '../../assets/unit sprites/militia.png';
+import necromancerUrl from '../../assets/unit sprites/necromancer.png';
+import priestUrl from '../../assets/unit sprites/priest.png';
+import rangerUrl from '../../assets/unit sprites/ranger.png';
 import shamanUrl from '../../assets/unit sprites/shaman.png';
+import skeletonUrl from '../../assets/unit sprites/skeleton.png';
 import soldierUrl from '../../assets/unit sprites/soldier.png';
 import trollFactionUrl from '../../assets/faction sprites/troll.png';
 import wizardUrl from '../../assets/unit sprites/wizard.png';
+import wolfUrl from '../../assets/unit sprites/wolf.png';
 
 type PaletteRole = 'primary' | 'secondary' | 'glow';
 type PaletteRamp = [number, number, number];
@@ -23,13 +31,21 @@ type FactionPaletteProfile = Record<PaletteRole, PaletteRamp>;
 const UNIT_SPRITE_URLS: Record<UnitTypeId, string> = {
   archer: archerUrl,
   avenger: avengerUrl,
+  beastmaster: beastmasterUrl,
   champion: championUrl,
   druid: druidUrl,
+  elemental: elementalUrl,
+  elementalist: elementalistUrl,
   knight: knightUrl,
   militia: militiaUrl,
+  necromancer: necromancerUrl,
+  priest: priestUrl,
+  ranger: rangerUrl,
   shaman: shamanUrl,
+  skeleton: skeletonUrl,
   soldier: soldierUrl,
   wizard: wizardUrl,
+  wolf: wolfUrl,
 };
 
 const FACTION_SPRITE_URLS: Record<FactionId, string> = {
@@ -92,15 +108,51 @@ const UNIT_RECOLOR_RULES: Record<UnitTypeId, UnitPaletteRules> = {
     primary: ['#571743', '#71374C', '#B1434B'],
     secondary: ['#688174', '#8A998A', '#B9CCC6'],
   },
+  beastmaster: {
+    primary: ['#69323F', '#934554', '#D67B61'],
+    secondary: ['#7D6241', '#C19557', '#F0D99D'],
+  },
   wizard: {
     primary: ['#47304E', '#7D5B82'],
     secondary: ['#DB9253', '#FBCF7C'],
     glow: ['#558398', '#63ADC7', '#63F1D1'],
   },
+  priest: {
+    primary: ['#5B4A64', '#8A6C94', '#D8BDD8'],
+    secondary: ['#A47D44', '#D7AF63', '#F5E2B5'],
+    glow: ['#D7E7F0', '#EFFAFB'],
+  },
+  ranger: {
+    primary: ['#3C4C33', '#668055', '#A6C17A'],
+    secondary: ['#5B4046', '#9D6264', '#D89A7B'],
+  },
+  necromancer: {
+    primary: ['#3A304A', '#62557D', '#AEA4C8'],
+    secondary: ['#6B5A44', '#A68A62', '#E1D0A3'],
+    glow: ['#548F8D', '#8ED4CD', '#D8FBF5'],
+  },
   shaman: {
     primary: ['#583844', '#783646', '#D34945'],
     secondary: ['#373E69', '#4AA0C8', '#82E1E0'],
     glow: ['#BFF9E7', '#E2FEE8'],
+  },
+  elemental: {
+    primary: ['#5A445C', '#7A627D', '#B8A2B9'],
+    secondary: ['#5C6F64', '#89A391', '#C7E2D0'],
+    glow: ['#6FAFB6', '#ACEEF1', '#E7FFFF'],
+  },
+  elementalist: {
+    primary: ['#4D385E', '#775A91', '#B899D8'],
+    secondary: ['#875D46', '#D69463', '#F7D39B'],
+    glow: ['#6EC1C3', '#A9F3ED', '#F0FFFF'],
+  },
+  skeleton: {
+    primary: ['#726F6A', '#A49E93', '#E0D7C7'],
+    secondary: ['#5C434A', '#88626C', '#C799A4'],
+  },
+  wolf: {
+    primary: ['#524E58', '#7F7A89', '#C8C4D0'],
+    secondary: ['#83603F', '#B89159', '#E6CAA0'],
   },
 };
 
@@ -150,7 +202,7 @@ function sampleRamp(ramp: PaletteRamp, index: number, count: number): [number, n
 
 function buildColorMap(unitTypeId: UnitTypeId, factionId: FactionId): Map<string, [number, number, number]> {
   const map = new Map<string, [number, number, number]>();
-  const rules = UNIT_RECOLOR_RULES[unitTypeId];
+  const rules = UNIT_RECOLOR_RULES[unitTypeId] ?? {};
   const palette = FACTION_PALETTES[factionId];
 
   (Object.keys(rules) as PaletteRole[]).forEach((role) => {

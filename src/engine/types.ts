@@ -8,6 +8,7 @@ export type MutatorId = string;
 export type RoleId = 'frontline' | 'chaff' | 'backline';
 export type SideId = 'player' | 'enemy';
 export type ResourceId = 'gold' | 'essence';
+export type TroopUnlockId = string;
 export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
 export type ExplainedStatKey = TroopStatKey | 'size';
 export type AbilityTiming = 'startOfBattle' | 'startOfTurn' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'onFallen' | 'passive';
@@ -47,6 +48,7 @@ export interface AbilityTriggerDefinition {
   fallen?: {
     allegiance: AbilityAllegiance;
     radius: number;
+    radiusSource?: 'selfRange';
   };
 }
 
@@ -61,6 +63,7 @@ export interface AbilityTargetDefinition {
   mode: 'default' | 'self' | 'random' | 'aoe';
   allegiance?: AbilityAllegiance;
   radius?: number;
+  radiusSource?: 'selfRange';
   filters?: AbilityTargetFilters;
 }
 
@@ -99,6 +102,12 @@ export type AbilityEffectDefinition =
       amount: number;
     }
   | {
+      kind: 'summon';
+      unitTypeId: UnitTypeId;
+      count: number;
+      consumeFallenUnitCorpse?: boolean;
+    }
+  | {
       kind: 'redirect';
     };
 
@@ -132,6 +141,7 @@ export interface FactionDefinition {
   description: string;
   addedAttributes: string[];
   defaultUnitTypeIds: UnitTypeId[];
+  blueprintUnitTypeIds: UnitTypeId[];
   statAdjustments: Partial<Record<keyof UnitStats | 'cost', { flat?: number; multiplier?: number }>>;
   abilityIds: AbilityId[];
 }
@@ -237,7 +247,7 @@ export interface BattleStateSnapshot {
   units: BattleUnit[];
 }
 
-export type BattleStepKind = 'beat' | 'move' | 'engage' | 'attack' | 'knockout' | 'heal' | 'buff';
+export type BattleStepKind = 'beat' | 'move' | 'engage' | 'attack' | 'death' | 'heal' | 'buff';
 
 export interface BattleStep {
   index: number;
@@ -319,16 +329,28 @@ export interface ReplayIndexEntry {
   summaryOnly?: boolean;
 }
 
-export interface RewardChoice {
+export interface UpgradeRewardChoice {
   id: string;
   riftId: string;
   title: string;
+  kind: 'upgrade';
   optionUpgradeIds: UpgradeId[];
 }
+
+export interface BlueprintRewardChoice {
+  id: string;
+  riftId: string;
+  title: string;
+  kind: 'blueprint';
+  optionTroopUnlockIds: TroopUnlockId[];
+}
+
+export type RewardChoice = UpgradeRewardChoice | BlueprintRewardChoice;
 
 export interface RewardPackage {
   resources: ResourceAmounts;
   upgradeChoiceBatches: number;
+  blueprintChoiceCountByTier: number[];
   summaryParts: string[];
 }
 
@@ -350,11 +372,15 @@ export interface GameState {
   campaignSeed: number;
   cycleNumber: number;
   phase: CampaignPhase;
+  cheatUpgrades: boolean;
+  cheatBlueprints: boolean;
+  cheatResources: boolean;
   resources: ResourceAmounts;
   unlockedFactionIds: FactionId[];
   availableFactionDraft: FactionId[];
   troops: TroopInstance[];
   factionUpgradeIds: UpgradeId[];
+  unlockedBlueprintTroopIds: TroopUnlockId[];
   openRifts: RiftInstance[];
   pendingRewardChoices: RewardChoice[];
   replayIndex: ReplayIndexEntry[];

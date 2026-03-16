@@ -1,6 +1,6 @@
 import { createRng } from './rng';
 import { fixed } from './fixed';
-import { composeBaseTroopDefinition, getFaction, getMutator, FACTIONS } from './unitCatalog';
+import { composeBaseTroopDefinition, getMutator, FACTIONS, getTroopUnlockId, UNIT_TYPES } from './unitCatalog';
 import { resolveEnemyCombatant } from './army';
 import { getFallbackRewardForExhaustedUpgradeSlots } from './upgrades';
 import type {
@@ -46,9 +46,9 @@ export function getCycleTierSchedule(cycleNumber: number): number[] {
 
 function randomFactionUnitPairs(): Array<{ factionId: FactionId; unitTypeId: UnitTypeId }> {
   return Object.keys(FACTIONS).flatMap((factionId) =>
-    getFaction(factionId as FactionId).defaultUnitTypeIds.map((unitTypeId) => ({
+    Object.keys(UNIT_TYPES).map((unitTypeId) => ({
       factionId: factionId as FactionId,
-      unitTypeId,
+      unitTypeId: unitTypeId as UnitTypeId,
     })),
   );
 }
@@ -95,6 +95,7 @@ function applyRewardCategory(
   category: RandomRewardCategory,
   slotTier: number,
   availableUpgradeIds: UpgradeId[],
+  availableBlueprintTroopIds: string[],
 ): void {
   if (category === 'gold') {
     rewardPackage.resources.gold += 50 * slotTier;
@@ -121,6 +122,12 @@ function applyRewardCategory(
     return;
   }
 
+  if (availableBlueprintTroopIds.length >= slotTier) {
+    rewardPackage.blueprintChoiceCountByTier.push(slotTier);
+    rewardPackage.summaryParts.push(`blueprint choice x${slotTier}`);
+    return;
+  }
+
   const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
   rewardPackage.resources.gold += fallback.gold;
   rewardPackage.resources.essence += fallback.essence;
@@ -131,17 +138,23 @@ function buildRewardPackage(
   tier: number,
   mutatorIds: MutatorId[],
   availableUpgradeIds: UpgradeId[],
+  availableBlueprintTroopIds: string[],
   seed: number,
 ): RewardPackage {
   const base: RewardPackage = {
     resources: makeResourceAmounts(),
     upgradeChoiceBatches: 0,
+    blueprintChoiceCountByTier: [],
     summaryParts: [],
   };
   const rewardMultiplier = mutatorIds.reduce((multiplier, id) => multiplier * getMutator(id).rewardMultiplier, 1);
   const rng = createRng(deriveSeed(seed, 401));
-  const firstReward = rng.pick<RandomRewardCategory>(['gold', 'essence']);
-  applyRewardCategory(base, firstReward, 1, availableUpgradeIds);
+  const firstRewardPool: RandomRewardCategory[] = ['gold', 'essence'];
+  if (availableBlueprintTroopIds.length >= 1) {
+    firstRewardPool.push('blueprint');
+  }
+  const firstReward = rng.pick<RandomRewardCategory>(firstRewardPool);
+  applyRewardCategory(base, firstReward, 1, availableUpgradeIds, availableBlueprintTroopIds);
 
   let remainingCategories = (['gold', 'essence', 'upgrade', 'blueprint'] as RandomRewardCategory[]).filter(
     (category) => category !== firstReward,
@@ -149,7 +162,7 @@ function buildRewardPackage(
 
   for (let slotTier = 2; slotTier <= tier; slotTier += 1) {
     const category = rng.pick(remainingCategories);
-    applyRewardCategory(base, category, slotTier, availableUpgradeIds);
+    applyRewardCategory(base, category, slotTier, availableUpgradeIds, availableBlueprintTroopIds);
     remainingCategories = remainingCategories.filter((entry) => entry !== category);
   }
 
@@ -199,7 +212,7 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
       tier,
       mutatorIds,
       enemyArmy,
-      rewardPackage: buildRewardPackage(tier, mutatorIds, [], riftSeed),
+      rewardPackage: buildRewardPackage(tier, mutatorIds, [], [], riftSeed),
       saturation: pickRiftSaturation(riftSeed),
       expiresInCycles: 2,
       state: 'discovered',
@@ -207,11 +220,17 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
   });
 }
 
-export function enrichRiftRewards(rifts: RiftInstance[], availableUpgradeIds: UpgradeId[]): RiftInstance[] {
+export function enrichRiftRewards(rifts: RiftInstance[], availableUpgradeIds: UpgradeId[], availableBlueprintTroopIds: string[] = []): RiftInstance[] {
   return rifts.map((rift) => ({
     ...rift,
-    rewardPackage: buildRewardPackage(rift.tier, rift.mutatorIds, availableUpgradeIds, rift.seed),
+    rewardPackage: buildRewardPackage(rift.tier, rift.mutatorIds, availableUpgradeIds, availableBlueprintTroopIds, rift.seed),
   }));
+}
+
+export function getBlueprintRewardPool(): string[] {
+  return Object.values(FACTIONS).flatMap((faction) =>
+    faction.blueprintUnitTypeIds.map((unitTypeId) => getTroopUnlockId(faction.id, unitTypeId)),
+  );
 }
 
 export function getMutatorLabels(mutatorIds: MutatorId[]): string[] {

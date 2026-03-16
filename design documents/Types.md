@@ -1,21 +1,50 @@
 # Types
-This file describes the effects of various types for the unit's "types" stat field.
 
-## Troop types
+This document describes the meaning of unit `type` and `attributes` in the current implementation.
 
-### Archer
-Can upgrade range.
+## Primary type
 
-### Champion
-Can upgrade speed.
+Every combatant has exactly one primary `type`, for example:
 
-### Knight
-Can upgrade armor.
+- `soldier`
+- `archer`
+- `wizard`
+- `champion`
 
-### Soldier
-Can upgrade armor.
+Primary type matters for:
 
-## Faction types
+- Combined Arms counting
+- ability filters such as `Only`, `Not`, and `Prio`
+- troop identity in replays and tooltips
 
-### Goblin
-Can upgrade speed.
+## Attributes
+
+Combatants also have secondary `attributes`, for example:
+
+- combat style tags: `melee`, `ranged`, `caster`
+- faction tags: `human`, `elf`, `goblin`, `troll`
+- special traits: `expendable`
+
+Ability target filters match against the combined visible identity set of:
+
+- the primary `type`
+- all `attributes`
+
+That means a filter for `caster` matches shamans, druids, and wizards, while a filter for `archer` only matches the primary archer type.
+
+## Upgradeable stats by unit type
+
+All unit types can upgrade:
+
+- health
+- damage
+
+Additional implemented upgrade permissions:
+
+- `champion`: speed
+- `wizard`: speed
+- `archer`: range
+- `soldier`: armor
+- `knight`: armor
+
+No faction attribute currently unlocks extra stat-upgrade categories on its own.

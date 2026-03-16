@@ -40,7 +40,7 @@ function timingLabel(timing: AbilityTiming): string {
     onKill: 'On kill',
     onDeath: 'On death',
     onDamaged: 'On damaged',
-    onFallen: 'On nearby knockout',
+    onFallen: 'On nearby death',
     passive: 'Passive',
   }[timing];
 }
@@ -50,18 +50,20 @@ function targetLabel(target?: AbilityTargetDefinition): string {
     return 'default target rules';
   }
 
+  const radiusLabel = target.radiusSource === 'selfRange' ? 'R' : `${target.radius ?? 0}`;
+
   const base =
     target.mode === 'self'
       ? 'self'
       : target.mode === 'random'
         ? `random ${target.allegiance ?? 'all'} target`
         : target.mode === 'aoe'
-          ? `${target.allegiance ?? 'all'} units in radius ${target.radius ?? 0}`
+          ? `${target.allegiance ?? 'all'} units in radius ${radiusLabel}`
           : `${target.allegiance ?? 'default'} target`;
 
   const parts = [base];
-  if (target.radius && target.mode !== 'aoe') {
-    parts.push(`within ${target.radius} hexes`);
+  if ((target.radiusSource === 'selfRange' || target.radius) && target.mode !== 'aoe') {
+    parts.push(`within ${radiusLabel} hexes`);
   }
   if (target.filters?.notTypes?.length) {
     parts.push(`excluding ${target.filters.notTypes.join(', ')}`);
@@ -87,7 +89,13 @@ function effectLabel(effect: AbilityEffectDefinition): string {
   if (effect.kind === 'roleset') return `become ${effect.role}`;
   if (effect.kind === 'blast') return `${effect.amount} blast damage`;
   if (effect.kind === 'strike') return `${effect.amount} extra strikes`;
-  return 'redirect engagement';
+  if (effect.kind === 'summon') {
+    const article = /^[aeiou]/i.test(effect.unitTypeId) ? 'an' : 'a';
+    const unitLabel = effect.unitTypeId.replace(/-/g, ' ');
+    const corpseClause = effect.consumeFallenUnitCorpse ? ' by consuming a corpse' : '';
+    return `summon ${effect.count} ${effect.count === 1 ? `${article} ${unitLabel}` : `${unitLabel}s`}${corpseClause}`;
+  }
+  return `error 404: unknown ability effect "${String((effect as { kind?: string }).kind ?? 'missing-kind')}"`;
 }
 
 function durationLabel(ability: AbilityDefinition): string {

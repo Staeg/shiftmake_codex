@@ -17,10 +17,10 @@ import {
   VICTORY_RECOVERY,
 } from './army';
 import { fixed } from './fixed';
-import { deriveSeed, enrichRiftRewards, generateCycleRifts } from './rift';
+import { deriveSeed, enrichRiftRewards, generateCycleRifts, getBlueprintRewardPool } from './rift';
 import { deserializeGameState, serializeGameState } from './save';
-import { buildRewardChoice, getFallbackRewardForExhaustedUpgradeSlots } from './upgrades';
-import { FACTION_UPGRADES, FACTIONS, getFaction, getFactionUpgrade, getMutator, getUnitType } from './unitCatalog';
+import { buildBlueprintRewardChoice, buildRewardChoice } from './upgrades';
+import { FACTION_UPGRADES, FACTIONS, getFaction, getFactionUpgrade, getMutator, getTroopUnlockId, getUnitType } from './unitCatalog';
 import type {
   ApplyCycleOutcomeResult,
   CycleResolution,
@@ -32,6 +32,8 @@ import type {
   StoredReplayPayload,
   TroopId,
   TroopStatKey,
+  TroopUnlockId,
+  UnitTypeId,
   ValidationIssue,
   ValidationResult,
 } from './types';
@@ -58,17 +60,40 @@ function getRewardUpgradePool(state: GameState): string[] {
     .map((upgrade) => upgrade.id);
 }
 
-function buildInitialState(seed: number): GameState {
+function getRewardBlueprintPool(state: GameState): TroopUnlockId[] {
+  return getBlueprintRewardPool().filter((troopUnlockId) => !state.unlockedBlueprintTroopIds.includes(troopUnlockId));
+}
+
+function canUnlockTroopType(state: GameState, factionId: FactionId, unitTypeId: UnitTypeId): boolean {
+  const faction = getFaction(factionId);
+  if (faction.defaultUnitTypeIds.includes(unitTypeId)) {
+    return true;
+  }
+  return state.unlockedBlueprintTroopIds.includes(getTroopUnlockId(factionId, unitTypeId));
+}
+
+function buildInitialState(seed: number, options?: { cheatUpgrades?: boolean; cheatBlueprints?: boolean; cheatResources?: boolean }): GameState {
+  const cheatUpgrades = options?.cheatUpgrades ?? false;
+  const cheatBlueprints = options?.cheatBlueprints ?? false;
+  const cheatResources = options?.cheatResources ?? false;
   return {
     version: 1,
     campaignSeed: seed,
     cycleNumber: 1,
     phase: 'faction_draft',
-    resources: { gold: 120, essence: 120 },
+    cheatUpgrades,
+    cheatBlueprints,
+    cheatResources,
+    resources: { gold: cheatResources ? 1120 : 120, essence: cheatResources ? 1120 : 120 },
     unlockedFactionIds: [],
     availableFactionDraft: allFactionIds(),
     troops: [],
-    factionUpgradeIds: [],
+    factionUpgradeIds: cheatUpgrades
+      ? Object.values(FACTION_UPGRADES)
+          .filter((upgrade) => upgrade.source === 'rift')
+          .map((upgrade) => upgrade.id)
+      : [],
+    unlockedBlueprintTroopIds: cheatBlueprints ? getBlueprintRewardPool() : [],
     openRifts: [],
     pendingRewardChoices: [],
     replayIndex: [],
@@ -99,21 +124,39 @@ function buildReplayIndexEntry(cycleNumber: number, replay: CycleResolution['rec
   };
 }
 
-function buildRewardChoicesForRift(state: GameState, riftId: string, count: number): RewardChoice[] {
-  const pool = getRewardUpgradePool(state);
+function buildRewardChoicesForRift(
+  state: GameState,
+  riftId: string,
+  upgradeChoiceBatchCount: number,
+  blueprintChoiceCountByTier: number[],
+): RewardChoice[] {
+  const upgradePool = getRewardUpgradePool(state);
+  const blueprintPool = getRewardBlueprintPool(state);
   const choices: RewardChoice[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const options = pool.slice(index * 3, index * 3 + 3);
+  for (let index = 0; index < upgradeChoiceBatchCount; index += 1) {
+    const options = upgradePool.slice(index * 3, index * 3 + 3);
     if (options.length < 3) {
       break;
     }
     choices.push(buildRewardChoice(`${riftId}-reward-${index + 1}`, riftId, options));
   }
+  let blueprintOffset = 0;
+  blueprintChoiceCountByTier.forEach((optionCount, index) => {
+    const options = blueprintPool.slice(blueprintOffset, blueprintOffset + optionCount);
+    if (options.length < optionCount) {
+      return;
+    }
+    choices.push(buildBlueprintRewardChoice(`${riftId}-blueprint-${index + 1}`, riftId, options));
+    blueprintOffset += optionCount;
+  });
   return choices;
 }
 
-export function startNewGame(seed = Date.now() >>> 0): GameState {
-  return buildInitialState(seed);
+export function startNewGame(
+  seed = Date.now() >>> 0,
+  options?: { cheatUpgrades?: boolean; cheatBlueprints?: boolean; cheatResources?: boolean },
+): GameState {
+  return buildInitialState(seed, options);
 }
 
 export function chooseStartingFaction(state: GameState, factionId: FactionId): GameState {
@@ -130,7 +173,7 @@ export function chooseStartingFaction(state: GameState, factionId: FactionId): G
   };
   return {
     ...unlockedState,
-    openRifts: enrichRiftRewards(generateCycleRifts(unlockedState), getRewardUpgradePool(unlockedState)),
+    openRifts: enrichRiftRewards(generateCycleRifts(unlockedState), getRewardUpgradePool(unlockedState), getRewardBlueprintPool(unlockedState)),
   };
 }
 
@@ -202,16 +245,17 @@ export function unlockFaction(state: GameState, factionId: FactionId): GameState
     return state;
   }
   const nextTroop = createTroopInstance(factionId, 'soldier', nextTroopIndex(state, factionId, 'soldier'));
+  const nextUnlockedFactionIds = [...state.unlockedFactionIds, factionId];
   return {
     ...state,
     resources: { ...state.resources, essence: fixed(state.resources.essence - cost) },
-    unlockedFactionIds: [...state.unlockedFactionIds, factionId],
+    unlockedFactionIds: nextUnlockedFactionIds,
     troops: [...state.troops, nextTroop],
   };
 }
 
 export function unlockTroopType(state: GameState, factionId: FactionId, unitTypeId: string): GameState {
-  if (!getFaction(factionId).defaultUnitTypeIds.includes(unitTypeId)) {
+  if (!canUnlockTroopType(state, factionId, unitTypeId)) {
     return state;
   }
   if (state.troops.some((troop) => troop.factionId === factionId && troop.unitTypeId === unitTypeId)) {
@@ -382,7 +426,12 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
       nextState.resources.essence = fixed(nextState.resources.essence + record.rewardPackage.resources.essence);
       nextState.pendingRewardChoices = [
         ...nextState.pendingRewardChoices,
-        ...buildRewardChoicesForRift(nextState, record.riftId, record.rewardPackage.upgradeChoiceBatches),
+        ...buildRewardChoicesForRift(
+          nextState,
+          record.riftId,
+          record.rewardPackage.upgradeChoiceBatches,
+          record.rewardPackage.blueprintChoiceCountByTier,
+        ),
       ];
     }
   });
@@ -390,7 +439,7 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
   nextState.phase = nextState.pendingRewardChoices.length > 0 ? 'reward_claims' : 'planning';
   nextState.openRifts = [
     ...nextState.openRifts,
-    ...enrichRiftRewards(generateCycleRifts(nextState), getRewardUpgradePool(nextState)),
+    ...enrichRiftRewards(generateCycleRifts(nextState), getRewardUpgradePool(nextState), getRewardBlueprintPool(nextState)),
   ];
 
   const deletes: { key: string }[] = [];
@@ -415,18 +464,36 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
 
 export function claimRewardChoice(state: GameState, rewardChoiceId: string, optionId: string): GameState {
   const choice = state.pendingRewardChoices.find((entry) => entry.id === rewardChoiceId);
-  if (!choice || !choice.optionUpgradeIds.includes(optionId)) {
+  if (!choice) {
     return state;
   }
-  if (state.factionUpgradeIds.includes(optionId)) {
+  if (choice.kind === 'upgrade') {
+    if (!choice.optionUpgradeIds.includes(optionId)) {
+      return state;
+    }
+    if (state.factionUpgradeIds.includes(optionId)) {
+      return {
+        ...state,
+        pendingRewardChoices: state.pendingRewardChoices.filter((entry) => entry.id !== rewardChoiceId),
+      };
+    }
     return {
       ...state,
+      factionUpgradeIds: [...state.factionUpgradeIds, optionId],
       pendingRewardChoices: state.pendingRewardChoices.filter((entry) => entry.id !== rewardChoiceId),
+      phase: state.pendingRewardChoices.length === 1 ? 'planning' : state.phase,
     };
   }
+
+  if (!choice.optionTroopUnlockIds.includes(optionId)) {
+    return state;
+  }
+  const nextBlueprintTroopIds = state.unlockedBlueprintTroopIds.includes(optionId)
+    ? state.unlockedBlueprintTroopIds
+    : [...state.unlockedBlueprintTroopIds, optionId];
   return {
     ...state,
-    factionUpgradeIds: [...state.factionUpgradeIds, optionId],
+    unlockedBlueprintTroopIds: nextBlueprintTroopIds,
     pendingRewardChoices: state.pendingRewardChoices.filter((entry) => entry.id !== rewardChoiceId),
     phase: state.pendingRewardChoices.length === 1 ? 'planning' : state.phase,
   };

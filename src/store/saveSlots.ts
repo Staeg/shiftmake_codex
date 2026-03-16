@@ -140,9 +140,14 @@ export function saveToSlot(storage: Storage, slotId: SaveSlotId, game: GameState
   updateSlotTimestamp(storage, slotId);
 }
 
-export function createNewSlotCampaign(storage: Storage, slotId: SaveSlotId, seed = Date.now() >>> 0): GameState {
+export function createNewSlotCampaign(
+  storage: Storage,
+  slotId: SaveSlotId,
+  seed = Date.now() >>> 0,
+  options?: { cheatUpgrades?: boolean; cheatBlueprints?: boolean; cheatResources?: boolean },
+): GameState {
   clearSlotReplays(storage, slotId);
-  const game = startNewGame(seed);
+  const game = startNewGame(seed, options);
   saveToSlot(storage, slotId, game);
   return game;
 }

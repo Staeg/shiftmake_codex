@@ -13,7 +13,7 @@
   function styleFor(kind: BattleStep['kind']): string {
     if (kind === 'beat') return 'beat';
     if (kind === 'attack') return 'attack';
-    if (kind === 'knockout') return 'ko';
+    if (kind === 'death') return 'dead';
     if (kind === 'engage') return 'engage';
     return 'move';
   }
@@ -109,7 +109,7 @@
     border-left: 4px solid #7ca1d8;
   }
 
-  .log button.ko {
+  .log button.dead {
     border-left: 4px solid #f1af53;
   }
 

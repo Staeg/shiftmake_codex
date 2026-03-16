@@ -13,6 +13,7 @@
   import BattleControls from './BattleControls.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry, type BattleRecapUnitEntry } from './battleRecap';
   import EventLog from './EventLog.svelte';
+  import { describeTroopUnlock } from '../engine/upgrades';
   import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
   import { getRiftVisual } from './riftVisuals';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
@@ -33,6 +34,8 @@
   let selectedReplayStorageKey: string | null = null;
   let hoveredReplayProfileKey: string | null = null;
   let selectedReplayProfileKey: string | null = null;
+  let unlockFactionMenuOpen = false;
+  let hoveredBlockedFactionUnlockId: FactionId | null = null;
   let hoveredPointer: UnitPointerInfo | null = null;
   let lockedPointer: UnitPointerInfo | null = null;
   let replayAliveCountsExpanded = false;
@@ -77,6 +80,9 @@
     | null;
 
   let selectedMenuSlotId: SaveSlotId | null = null;
+  let newCampaignCheatUpgrades = false;
+  let newCampaignCheatBlueprints = false;
+  let newCampaignCheatResources = false;
   let factionUnitPortraits: Record<string, string> = {};
   let hoveredDetail: HoveredDetail = null;
   let pinnedDetail: Exclude<HoveredDetail, null> | null = null;
@@ -218,22 +224,34 @@
 
   function selectFaction(factionId: FactionId): void {
     clearOverworldDetailState();
+    unlockFactionMenuOpen = false;
     pendingPurchase = null;
     selectedFactionId = factionId;
     selectedTroopId = null;
     selectedRiftId = null;
   }
 
+  function openUnlockFactionMenu(): void {
+    if (lockedFactionIds.length === 0) {
+      return;
+    }
+    clearOverworldDetailState();
+    unlockFactionMenuOpen = true;
+  }
+
+  function closeUnlockFactionMenu(): void {
+    unlockFactionMenuOpen = false;
+    clearOverworldDetailState();
+  }
+
   function selectRecruitableFaction(factionId: FactionId): void {
     clearOverworldDetailState();
-    selectedFactionId = factionId;
+    unlockFactionMenuOpen = false;
+    selectedFactionId = null;
     selectedTroopId = null;
     selectedRiftId = null;
-    pendingPurchase = {
-      kind: 'unlockFaction',
-      factionId,
-      cost: getFactionUnlockCost($state.game),
-    };
+    pendingPurchase = null;
+    gameStore.unlockFaction(factionId);
   }
 
   function selectRecruitableTroop(factionId: FactionId, unitTypeId: UnitTypeId): void {
@@ -451,19 +469,6 @@
           (troop.assignmentRiftId === null || troop.assignmentRiftId === selectedRift.id),
       )
     : [];
-  $: selectedRecruitableFaction = pendingPurchase?.kind === 'unlockFaction' ? getFaction(pendingPurchase.factionId) : null;
-  $: selectedRecruitableFactionModifierLines = selectedRecruitableFaction
-    ? describeFactionModifiers(selectedRecruitableFaction.id)
-    : [];
-  $: selectedRecruitableFactionTroopPreviews = selectedRecruitableFaction
-    ? selectedRecruitableFaction.defaultUnitTypeIds.map((unitTypeId) => ({
-        unitTypeId,
-        troopDef: getTroopEffectivePreview(selectedRecruitableFaction.id, unitTypeId),
-      }))
-    : [];
-  $: selectedRecruitableFactionUpgrades = selectedRecruitableFaction
-    ? Object.values(FACTION_UPGRADES).filter((upgrade) => upgrade.factionId === selectedRecruitableFaction.id)
-    : [];
   $: selectedRecruitableTroop =
     pendingPurchase?.kind === 'unlockTroop'
       ? {
@@ -507,6 +512,10 @@
 
   function canAffordEssence(cost: number): boolean {
     return $state.game.resources.essence >= cost;
+  }
+
+  function unlockFactionBlockedMessage(cost: number, currentEssence: number): string {
+    return `You need ${formatFixed(cost)} essence to unlock a new faction. You currently have ${formatFixed(currentEssence)} essence.`;
   }
 
   function clearPendingPurchase(): void {
@@ -583,7 +592,11 @@
     }
 
     clearCampaignSelections();
-    gameStore.startNewCampaign(selectedMenuSlotId);
+    gameStore.startNewCampaign(selectedMenuSlotId, {
+      cheatUpgrades: newCampaignCheatUpgrades,
+      cheatBlueprints: newCampaignCheatBlueprints,
+      cheatResources: newCampaignCheatResources,
+    });
   }
 
   function formatSlotTimestamp(slot: SaveSlotSummary): string {
@@ -594,6 +607,17 @@
       dateStyle: 'medium',
       timeStyle: 'short',
     }).format(new Date(slot.lastPlayedAt));
+  }
+
+  function getInspectableFactionTroopTypeIds(factionId: FactionId): UnitTypeId[] {
+    const faction = getFaction(factionId);
+    const unlockedOrUnlockableBlueprints = faction.blueprintUnitTypeIds.filter(
+      (unitTypeId) =>
+        $state.game.unlockedBlueprintTroopIds.includes(`${factionId}/${unitTypeId}`) ||
+        $state.game.troops.some((troop) => troop.factionId === factionId && troop.unitTypeId === unitTypeId),
+    );
+
+    return [...new Set([...faction.defaultUnitTypeIds, ...unlockedOrUnlockableBlueprints])];
   }
 
   function attemptEndCycle(): void {
@@ -796,24 +820,12 @@
     };
   }
 
-  function showFactionDetail(factionId: FactionId): void {
-    previewDetail(buildFactionDetail(factionId));
-  }
-
   function clearPreviewDetail(): void {
     cancelDetailHideTimer();
     if (!pinnedDetail) {
       hoveredDetail = null;
     }
     hoveredAbilityTooltip = null;
-  }
-
-  function togglePinnedFactionDetail(factionId: FactionId): void {
-    togglePinnedDetail(buildFactionDetail(factionId));
-  }
-
-  function togglePinnedTroopDetail(factionId: FactionId, unitTypeId: UnitTypeId): void {
-    togglePinnedDetail(buildTroopDetail(factionId, unitTypeId));
   }
 
   function describeFactionUpgrade(upgradeId: string): string {
@@ -1044,6 +1056,22 @@
           {$state.slots.find((slot) => slot.slotId === selectedMenuSlotId)?.status === 'occupied' ? 'Overwrite With New Campaign' : 'Start New Campaign'}
         </button>
       </div>
+
+      <div class="menu-cheats panel">
+        <p class="eyebrow">Testing</p>
+        <label class="menu-checkbox">
+          <input type="checkbox" bind:checked={newCampaignCheatUpgrades} />
+          <span>Cheat Upgrades</span>
+        </label>
+        <label class="menu-checkbox">
+          <input type="checkbox" bind:checked={newCampaignCheatBlueprints} />
+          <span>Cheat Blueprints</span>
+        </label>
+        <label class="menu-checkbox">
+          <input type="checkbox" bind:checked={newCampaignCheatResources} />
+          <span>Cheat Resources</span>
+        </label>
+      </div>
     </section>
   </main>
 {:else if $state.game.phase === 'faction_draft'}
@@ -1158,7 +1186,7 @@
               <div class="draft-section">
                 <span class="draft-section-label">Recruitable Troops</span>
                 <div class="draft-icon-row">
-                  {#each faction.defaultUnitTypeIds.filter((unitTypeId) => unitTypeId !== startingUnitTypeId) as unitTypeId}
+                  {#each getInspectableFactionTroopTypeIds(factionId).filter((unitTypeId) => unitTypeId !== startingUnitTypeId) as unitTypeId}
                     {@const troopDetail = buildTroopDetail(factionId, unitTypeId)}
                     <button
                       type="button"
@@ -1473,7 +1501,7 @@
                                 {/if}
                                 <div class="replay-recap-main">
                                   <strong>{unit.unitLabel}</strong>
-                                  <small>{unitState?.alive ? 'Alive at this step' : 'Knocked out at this step'}</small>
+                                  <small>{unitState?.alive ? 'Alive at this step' : 'Dead at this step'}</small>
                                   <div class="replay-recap-bars">
                                     <div class="replay-recap-bar damage">
                                       <span style={`width: ${getReplayRecapBarWidth(unit.damageDone, sharedScaleTotal)}`}></span>
@@ -1729,52 +1757,6 @@
           <p>{selectedFactionUpgrade.description}</p>
           <p class="purchase-cost"><i class="resource-icon gold"></i>{formatFixed(selectedFactionUpgrade.cost)}</p>
           <p class="purchase-caption">This doctrine is not yet purchased.</p>
-        {:else if selectedRecruitableFaction}
-          <p class="eyebrow">Recruitable Faction</p>
-          <h2>{selectedRecruitableFaction.label}</h2>
-          <p>{selectedRecruitableFaction.description}</p>
-          <div class="compact-list">
-            {#if selectedRecruitableFactionModifierLines.length > 0}
-              <div>
-                <span>Faction Modifiers</span>
-                <strong>{selectedRecruitableFactionModifierLines.join(', ')}</strong>
-              </div>
-            {/if}
-            <div>
-              <span>Available Troops</span>
-              <div class="preview-pill-row">
-                {#each selectedRecruitableFactionTroopPreviews as preview}
-                  <button
-                    class="mutator-chip preview-chip"
-                    on:mouseenter={() => showTroopDetail(selectedRecruitableFaction.id, preview.unitTypeId)}
-                    on:focus={() => showTroopDetail(selectedRecruitableFaction.id, preview.unitTypeId)}
-                    on:mouseleave={() => clearDetail()}
-                    on:blur={() => clearDetail()}
-                  >
-                    {preview.troopDef.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-            <div>
-              <span>Faction Upgrades</span>
-              <div class="preview-pill-row">
-                {#each selectedRecruitableFactionUpgrades as upgrade}
-                  <button
-                    class="mutator-chip ability-chip"
-                    on:mouseenter={() => showUpgradeDetail(upgrade.id)}
-                    on:focus={() => showUpgradeDetail(upgrade.id)}
-                    on:mouseleave={() => clearDetail()}
-                    on:blur={() => clearDetail()}
-                  >
-                    {upgrade.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-          </div>
-          <p class="purchase-cost"><i class="resource-icon essence"></i>{pendingPurchase?.kind === 'unlockFaction' ? formatFixed(pendingPurchase.cost) : ''}</p>
-          <p class="purchase-caption">This faction is not yet allied.</p>
         {:else if selectedFactionId}
           <p class="eyebrow">Allied Faction</p>
           <h2 class="faction-name-row">
@@ -1982,23 +1964,13 @@
 
           <section class="faction-card accent">
             <header>
-              <strong>Recruit New Faction</strong>
-              <small><i class="resource-icon essence"></i>{formatFixed(getFactionUnlockCost($state.game))}</small>
+              <strong>Unlock New Faction</strong>
+              <small class:unaffordable={!canAffordEssence(getFactionUnlockCost($state.game))}><i class="resource-icon essence"></i>{formatFixed(getFactionUnlockCost($state.game))}</small>
             </header>
             <div class="unlock-row">
-              {#each lockedFactionIds as factionId}
-                <button
-                  class="faction-choice-button"
-                  class:selected-action={pendingPurchase?.kind === 'unlockFaction' && pendingPurchase.factionId === factionId}
-                  on:click={() => selectRecruitableFaction(factionId)}
-                >
-                  <span class="faction-name-row">
-                    <span>+ {getFaction(factionId).label}</span>
-                    <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
-                  </span>
-                  <small class:unaffordable={!canAffordEssence(getFactionUnlockCost($state.game))}><i class="resource-icon essence"></i>{formatFixed(getFactionUnlockCost($state.game))}</small>
-                </button>
-              {/each}
+              <button class="primary" on:click={() => openUnlockFactionMenu()} disabled={lockedFactionIds.length === 0}>
+                {lockedFactionIds.length === 0 ? 'All Factions Unlocked' : 'Browse Factions'}
+              </button>
             </div>
           </section>
         </div>
@@ -2101,14 +2073,20 @@
       {#if $state.game.phase === 'reward_claims'}
         <div class="panel">
           <p class="eyebrow">Rewards</p>
-          <h2>Choose Upgrades</h2>
+          <h2>Claim Rewards</h2>
           {#each $state.game.pendingRewardChoices as choice}
             <div class="reward-card">
               <strong>{choice.title}</strong>
               <div class="actions-grid">
-                {#each choice.optionUpgradeIds as optionId}
-                  <button on:click={() => gameStore.claimReward(choice.id, optionId)}>{getFactionUpgrade(optionId).label}</button>
-                {/each}
+                {#if choice.kind === 'upgrade'}
+                  {#each choice.optionUpgradeIds as optionId}
+                    <button on:click={() => gameStore.claimReward(choice.id, optionId)}>{getFactionUpgrade(optionId).label}</button>
+                  {/each}
+                {:else}
+                  {#each choice.optionTroopUnlockIds as optionId}
+                    <button on:click={() => gameStore.claimReward(choice.id, optionId)}>{describeTroopUnlock(optionId)}</button>
+                  {/each}
+                {/if}
               </div>
             </div>
           {/each}
@@ -2136,6 +2114,183 @@
         </button>
       {/if}
     </footer>
+
+    {#if unlockFactionMenuOpen}
+      <div class="unlock-faction-overlay" role="presentation">
+        <div class="unlock-faction-dialog panel" role="dialog" aria-modal="true" aria-labelledby="unlock-faction-title">
+          <div class="unlock-faction-dialog-header">
+            <div>
+              <p class="eyebrow">Faction Unlock</p>
+              <h2 id="unlock-faction-title">Choose Your Next Alliance</h2>
+            </div>
+            <button class="large" on:click={() => closeUnlockFactionMenu()}>Cancel</button>
+          </div>
+
+          <p class="unlock-faction-dialog-copy">
+            Review the factions still outside your command, inspect their modifiers and troops, then choose one to unlock for
+            <i class="resource-icon essence"></i>{formatFixed(getFactionUnlockCost($state.game))}.
+          </p>
+
+          <div class="draft-layout unlock-faction-layout">
+            <aside class="panel draft-focus-panel unlock-faction-focus" role="presentation">
+              {#if activeDetail}
+                <div class="detail-panel">
+                  <p class="eyebrow">
+                    {activeDetail.kind === 'faction'
+                      ? 'Faction Modifiers'
+                      : activeDetail.kind === 'upgrade'
+                        ? 'Upgrade Preview'
+                        : activeDetail.kind === 'unit'
+                          ? 'Troop Preview'
+                          : activeDetail.kind === 'ability'
+                            ? 'Ability Effect'
+                            : 'Faction Detail'}
+                  </p>
+                  <h2>{activeDetail.label}</h2>
+                  {#if activeDetail.kind === 'unit'}
+                    <div class="hover-unit-detail">
+                      <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
+                      <p>{activeDetail.description}</p>
+                    </div>
+                    <StatBreakdownGrid stats={activeDetail.stats} columns={activeDetail.stats.length} />
+                    <div class="ability-row detail-ability-row">
+                      <span>Abilities</span>
+                      <div class="ability-list">
+                        {#if activeDetail.abilities.length === 0}
+                          <span class="mutator-chip empty">None</span>
+                        {:else}
+                          {#each activeDetail.abilities as ability}
+                            <button
+                              class="mutator-chip ability-chip"
+                              on:mouseenter={() => showAbilityTooltip(ability)}
+                              on:focus={() => showAbilityTooltip(ability)}
+                              on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                              on:blur={() => (hoveredAbilityTooltip = null)}
+                            >
+                              {ability.label}
+                            </button>
+                          {/each}
+                        {/if}
+                      </div>
+                      {#if hoveredAbilityTooltip}
+                        <div class="ability-hover-tooltip">
+                          <strong>{hoveredAbilityTooltip.label}</strong>
+                          <p>{hoveredAbilityTooltip.description}</p>
+                        </div>
+                      {/if}
+                    </div>
+                  {:else}
+                    <p>{activeDetail.description}</p>
+                  {/if}
+                </div>
+              {:else}
+                <div class="focus-empty draft-focus-empty">
+                  <p class="eyebrow">Review Before Unlocking</p>
+                  <h2>Inspect Locked Factions</h2>
+                  <p>Only factions you have not unlocked yet appear here. Hover a faction sprite to inspect modifiers, and hover troop icons to compare their recruits before committing your essence.</p>
+                </div>
+              {/if}
+            </aside>
+
+            <div class="draft-grid">
+              {#each lockedFactionIds as factionId}
+                {@const faction = getFaction(factionId)}
+                {@const startingUnitTypeId = getStartingFactionUnitType(factionId)}
+                {@const factionDetail = buildFactionDetail(factionId)}
+                {@const startingTroopDetail = buildTroopDetail(factionId, startingUnitTypeId)}
+                {@const factionUnlockCost = getFactionUnlockCost($state.game)}
+                {@const canUnlockFaction = canAffordEssence(factionUnlockCost)}
+                <article class="draft-card" class:locked-focus={hasPinnedDraftSelection(factionId)}>
+                  <header class="draft-card-header">
+                    <div class="draft-card-title">
+                      <strong>{faction.label}</strong>
+                      <button
+                        type="button"
+                        class="sprite-inspect-button"
+                        class:selected={activeDetailKey === factionDetail.detailKey}
+                        aria-label={`Inspect ${faction.label} faction modifiers`}
+                        on:mouseenter={() => previewDetail(factionDetail)}
+                        on:focus={() => previewDetail(factionDetail)}
+                        on:mouseleave={() => clearPreviewDetail()}
+                        on:blur={() => clearPreviewDetail()}
+                        on:click={() => togglePinnedDetail(factionDetail)}
+                      >
+                        <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </header>
+
+                  <div class="draft-section">
+                    <span class="draft-section-label">First Recruit</span>
+                    <div class="draft-icon-row">
+                      <button
+                        type="button"
+                        class="draft-troop-icon"
+                        class:selected={activeDetailKey === startingTroopDetail.detailKey}
+                        aria-label={composeBaseTroopDefinition(factionId, startingUnitTypeId).label}
+                        on:mouseenter={() => previewDetail(startingTroopDetail)}
+                        on:focus={() => previewDetail(startingTroopDetail)}
+                        on:mouseleave={() => clearPreviewDetail()}
+                        on:blur={() => clearPreviewDetail()}
+                        on:click={() => togglePinnedDetail(startingTroopDetail)}
+                      >
+                        <img class="unit-button-art" src={getFactionUnitPortrait(factionId, startingUnitTypeId)} alt="" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="draft-section">
+                    <span class="draft-section-label">Recruitable Troops</span>
+                    <div class="draft-icon-row">
+                      {#each getInspectableFactionTroopTypeIds(factionId).filter((unitTypeId) => unitTypeId !== startingUnitTypeId) as unitTypeId}
+                        {@const troopDetail = buildTroopDetail(factionId, unitTypeId)}
+                        <button
+                          type="button"
+                          class="draft-troop-icon"
+                          class:selected={activeDetailKey === troopDetail.detailKey}
+                          aria-label={composeBaseTroopDefinition(factionId, unitTypeId).label}
+                          on:mouseenter={() => previewDetail(troopDetail)}
+                          on:focus={() => previewDetail(troopDetail)}
+                          on:mouseleave={() => clearPreviewDetail()}
+                          on:blur={() => clearPreviewDetail()}
+                          on:click={() => togglePinnedDetail(troopDetail)}
+                        >
+                          <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+
+                  <div
+                    class="unlock-faction-action"
+                  >
+                    <button
+                      class="primary draft-choose-button"
+                      class:unaffordable-button={!canUnlockFaction}
+                      aria-disabled={!canUnlockFaction}
+                      aria-label={!canUnlockFaction ? unlockFactionBlockedMessage(factionUnlockCost, $state.game.resources.essence) : `Unlock ${faction.label}`}
+                      on:mouseenter={() => (hoveredBlockedFactionUnlockId = canUnlockFaction ? null : factionId)}
+                      on:mouseleave={() => (hoveredBlockedFactionUnlockId = null)}
+                      on:focus={() => (hoveredBlockedFactionUnlockId = canUnlockFaction ? null : factionId)}
+                      on:blur={() => (hoveredBlockedFactionUnlockId = null)}
+                      on:click={() => canUnlockFaction && selectRecruitableFaction(factionId)}
+                    >
+                      Unlock {faction.label}
+                    </button>
+                    {#if !canUnlockFaction && hoveredBlockedFactionUnlockId === factionId}
+                      <div class="unlock-faction-tooltip" role="tooltip">
+                        <span>You need <span class="tooltip-number tooltip-number-required">{formatFixed(factionUnlockCost)}</span> <i class="resource-icon essence"></i> essence to unlock a new faction.</span>
+                        <span>You currently have <span class="tooltip-number tooltip-number-current">{formatFixed($state.game.resources.essence)}</span> <i class="resource-icon essence"></i> essence.</span>
+                      </div>
+                    {/if}
+                  </div>
+                </article>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
   </main>
 {/if}
 
@@ -2465,8 +2620,7 @@
     min-width: 0;
   }
 
-  .faction-name-button,
-  .faction-choice-button {
+  .faction-name-button {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2564,12 +2718,6 @@
     gap: 0.45rem;
   }
 
-  .preview-pill-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-  }
-
   .mutator-chip {
     padding: 0.35rem 0.7rem;
     border-radius: 999px;
@@ -2592,11 +2740,6 @@
     border-color: rgba(212, 173, 115, 0.24);
     background: rgba(31, 24, 16, 0.82);
     color: #f1d7ae;
-  }
-
-  .preview-chip {
-    border-color: rgba(120, 169, 219, 0.24);
-    background: rgba(17, 31, 45, 0.88);
   }
 
   .detail-panel {
@@ -2851,6 +2994,25 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
+  .menu-cheats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .menu-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: #d7dee6;
+  }
+
+  .menu-checkbox input {
+    width: 1rem;
+    height: 1rem;
+  }
+
   .draft-panel {
     width: min(1100px, 100%);
     display: grid;
@@ -3016,10 +3178,112 @@
     margin-top: auto;
   }
 
+  .unlock-faction-action {
+    position: relative;
+    margin-top: auto;
+    outline: none;
+  }
+
+  .unlock-faction-action:focus-visible {
+    border-radius: 20px;
+    box-shadow: 0 0 0 2px rgba(212, 173, 115, 0.28);
+  }
+
+  .unlock-faction-tooltip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.75rem);
+    transform: translateX(-50%);
+    z-index: 2;
+    min-width: 18rem;
+    max-width: min(24rem, calc(100vw - 3rem));
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 14px;
+    border: 1px solid rgba(212, 173, 115, 0.3);
+    background:
+      linear-gradient(145deg, rgba(26, 21, 15, 0.97), rgba(13, 18, 26, 0.98)),
+      radial-gradient(circle at top, rgba(212, 173, 115, 0.12), transparent 45%);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3);
+    color: #f2ede4;
+    pointer-events: none;
+  }
+
+  .unlock-faction-tooltip::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    width: 0.8rem;
+    height: 0.8rem;
+    background: rgba(13, 18, 26, 0.98);
+    border-right: 1px solid rgba(212, 173, 115, 0.3);
+    border-bottom: 1px solid rgba(212, 173, 115, 0.3);
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .tooltip-number {
+    font-weight: 700;
+  }
+
+  .tooltip-number-required {
+    color: #d4ad73;
+  }
+
+  .tooltip-number-current {
+    color: #d78686;
+  }
+
   .draft-focus-panel {
     grid-area: focus;
     min-height: 180px;
     align-content: start;
+  }
+
+  .unlock-faction-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    align-items: start;
+    justify-items: center;
+    padding: 1.5rem;
+    background: rgba(4, 8, 14, 0.76);
+    backdrop-filter: blur(8px);
+    overflow-y: auto;
+  }
+
+  .unlock-faction-dialog {
+    width: min(1280px, 100%);
+    max-height: calc(100vh - 3rem);
+    overflow: auto;
+    display: grid;
+    gap: 1rem;
+    padding: 1.35rem;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.38);
+  }
+
+  .unlock-faction-dialog-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .unlock-faction-dialog-copy {
+    margin: 0;
+    color: #d7dee6;
+  }
+
+  .unlock-faction-layout {
+    gap: 1rem;
+  }
+
+  .unlock-faction-focus {
+    background:
+      linear-gradient(145deg, rgba(19, 28, 40, 0.98), rgba(11, 17, 25, 0.98)),
+      radial-gradient(circle at top right, rgba(117, 145, 168, 0.14), transparent 42%);
   }
 
   .draft-focus-empty {
@@ -3546,6 +3810,20 @@
   }
 
   @media (max-width: 900px) {
+    .unlock-faction-overlay {
+      padding: 0.75rem;
+    }
+
+    .unlock-faction-dialog {
+      max-height: calc(100vh - 1.5rem);
+      padding: 1rem;
+    }
+
+    .unlock-faction-dialog-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
     .draft-grid {
       grid-template-columns: 1fr;
     }

@@ -208,8 +208,8 @@ export const gameStore = (() => {
       });
       return true;
     },
-    startNewCampaign(slotId: SaveSlotId) {
-      const game = createNewSlotCampaign(localStorage, slotId);
+    startNewCampaign(slotId: SaveSlotId, options?: { cheatUpgrades?: boolean; cheatBlueprints?: boolean; cheatResources?: boolean }) {
+      const game = createNewSlotCampaign(localStorage, slotId, Date.now() >>> 0, options);
       set({
         ...makeInitialState(),
         screen: 'overworld',

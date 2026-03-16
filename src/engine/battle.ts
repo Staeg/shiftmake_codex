@@ -1,7 +1,7 @@
 import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
 import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, formatFixed } from './fixed';
 import { createRng, type Rng } from './rng';
-import { getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
+import { composeBaseTroopDefinition, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
 import type {
   AbilityAllegiance,
   AbilityDefinition,
@@ -65,6 +65,7 @@ type InternalUnit = {
   unitTypeId: string;
   factionId: string;
   side: SideId;
+  summonerUnitId: string | null;
   role: RoleId;
   type: string;
   attributes: string[];
@@ -95,6 +96,8 @@ type AbilityTriggerEvent = {
 
 interface InternalState {
   units: Map<string, InternalUnit>;
+  corpses: Map<string, HexCoord>;
+  summonedProfiles: Map<string, ReplayTroopProfile>;
   steps: BattleStep[];
   mapRadius: number;
   saturation: number;
@@ -213,7 +216,7 @@ function createRuntimeAbilityState(ability: AbilityDefinition): RuntimeAbilitySt
   };
 }
 
-function buildTroopProfiles(input: BattleInput): ReplayTroopProfile[] {
+function buildTroopProfiles(input: BattleInput, summonedProfiles: Map<string, ReplayTroopProfile>): ReplayTroopProfile[] {
   const seen = new Set<string>();
   const profiles: ReplayTroopProfile[] = [];
 
@@ -245,6 +248,14 @@ function buildTroopProfiles(input: BattleInput): ReplayTroopProfile[] {
           size: { stat: 'size', finalValue: combatant.stats.size, lines: [{ label: 'Resolved', value: combatant.stats.size, kind: 'base' }] },
         },
     });
+  });
+
+  summonedProfiles.forEach((profile, key) => {
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    profiles.push(profile);
   });
 
   return profiles;
@@ -403,6 +414,7 @@ function spawnGroup(
       unitTypeId: combatant.unitTypeId,
       factionId: combatant.factionId,
       side,
+      summonerUnitId: null,
       role: combatant.role,
       type: combatant.type,
       attributes: [...combatant.attributes],
@@ -566,6 +578,10 @@ function getDistinctFriendlyUnitTypes(state: InternalState, unit: InternalUnit):
 
 function formatSigned(value: number): string {
   return value >= 0 ? `+${formatFixed(value)}` : formatFixed(value);
+}
+
+function hasAbility(unit: InternalUnit, abilityId: string): boolean {
+  return unit.resolvedAbilities.some((runtime) => runtime.definition.id === abilityId);
 }
 
 function hasMatchingIdentityTag(unit: InternalUnit, tags: string[]): boolean {
@@ -970,6 +986,26 @@ function getHealDefaultTargets(
   return filtered.filter((unit) => fixedSub(unit.maxHp, unit.hp) === mostMissing);
 }
 
+export function resolveAbilityTargetRadius(actor: { resolvedStats: { range: number } }, target: AbilityTargetDefinition | undefined): number {
+  if (!target) {
+    return 0;
+  }
+  if (target.radiusSource === 'selfRange') {
+    return actor.resolvedStats.range;
+  }
+  return target.radius ?? 0;
+}
+
+function resolveFallenTriggerRadius(actor: { resolvedStats: { range: number } }, trigger: AbilityDefinition['trigger']): number {
+  if (!trigger.fallen) {
+    return 0;
+  }
+  if (trigger.fallen.radiusSource === 'selfRange') {
+    return actor.resolvedStats.range;
+  }
+  return trigger.fallen.radius;
+}
+
 function getTargetCandidates(
   state: InternalState,
   actor: InternalUnit,
@@ -983,7 +1019,7 @@ function getTargetCandidates(
   }
 
   if (target?.mode === 'random' || target?.mode === 'aoe') {
-    const radius = target.radius ?? 0;
+    const radius = resolveAbilityTargetRadius(actor, target);
     const allegiance = target.allegiance ?? 'ally';
     const candidates = getAliveUnits(state).filter((unit) => {
       if (allegiance === 'ally' && unit.side !== actor.side) return false;
@@ -1034,7 +1070,7 @@ function canTriggerAbility(state: InternalState, actor: InternalUnit, runtime: R
     if (!matchesFallenTrigger(actor, event.fallenUnit, trigger.fallen.allegiance)) {
       return false;
     }
-    if (hexDistance(actor.position, event.fallenUnit.position) > trigger.fallen.radius) {
+    if (hexDistance(actor.position, event.fallenUnit.position) > resolveFallenTriggerRadius(actor, trigger)) {
       return false;
     }
   }
@@ -1049,6 +1085,90 @@ function getAbilityRepeatCount(state: InternalState, actor: InternalUnit, runtim
     return getAliveUnits(state, actor.side).filter((ally) => ally.id !== actor.id && equalsHex(ally.position, actor.position)).length;
   }
   return 1;
+}
+
+function recordSummonedProfile(state: InternalState, unit: InternalUnit): void {
+  const key = `${unit.side}:${unit.troopLabel}`;
+  if (state.summonedProfiles.has(key)) {
+    return;
+  }
+  state.summonedProfiles.set(key, {
+    side: unit.side,
+    troopLabel: unit.troopLabel,
+    unitTypeId: unit.unitTypeId,
+    factionId: unit.factionId,
+    role: unit.role,
+    type: unit.type,
+    attributes: [...unit.attributes],
+    stats: { ...unit.resolvedStats },
+    abilities: unit.resolvedAbilities.map((runtime) => cloneAbilityDefinition(runtime.definition)),
+    statBreakdowns: {
+      health: { stat: 'health', finalValue: unit.resolvedStats.health, lines: [{ label: 'Summoned', value: unit.resolvedStats.health, kind: 'base' }] },
+      damage: { stat: 'damage', finalValue: unit.resolvedStats.damage, lines: [{ label: 'Summoned', value: unit.resolvedStats.damage, kind: 'base' }] },
+      speed: { stat: 'speed', finalValue: unit.resolvedStats.speed, lines: [{ label: 'Summoned', value: unit.resolvedStats.speed, kind: 'base' }] },
+      armor: { stat: 'armor', finalValue: unit.resolvedStats.armor, lines: [{ label: 'Summoned', value: unit.resolvedStats.armor, kind: 'base' }] },
+      range: { stat: 'range', finalValue: unit.resolvedStats.range, lines: [{ label: 'Summoned', value: unit.resolvedStats.range, kind: 'base' }] },
+      capacity: { stat: 'capacity', finalValue: unit.resolvedStats.capacity, lines: [{ label: 'Summoned', value: unit.resolvedStats.capacity, kind: 'base' }] },
+      size: { stat: 'size', finalValue: unit.resolvedStats.size, lines: [{ label: 'Summoned', value: unit.resolvedStats.size, kind: 'base' }] },
+    },
+  });
+}
+
+function tryFindSummonHex(state: InternalState, actor: InternalUnit, origin: HexCoord, size: number): HexCoord | null {
+  const candidatePool = [origin, ...state.rng.shuffle(neighbors(origin).filter((coord) => inRadius(coord, state.mapRadius)))];
+  const valid = candidatePool.filter(
+    (coord) => fixedAdd(allySizeOnHex(state, actor.side, coord), size) <= state.saturation,
+  );
+  if (valid.length === 0) {
+    return null;
+  }
+  return valid[0] ?? null;
+}
+
+function summonUnit(
+  state: InternalState,
+  actor: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'summon' }>,
+  origin: HexCoord,
+): boolean {
+  const troop = composeBaseTroopDefinition(actor.factionId, effect.unitTypeId);
+  const summonHex = tryFindSummonHex(state, actor, origin, troop.stats.size);
+  if (!summonHex) {
+    return false;
+  }
+  const summonIndex = [...state.units.values()].filter((unit) => unit.side === actor.side && unit.troopLabel === troop.label).length + 1;
+  const unitId = `${actor.id}-summon-${effect.unitTypeId}-${summonIndex}`;
+  const summonedUnit: InternalUnit = {
+    id: unitId,
+    troopInstanceId: null,
+    troopLabel: troop.label,
+    unitTypeId: troop.unitTypeId,
+    factionId: troop.factionId,
+    side: actor.side,
+    summonerUnitId: actor.id,
+    role: troop.role,
+    type: troop.type,
+    attributes: [...troop.attributes],
+    position: { ...summonHex },
+    hp: troop.stats.health,
+    maxHp: troop.stats.health,
+    initiative: 0,
+    alive: true,
+    engagedWith: new Set<string>(),
+    resolvedStats: { ...troop.stats },
+    resolvedAbilities: troop.abilities.map(createRuntimeAbilityState),
+    activeTimedEffects: [],
+  };
+  state.units.set(unitId, summonedUnit);
+  recordSummonedProfile(state, summonedUnit);
+  buildStep(state, 'buff', [actor.id], [unitId], `${actor.troopLabel} summons ${troop.label}.`, {
+    effect: 'summon',
+    unitTypeId: troop.unitTypeId,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
+  });
+  return true;
 }
 
 type PerTargetEffectHandler = (
@@ -1077,7 +1197,7 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
       sourceAbilityLabel: runtime.definition.label,
     });
     if (target.hp <= 0 && target.alive) {
-      handleKnockout(state, actor, target);
+      handleDeath(state, actor, target);
     } else if (target.alive) {
       triggerUnitAbilities(state, target, { timing: 'onDamaged' });
     }
@@ -1089,6 +1209,26 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
   ramp: (state, actor, runtime, target, effect) => applyRamp(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'ramp' }>),
   rangeset: (state, actor, runtime, target, effect) => applyRangeSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'rangeset' }>),
   roleset: (state, actor, runtime, target, effect) => applyRoleSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'roleset' }>),
+  summon: (state, actor, runtime, _target, effect, event) => {
+    const summon = effect as Extract<AbilityEffectDefinition, { kind: 'summon' }>;
+    const origin = summon.consumeFallenUnitCorpse ? event.fallenUnit?.position : actor.position;
+    if (!origin) {
+      return false;
+    }
+    if (summon.consumeFallenUnitCorpse && event.fallenUnit) {
+      if (!state.corpses.has(event.fallenUnit.id)) {
+        return false;
+      }
+    }
+    let summonedAny = false;
+    for (let index = 0; index < summon.count; index += 1) {
+      summonedAny = summonUnit(state, actor, runtime, summon, origin) || summonedAny;
+    }
+    if (summonedAny && summon.consumeFallenUnitCorpse && event.fallenUnit) {
+      state.corpses.delete(event.fallenUnit.id);
+    }
+    return summonedAny;
+  },
   strike: (state, actor, _runtime, target, effect) => {
     const e = effect as Extract<AbilityEffectDefinition, { kind: 'strike' }>;
     const strikeCount = Math.max(0, Math.floor(e.amount));
@@ -1194,14 +1334,22 @@ function executeStartOfTurnAbilities(state: InternalState, actor: InternalUnit):
   triggerUnitAbilities(state, actor, { timing: 'startOfTurn' });
 }
 
-function handleKnockout(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
+function handleDeath(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
   if (!target.alive) {
     return;
   }
   target.alive = false;
   target.hp = 0;
   removeAllEngagements(state, target);
-  buildStep(state, 'knockout', [actor.id], [target.id], `${target.troopLabel} is knocked out.`);
+  if (!hasAbility(target, 'fading')) {
+    state.corpses.set(target.id, { ...target.position });
+  }
+  buildStep(state, 'death', [actor.id], [target.id], `${target.troopLabel} is killed.`);
+
+  const bondedDependents = getAliveUnits(state, target.side).filter(
+    (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
+  );
+
   triggerUnitAbilities(state, actor, { timing: 'onKill', fallenUnit: target });
   triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
   getAliveUnits(state).forEach((unit) => {
@@ -1209,6 +1357,7 @@ function handleKnockout(state: InternalState, actor: InternalUnit, target: Inter
       triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
     }
   });
+  bondedDependents.forEach((unit) => handleDeath(state, target, unit));
 }
 
 function attack(
@@ -1234,7 +1383,7 @@ function attack(
   }
 
   if (target.hp <= 0 && target.alive) {
-    handleKnockout(state, actor, target);
+    handleDeath(state, actor, target);
   } else {
     triggerUnitAbilities(state, target, { timing: 'onDamaged' });
   }
@@ -1467,6 +1616,8 @@ export function resolveBattle(input: BattleInput): BattleReplay {
   const saturation = input.saturation ?? DEFAULT_SATURATION;
   const state: InternalState = {
     units: init.units,
+    corpses: new Map<string, HexCoord>(),
+    summonedProfiles: new Map<string, ReplayTroopProfile>(),
     steps: [],
     mapRadius: init.mapRadius,
     saturation,
@@ -1518,7 +1669,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     steps: state.steps,
     outcome: resolveBattleOutcome(state),
     troopLabels,
-    troopProfiles: buildTroopProfiles(input),
+    troopProfiles: buildTroopProfiles(input, state.summonedProfiles),
     aliveCounts: snapshots.map(createAliveCount),
     summary: {
       playerTroops: input.playerCombatants.map((combatant) => combatant.label),

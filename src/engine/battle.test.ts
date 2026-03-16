@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { resolveDebugBattle, resolveBattle } from './battle';
+import { resolveAbilityTargetRadius, resolveDebugBattle, resolveBattle } from './battle';
 import { composeTroopDefinition, resolveAbilityDefinition, TROOP_CATALOG, getAbility, getTroopDefinitionOrThrow } from './unitCatalog';
 import { getArmySelectionCost, getTroopSelectionCost } from './unitCatalog';
 import type { AbilityDefinition, BattleInput, ResolvedCombatantDefinition } from './types';
@@ -65,6 +65,9 @@ describe('troop composition', () => {
     expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 1', 'Regen 5']);
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
     expect(composeTroopDefinition('goblin', 'shaman').abilities.map((ability) => ability.label)).toEqual(['Enhance 1']);
+    expect(composeTroopDefinition('elf', 'elementalist').abilities.map((ability) => ability.label)).toEqual(['Charge 4 Summon Elemental']);
+    expect(composeTroopDefinition('troll', 'necromancer').abilities.map((ability) => ability.label)).toEqual(['Corpse Summon Skeleton', 'Regen 5']);
+    expect(composeTroopDefinition('goblin', 'beastmaster').abilities.map((ability) => ability.label)).toEqual(['Summon Wolf 2']);
   });
 
   it('resolves named abilities from baseline effects plus modifiers', () => {
@@ -100,7 +103,7 @@ describe('troop composition', () => {
     expect(resolveAbilityDefinition('enhance-1')).toMatchObject({
       label: 'Enhance 1',
       trigger: { timing: 'endOfTurn' },
-      target: { mode: 'random', allegiance: 'ally', radius: 2, filters: { notTypes: ['caster'] } },
+      target: { mode: 'random', allegiance: 'ally', radiusSource: 'selfRange', filters: { notTypes: ['caster'] } },
       effects: [
         { kind: 'haste', amount: 1, mode: 'flat' },
         { kind: 'ramp', amount: 1, mode: 'flat' },
@@ -274,6 +277,33 @@ describe('resolveDebugBattle', () => {
 
     expect(replay.saturation).toBe(3);
   });
+
+  it('spawns summoned wolves and kills them when their bonded summoner dies', () => {
+    const replay = resolveDebugBattle({
+      seed: 22,
+      player: { 'goblin/beastmaster': 1 },
+      enemy: { 'human/knight': 2 },
+    });
+
+    expect(replay.steps.some((step) => step.message.includes('summons Goblin Wolf'))).toBe(true);
+    expect(replay.steps.filter((step) => step.kind === 'death' && step.message.includes('Goblin Wolf')).length).toBeGreaterThan(0);
+  });
+
+  it('consumes a corpse to summon a skeleton and skips fading corpses', () => {
+    const skeletonReplay = resolveDebugBattle({
+      seed: 31,
+      player: { 'troll/necromancer': 1 },
+      enemy: { 'human/militia': 1 },
+    });
+    const fadingReplay = resolveDebugBattle({
+      seed: 32,
+      player: { 'troll/necromancer': 1 },
+      enemy: { 'troll/skeleton': 1 },
+    });
+
+    expect(skeletonReplay.steps.some((step) => step.message.includes('summons Troll Skeleton'))).toBe(true);
+    expect(fadingReplay.steps.some((step) => step.message.includes('summons Troll Skeleton'))).toBe(false);
+  });
 });
 
 describe('ability mechanics', () => {
@@ -339,7 +369,7 @@ describe('ability mechanics', () => {
   });
 
   it('forsaken: triggers for a solo troop but not when an ally of a different type is present', () => {
-    const forsakenAbility = getAbility('forsaken-boost-80');
+    const forsakenAbility = getAbility('forsaken-80');
     const enemy = makeBattleCombatant('human/soldier', 'enemy');
 
     const soloReplay = resolveBattle(makeBattleInput([makeBattleCombatant('elf/archer', 'player', [forsakenAbility])], [enemy]));
@@ -359,7 +389,7 @@ describe('ability mechanics', () => {
   });
 
   it('combined arms: fires once per distinct other friendly troop type at startOfBattle', () => {
-    const combinedArmsAbility = getAbility('combined-arms-boost-20');
+    const combinedArmsAbility = getAbility('combined-arms-20');
 
     const countStartOfBattleBuffs = (extraAllies: string[]) => {
       const playerCombatants = [
@@ -371,7 +401,7 @@ describe('ability mechanics', () => {
       return replay.steps.slice(0, firstBeat).filter((step) => step.kind === 'buff').length;
     };
 
-    // combined-arms-boost-20 has 3 effects (bolster, haste, ramp) per repeat
+    // combined-arms-20 has 3 effects (bolster, haste, ramp) per repeat
     expect(countStartOfBattleBuffs([])).toBe(0); // solo: 0 other troop types → 0 repeats
     expect(countStartOfBattleBuffs(['human/archer'])).toBe(3); // 1 other type → 1 repeat × 3 effects
     expect(countStartOfBattleBuffs(['human/archer', 'human/militia'])).toBe(6); // 2 other types → 2 repeats × 3 effects
@@ -391,6 +421,15 @@ describe('ability mechanics', () => {
 
     expect(replay.steps.some((step) => step.message.includes('gains +1 damage until end of turn'))).toBe(true);
     expect(replay.steps.some((step) => step.message.includes('loses +1 damage'))).toBe(true);
+  });
+
+  it('ally R uses the acting unit resolved range', () => {
+    const enhance = getAbility('enhance-1');
+    const goblinShaman = composeTroopDefinition('goblin', 'shaman');
+    const trollShaman = composeTroopDefinition('troll', 'shaman');
+
+    expect(resolveAbilityTargetRadius({ resolvedStats: goblinShaman.stats }, enhance.target)).toBe(1);
+    expect(resolveAbilityTargetRadius({ resolvedStats: trollShaman.stats }, enhance.target)).toBe(2);
   });
 
   it('taunt: is authored as unengaged redirect rather than bespoke taunt logic', () => {

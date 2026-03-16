@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { enrichRiftRewards, generateCycleRifts } from './rift';
-import { FACTION_UPGRADES, getFaction } from './unitCatalog';
+import { FACTION_UPGRADES, UNIT_TYPES } from './unitCatalog';
 
 function rewardSignature(rift: ReturnType<typeof generateCycleRifts>[number]): string {
   const parts: string[] = [];
@@ -12,6 +12,9 @@ function rewardSignature(rift: ReturnType<typeof generateCycleRifts>[number]): s
   }
   if (rift.rewardPackage.upgradeChoiceBatches > 0) {
     parts.push(`u${rift.rewardPackage.upgradeChoiceBatches}`);
+  }
+  if (rift.rewardPackage.blueprintChoiceCountByTier.length > 0) {
+    parts.push(`b${rift.rewardPackage.blueprintChoiceCountByTier.join('.')}`);
   }
   return parts.join('-');
 }
@@ -26,18 +29,28 @@ describe('rift generation', () => {
     expect(Math.max(...saturations)).toBeLessThanOrEqual(15);
   });
 
-  it('limits enemy combatants to each faction’s valid default roster', () => {
-    const rifts = generateCycleRifts({ campaignSeed: 77, cycleNumber: 6 });
+  it('allows enemy combatants to use any troop type across factions', () => {
+    const rifts = Array.from({ length: 20 }, (_, index) => generateCycleRifts({ campaignSeed: 77 + index, cycleNumber: 6 + index })).flat();
+    const seenNonDefaultCombo = rifts.some((rift) =>
+      rift.enemyArmy.some(
+        (combatant) =>
+          (combatant.factionId === 'human' && combatant.unitTypeId === 'shaman') ||
+          (combatant.factionId === 'elf' && combatant.unitTypeId === 'champion'),
+      ),
+    );
 
     rifts.forEach((rift) => {
       rift.enemyArmy.forEach((combatant) => {
-        expect(getFaction(combatant.factionId).defaultUnitTypeIds).toContain(combatant.unitTypeId);
+        expect(Object.keys(UNIT_TYPES)).toContain(combatant.unitTypeId);
       });
     });
+
+    expect(seenNonDefaultCombo).toBe(true);
   });
 
   it('limits tier 1 rewards to a single small resource and tier 2 rewards to non-overlapping combinations', () => {
     const upgradePool = Object.keys(FACTION_UPGRADES).slice(0, 3);
+    const blueprintPool = ['human/avenger', 'elf/elementalist', 'goblin/beastmaster', 'troll/necromancer'];
     const signatures = new Set<string>();
     const tierOneSignatures = new Set<string>();
 
@@ -46,6 +59,7 @@ describe('rift generation', () => {
         const rifts = enrichRiftRewards(
           generateCycleRifts({ campaignSeed: seed, cycleNumber: cycle }).map((rift) => ({ ...rift, mutatorIds: [] })),
           upgradePool,
+          blueprintPool,
         );
         rifts.forEach((rift) => {
           const signature = rewardSignature(rift);
@@ -59,7 +73,17 @@ describe('rift generation', () => {
       }
     }
 
-    expect([...tierOneSignatures].sort()).toEqual(['e50', 'g50']);
-    expect([...signatures].sort()).toEqual(['e50-u1', 'g100-e50', 'g108-e40', 'g50-e100', 'g50-u1', 'g58-e90']);
+    expect([...tierOneSignatures].sort()).toEqual(['b1', 'e50', 'g50']);
+    expect([...signatures].sort()).toEqual(['e100-b1', 'e50-b2', 'e50-u1', 'g100-b1', 'g100-e50', 'g50-b2', 'g50-e100', 'g50-u1', 'u1-b1']);
+  });
+
+  it('falls back to bonus resources when no blueprint rewards remain', () => {
+    const [rift] = enrichRiftRewards(
+      [{ ...generateCycleRifts({ campaignSeed: 9, cycleNumber: 1 })[0], tier: 1, mutatorIds: [] }],
+      [],
+      [],
+    );
+
+    expect(rift.rewardPackage.blueprintChoiceCountByTier).toEqual([]);
   });
 });

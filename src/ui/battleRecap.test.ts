@@ -59,10 +59,10 @@ function makeReplay(): BattleReplay {
       },
       {
         index: 2,
-        kind: 'knockout',
+        kind: 'death',
         actorIds: ['e-1'],
         targetIds: ['p-1'],
-        message: 'ko',
+        message: 'dead',
         snapshot: { units: [makeUnit('p-1', 'player', 'Elven Archers', false), playerB, enemy] },
       },
     ],

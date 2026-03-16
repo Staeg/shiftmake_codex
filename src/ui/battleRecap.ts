@@ -82,7 +82,7 @@ export function buildBattleRecap(replay: BattleReplay): BattleRecapTroopEntry[] 
       unit.healingDone += step.metadata.amount;
     }
 
-    if (step.kind === 'knockout') {
+    if (step.kind === 'death') {
       unit.kills += step.targetIds.length;
     }
   });

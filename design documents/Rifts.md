@@ -1,109 +1,122 @@
-# Rifts (draft)
+# Rifts
 
-This document defines Rift generation, properties, enemy composition, and rewards.
+This document describes the current Rift system.
 
-## Design goals
+## Rift identity
 
-* Every Rift should present a clear risk/reward identity at a glance.
-* Players should have enough information to make informed assignments.
-* Rift diversity should come from composable properties, not random noise.
+Each generated Rift currently contains:
 
-## Rift identity model
+- `id`
+- `cycleNumber`
+- `seed`
+- `tier`
+- `mutatorIds`
+- `enemyArmy`
+- `rewardPackage`
+- `saturation`
+- `expiresInCycles`
+- `state`
 
-Each Rift is defined by a bundle of properties:
+Current states:
 
-* `tier`: baseline challenge level.
-* `reward package`: immediate + optional bonus rewards.
-* `mutators`: optional temporary battle modifiers.
-* `timer`: expires after a number of Overworld cycles.
+- `discovered`
+- `resolved_victory`
+- `resolved_defeat`
+- `expired`
 
-## Rift properties
+## Tier schedule
 
-### Tier
+Current implemented schedule by cycle:
 
-* Controls enemy stat scaling and composition budget. Each tier above 1 gives the enemies +20% to Health, Damage and Speed.
-* Influences reward budget directly.
-* Each tier of Rift gives it 1 mutator at random.
+- Cycle 1: `2 / 1 / 1 / 1`
+- Cycle 2: `2 / 2 / 1 / 1`
+- Cycle 3: `3 / 2 / 1 / 1`
+- Cycle 4: `3 / 2 / 2 / 1`
+- Cycle 5: `3 / 3 / 2 / 1`
+- Cycle 6+: `4 / 3 / 2 / 1`
 
-### Number of Rifts per cycle
+There are always 4 newly generated Rifts per cycle in the current implementation.
 
-* The first cycle should have 3 Rifts, one of which is tier 2 and the others tier 1. The notation used to represent this is 1/1/1/1. The cycles after that should have the following Rift tiers:
-  * 2/1/1/1
-  * 2/2/1/1
-  * 3/2/1/1
-  * 3/2/2/1
-  * 3/3/2/1
-  * Finally, cycle 7 and onwards should be 4/3/2/1: one Rift of each tier.
+## Tier effects
 
-### Mutators (battle-level)
+Tier currently affects:
 
-Examples:
+- enemy stat scaling: `+20%` health, damage, and speed per tier above 1
+- number of enemy combatant groups: `tier + 1`
+- number of reward slots
+- mutator count: currently always 1 mutator for any tier above 0
 
-* `Momentum`: all units gain +10 initiative every Beat.
-* `Heavy Air`: ranged attack damage reduced by 50%.
-* `Red Hands`: knocking out an enemy gives the unit another turn.
-* `Rich`: enemy budget increased by 50%. Rewards doubled (traits give another batch to choose from).
-* `Outpost`: enemy budget decreased by 20%.
-* `Quagmire`: enemy budget decreased by 50%. Troops sent here spend twice as long recovering, victory or defeat.
+## Mutators
 
-Mutators should always be visible before assignment.
+Implemented mutators:
+
+- `Momentum`: all units gain +10 initiative each beat
+- `Heavy Air`: ranged attacks deal 50% damage
+- `Rich`: enemy budget x1.5, rewards x2
+- `Outpost`: enemy budget x0.8
+- `Quagmire`: enemy budget x0.5, recovery x2
 
 ## Enemy generation
 
-Enemy armies are generated from a threat budget:
+Enemy armies are generated from a budget.
 
-* Base budget: 150 per tier.
-* The base budget randomly gets -10%, -5%, no changes, +5% or +10% with equal probability.
-* Mutators increase or decrease the budget.
-* A random faction and unit type are selected. An additional combination is selected for each tier of the Rift. This means tier 1 Rifts have 2 kinds of enemies and tier 4 Rifts have 5.
-* Each troop gets units based on its cost, as many as possible without exceeding budget. Unlike player-bought units, their cost scales linearly with their quantity. This means that a unit like Human Soldiers with cost 90 and quantity 5 would get 8 units in a tier 1 Rift, as each one is worth 18.
+Current rules:
 
-## Rift enemy preview UX
+- base budget = `150 * tier`
+- budget gets a random variance of `0.9`, `0.95`, `1`, `1.05`, or `1.1`
+- mutators multiply the budget
+- random faction/unit-type pairs are shuffled from all default faction rosters
+- the Rift selects `tier + 1` pairs
+- budget is split evenly across those selections
+- quantity for each group is `floor(perSelectionBudget / perUnitCost)`, minimum 1
 
-Before commitment, show:
+Enemy per-unit budget cost is the troop's total cost divided by its default quantity.
 
-* Full per-unit table.
-* Any mutators.
-* All rewards, taking into account mutator effects.
+## Saturation
 
-## Reward model
+Each Rift gets a random saturation value from `3` to `15`.
 
-Each Rift grants one primary reward as well as additional rewards for each tier above 1. For example, a tier 3 Rift might offer 150 gold, a T2 trait unlock and 50 essence.
+This value is passed into the battle resolver and directly changes movement and spawn density.
 
-### Primary reward categories
+## Rewards
 
-* Resources (currency, materials). 50 gold or 50 essence per tier of reward slot used.
-* Blueprint/upgrade unlock. Both variants gives a choice of 3 as yet unpicked options. If possible, each blueprint and upgrade will give a selection of 2 picks that already affect a faction type the player has unlocked and 1 will affect ones that are not yet useful; if not possible, random ones of the correct tier will be chosen.
-* If a Rift offers either blueprints or upgrades when the player has no more possible unlocks of that tier, it is replaced with 29 gold and 20 essence per tier of that reward.
+`RewardPackage` currently contains:
 
-Note: Blueprint implementation is for next version. That means that any Rift that rolls blueprints as a reward will trigger the replacement clause.
+- `resources.gold`
+- `resources.essence`
+- `upgradeChoiceBatches`
+- `summaryParts`
 
-### Reward scaling rules
+Reward generation:
 
-* Higher tier = larger reward budget. 
-* Tier 1 Rifts just have a gold or essence reward.
-* Each tier above that chooses a type of reward that hasn't been assigned before and elevates it to the tier level.
-* Rifts go up to tier 4, which will have gold, essence, blueprint and trait rewards.
-* Hard mutators increase reward multipliers.
+- slot 1 is always either gold or essence
+- additional slots up to the Rift tier pick distinct categories from the remaining pool
+- categories are `gold`, `essence`, `upgrade`, `blueprint`
+- `blueprint` currently always falls back to resource rewards
+- `upgrade` becomes an upgrade choice batch only if at least 3 eligible faction upgrades remain
 
-## Rift lifecycle states
+Base resource values per reward slot tier:
 
-* `discovered`: visible, unassigned.
-* `assigned`: troop locked in.
-* `resolved_victory` / `resolved_defeat`.
-* `expired`.
+- gold: `50 * slotTier`
+- essence: `50 * slotTier`
 
-## Suggested data shape
+Fallback reward when a blueprint or exhausted upgrade slot is rolled:
 
-```ts
-interface Rift {
-  id: string;
-  seed: number;
-  tier: number;
-  mutators: string[];
-  enemyArmy: Army;
-  reward: RewardPackage;
-  expiresInCycles?: number;
-  state: 'discovered' | 'assigned' | 'resolved_victory' | 'resolved_defeat' | 'expired';
-}
-```
+- `29 * slotTier` gold
+- `20 * slotTier` essence
+
+`Rich` doubles gold and essence rewards. It also doubles upgrade-choice batches, then floors to a whole number.
+
+## Reward choices
+
+Victorious Rifts can generate reward-choice batches after battle resolution.
+
+Current implementation:
+
+- each batch offers 3 unowned faction upgrades
+- the options come from unlocked factions only
+- options are consumed from a simple pool slice, not weighted by relevance beyond faction unlock status
+
+## Lifecycle note
+
+Rifts still store `expiresInCycles: 2`, but the current campaign flow expires all unplayed discovered Rifts as soon as the cycle advances. In practice, a generated Rift is only playable during its own planning cycle.

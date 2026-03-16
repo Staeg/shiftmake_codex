@@ -8,6 +8,7 @@ import {
   getFaction,
   getFactionUpgrade,
   getTroopSelectionCost,
+  getTroopUnlockId,
   getUnitType,
   getUpgradeableStatsForUnitType,
 } from './unitCatalog';
@@ -401,8 +402,16 @@ export function getFactionUnlockCost(state: GameState): number {
 
 export function getTroopUnlockCost(state: GameState, factionId: FactionId, unitTypeId: UnitTypeId): number {
   const unitType = getUnitType(unitTypeId);
-  const unlockedNonSoldiers = state.troops.filter((troop) => troop.factionId === factionId && troop.unlocked && troop.unitTypeId !== 'soldier').length;
-  return fixed(unitType.cost + (unitTypeId === 'soldier' ? 0 : 100 * unlockedNonSoldiers));
+  const startingUnitTypeId =
+    factionId === 'human' || factionId === 'troll'
+      ? 'soldier'
+      : factionId === 'elf'
+        ? 'archer'
+        : 'militia';
+  const unlockedNonStartingTroops = state.troops.filter(
+    (troop) => troop.factionId === factionId && troop.unlocked && troop.unitTypeId !== startingUnitTypeId,
+  ).length;
+  return fixed(unitType.cost + (unitTypeId === startingUnitTypeId ? 0 : 100 * unlockedNonStartingTroops));
 }
 
 export function getTroopEffectiveDefinition(state: GameState, troopId: TroopId): ResolvedCombatantDefinition {
@@ -431,8 +440,16 @@ export function getFactionTroops(state: GameState, factionId: FactionId): TroopI
 
 export function getAvailableFactionTroopUnlocks(state: GameState, factionId: FactionId): UnitTypeId[] {
   const faction = getFaction(factionId);
-  return faction.defaultUnitTypeIds.filter(
-    (unitTypeId) => !state.troops.some((troop) => troop.factionId === factionId && troop.unitTypeId === unitTypeId),
+  const availableUnitTypeIds = [...faction.defaultUnitTypeIds];
+  faction.blueprintUnitTypeIds.forEach((unitTypeId) => {
+    if (state.unlockedBlueprintTroopIds.includes(getTroopUnlockId(factionId, unitTypeId))) {
+      availableUnitTypeIds.push(unitTypeId);
+    }
+  });
+  return availableUnitTypeIds.filter(
+    (unitTypeId, index) =>
+      availableUnitTypeIds.indexOf(unitTypeId) === index &&
+      !state.troops.some((troop) => troop.factionId === factionId && troop.unitTypeId === unitTypeId),
   );
 }
 

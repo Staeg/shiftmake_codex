@@ -1,28 +1,49 @@
 # Overview
 
-Turn-based strategy game played primarily singleplayer in a browser with very light graphics (likely pixel art).
+This document describes the game as it is currently implemented.
 
-You as the player are a general/ruler of a patchwork army composed of different races and factions.
+Shiftmake is a browser-based singleplayer strategy game with an auto-battling combat layer and fully replayable battles.
 
-As Rifts to new worlds open, you expand your domain by choosing which forces to send forth. Each faction faces internal competition: only one troop of a given faction can be sent into a Rift at a time.
+You manage a mixed-faction army, choose which troops to send into visible Rifts, and grow stronger through troop unlocks, faction upgrades, stat upgrades, and reward choices earned from victories.
 
-You can see the benefit of conquering a Rift before committing troops, usually resources or roguelite-style upgrades. You usually face a neutral army, which you can analyze before battle. You do not have direct control over battles, but you can view exactly how they played out.
+## Current flow
 
-Between Rifts, you choose how to improve your army by spending resources gained from conquering them. Primary progression actions:
+1. Start a campaign from one of three save slots.
+2. Choose one starting faction from the four implemented factions.
+3. Enter the planning screen for the current cycle.
+4. Inspect visible Rifts, their mutators, enemy troops, saturation limit, and rewards.
+5. Spend gold and essence on army growth.
+6. Assign any ready troops to Rifts.
+7. End the cycle to auto-resolve all assigned Rift battles.
+8. Claim any post-battle reward choices.
+9. Repeat with newly generated Rifts.
 
-* Enlist a new faction.
-* Form a new troop of units within a faction.
-* Increase the number of units in a given faction's troop.
-* Upgrade a faction across all its units.
-* Upgrade a unit type across factions.
+## Core strategic pressures
 
-Each faction comes with certain recruitable troops by default, but unorthodox and situationally powerful faction+unit combinations can be found within Rifts.
+- Troops can only act if they are not recovering.
+- By default, only one troop from a faction may enter a given Rift.
+- Victories and defeats both cause recovery; defeats take longer.
+- Rifts are fully previewable before commitment.
+- Battles are not player-controlled, so skill expression is in preparation and assignment.
 
-Both winning and losing a battle causes the participating troops to recover. Losing means a longer recovery time, but units do not permanently die by default.
+## Current progression actions
 
-Skill expression is about using the fewest resources possible to secure as many Rifts as possible while setting up strong late-game synergies.
+- Unlock a new faction with essence.
+- Unlock a new troop type within an unlocked faction with essence.
+- Add units to an existing troop with gold.
+- Buy troop stat upgrades with gold.
+- Buy faction-wide upgrades with gold.
+- Claim free faction-upgrade rewards from victorious Rifts.
 
-Platform targets:
+## Currently implemented factions
 
-* Primary: Browser (web)
-* Stretch goals: Multiplayer, Android, iOS
+- Humans
+- Elves
+- Goblins
+- Trolls
+
+## Platform target
+
+- Primary: browser/web
+
+Stretch goals mentioned in older docs such as multiplayer or mobile are not part of the current implementation.

@@ -42,12 +42,16 @@ function selfTarget() {
   return { mode: 'self' as const };
 }
 
-function randomTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number, filters?: AbilityTargetFilters) {
-  return { mode: 'random' as const, allegiance, radius, filters };
+function randomTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number | 'selfRange', filters?: AbilityTargetFilters) {
+  return radius === 'selfRange'
+    ? { mode: 'random' as const, allegiance, radiusSource: 'selfRange' as const, filters }
+    : { mode: 'random' as const, allegiance, radius, filters };
 }
 
-function aoeTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number, filters?: AbilityTargetFilters) {
-  return { mode: 'aoe' as const, allegiance, radius, filters };
+function aoeTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number | 'selfRange', filters?: AbilityTargetFilters) {
+  return radius === 'selfRange'
+    ? { mode: 'aoe' as const, allegiance, radiusSource: 'selfRange' as const, filters }
+    : { mode: 'aoe' as const, allegiance, radius, filters };
 }
 
 function statEffect(kind: 'bolster' | 'haste' | 'heal' | 'ramp', amount: number, mode: 'flat' | 'percent'): AbilityEffectDefinition {
@@ -60,6 +64,10 @@ function roleset(role: RoleId): AbilityEffectDefinition {
 
 function redirectEffect(): AbilityEffectDefinition {
   return { kind: 'redirect' };
+}
+
+function summonEffect(unitTypeId: UnitTypeId, count: number, consumeFallenUnitCorpse = false): AbilityEffectDefinition {
+  return { kind: 'summon', unitTypeId, count, consumeFallenUnitCorpse };
 }
 
 // Factory for abilities that apply one or more effects to self on a given timing.
@@ -76,8 +84,8 @@ function makeSelfStatAbility(
   return makeAbility({ id, label, trigger: { timing, ...triggerOpts }, duration, target: selfTarget(), effects, shortText });
 }
 
-// Factory for the common triple-boost pattern (bolster + haste + ramp, all percent, startOfBattle).
-function makeTripleBoostAbility(
+// Factory for the common triple-stat percent pattern (bolster + haste + ramp, all percent, startOfBattle).
+function makeTripleStatAbility(
   id: AbilityId,
   label: string,
   amount: number,
@@ -123,16 +131,16 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     overworldEffectId: 'united',
     shortText: 'Overworld: troops of this faction may enter the same Rift together.',
   }),
-  'combined-arms-boost-20': makeTripleBoostAbility(
-    'combined-arms-boost-20',
+  'combined-arms-20': makeTripleStatAbility(
+    'combined-arms-20',
     'Power of Friendship',
     20,
     'Start of battle: gain 20% health, damage, and speed for each other friendly troop type.',
     { repeatPerDistinctFriendlyTroopType: true },
   ),
-  'forsaken-boost-80': makeTripleBoostAbility(
-    'forsaken-boost-80',
-    'Forsaken: Boost 80',
+  'forsaken-80': makeTripleStatAbility(
+    'forsaken-80',
+    'Forsaken 80',
     80,
     'Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.',
     { condition: 'forsaken' },
@@ -155,6 +163,24 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     turnsDuration(1),
     { repeatPerOtherFriendlyUnitOnHex: true },
   ),
+  'mend-4': makeAbility({
+    id: 'mend-4',
+    label: 'Mend 4',
+    trigger: { timing: 'endOfTurn' },
+    duration: instantDuration(),
+    target: aoeTarget('ally', 'selfRange'),
+    effects: [statEffect('heal', 4, 'flat')],
+    shortText: "End of turn: heal allies within this unit's range for 4.",
+  }),
+  'haste-1': makeAbility({
+    id: 'haste-1',
+    label: 'Haste 1',
+    trigger: { timing: 'endOfTurn' },
+    duration: battleDuration(),
+    target: randomTarget('ally', 'selfRange'),
+    effects: [statEffect('haste', 1, 'flat')],
+    shortText: "End of turn: a random allied unit within this unit's range gains +1 speed for the battle.",
+  }),
   'ramp-1': makeSelfStatAbility('ramp-1', 'Ramp 1', 'endOfTurn', [statEffect('ramp', 1, 'flat')], 'End of turn: gain +1 damage for the battle.'),
   'frenzy-ramp-1': makeSelfStatAbility('frenzy-ramp-1', 'Frenzy: Ramp 1', 'onDamaged', [statEffect('ramp', 1, 'flat')], 'After taking damage: gain +1 damage for the battle.'),
   taunt: makeAbility({
@@ -173,16 +199,16 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
-    shortText: 'When an ally is knocked out on this hex, gain +1 speed and +1 damage for the battle.',
+    shortText: 'When an ally dies on this hex, gain +1 speed and +1 damage for the battle.',
   }),
   'enhance-1': makeAbility({
     id: 'enhance-1',
     label: 'Enhance 1',
     trigger: { timing: 'endOfTurn' },
     duration: battleDuration(),
-    target: randomTarget('ally', 2, { notTypes: ['caster'] }),
+    target: randomTarget('ally', 'selfRange', { notTypes: ['caster'] }),
     effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
-    shortText: 'End of turn: a random nearby allied non-caster gains +1 speed and +1 damage for the battle.',
+    shortText: "End of turn: a random allied non-caster within this unit's range gains +1 speed and +1 damage for the battle.",
   }),
   'shapeshift-bear': makeAbility({
     id: 'shapeshift-bear',
@@ -198,6 +224,48 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
       roleset('frontline'),
     ],
     shortText: 'After 5 turns, transform once: gain health, speed, and damage, then become a frontline melee unit.',
+  }),
+  bonded: makeAbility({
+    id: 'bonded',
+    label: 'Bonded',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: dies when its summoner dies.',
+  }),
+  fading: makeAbility({
+    id: 'fading',
+    label: 'Fading',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: does not leave a corpse on death.',
+  }),
+  'summon-wolf-2': makeAbility({
+    id: 'summon-wolf-2',
+    label: 'Summon Wolf 2',
+    trigger: { timing: 'startOfBattle' },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('wolf', 2)],
+    shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes.',
+  }),
+  'charge-4-summon-elemental': makeAbility({
+    id: 'charge-4-summon-elemental',
+    label: 'Charge 4 Summon Elemental',
+    trigger: { timing: 'endOfTurn', chargeEvery: 4 },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('elemental', 1)],
+    shortText: 'Every 4 turns: summon 1 elemental on this unit or an adjacent hex.',
+  }),
+  'corpse-summon-skeleton': makeAbility({
+    id: 'corpse-summon-skeleton',
+    label: 'Corpse Summon Skeleton',
+    trigger: { timing: 'onFallen', fallen: { allegiance: 'all', radius: 0, radiusSource: 'selfRange' } },
+    duration: battleDuration(),
+    effects: [summonEffect('skeleton', 1, true)],
+    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there.',
   }),
 };
 
@@ -235,6 +303,17 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     cost: 40,
     abilityIds: ['vengeance-1'],
   },
+  beastmaster: {
+    id: 'beastmaster',
+    label: 'Beastmaster',
+    role: 'frontline',
+    type: 'beastmaster',
+    attributes: ['melee', 'summoner'],
+    stats: { health: 80, damage: 8, speed: 8, range: 0, armor: 0, size: 2, capacity: 1 },
+    quantity: 1,
+    cost: 60,
+    abilityIds: ['summon-wolf-2'],
+  },
   druid: {
     id: 'druid',
     label: 'Druid',
@@ -245,6 +324,28 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     quantity: 3,
     cost: 80,
     abilityIds: ['shapeshift-bear'],
+  },
+  elemental: {
+    id: 'elemental',
+    label: 'Elemental',
+    role: 'frontline',
+    type: 'elemental',
+    attributes: ['melee', 'summoned'],
+    stats: { health: 60, damage: 12, speed: 7, range: 2, armor: 4, size: 1, capacity: 3 },
+    quantity: 1,
+    cost: 20,
+    abilityIds: [],
+  },
+  elementalist: {
+    id: 'elementalist',
+    label: 'Elementalist',
+    role: 'backline',
+    type: 'elementalist',
+    attributes: ['caster', 'summoner'],
+    stats: { health: 20, damage: 10, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    quantity: 3,
+    cost: 80,
+    abilityIds: ['charge-4-summon-elemental'],
   },
   knight: {
     id: 'knight',
@@ -290,6 +391,50 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     cost: 60,
     abilityIds: ['blast-5'],
   },
+  priest: {
+    id: 'priest',
+    label: 'Priest',
+    role: 'backline',
+    type: 'priest',
+    attributes: ['caster'],
+    stats: { health: 20, damage: 5, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    quantity: 3,
+    cost: 60,
+    abilityIds: ['mend-4'],
+  },
+  ranger: {
+    id: 'ranger',
+    label: 'Ranger',
+    role: 'backline',
+    type: 'ranger',
+    attributes: ['ranged'],
+    stats: { health: 50, damage: 12, speed: 12, range: 3, armor: 0, size: 1, capacity: 0 },
+    quantity: 1,
+    cost: 50,
+    abilityIds: ['haste-1'],
+  },
+  necromancer: {
+    id: 'necromancer',
+    label: 'Necromancer',
+    role: 'backline',
+    type: 'necromancer',
+    attributes: ['caster', 'summoner'],
+    stats: { health: 40, damage: 16, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    quantity: 1,
+    cost: 40,
+    abilityIds: ['corpse-summon-skeleton'],
+  },
+  skeleton: {
+    id: 'skeleton',
+    label: 'Skeleton',
+    role: 'chaff',
+    type: 'skeleton',
+    attributes: ['melee', 'summoned'],
+    stats: { health: 40, damage: 13, speed: 7, range: 2, armor: 0, size: 1, capacity: 1 },
+    quantity: 1,
+    cost: 20,
+    abilityIds: ['bonded', 'fading'],
+  },
   shaman: {
     id: 'shaman',
     label: 'Shaman',
@@ -301,6 +446,17 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     cost: 60,
     abilityIds: ['enhance-1'],
   },
+  wolf: {
+    id: 'wolf',
+    label: 'Wolf',
+    role: 'chaff',
+    type: 'wolf',
+    attributes: ['melee', 'summoned'],
+    stats: { health: 60, damage: 5, speed: 12, range: 2, armor: 0, size: 1, capacity: 1 },
+    quantity: 1,
+    cost: 20,
+    abilityIds: ['bonded', 'pack-1'],
+  },
 };
 
 export const FACTIONS: Record<FactionId, FactionDefinition> = {
@@ -310,7 +466,8 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Human',
     description: 'Slightly better at pretty much everything. Boring but solid.',
     addedAttributes: ['human'],
-    defaultUnitTypeIds: ['soldier', 'knight', 'militia', 'archer'],
+    defaultUnitTypeIds: ['soldier', 'archer', 'knight', 'priest'],
+    blueprintUnitTypeIds: ['avenger', 'militia'],
     statAdjustments: {
       health: { multiplier: 1.1 },
       damage: { multiplier: 1.1 },
@@ -328,6 +485,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     description: 'Feared from afar. Less so up close.',
     addedAttributes: ['elf'],
     defaultUnitTypeIds: ['archer', 'druid', 'soldier', 'wizard'],
+    blueprintUnitTypeIds: ['elementalist', 'ranger'],
     statAdjustments: {
       health: { multiplier: 0.9 },
       damage: { multiplier: 1.2 },
@@ -344,6 +502,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     description: "The one good thing you can say about goblins is that there's more than one of them.",
     addedAttributes: ['goblin', 'expendable'],
     defaultUnitTypeIds: ['militia', 'shaman', 'soldier', 'wizard'],
+    blueprintUnitTypeIds: ['beastmaster', 'druid'],
     statAdjustments: {
       health: { multiplier: 0.7 },
       damage: { multiplier: 0.8 },
@@ -362,6 +521,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     description: 'Never down for the count, never down for counting.',
     addedAttributes: ['troll'],
     defaultUnitTypeIds: ['avenger', 'champion', 'shaman', 'soldier'],
+    blueprintUnitTypeIds: ['necromancer', 'knight'],
     statAdjustments: {
       health: { multiplier: 1.3 },
       damage: { multiplier: 1.2 },
@@ -392,8 +552,8 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     tier: 2,
     cost: 80,
     source: 'rift',
-    description: 'All human troops gain Combined Arms: Boost 20.',
-    effects: [{ kind: 'addAbility', abilityId: 'combined-arms-boost-20' }],
+    description: 'All human troops gain Combined Arms 20.',
+    effects: [{ kind: 'addAbility', abilityId: 'combined-arms-20' }],
   },
   'elven-eyes': {
     id: 'elven-eyes',
@@ -412,8 +572,8 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     tier: 3,
     cost: 60,
     source: 'rift',
-    description: 'All elven troops gain Forsaken: Boost 80.',
-    effects: [{ kind: 'addAbility', abilityId: 'forsaken-boost-80' }],
+    description: 'All elven troops gain Forsaken 80.',
+    effects: [{ kind: 'addAbility', abilityId: 'forsaken-80' }],
   },
   'goblin-farewell-upgrade': {
     id: 'goblin-farewell-upgrade',
@@ -651,6 +811,10 @@ export function getArmySelectionCost(selection: Partial<Record<string, number>>)
 
 export function getBaseTroopCost(factionId: FactionId, unitTypeId: UnitTypeId): number {
   return composeBaseTroopDefinition(factionId, unitTypeId).cost;
+}
+
+export function getTroopUnlockId(factionId: FactionId, unitTypeId: UnitTypeId): string {
+  return `${factionId}/${unitTypeId}`;
 }
 
 export function getUpgradeableStatsForUnitType(unitTypeId: UnitTypeId): TroopStatKey[] {

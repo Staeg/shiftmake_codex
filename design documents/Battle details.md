@@ -1,50 +1,114 @@
 # Battle details
 
-Battles take place on a hex grid (a large hex made of smaller hexes).
+This document describes the current battle implementation in `src/engine/battle.ts`.
 
-Each hex has a saturation limit (usually 10). If the total allied Size on a hex is **greater than** saturation, that hex is invalid as a movement destination for allied units.
+## Map
 
-Default battle map: hex radius 3, consisting of 37 smaller hexes.
+Battles take place on a hex grid.
 
-Spawn rules:
+- Starting map radius: `3`
+- The map expands automatically if spawning both armies would otherwise fail.
+- Each Rift can define a saturation limit.
+- Default saturation is `10` if none is supplied.
 
-* The two sides start in opposite corners.
-* Ranged units (Range > 0) start in the corner hex.
-* Melee units (Range = 0) start one hex closer to the enemy.
-* If a spawn group would overflow, it spreads across additional eligible hexes that are closest while staying equidistant relative to the enemy corner.
-* Distribution should be as even as possible by **total Size per occupied hex**.
-* If there are no valid additional equidistant hexes left, increase map radius by 1 and retry.
-* Melee and ranged units from the same side should not share a spawn hex.
+Saturation rule:
 
-Battle flow:
+- A unit may move into a hex only if allied total `size` on that hex, including itself, would stay `<= saturation`.
 
-* Battles advance in Beats.
-* On each Beat, every alive unit gains initiative equal to its Speed.
-* Initial initiative is random from 0 to 10 (inclusive).
-* Units with initiative >= 100 act in random order; each spends 100 initiative when taking its turn.
-* Implementation safety cap: if a battle reaches 1000 Beats, it immediately ends in a draw.
+## Spawning
 
-Turn flow:
+Each combatant definition expands into individual units equal to its `quantity`.
 
-* If the acting unit is Engaged: attack one random engaged enemy.
-* Otherwise, resolve behavior using its Role (built from Directives).
+Per side:
 
-Roles:
+- ranged units spawn from the side's corner hex
+- melee units spawn one step closer to the center
+- melee units do not reuse ranged spawn hexes for that side
+- units spread across nearby legal hexes when needed
+- placement prefers the least-saturated available spawn hexes
 
-* Frontline: if any non-Engaged enemies are on current hex, Draw attention Any. Otherwise, Pursue Frontline/Chaff.
-* Chaff: if no non-Engaged enemies are on current hex, Pursue Backline. Otherwise, Pile on.
-* Backline: if any enemies are on current hex, Retreat. Otherwise, if any enemies are in range, Shoot Any. Otherwise, Careful Advance.
+If either army cannot be spawned, map radius increases by 1 and spawning is retried.
 
-Directives:
+## Beats and initiative
 
-* Draw attention [Role]: Engage as many non-Engaged enemies of [Role] on current hex as possible (Role = Any means no role filter). Then Fight.
-* Overrun [Role]: if there are no non-Engaged enemies on current hex, Pursue [Role].
-* Pile on: attack a random enemy on current hex, prioritizing enemies Engaged with allied units. If none are present, do nothing.
-* Pursue [Role]:
-  1. If enemy [Role] units are present on current hex, Draw attention [Role].
-  2. Otherwise, move to an adjacent hex that is closest to enemy [Role] units, preferring hexes with fewer non-Engaged enemies.
-  3. After moving, if enemy [Role] units are present, Draw attention [Role]; otherwise Draw attention Any.
-* Retreat: move to a random adjacent hex with no enemies. If none exist, attack a random enemy on current hex.
-* Shoot [Role]: attack a random enemy [Role] within range.
-* Careful Advance: if there are adjacent hexes that move the unit closer to any enemy without stepping onto a hex containing any ally with shorter range, move to a random one. If none exist, do nothing.
-* Fight: if Engaged with any enemies, attack one at random. If not Engaged, Pile on.
+Battles advance in beats.
+
+On each beat:
+
+1. Every alive unit gains initiative equal to `speed + mutator bonus`.
+2. A replay `beat` step is logged.
+3. Units with initiative `>= 100` act in shuffled order.
+4. Each acting unit spends `100` initiative.
+
+Initial initiative is random from `0` to `10` inclusive.
+
+If a battle reaches `1000` beats, it stops and the outcome is resolved from remaining survivors, which usually means a draw.
+
+## Turn flow
+
+For each acting unit:
+
+1. Trigger `startOfTurn` abilities.
+2. If still alive, execute role/engagement behavior.
+3. Trigger `endOfTurn` abilities.
+4. Expire that unit's temporary timed effects.
+
+## Combat rules
+
+Normal attack damage is:
+
+`max(attacker damage - target armor, 0)`
+
+Ranged attacks are further multiplied by any active mutator effect, currently only `Heavy Air`.
+
+If a target reaches `0` HP:
+
+- it is killed
+- all its engagements are removed
+- `onKill`, `onDeath`, and `onFallen` triggers fire as appropriate
+
+## Engagements
+
+Engagements are explicit and symmetric.
+
+- `capacity` is how much enemy `size` a unit can engage
+- `size` is how much capacity that unit consumes when engaged
+- moving away clears engagements
+- dead units are removed from all engagements
+
+`redirect` does not replace existing engagements. It only creates a new one when:
+
+- the target is alive
+- the target is currently unengaged
+- the actor is not already engaging the target
+- the actor still has enough capacity
+
+## Role behavior
+
+### Frontline
+
+- If any unengaged enemies share the hex, engage them and fight.
+- Otherwise pursue enemy frontline or chaff.
+
+### Chaff
+
+- If no unengaged enemies share the hex, pursue enemy backline.
+- Otherwise pile on a same-hex target, preferring enemies already engaged by allies on that hex.
+
+### Backline
+
+- If enemies share the hex, retreat to a random adjacent enemy-free hex if possible; otherwise attack a same-hex enemy.
+- Else if enemies are in range, make a ranged attack.
+- Else carefully advance toward the nearest enemy while avoiding stepping onto a hex occupied by a shorter-range ally.
+
+## Replay output
+
+Every battle produces a deterministic replay containing:
+
+- initial snapshot
+- all battle steps with snapshots
+- troop profiles with resolved stats and abilities
+- alive-count history
+- end summary
+
+The renderer is only a replay consumer.
