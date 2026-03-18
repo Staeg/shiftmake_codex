@@ -41,6 +41,7 @@ function timingLabel(timing: AbilityTiming): string {
     onDeath: 'On death',
     onDamaged: 'On damaged',
     onFallen: 'On nearby death',
+    onEffectApplied: 'On applied effect',
     passive: 'Passive',
   }[timing];
 }
@@ -85,8 +86,11 @@ function effectLabel(effect: AbilityEffectDefinition): string {
   if (effect.kind === 'haste') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon('speed')}`;
   if (effect.kind === 'ramp') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon('damage')}`;
   if (effect.kind === 'heal') return `heal ${effect.amount} ${statIcon('health')}`;
+  if (effect.kind === 'statDelta') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon(effect.stat)}`;
   if (effect.kind === 'rangeset') return `set ${statIcon('range')} to ${effect.value}`;
   if (effect.kind === 'roleset') return `become ${effect.role}`;
+  if (effect.kind === 'initiativeSet') return `set initiative to ${effect.value}`;
+  if (effect.kind === 'grantAbility') return `grant ${effect.abilityId}`;
   if (effect.kind === 'blast') return `${effect.amount} blast damage`;
   if (effect.kind === 'strike') return `${effect.amount} extra strikes`;
   if (effect.kind === 'summon') {

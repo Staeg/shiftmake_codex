@@ -1,15 +1,26 @@
 import { fixed } from './fixed';
-import { getFactionUpgrade, getFaction, FACTION_UPGRADES, composeBaseTroopDefinition } from './unitCatalog';
-import type { FactionId, GameState, RewardChoice, TroopUnlockId, UpgradeId } from './types';
+import { getFactionUpgrade, getFaction, getTroopTypeUpgrade, FACTION_UPGRADES, TROOP_TYPE_UPGRADES, composeBaseTroopDefinition } from './unitCatalog';
+import type { FactionId, GameState, RewardChoice, TroopUnlockId, UnitTypeId, UpgradeId } from './types';
 
 export function getPurchasableFactionUpgrades(state: GameState, factionId: FactionId): UpgradeId[] {
   return Object.values(FACTION_UPGRADES)
     .filter((upgrade) => upgrade.factionId === factionId && !state.factionUpgradeIds.includes(upgrade.id))
+    .filter((upgrade) => upgrade.source === 'default' || state.cheatUpgrades)
     .map((upgrade) => upgrade.id);
 }
 
 export function getFactionUpgradeCost(upgradeId: UpgradeId): number {
   return getFactionUpgrade(upgradeId).cost;
+}
+
+export function getPurchasableTroopTypeUpgrades(state: GameState, unitTypeId: UnitTypeId): UpgradeId[] {
+  return Object.values(TROOP_TYPE_UPGRADES)
+    .filter((upgrade) => upgrade.unitTypeId === unitTypeId && !state.troopTypeUpgradeIds.includes(upgrade.id))
+    .map((upgrade) => upgrade.id);
+}
+
+export function getTroopTypeUpgradeCost(upgradeId: UpgradeId): number {
+  return getTroopTypeUpgrade(upgradeId).cost;
 }
 
 export function buildRewardChoice(id: string, riftId: string, optionUpgradeIds: UpgradeId[]): RewardChoice {

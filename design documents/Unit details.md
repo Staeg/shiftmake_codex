@@ -1,6 +1,7 @@
 # Unit details
 
 This document lists the current base unit types before faction modifiers, troop stat upgrades, or faction upgrades are applied.
+It also has unlockable upgrades for each troop type. Summoned units do not have their own upgrades; their summoners might have upgrades which affect them, however.
 
 ## Stat meanings
 
@@ -35,6 +36,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 20
 
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Shredding arrows
+- Cost: 40
+- Effect: Causes Archers to remove 1 armor from their target after attacking for the rest of the battle.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Avenger
 
 - Type: `avenger`
@@ -50,6 +63,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Abilities: `Vengeance 3`
 - Quantity: 1
 - Cost: 40
+
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Sevenfold
+- Cost: 90
+- Effect: Avengers gain the `Uses 7 Corpse Summon Skeleton` ability.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
 
 ### Beastmaster
 
@@ -67,6 +92,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 60
 
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Blood in the water
+- Cost: 20
+- Effect: Gives Wolves the `On Kill Summon Wolf 1` ability.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Champion
 
 - Type: `champion`
@@ -83,6 +120,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 60
 
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Executioner
+- Cost: 20
+- Effect: Causes Champions to prioritize attacking the lowest-health enemy among possible legal attack targets.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Druid
 
 - Type: `druid`
@@ -98,6 +147,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Abilities: `Shapeshift - Bear`
 - Quantity: 1
 - Cost: 30
+
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Wild Growth
+- Cost: 60
+- Effect: Gives Druids the `Regen 60` ability.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
 
 ### Elemental
 
@@ -131,6 +192,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 30
 
+#### Unlockable upgrades
+
+- Tier: 3
+- Name: Mitosis
+- Cost: 110
+- Effect: Gives Elementals the `Charge 4 Uses 1 Summon Elemental` ability.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Knight
 
 - Type: `knight`
@@ -146,6 +219,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Abilities: `Taunt`
 - Quantity: 1
 - Cost: 60
+
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Retaliate
+- Cost: 90
+- Effect: Makes Knights retaliate against enemies that hit them with a normal attack by making one normal attack of their own.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
 
 ### Militia
 
@@ -163,6 +248,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 10
 
+#### Unlockable upgrades
+
+- Tier: 3
+- Name: Scurry
+- Cost: 30
+- Effect: Makes Militia not count towards a hex's allied saturation limit.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Necromancer
 
 - Type: `necromancer`
@@ -178,6 +275,27 @@ This document lists the current base unit types before faction modifiers, troop 
 - Abilities: `Corpse Summon Skeleton`
 - Quantity: 1
 - Cost: 40
+
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Alternate fuel
+- Cost: 40
+- Effect: Makes Necromancers use corpse-consuming abilities without requiring or consuming a corpse by instead paying 10 health, if this would not kill the Necromancer.
+
+#### Unlockable upgrades
+
+- Tier: 3
+- Name: Rising tide
+- Cost: 70
+- Effect: Gives Skeletons `AoE Ally 0 Heal 7`.
+
+#### Unlockable upgrades
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
 
 ### Priest
 
@@ -195,6 +313,20 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 20
 
+#### Unlockable upgrades
+
+- Tier: 3
+- Name: Zeal
+- Cost: 110
+- Effect: Makes Priests also `Enhance 1` whoever they heal, even if the heal restores 0 HP.
+
+#### Unlockable upgrades
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Ranger
 
 - Type: `Ranger`
@@ -211,6 +343,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 60
 
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Concussive shots
+- Cost: 40
+- Effect: Makes Ranger attacks set their target's initiative to 0.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Shaman
 
 - Type: `shaman`
@@ -226,6 +370,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Abilities: `Enhance 1`
 - Quantity: 1
 - Cost: 20
+
+#### Unlockable upgrades
+
+- Tier: 3
+- Name: Serve once more
+- Cost: 60
+- Effect: Makes Shamans' beneficial effects also cause the targets of those effects to gain `Fading` and `On Death Summon Skeleton`.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
 
 ### Skeleton
 
@@ -259,6 +415,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Quantity: 1
 - Cost: 24
 
+#### Unlockable upgrades
+
+- Tier: 3
+- Name: Just a bunch of guys
+- Cost: 20
+- Effect: Makes Soldier quantity upgrades use the same gold cost as the first added unit for every later added unit.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
+
 ### Wizard
 
 - Type: `wizard`
@@ -274,6 +442,18 @@ This document lists the current base unit types before faction modifiers, troop 
 - Abilities: `Blast 5`
 - Quantity: 1
 - Cost: 20
+
+#### Unlockable upgrades
+
+- Tier: 2
+- Name: Storm
+- Cost: 80
+- Effect: Gives Wizards the `Charge 4 Random Enemy R Strike 4` ability.
+
+- Tier: 
+- Name: 
+- Cost: 
+- Effect: 
 
 ### Wolf
 

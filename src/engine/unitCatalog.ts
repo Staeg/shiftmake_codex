@@ -12,6 +12,7 @@ import type {
   FactionUpgradeDefinition,
   MutatorDefinition,
   RoleId,
+  TroopTypeUpgradeDefinition,
   TroopDefinition,
   TroopStatKey,
   UnitStats,
@@ -55,7 +56,11 @@ function aoeTarget(allegiance: 'ally' | 'enemy' | 'all', radius: number | 'selfR
 }
 
 function statEffect(kind: 'bolster' | 'haste' | 'heal' | 'ramp', amount: number, mode: 'flat' | 'percent'): AbilityEffectDefinition {
-  return { kind, amount, mode };
+  return { kind, amount, mode, disposition: kind === 'heal' || amount > 0 ? 'beneficial' : amount < 0 ? 'harmful' : 'neutral' };
+}
+
+function statDeltaEffect(stat: TroopStatKey, amount: number, mode: 'flat' | 'percent'): AbilityEffectDefinition {
+  return { kind: 'statDelta', stat, amount, mode, disposition: amount > 0 ? 'beneficial' : amount < 0 ? 'harmful' : 'neutral' };
 }
 
 function roleset(role: RoleId): AbilityEffectDefinition {
@@ -66,8 +71,16 @@ function redirectEffect(): AbilityEffectDefinition {
   return { kind: 'redirect' };
 }
 
-function summonEffect(unitTypeId: UnitTypeId, count: number, consumeFallenUnitCorpse = false): AbilityEffectDefinition {
-  return { kind: 'summon', unitTypeId, count, consumeFallenUnitCorpse };
+function summonEffect(unitTypeId: UnitTypeId, count: number, consumeFallenUnitCorpse = false, grantedAbilityIds: AbilityId[] = []): AbilityEffectDefinition {
+  return { kind: 'summon', unitTypeId, count, consumeFallenUnitCorpse, grantedAbilityIds, disposition: 'neutral' };
+}
+
+function initiativeSetEffect(value: number): AbilityEffectDefinition {
+  return { kind: 'initiativeSet', value, disposition: 'harmful' };
+}
+
+function grantAbilityEffect(abilityId: AbilityId, disposition: 'beneficial' | 'harmful' | 'neutral' = 'neutral'): AbilityEffectDefinition {
+  return { kind: 'grantAbility', abilityId, disposition };
 }
 
 // Factory for abilities that apply one or more effects to self on a given timing.
@@ -113,6 +126,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     shortText: 'On attack: all enemies on the attacked hex take 5 damage.',
   }),
   'regen-5': makeSelfStatAbility('regen-5', 'Regen 5', 'endOfTurn', [statEffect('heal', 5, 'flat')], 'End of turn: heal self for 5.', instantDuration()),
+  'regen-60': makeSelfStatAbility('regen-60', 'Regen 60', 'endOfTurn', [statEffect('heal', 60, 'flat')], 'End of turn: heal self for 60.', instantDuration()),
   'valor-20': makeAbility({
     id: 'valor-20',
     label: 'Valor 20',
@@ -183,6 +197,15 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
   }),
   'ramp-1': makeSelfStatAbility('ramp-1', 'Ramp 1', 'endOfTurn', [statEffect('ramp', 1, 'flat')], 'End of turn: gain +1 damage for the battle.'),
   'frenzy-ramp-1': makeSelfStatAbility('frenzy-ramp-1', 'Frenzy: Ramp 1', 'onDamaged', [statEffect('ramp', 1, 'flat')], 'After taking damage: gain +1 damage for the battle.'),
+  'shredding-arrows': makeAbility({
+    id: 'shredding-arrows',
+    label: 'Shredding Arrows',
+    trigger: { timing: 'onAttack' },
+    duration: battleDuration(),
+    target: { mode: 'default' },
+    effects: [statDeltaEffect('armor', -1, 'flat')],
+    shortText: 'On attack: reduce the target armor by 1 for the battle.',
+  }),
   taunt: makeAbility({
     id: 'taunt',
     label: 'Taunt',
@@ -259,6 +282,24 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [summonEffect('wolf', 2)],
     shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes.',
   }),
+  'summon-wolf-2-blood': makeAbility({
+    id: 'summon-wolf-2-blood',
+    label: 'Summon Wolf 2',
+    trigger: { timing: 'startOfBattle' },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('wolf', 2, false, ['onkill-summon-wolf-1'])],
+    shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes. Summoned wolves can summon more wolves on kill.',
+  }),
+  'onkill-summon-wolf-1': makeAbility({
+    id: 'onkill-summon-wolf-1',
+    label: 'On Kill Summon Wolf 1',
+    trigger: { timing: 'onKill' },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('wolf', 1, false, ['onkill-summon-wolf-1'])],
+    shortText: 'On kill: summon 1 wolf on this unit or an adjacent hex. Summoned wolves inherit this ability.',
+  }),
   'charge-4-summon-elemental': makeAbility({
     id: 'charge-4-summon-elemental',
     label: 'Charge 4 Summon Elemental',
@@ -268,6 +309,24 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [summonEffect('elemental', 1)],
     shortText: 'Every 4 turns: summon 1 elemental on this unit or an adjacent hex.',
   }),
+  'charge-4-summon-elemental-mitosis': makeAbility({
+    id: 'charge-4-summon-elemental-mitosis',
+    label: 'Charge 4 Summon Elemental',
+    trigger: { timing: 'endOfTurn', chargeEvery: 4 },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('elemental', 1, false, ['charge-4-uses-1-summon-elemental'])],
+    shortText: 'Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Summoned elementals can split once.',
+  }),
+  'charge-4-uses-1-summon-elemental': makeAbility({
+    id: 'charge-4-uses-1-summon-elemental',
+    label: 'Charge 4 Uses 1 Summon Elemental',
+    trigger: { timing: 'endOfTurn', chargeEvery: 4, maxUses: 1 },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('elemental', 1, false, ['charge-4-uses-1-summon-elemental'])],
+    shortText: 'Every 4 turns, once: summon 1 elemental on this unit or an adjacent hex. Summoned elementals inherit this ability.',
+  }),
   'corpse-summon-skeleton': makeAbility({
     id: 'corpse-summon-skeleton',
     label: 'Corpse Summon Skeleton',
@@ -275,6 +334,108 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     effects: [summonEffect('skeleton', 1, true)],
     shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there.',
+  }),
+  'corpse-summon-skeleton-rising': makeAbility({
+    id: 'corpse-summon-skeleton-rising',
+    label: 'Corpse Summon Skeleton',
+    trigger: { timing: 'onFallen', fallen: { allegiance: 'all', radius: 0, radiusSource: 'selfRange' } },
+    duration: battleDuration(),
+    effects: [summonEffect('skeleton', 1, true, ['heal-ally-0-7'])],
+    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies on their hex.',
+  }),
+  'uses-7-corpse-summon-skeleton': makeAbility({
+    id: 'uses-7-corpse-summon-skeleton',
+    label: 'Uses 7 Corpse Summon Skeleton',
+    trigger: { timing: 'onFallen', fallen: { allegiance: 'all', radius: 0, radiusSource: 'selfRange' }, maxUses: 7 },
+    duration: battleDuration(),
+    effects: [summonEffect('skeleton', 1, true)],
+    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there up to 7 times.',
+  }),
+  'heal-ally-0-7': makeAbility({
+    id: 'heal-ally-0-7',
+    label: 'AoE Ally 0 Heal 7',
+    trigger: { timing: 'endOfTurn' },
+    duration: instantDuration(),
+    target: aoeTarget('ally', 0),
+    effects: [statEffect('heal', 7, 'flat')],
+    shortText: 'End of turn: heal allies on this hex for 7.',
+  }),
+  'death-summon-skeleton': makeAbility({
+    id: 'death-summon-skeleton',
+    label: 'On Death Summon Skeleton',
+    trigger: { timing: 'onDeath' },
+    duration: instantDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('skeleton', 1)],
+    shortText: 'On death: summon 1 skeleton on this unit or an adjacent hex.',
+  }),
+  'zeal-enhance-1': makeAbility({
+    id: 'zeal-enhance-1',
+    label: 'Zeal',
+    trigger: { timing: 'onEffectApplied', effectApplication: { effectKinds: ['heal'] } },
+    duration: battleDuration(),
+    target: { mode: 'default' },
+    effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
+    shortText: 'When this unit applies a heal effect, the same target also gains Enhance 1.',
+  }),
+  'serve-once-more': makeAbility({
+    id: 'serve-once-more',
+    label: 'Serve Once More',
+    trigger: { timing: 'onEffectApplied', effectApplication: { dispositions: ['beneficial'] } },
+    duration: battleDuration(),
+    target: { mode: 'default' },
+    effects: [grantAbilityEffect('fading', 'harmful'), grantAbilityEffect('death-summon-skeleton', 'neutral')],
+    shortText: 'When this unit applies a beneficial effect, the same target gains Fading and On Death Summon Skeleton.',
+  }),
+  executioner: makeAbility({
+    id: 'executioner',
+    label: 'Executioner',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: prioritize the lowest-HP legal attack target.',
+  }),
+  retaliate: makeAbility({
+    id: 'retaliate',
+    label: 'Retaliate',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when hit by a normal attack, make a normal attack back once.',
+  }),
+  scurry: makeAbility({
+    id: 'scurry',
+    label: 'Scurry',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: does not count toward allied saturation limits.',
+  }),
+  'alternate-fuel-10': makeAbility({
+    id: 'alternate-fuel-10',
+    label: 'Alternate Fuel',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: corpse-consuming abilities may spend 10 HP instead of requiring or consuming a corpse, if that would not kill this unit.',
+  }),
+  'concussive-shots': makeAbility({
+    id: 'concussive-shots',
+    label: 'Concussive Shots',
+    trigger: { timing: 'onAttack' },
+    duration: instantDuration(),
+    target: { mode: 'default' },
+    effects: [initiativeSetEffect(0)],
+    shortText: 'On attack: set the target initiative to 0.',
+  }),
+  'charge-4-random-enemy-r-strike-4': makeAbility({
+    id: 'charge-4-random-enemy-r-strike-4',
+    label: 'Storm',
+    trigger: { timing: 'endOfTurn', chargeEvery: 4 },
+    duration: instantDuration(),
+    target: randomTarget('enemy', 'selfRange'),
+    effects: [{ kind: 'strike', amount: 4, disposition: 'harmful' }],
+    shortText: 'Every 4 turns: a random enemy within this unit range is struck 4 extra times.',
   }),
 };
 
@@ -626,6 +787,144 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
   },
 };
 
+export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
+  'archer-shredding-arrows': {
+    id: 'archer-shredding-arrows',
+    unitTypeId: 'archer',
+    label: 'Shredding Arrows',
+    tier: 2,
+    cost: 40,
+    description: 'All Archers remove 1 armor from their target after attacking.',
+    effects: [{ kind: 'addAbility', abilityId: 'shredding-arrows' }],
+  },
+  'avenger-sevenfold': {
+    id: 'avenger-sevenfold',
+    unitTypeId: 'avenger',
+    label: 'Sevenfold',
+    tier: 2,
+    cost: 90,
+    description: 'All Avengers gain Uses 7 Corpse Summon Skeleton.',
+    effects: [{ kind: 'addAbility', abilityId: 'uses-7-corpse-summon-skeleton' }],
+  },
+  'beastmaster-blood-in-the-water': {
+    id: 'beastmaster-blood-in-the-water',
+    unitTypeId: 'beastmaster',
+    label: 'Blood in the Water',
+    tier: 2,
+    cost: 20,
+    description: 'Beastmaster wolves gain On Kill Summon Wolf 1 recursively.',
+    effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }],
+  },
+  'champion-executioner': {
+    id: 'champion-executioner',
+    unitTypeId: 'champion',
+    label: 'Executioner',
+    tier: 2,
+    cost: 20,
+    description: 'All Champions prioritize the lowest-health legal attack target.',
+    effects: [{ kind: 'addAbility', abilityId: 'executioner' }],
+  },
+  'druid-wild-growth': {
+    id: 'druid-wild-growth',
+    unitTypeId: 'druid',
+    label: 'Wild Growth',
+    tier: 2,
+    cost: 60,
+    description: 'All Druids gain Regen 60.',
+    effects: [{ kind: 'addAbility', abilityId: 'regen-60' }],
+  },
+  'elementalist-mitosis': {
+    id: 'elementalist-mitosis',
+    unitTypeId: 'elementalist',
+    label: 'Mitosis',
+    tier: 3,
+    cost: 110,
+    description: 'Elementalist elementals gain Charge 4 Uses 1 Summon Elemental recursively.',
+    effects: [{ kind: 'replaceAbility', removeAbilityId: 'charge-4-summon-elemental', addAbilityId: 'charge-4-summon-elemental-mitosis' }],
+  },
+  'knight-retaliate': {
+    id: 'knight-retaliate',
+    unitTypeId: 'knight',
+    label: 'Retaliate',
+    tier: 2,
+    cost: 90,
+    description: 'All Knights counter normal attacks with a normal attack of their own.',
+    effects: [{ kind: 'addAbility', abilityId: 'retaliate' }],
+  },
+  'militia-scurry': {
+    id: 'militia-scurry',
+    unitTypeId: 'militia',
+    label: 'Scurry',
+    tier: 3,
+    cost: 30,
+    description: 'All Militia ignore allied saturation limits.',
+    effects: [{ kind: 'addAbility', abilityId: 'scurry' }],
+  },
+  'necromancer-alternate-fuel': {
+    id: 'necromancer-alternate-fuel',
+    unitTypeId: 'necromancer',
+    label: 'Alternate Fuel',
+    tier: 2,
+    cost: 40,
+    description: 'All Necromancers may spend 10 health instead of a corpse for corpse-consuming abilities.',
+    effects: [{ kind: 'addAbility', abilityId: 'alternate-fuel-10' }],
+  },
+  'necromancer-rising-tide': {
+    id: 'necromancer-rising-tide',
+    unitTypeId: 'necromancer',
+    label: 'Rising Tide',
+    tier: 3,
+    cost: 70,
+    description: 'Necromancer skeletons gain AoE Ally 0 Heal 7.',
+    effects: [{ kind: 'replaceAbility', removeAbilityId: 'corpse-summon-skeleton', addAbilityId: 'corpse-summon-skeleton-rising' }],
+  },
+  'priest-zeal': {
+    id: 'priest-zeal',
+    unitTypeId: 'priest',
+    label: 'Zeal',
+    tier: 3,
+    cost: 110,
+    description: 'All Priests also Enhance 1 whoever they heal.',
+    effects: [{ kind: 'addAbility', abilityId: 'zeal-enhance-1' }],
+  },
+  'ranger-concussive-shots': {
+    id: 'ranger-concussive-shots',
+    unitTypeId: 'ranger',
+    label: 'Concussive Shots',
+    tier: 2,
+    cost: 40,
+    description: 'All Rangers set attack targets initiative to 0.',
+    effects: [{ kind: 'addAbility', abilityId: 'concussive-shots' }],
+  },
+  'shaman-serve-once-more': {
+    id: 'shaman-serve-once-more',
+    unitTypeId: 'shaman',
+    label: 'Serve Once More',
+    tier: 3,
+    cost: 60,
+    description: 'All Shamans make beneficial effects also apply Fading and On Death Summon Skeleton.',
+    effects: [{ kind: 'addAbility', abilityId: 'serve-once-more' }],
+  },
+  'soldier-just-a-bunch-of-guys': {
+    id: 'soldier-just-a-bunch-of-guys',
+    unitTypeId: 'soldier',
+    label: 'Just a Bunch of Guys',
+    tier: 3,
+    cost: 20,
+    description: 'All Soldier quantity upgrades stop escalating past the first added unit cost.',
+    effects: [{ kind: 'flattenAddUnitCostAfterFirst' }],
+  },
+  'wizard-storm': {
+    id: 'wizard-storm',
+    unitTypeId: 'wizard',
+    label: 'Storm',
+    tier: 2,
+    cost: 80,
+    description: 'All Wizards gain Charge 4 random enemy R Strike 4.',
+    effects: [{ kind: 'addAbility', abilityId: 'charge-4-random-enemy-r-strike-4' }],
+  },
+};
+
 export const MUTATORS: Record<string, MutatorDefinition> = {
   momentum: {
     id: 'momentum',
@@ -701,6 +1000,14 @@ export function getFactionUpgrade(id: string): FactionUpgradeDefinition {
   return upgrade;
 }
 
+export function getTroopTypeUpgrade(id: string): TroopTypeUpgradeDefinition {
+  const upgrade = TROOP_TYPE_UPGRADES[id];
+  if (!upgrade) {
+    throw new Error(`Unknown troop-type upgrade ${id}`);
+  }
+  return upgrade;
+}
+
 export function getMutator(id: string): MutatorDefinition {
   const mutator = MUTATORS[id];
   if (!mutator) {
@@ -761,10 +1068,6 @@ export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: Uni
 }
 
 export function composeSummonedTroopDefinition(factionId: FactionId, unitTypeId: UnitTypeId): TroopDefinition {
-  if (factionId in FACTIONS) {
-    return composeBaseTroopDefinition(factionId, unitTypeId);
-  }
-
   const unitType = getUnitType(unitTypeId);
   return {
     id: `${factionId}/${unitTypeId}`,

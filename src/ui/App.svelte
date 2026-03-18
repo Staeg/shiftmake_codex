@@ -6,14 +6,14 @@
   import { canUpgradeStat, getAvailableFactionTroopUnlocks, getFactionTroops, getFactionUnlockCost, getResolvedStatBreakdowns, getTroopAddUnitCost, getTroopEffectiveDefinition, getTroopStatUpgradeCost, getTroopStatusCounts, getTroopUnlockCost, getTroopsAssignedToRift } from '../engine/army';
   import { formatFixed } from '../engine/fixed';
   import { getStartingFactionUnitType, validateAssignments } from '../engine/game';
-  import { composeBaseTroopDefinition, FACTION_UPGRADES, FACTIONS, UNIT_TYPES, getAbility, getFaction, getFactionUpgrade, getMutator, getUnitType } from '../engine/unitCatalog';
+  import { composeBaseTroopDefinition, FACTION_UPGRADES, FACTIONS, TROOP_TYPE_UPGRADES, UNIT_TYPES, getAbility, getFaction, getFactionUpgrade, getMutator, getTroopTypeUpgrade, getUnitType } from '../engine/unitCatalog';
   import type { AbilityDefinition, BattleReplay, BattleUnit, ExplainedStatKey, FactionId, RewardPackage, RiftInstance, SideId, StatBreakdown, StatBreakdownLine, TroopId, TroopStatKey, UnitTypeId } from '../engine/types';
   import { gameStore } from '../store/gameStore';
   import type { SaveSlotId, SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry, type BattleRecapUnitEntry } from './battleRecap';
   import EventLog from './EventLog.svelte';
-  import { describeTroopUnlock } from '../engine/upgrades';
+  import { describeTroopUnlock, getPurchasableFactionUpgrades, getPurchasableTroopTypeUpgrades } from '../engine/upgrades';
   import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
   import { getRiftVisual } from './riftVisuals';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
@@ -92,6 +92,7 @@
     | { kind: 'unlockFaction'; factionId: FactionId; cost: number }
     | { kind: 'unlockTroop'; factionId: FactionId; unitTypeId: UnitTypeId; cost: number }
     | { kind: 'factionUpgrade'; upgradeId: string; factionId: FactionId; cost: number }
+    | { kind: 'troopTypeUpgrade'; upgradeId: string; unitTypeId: UnitTypeId; cost: number }
     | null = null;
 
   const explainedStatOrder: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
@@ -280,6 +281,21 @@
     };
   }
 
+  function selectTroopTypeUpgradePurchase(upgradeId: string, unitTypeId: UnitTypeId): void {
+    clearOverworldDetailState();
+    selectedRiftId = null;
+    pendingPurchase = {
+      kind: 'troopTypeUpgrade',
+      upgradeId,
+      unitTypeId,
+      cost: getTroopTypeUpgrade(upgradeId).cost,
+    };
+  }
+
+  function getFactionCardPurchasableUpgrades(factionId: FactionId) {
+    return getPurchasableFactionUpgrades($state.game, factionId).map(getFactionUpgrade);
+  }
+
   onMount(async () => {
     gameStore.initialize();
     void loadFactionUnitPortraitUrls().then((portraits) => {
@@ -386,6 +402,17 @@
   $: selectedTroop = selectedTroopId ? $state.game.troops.find((troop) => troop.id === selectedTroopId) ?? null : null;
   $: selectedTroopDef = selectedTroop ? getTroopEffectiveDefinition($state.game, selectedTroop.id) : null;
   $: selectedTroopStatBreakdowns = selectedTroop ? getResolvedStatBreakdowns($state.game, selectedTroop, 'player') : null;
+  $: selectedTroopTypeUpgrades = selectedTroop ? getPurchasableTroopTypeUpgrades($state.game, selectedTroop.unitTypeId).map(getTroopTypeUpgrade) : [];
+  $: selectedTroopPurchasedFactionUpgrades = selectedTroop
+    ? Object.values(FACTION_UPGRADES).filter(
+        (upgrade) => upgrade.factionId === selectedTroop.factionId && $state.game.factionUpgradeIds.includes(upgrade.id),
+      )
+    : [];
+  $: selectedTroopPurchasedTroopTypeUpgrades = selectedTroop
+    ? Object.values(TROOP_TYPE_UPGRADES).filter(
+        (upgrade) => upgrade.unitTypeId === selectedTroop.unitTypeId && $state.game.troopTypeUpgradeIds.includes(upgrade.id),
+      )
+    : [];
   $: selectedTroopStatEntries =
     selectedTroop && selectedTroopDef && selectedTroopStatBreakdowns
       ? buildStatEntries(selectedTroopDef.stats, selectedTroopStatBreakdowns, true, selectedTroop.quantity).map((entry) => {
@@ -420,15 +447,8 @@
   $: activeDetailKey = activeDetail?.detailKey ?? null;
   $: factionTroops = selectedFactionId ? getFactionTroops($state.game, selectedFactionId) : [];
   $: availableFactionTroopUnlocks = selectedFactionId ? getAvailableFactionTroopUnlocks($state.game, selectedFactionId) : [];
-  $: selectedFactionDefaultUpgrades = selectedFactionId
-    ? Object.values(FACTION_UPGRADES).filter(
-        (upgrade) => upgrade.factionId === selectedFactionId && !$state.game.factionUpgradeIds.includes(upgrade.id) && upgrade.source === 'default',
-      )
-    : [];
-  $: selectedFactionRiftUpgrades = selectedFactionId
-    ? Object.values(FACTION_UPGRADES).filter(
-        (upgrade) => upgrade.factionId === selectedFactionId && upgrade.source === 'rift',
-      )
+  $: selectedFactionPurchasableUpgrades = selectedFactionId
+    ? getPurchasableFactionUpgrades($state.game, selectedFactionId).map(getFactionUpgrade)
     : [];
   $: selectedFactionOwnedUpgrades = selectedFactionId
     ? Object.values(FACTION_UPGRADES).filter(
@@ -478,6 +498,7 @@
         }
       : null;
   $: selectedFactionUpgrade = pendingPurchase?.kind === 'factionUpgrade' ? getFactionUpgrade(pendingPurchase.upgradeId) : null;
+  $: selectedTroopTypeUpgrade = pendingPurchase?.kind === 'troopTypeUpgrade' ? getTroopTypeUpgrade(pendingPurchase.upgradeId) : null;
 
   function getTroopEffectivePreview(factionId: FactionId, unitTypeId: UnitTypeId) {
     const base = composeBaseTroopDefinition(factionId, unitTypeId);
@@ -530,6 +551,8 @@
       gameStore.unlockFaction(pendingPurchase.factionId);
     } else if (pendingPurchase.kind === 'unlockTroop') {
       gameStore.unlockTroopType(pendingPurchase.factionId, pendingPurchase.unitTypeId);
+    } else if (pendingPurchase.kind === 'troopTypeUpgrade') {
+      gameStore.buyTroopTypeUpgrade(pendingPurchase.upgradeId);
     } else {
       gameStore.buyFactionUpgrade(pendingPurchase.upgradeId);
     }
@@ -635,9 +658,11 @@
 
     const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_assignments');
     if (hasNoAssignments) {
-      const confirmed = window.confirm('No troops are assigned to any Rift. End the cycle anyway?');
-      if (!confirmed) {
-        return;
+      if (statusCounts.idle > 0) {
+        const confirmed = window.confirm('No troops are assigned to any Rift. End the cycle anyway?');
+        if (!confirmed) {
+          return;
+        }
       }
       gameStore.endCycle(true);
       return;
@@ -1740,15 +1765,48 @@
             {/if}
           </div>
           <div class="actions-grid">
-            <button class:unaffordable-button={!canAffordGold(getTroopAddUnitCost(selectedTroop))} disabled={!canAffordGold(getTroopAddUnitCost(selectedTroop))} on:click={() => gameStore.buyTroopUnit(selectedTroop.id)}>
+            <button class:unaffordable-button={!canAffordGold(getTroopAddUnitCost($state.game, selectedTroop))} disabled={!canAffordGold(getTroopAddUnitCost($state.game, selectedTroop))} on:click={() => gameStore.buyTroopUnit(selectedTroop.id)}>
               <span>{displayIcon('quantity')} +</span>
-              <small class:unaffordable={!canAffordGold(getTroopAddUnitCost(selectedTroop))}><i class="resource-icon gold"></i>{formatFixed(getTroopAddUnitCost(selectedTroop))}</small>
+              <small class:unaffordable={!canAffordGold(getTroopAddUnitCost($state.game, selectedTroop))}><i class="resource-icon gold"></i>{formatFixed(getTroopAddUnitCost($state.game, selectedTroop))}</small>
             </button>
           </div>
+          {#if selectedTroopTypeUpgrades.length > 0}
+            <div class="unlock-row">
+              {#each selectedTroopTypeUpgrades as upgrade}
+                <button
+                  class:selected-action={pendingPurchase?.kind === 'troopTypeUpgrade' && pendingPurchase.upgradeId === upgrade.id}
+                  on:click={() => selectTroopTypeUpgradePurchase(upgrade.id, selectedTroop.unitTypeId)}
+                  on:mouseenter={() => (hoveredUpgradeTooltip = { label: upgrade.label, description: upgrade.description })}
+                  on:focus={() => (hoveredUpgradeTooltip = { label: upgrade.label, description: upgrade.description })}
+                  on:mouseleave={() => (hoveredUpgradeTooltip = null)}
+                  on:blur={() => (hoveredUpgradeTooltip = null)}
+                >
+                  <span>{upgrade.label}</span>
+                  <small class:unaffordable={!canAffordGold(upgrade.cost)}><i class="resource-icon gold"></i>{formatFixed(upgrade.cost)}</small>
+                </button>
+              {/each}
+            </div>
+          {/if}
           {#if hoveredUpgradeTooltip}
             <div class="ability-hover-tooltip">
               <strong>{hoveredUpgradeTooltip.label}</strong>
               <p>{hoveredUpgradeTooltip.description}</p>
+            </div>
+          {/if}
+          {#if selectedTroopPurchasedFactionUpgrades.length > 0 || selectedTroopPurchasedTroopTypeUpgrades.length > 0}
+            <div class="compact-list">
+              {#each selectedTroopPurchasedFactionUpgrades as upgrade}
+                <div>
+                  <span>Purchased Faction Upgrade</span>
+                  <strong>{upgrade.label}</strong>
+                </div>
+              {/each}
+              {#each selectedTroopPurchasedTroopTypeUpgrades as upgrade}
+                <div>
+                  <span>Purchased Troop-Type Upgrade</span>
+                  <strong>{upgrade.label}</strong>
+                </div>
+              {/each}
             </div>
           {/if}
         {:else if selectedFactionUpgrade}
@@ -1757,6 +1815,12 @@
           <p>{selectedFactionUpgrade.description}</p>
           <p class="purchase-cost"><i class="resource-icon gold"></i>{formatFixed(selectedFactionUpgrade.cost)}</p>
           <p class="purchase-caption">This doctrine is not yet purchased.</p>
+        {:else if selectedTroopTypeUpgrade}
+          <p class="eyebrow">Troop-Type Upgrade</p>
+          <h2>{selectedTroopTypeUpgrade.label}</h2>
+          <p>{selectedTroopTypeUpgrade.description}</p>
+          <p class="purchase-cost"><i class="resource-icon gold"></i>{formatFixed(selectedTroopTypeUpgrade.cost)}</p>
+          <p class="purchase-caption">This doctrine affects all {getUnitType(selectedTroopTypeUpgrade.unitTypeId).label}s across factions.</p>
         {:else if selectedFactionId}
           <p class="eyebrow">Allied Faction</p>
           <h2 class="faction-name-row">
@@ -1773,7 +1837,7 @@
             <div class="compact-list">
               {#each selectedFactionOwnedUpgrades as upgrade}
                 <div>
-                  <span>Active Upgrade</span>
+                  <span>Purchased Faction Upgrade</span>
                   <strong>{upgrade.label}</strong>
                 </div>
               {/each}
@@ -1793,7 +1857,7 @@
                   <small class:unaffordable={!canAffordEssence(getTroopUnlockCost($state.game, selectedFactionId, unitTypeId))}><i class="resource-icon essence"></i>{formatFixed(getTroopUnlockCost($state.game, selectedFactionId, unitTypeId))}</small>
                 </button>
               {/each}
-            {#each selectedFactionDefaultUpgrades as upgrade}
+            {#each selectedFactionPurchasableUpgrades as upgrade}
               <button
                 class:selected-action={pendingPurchase?.kind === 'factionUpgrade' && pendingPurchase.upgradeId === upgrade.id}
                 on:click={() => selectFactionUpgradePurchase(upgrade.id, selectedFactionId)}
@@ -1946,9 +2010,9 @@
                   </button>
                 {/each}
               </div>
-              {#if Object.values(FACTION_UPGRADES).some((upgrade) => upgrade.factionId === factionId && upgrade.source === 'default' && !$state.game.factionUpgradeIds.includes(upgrade.id))}
+              {#if getFactionCardPurchasableUpgrades(factionId).length > 0}
                 <div class="unlock-row">
-                  {#each Object.values(FACTION_UPGRADES).filter((upgrade) => upgrade.factionId === factionId && upgrade.source === 'default' && !$state.game.factionUpgradeIds.includes(upgrade.id)) as upgrade}
+                  {#each getFactionCardPurchasableUpgrades(factionId) as upgrade}
                     <button
                       class:selected-action={pendingPurchase?.kind === 'factionUpgrade' && pendingPurchase.upgradeId === upgrade.id}
                       on:click={() => selectFactionUpgradePurchase(upgrade.id, factionId)}
@@ -1997,7 +2061,44 @@
           </ul>
         </div>
       {/if}
-      {#if activeDetail}
+      {#if selectedReplayEntry}
+        <div class="panel">
+          <p class="eyebrow">Battle Archive</p>
+          <h2>{selectedReplayEntry.summary}</h2>
+          <p>Cycle {selectedReplayEntry.cycleNumber} {selectedReplayEntry.outcome === 'victory' ? 'victory' : selectedReplayEntry.outcome === 'defeat' ? 'defeat' : 'draw'}.</p>
+          <div class="ability-row">
+            <span>Mutators</span>
+            <div class="ability-list">
+              {#if selectedReplayEntry.mutatorIds.length === 0}
+                <span class="mutator-chip empty">None</span>
+              {:else}
+                {#each selectedReplayEntry.mutatorIds as mutatorId}
+                  <span class="mutator-chip">{getMutator(mutatorId).label}</span>
+                {/each}
+              {/if}
+            </div>
+          </div>
+          <div class="compact-list">
+            <div>
+              <span>Troops Sent</span>
+              <strong>{selectedReplayEntry.playerTroopLabels.join(', ') || 'Unknown troop'}</strong>
+            </div>
+            <div>
+              <span>Replay Status</span>
+              <strong>{selectedReplayEntry.summaryOnly ? 'Summary only' : selectedReplayAvailable ? 'Replay available' : 'Replay missing'}</strong>
+            </div>
+          </div>
+          <p>
+            {#if selectedReplayEntry.summaryOnly}
+              This battle was archived as a summary only.
+            {:else if selectedReplayAvailable}
+              Open the replay to inspect the full battle log and outcome.
+            {:else}
+              The archive entry exists, but the replay payload is missing.
+            {/if}
+          </p>
+        </div>
+      {:else if activeDetail}
         <div class="panel detail-panel" role="presentation" on:mouseenter={cancelDetailHideTimer} on:mouseleave={() => clearDetail()}>
           <p class="eyebrow">
             {activeDetail.kind === 'mutator'
@@ -2104,7 +2205,7 @@
           Confirm Purchase
         </button>
       {:else if selectedReplayEntry}
-        <button class="large" on:click={() => (selectedReplayStorageKey = null)}>Back to Planning</button>
+        <button class="large" on:click={() => (selectedReplayStorageKey = null)}>Back to Archive</button>
         <button class="primary large" on:click={() => openSelectedReplay()} disabled={!selectedReplayAvailable}>
           {selectedReplayAvailable ? 'Watch Battle' : selectedReplayEntry.summaryOnly ? 'Summary Only' : 'Replay Missing'}
         </button>

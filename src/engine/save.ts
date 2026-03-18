@@ -117,6 +117,7 @@ export function deserializeGameState(json: string): LoadGameResult {
         cheatUpgrades: false,
         cheatBlueprints: false,
         cheatResources: false,
+        troopTypeUpgradeIds: [],
         unlockedBlueprintTroopIds: [],
         ...parsed,
       } as GameState,

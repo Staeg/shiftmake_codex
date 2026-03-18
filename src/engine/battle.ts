@@ -1,7 +1,7 @@
 import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
 import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, formatFixed } from './fixed';
 import { createRng, type Rng } from './rng';
-import { composeBaseTroopDefinition, composeSummonedTroopDefinition, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
+import { clampStat, composeBaseTroopDefinition, composeSummonedTroopDefinition, getAbility, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
 import type {
   AbilityAllegiance,
   AbilityDefinition,
@@ -10,6 +10,7 @@ import type {
   AbilityTiming,
   BattleInput,
   BattleReplay,
+  EffectDisposition,
   ReplayTroopProfile,
   BattleStateSnapshot,
   BattleStep,
@@ -92,7 +93,14 @@ type AbilityTriggerEvent = {
   timing: AbilityTiming;
   attackTarget?: InternalUnit;
   fallenUnit?: InternalUnit;
+  appliedEffect?: {
+    effect: AbilityEffectDefinition;
+    target: InternalUnit;
+    disposition: EffectDisposition;
+  };
 };
+
+type AttackCategory = 'normal' | 'retaliation' | 'strike';
 
 interface InternalState {
   units: Map<string, InternalUnit>;
@@ -214,6 +222,10 @@ function createRuntimeAbilityState(ability: AbilityDefinition): RuntimeAbilitySt
     triggerCount: 0,
     usesRemaining: ability.trigger.maxUses ?? null,
   };
+}
+
+function countsTowardAllySaturationFromAbilities(abilities: AbilityDefinition[] | RuntimeAbilityState[]): boolean {
+  return !abilities.some((entry) => ('definition' in entry ? entry.definition.id : entry.id) === 'scurry');
 }
 
 function buildTroopProfiles(input: BattleInput, summonedProfiles: Map<string, ReplayTroopProfile>): ReplayTroopProfile[] {
@@ -339,7 +351,7 @@ function placeUnitWithExpandableCells(
   forbidden: Set<string>,
   occupancy: Map<string, number>,
 ): HexCoord | null {
-  const size = combatant.stats.size;
+  const size = countsTowardAllySaturationFromAbilities(combatant.abilities) ? combatant.stats.size : 0;
   if (size > context.saturation) {
     return null;
   }
@@ -387,7 +399,9 @@ function spawnGroup(
     return new Set<string>();
   }
 
-  const totalGroupSize = fixedSum(combatants.map((combatant) => combatant.stats.size));
+  const totalGroupSize = fixedSum(
+    combatants.map((combatant) => (countsTowardAllySaturationFromAbilities(combatant.abilities) ? combatant.stats.size : 0)),
+  );
   const targetCellCount = Math.max(1, Math.ceil(totalGroupSize / context.saturation));
   const activeCells: HexCoord[] = forbidden.has(hexKey(origin)) ? [] : [origin];
   const occupancy = new Map<string, number>();
@@ -592,6 +606,10 @@ function evaluateScaledAmount(base: number, amount: number, mode: 'flat' | 'perc
   return mode === 'percent' ? fixedMul(base, amount / 100) : amount;
 }
 
+function effectDisposition(effect: AbilityEffectDefinition): EffectDisposition {
+  return effect.disposition ?? 'neutral';
+}
+
 function applyBolster(
   state: InternalState,
   actor: InternalUnit,
@@ -664,20 +682,107 @@ function healUnit(
   target: InternalUnit,
   effect: Extract<AbilityEffectDefinition, { kind: 'heal' }>,
 ): boolean {
-  if (!target.alive || target.hp >= target.maxHp) {
+  if (!target.alive) {
     return false;
   }
   const missing = fixedSub(target.maxHp, target.hp);
   const amount = effect.mode === 'percent' ? fixedMul(missing, effect.amount / 100) : effect.amount;
   const nextHp = fixedClamp(fixedAdd(target.hp, amount), 0, target.maxHp);
   const actual = fixedSub(nextHp, target.hp);
-  if (actual <= 0) {
-    return false;
-  }
   target.hp = nextHp;
   buildStep(state, 'heal', [actor.id], [target.id], `${actor.troopLabel} heals ${target.troopLabel} for ${formatFixed(actual)}.`, {
     amount: actual,
     effect: 'heal',
+  });
+  return true;
+}
+
+function applyStatDelta(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'statDelta' }>,
+): boolean {
+  if (!target.alive) {
+    return false;
+  }
+
+  if (effect.stat === 'health') {
+    const delta = evaluateScaledAmount(target.maxHp, effect.amount, effect.mode);
+    if (delta === 0) {
+      return false;
+    }
+    target.maxHp = fixedAdd(target.maxHp, delta);
+    target.hp = fixedClamp(fixedAdd(target.hp, delta), 0, target.maxHp);
+    target.resolvedStats.health = target.maxHp;
+    buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} ${delta >= 0 ? 'gains' : 'loses'} ${formatFixed(Math.abs(delta))} health.`, {
+      amount: delta,
+      effect: 'statDelta',
+      stat: effect.stat,
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
+    });
+    return true;
+  }
+
+  const currentValue = target.resolvedStats[effect.stat];
+  const delta = evaluateScaledAmount(currentValue, effect.amount, effect.mode);
+  if (delta === 0) {
+    return false;
+  }
+  const nextValue = clampStat(effect.stat, fixedAdd(currentValue, delta));
+  const actual = fixedSub(nextValue, currentValue);
+  if (actual === 0) {
+    return false;
+  }
+  target.resolvedStats[effect.stat] = nextValue;
+  buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} ${actual >= 0 ? 'gains' : 'loses'} ${formatFixed(Math.abs(actual))} ${effect.stat}.`, {
+    amount: actual,
+    effect: 'statDelta',
+    stat: effect.stat,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
+  });
+  return true;
+}
+
+function applyInitiativeSet(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'initiativeSet' }>,
+): boolean {
+  if (!target.alive || target.initiative === effect.value) {
+    return false;
+  }
+  target.initiative = fixed(effect.value);
+  buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} sets initiative to ${formatFixed(target.initiative)}.`, {
+    effect: 'initiativeSet',
+    value: target.initiative,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
+  });
+  return true;
+}
+
+function applyGrantAbility(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  effect: Extract<AbilityEffectDefinition, { kind: 'grantAbility' }>,
+): boolean {
+  if (target.resolvedAbilities.some((entry) => entry.definition.id === effect.abilityId)) {
+    return false;
+  }
+  target.resolvedAbilities.push(createRuntimeAbilityState(getAbility(effect.abilityId)));
+  buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${getAbility(effect.abilityId).label}.`, {
+    effect: 'grantAbility',
+    abilityId: effect.abilityId,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
@@ -986,6 +1091,14 @@ function getHealDefaultTargets(
   return filtered.filter((unit) => fixedSub(unit.maxHp, unit.hp) === mostMissing);
 }
 
+function getAppliedEffectDefaultTarget(event: AbilityTriggerEvent): InternalUnit[] {
+  return event.appliedEffect?.target ? [event.appliedEffect.target] : [];
+}
+
+function getAttackDefaultTarget(event: AbilityTriggerEvent): InternalUnit[] {
+  return event.attackTarget?.alive ? [event.attackTarget] : [];
+}
+
 export function resolveAbilityTargetRadius(actor: { resolvedStats: { range: number } }, target: AbilityTargetDefinition | undefined): number {
   if (!target) {
     return 0;
@@ -1018,6 +1131,15 @@ function getTargetCandidates(
     return [actor];
   }
 
+  if (target?.mode === 'default') {
+    if (event.timing === 'onAttack') {
+      return getAttackDefaultTarget(event);
+    }
+    if (event.timing === 'onEffectApplied') {
+      return getAppliedEffectDefaultTarget(event);
+    }
+  }
+
   if (target?.mode === 'random' || target?.mode === 'aoe') {
     const radius = resolveAbilityTargetRadius(actor, target);
     const allegiance = target.allegiance ?? 'ally';
@@ -1042,7 +1164,9 @@ function resolveTargets(
   effect: AbilityEffectDefinition,
   event: AbilityTriggerEvent,
 ): InternalUnit[] {
-  const candidates = getTargetCandidates(state, actor, ability, effect, event).filter((candidate) => candidate.alive);
+  const candidates = getTargetCandidates(state, actor, ability, effect, event).filter(
+    (candidate) => candidate.alive || (candidate.id === actor.id && event.timing === 'onDeath' && effect.kind === 'summon'),
+  );
   if (candidates.length === 0) {
     return [];
   }
@@ -1071,6 +1195,23 @@ function canTriggerAbility(state: InternalState, actor: InternalUnit, runtime: R
       return false;
     }
     if (hexDistance(actor.position, event.fallenUnit.position) > resolveFallenTriggerRadius(actor, trigger)) {
+      return false;
+    }
+  }
+  if (trigger.effectApplication) {
+    if (!event.appliedEffect) {
+      return false;
+    }
+    if (
+      trigger.effectApplication.effectKinds?.length &&
+      !trigger.effectApplication.effectKinds.includes(event.appliedEffect.effect.kind)
+    ) {
+      return false;
+    }
+    if (
+      trigger.effectApplication.dispositions?.length &&
+      !trigger.effectApplication.dispositions.includes(event.appliedEffect.disposition)
+    ) {
       return false;
     }
   }
@@ -1139,6 +1280,13 @@ function summonUnit(
   }
   const summonIndex = [...state.units.values()].filter((unit) => unit.side === actor.side && unit.troopLabel === troop.label).length + 1;
   const unitId = `${actor.id}-summon-${effect.unitTypeId}-${summonIndex}`;
+  const grantedAbilities = (effect.grantedAbilityIds ?? []).map(getAbility);
+  const mergedAbilities = [...troop.abilities];
+  grantedAbilities.forEach((ability) => {
+    if (!mergedAbilities.some((entry) => entry.id === ability.id)) {
+      mergedAbilities.push(ability);
+    }
+  });
   const summonedUnit: InternalUnit = {
     id: unitId,
     troopInstanceId: null,
@@ -1157,7 +1305,7 @@ function summonUnit(
     alive: true,
     engagedWith: new Set<string>(),
     resolvedStats: { ...troop.stats },
-    resolvedAbilities: troop.abilities.map(createRuntimeAbilityState),
+    resolvedAbilities: mergedAbilities.map(createRuntimeAbilityState),
     activeTimedEffects: [],
   };
   state.units.set(unitId, summonedUnit);
@@ -1207,16 +1355,33 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
   haste: (state, actor, runtime, target, effect) => applyHaste(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'haste' }>),
   heal: (state, actor, _runtime, target, effect) => healUnit(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'heal' }>),
   ramp: (state, actor, runtime, target, effect) => applyRamp(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'ramp' }>),
+  statDelta: (state, actor, runtime, target, effect) =>
+    applyStatDelta(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'statDelta' }>),
   rangeset: (state, actor, runtime, target, effect) => applyRangeSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'rangeset' }>),
   roleset: (state, actor, runtime, target, effect) => applyRoleSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'roleset' }>),
+  initiativeSet: (state, actor, runtime, target, effect) =>
+    applyInitiativeSet(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'initiativeSet' }>),
+  grantAbility: (state, actor, runtime, target, effect) =>
+    applyGrantAbility(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'grantAbility' }>),
   summon: (state, actor, runtime, _target, effect, event) => {
     const summon = effect as Extract<AbilityEffectDefinition, { kind: 'summon' }>;
     const origin = summon.consumeFallenUnitCorpse ? event.fallenUnit?.position : actor.position;
     if (!origin) {
       return false;
     }
+    const usesAlternateFuel = summon.consumeFallenUnitCorpse && hasAbility(actor, 'alternate-fuel-10');
     if (summon.consumeFallenUnitCorpse && event.fallenUnit) {
-      if (!state.corpses.has(event.fallenUnit.id)) {
+      if (usesAlternateFuel) {
+        if (actor.hp <= 10) {
+          return false;
+        }
+        actor.hp = fixedSub(actor.hp, 10);
+        buildStep(state, 'buff', [actor.id], [], `${actor.troopLabel} spends 10 health instead of a corpse.`, {
+          effect: 'alternateFuel',
+          sourceAbilityId: runtime.definition.id,
+          sourceAbilityLabel: runtime.definition.label,
+        });
+      } else if (!state.corpses.has(event.fallenUnit.id)) {
         return false;
       }
     }
@@ -1224,7 +1389,7 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     for (let index = 0; index < summon.count; index += 1) {
       summonedAny = summonUnit(state, actor, runtime, summon, origin) || summonedAny;
     }
-    if (summonedAny && summon.consumeFallenUnitCorpse && event.fallenUnit) {
+    if (summonedAny && summon.consumeFallenUnitCorpse && event.fallenUnit && !usesAlternateFuel) {
       state.corpses.delete(event.fallenUnit.id);
     }
     return summonedAny;
@@ -1234,7 +1399,7 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     const strikeCount = Math.max(0, Math.floor(e.amount));
     if (strikeCount > 0 && target.alive) {
       for (let i = 0; i < strikeCount; i += 1) {
-        attack(state, actor, target, actor.resolvedStats.range > 0 ? 'ranged' : 'melee', false, 0);
+        attack(state, actor, target, actor.resolvedStats.range > 0 ? 'ranged' : 'melee', false, 0, 'strike');
         if (!target.alive) {
           break;
         }
@@ -1279,17 +1444,40 @@ function executeAbilityEffect(
 
   let applied = false;
   targets.forEach((target) => {
-    if (!target.alive && effect.kind !== 'strike') {
+    if (!target.alive && !(target.id === actor.id && event.timing === 'onDeath' && effect.kind === 'summon') && effect.kind !== 'strike') {
       return;
     }
+    let appliedToTarget = false;
     if (
       runtime.definition.duration.kind === 'turns' &&
       (effect.kind === 'bolster' || effect.kind === 'haste' || effect.kind === 'ramp' || effect.kind === 'rangeset' || effect.kind === 'roleset')
     ) {
-      applied = applyTemporaryEffect(state, actor, target, runtime, effect) || applied;
+      appliedToTarget = applyTemporaryEffect(state, actor, target, runtime, effect);
+      applied = appliedToTarget || applied;
+      if (appliedToTarget) {
+        triggerUnitAbilities(state, actor, {
+          timing: 'onEffectApplied',
+          appliedEffect: {
+            effect,
+            target,
+            disposition: effectDisposition(effect),
+          },
+        });
+      }
       return;
     }
-    applied = handler(state, actor, runtime, target, effect, event) || applied;
+    appliedToTarget = handler(state, actor, runtime, target, effect, event);
+    applied = appliedToTarget || applied;
+    if (appliedToTarget) {
+      triggerUnitAbilities(state, actor, {
+        timing: 'onEffectApplied',
+        appliedEffect: {
+          effect,
+          target,
+          disposition: effectDisposition(effect),
+        },
+      });
+    }
   });
 
   return applied;
@@ -1360,6 +1548,15 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   bondedDependents.forEach((unit) => handleDeath(state, target, unit));
 }
 
+function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit {
+  if (hasAbility(actor, 'executioner')) {
+    const lowestHp = Math.min(...candidates.map((enemy) => enemy.hp));
+    const lowest = candidates.filter((enemy) => enemy.hp === lowestHp);
+    return state.rng.pick(lowest);
+  }
+  return state.rng.pick(candidates);
+}
+
 function attack(
   state: InternalState,
   actor: InternalUnit,
@@ -1367,6 +1564,7 @@ function attack(
   mode: 'melee' | 'ranged',
   allowOnAttackAbilities = true,
   strikeCount = 0,
+  category: AttackCategory = 'normal',
 ): void {
   const baseDamage = fixedSub(actor.resolvedStats.damage, target.resolvedStats.armor);
   const modifiedDamage = mode === 'ranged' ? fixedMul(baseDamage, state.effects.rangedDamageMultiplier) : baseDamage;
@@ -1376,6 +1574,7 @@ function attack(
   buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(damage)}.`, {
     damage,
     mode,
+    category,
   });
 
   if (allowOnAttackAbilities) {
@@ -1386,11 +1585,14 @@ function attack(
     handleDeath(state, actor, target);
   } else {
     triggerUnitAbilities(state, target, { timing: 'onDamaged' });
+    if (category === 'normal' && hasAbility(target, 'retaliate') && target.alive) {
+      attack(state, target, actor, target.resolvedStats.range > 0 ? 'ranged' : 'melee', true, 0, 'retaliation');
+    }
   }
 
   if (strikeCount > 0 && target.alive) {
     for (let i = 0; i < strikeCount; i += 1) {
-      attack(state, actor, target, mode, false, 0);
+      attack(state, actor, target, mode, false, 0, 'strike');
       if (!target.alive) {
         break;
       }
@@ -1408,7 +1610,7 @@ function pileOn(state: InternalState, actor: InternalUnit): boolean {
       .filter((ally) => ally.id !== actor.id && equalsHex(ally.position, actor.position))
       .some((ally) => ally.engagedWith.has(enemy.id)),
   );
-  attack(state, actor, state.rng.pick(prioritized.length > 0 ? prioritized : candidates), 'melee');
+  attack(state, actor, chooseAttackTarget(state, actor, prioritized.length > 0 ? prioritized : candidates), 'melee');
   return true;
 }
 
@@ -1417,7 +1619,7 @@ function fight(state: InternalState, actor: InternalUnit): boolean {
     .map((enemyId) => state.units.get(enemyId))
     .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive));
   if (engagedEnemies.length > 0) {
-    attack(state, actor, state.rng.pick(engagedEnemies), 'melee');
+    attack(state, actor, chooseAttackTarget(state, actor, engagedEnemies), 'melee');
     return true;
   }
   return pileOn(state, actor);
@@ -1436,7 +1638,7 @@ function drawAttention(state: InternalState, actor: InternalUnit, roles: RoleId[
 function allySizeOnHex(state: InternalState, side: SideId, coord: HexCoord, exceptId?: string): number {
   return fixedSum(
     getAliveUnits(state, side)
-      .filter((unit) => equalsHex(unit.position, coord) && unit.id !== exceptId)
+      .filter((unit) => equalsHex(unit.position, coord) && unit.id !== exceptId && countsTowardAllySaturationFromAbilities(unit.resolvedAbilities))
       .map((unit) => unit.resolvedStats.size),
   );
 }
@@ -1524,7 +1726,7 @@ function retreat(state: InternalState, actor: InternalUnit): boolean {
   }
   const sameHexEnemies = enemyUnitsOnHex(state, actor);
   if (sameHexEnemies.length > 0) {
-    attack(state, actor, state.rng.pick(sameHexEnemies), 'melee');
+    attack(state, actor, chooseAttackTarget(state, actor, sameHexEnemies), 'melee');
     return true;
   }
   return false;
@@ -1558,7 +1760,7 @@ function executeTurnActions(state: InternalState, actor: InternalUnit): void {
     .map((enemyId) => state.units.get(enemyId))
     .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive));
   if (engagedEnemies.length > 0) {
-    attack(state, actor, state.rng.pick(engagedEnemies), 'melee');
+    attack(state, actor, chooseAttackTarget(state, actor, engagedEnemies), 'melee');
     return;
   }
 
@@ -1586,7 +1788,7 @@ function executeTurnActions(state: InternalState, actor: InternalUnit): void {
   }
   const inRange = enemiesInRange(state, actor);
   if (inRange.length > 0) {
-    attack(state, actor, state.rng.pick(inRange), 'ranged');
+    attack(state, actor, chooseAttackTarget(state, actor, inRange), 'ranged');
     return;
   }
   carefulAdvance(state, actor);

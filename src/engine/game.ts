@@ -20,7 +20,7 @@ import { fixed } from './fixed';
 import { deriveSeed, enrichRiftRewards, generateCycleRifts, getBlueprintRewardPool } from './rift';
 import { deserializeGameState, serializeGameState } from './save';
 import { buildBlueprintRewardChoice, buildRewardChoice } from './upgrades';
-import { FACTION_UPGRADES, FACTIONS, getFaction, getFactionUpgrade, getMutator, getTroopUnlockId, getUnitType } from './unitCatalog';
+import { FACTION_UPGRADES, FACTIONS, TROOP_TYPE_UPGRADES, getFaction, getFactionUpgrade, getMutator, getTroopTypeUpgrade, getTroopUnlockId, getUnitType } from './unitCatalog';
 import type {
   ApplyCycleOutcomeResult,
   CycleResolution,
@@ -88,11 +88,8 @@ function buildInitialState(seed: number, options?: { cheatUpgrades?: boolean; ch
     unlockedFactionIds: [],
     availableFactionDraft: allFactionIds(),
     troops: [],
-    factionUpgradeIds: cheatUpgrades
-      ? Object.values(FACTION_UPGRADES)
-          .filter((upgrade) => upgrade.source === 'rift')
-          .map((upgrade) => upgrade.id)
-      : [],
+    factionUpgradeIds: [],
+    troopTypeUpgradeIds: [],
     unlockedBlueprintTroopIds: cheatBlueprints ? getBlueprintRewardPool() : [],
     openRifts: [],
     pendingRewardChoices: [],
@@ -274,7 +271,7 @@ export function unlockTroopType(state: GameState, factionId: FactionId, unitType
 
 export function buyTroopUnit(state: GameState, troopId: TroopId): GameState {
   const troop = getTroopById(state, troopId);
-  const cost = getTroopAddUnitCost(troop);
+  const cost = getTroopAddUnitCost(state, troop);
   if (state.resources.gold < cost) {
     return state;
   }
@@ -308,6 +305,21 @@ export function buyTroopStatUpgrade(state: GameState, troopId: TroopId, stat: Tr
           }
         : entry,
     ),
+  };
+}
+
+export function buyTroopTypeUpgrade(state: GameState, upgradeId: string): GameState {
+  if (state.troopTypeUpgradeIds.includes(upgradeId)) {
+    return state;
+  }
+  const upgrade = getTroopTypeUpgrade(upgradeId);
+  if (state.resources.gold < upgrade.cost) {
+    return state;
+  }
+  return {
+    ...state,
+    resources: { ...state.resources, gold: fixed(state.resources.gold - upgrade.cost) },
+    troopTypeUpgradeIds: [...state.troopTypeUpgradeIds, upgradeId],
   };
 }
 

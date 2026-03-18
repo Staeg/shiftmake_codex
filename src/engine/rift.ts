@@ -46,10 +46,12 @@ export function getCycleTierSchedule(cycleNumber: number): number[] {
 
 function randomFactionUnitPairs(): Array<{ factionId: FactionId; unitTypeId: UnitTypeId }> {
   return Object.keys(FACTIONS).flatMap((factionId) =>
-    Object.keys(UNIT_TYPES).map((unitTypeId) => ({
-      factionId: factionId as FactionId,
-      unitTypeId: unitTypeId as UnitTypeId,
-    })),
+    Object.values(UNIT_TYPES)
+      .filter((unitType) => !unitType.attributes.includes('summoned'))
+      .map((unitType) => ({
+        factionId: factionId as FactionId,
+        unitTypeId: unitType.id,
+      })),
   );
 }
 
@@ -188,7 +190,7 @@ function buildEnemyArmy(tier: number, seed: number, mutatorIds: MutatorId[]) {
   return selections.map((selection, index) => {
     const perUnitCost = getEnemyUnitBudgetCost(selection.factionId, selection.unitTypeId);
     const quantity = Math.max(1, Math.floor(perSelectionBudget / Math.max(1, perUnitCost)));
-    return resolveEnemyCombatant([], selection.factionId, selection.unitTypeId, quantity, tier, `rift-${seed}-${index}`);
+    return resolveEnemyCombatant([], [], selection.factionId, selection.unitTypeId, quantity, tier, `rift-${seed}-${index}`);
   });
 }
 

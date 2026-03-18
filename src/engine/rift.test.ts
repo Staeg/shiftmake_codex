@@ -48,6 +48,16 @@ describe('rift generation', () => {
     expect(seenNonDefaultCombo).toBe(true);
   });
 
+  it('never includes summoned-only unit types in Rift enemy armies', () => {
+    const rifts = Array.from({ length: 30 }, (_, index) => generateCycleRifts({ campaignSeed: 200 + index, cycleNumber: 6 + index })).flat();
+
+    rifts.forEach((rift) => {
+      rift.enemyArmy.forEach((combatant) => {
+        expect(UNIT_TYPES[combatant.unitTypeId]?.attributes).not.toContain('summoned');
+      });
+    });
+  });
+
   it('limits tier 1 rewards to a single small resource and tier 2 rewards to non-overlapping combinations', () => {
     const upgradePool = Object.keys(FACTION_UPGRADES).slice(0, 3);
     const blueprintPool = ['human/avenger', 'elf/elementalist', 'goblin/beastmaster', 'troll/necromancer'];

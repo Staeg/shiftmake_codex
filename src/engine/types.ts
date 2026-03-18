@@ -11,12 +11,13 @@ export type ResourceId = 'gold' | 'essence';
 export type TroopUnlockId = string;
 export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
 export type ExplainedStatKey = TroopStatKey | 'size';
-export type AbilityTiming = 'startOfBattle' | 'startOfTurn' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'onFallen' | 'passive';
+export type AbilityTiming = 'startOfBattle' | 'startOfTurn' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'onFallen' | 'onEffectApplied' | 'passive';
 export type AbilityAllegiance = 'ally' | 'enemy' | 'all';
 export type AbilityMagnitudeMode = 'flat' | 'percent';
 export type CampaignPhase = 'faction_draft' | 'planning' | 'reward_claims';
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
+export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
 
 export interface HexCoord {
   q: number;
@@ -50,6 +51,10 @@ export interface AbilityTriggerDefinition {
     radius: number;
     radiusSource?: 'selfRange';
   };
+  effectApplication?: {
+    effectKinds?: string[];
+    dispositions?: EffectDisposition[];
+  };
 }
 
 export interface AbilityTargetFilters {
@@ -79,37 +84,56 @@ export type AbilityDurationDefinition =
       turns: number;
     };
 
+type EffectWithDisposition<T> = T & {
+  disposition?: EffectDisposition;
+};
+
 export type AbilityEffectDefinition =
-  | {
+  | EffectWithDisposition<{
       kind: 'blast';
       amount: number;
-    }
-  | {
+    }>
+  | EffectWithDisposition<{
       kind: 'bolster' | 'haste' | 'heal' | 'ramp';
       amount: number;
       mode: AbilityMagnitudeMode;
-    }
-  | {
+    }>
+  | EffectWithDisposition<{
+      kind: 'statDelta';
+      stat: TroopStatKey;
+      amount: number;
+      mode: AbilityMagnitudeMode;
+    }>
+  | EffectWithDisposition<{
       kind: 'rangeset';
       value: number;
-    }
-  | {
+    }>
+  | EffectWithDisposition<{
       kind: 'roleset';
       role: RoleId;
-    }
-  | {
+    }>
+  | EffectWithDisposition<{
+      kind: 'initiativeSet';
+      value: number;
+    }>
+  | EffectWithDisposition<{
+      kind: 'grantAbility';
+      abilityId: AbilityId;
+    }>
+  | EffectWithDisposition<{
       kind: 'strike';
       amount: number;
-    }
-  | {
+    }>
+  | EffectWithDisposition<{
       kind: 'summon';
       unitTypeId: UnitTypeId;
       count: number;
       consumeFallenUnitCorpse?: boolean;
-    }
-  | {
+      grantedAbilityIds?: AbilityId[];
+    }>
+  | EffectWithDisposition<{
       kind: 'redirect';
-    };
+    }>;
 
 export interface AbilityDefinition {
   id: AbilityId;
@@ -167,6 +191,37 @@ export interface FactionUpgradeDefinition {
         kind: 'modifyStats';
         statModifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>;
         unitFilter?: 'nonMelee';
+      }
+  >;
+}
+
+export interface TroopTypeUpgradeDefinition {
+  id: UpgradeId;
+  unitTypeId: UnitTypeId;
+  label: string;
+  tier: 1 | 2 | 3;
+  cost: number;
+  description: string;
+  effects: Array<
+    | {
+        kind: 'addAbility';
+        abilityId: AbilityId;
+      }
+    | {
+        kind: 'replaceAbility';
+        removeAbilityId: AbilityId;
+        addAbilityId: AbilityId;
+      }
+    | {
+        kind: 'addAttribute';
+        attribute: string;
+      }
+    | {
+        kind: 'modifyStats';
+        statModifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>;
+      }
+    | {
+        kind: 'flattenAddUnitCostAfterFirst';
       }
   >;
 }
@@ -380,6 +435,7 @@ export interface GameState {
   availableFactionDraft: FactionId[];
   troops: TroopInstance[];
   factionUpgradeIds: UpgradeId[];
+  troopTypeUpgradeIds: UpgradeId[];
   unlockedBlueprintTroopIds: TroopUnlockId[];
   openRifts: RiftInstance[];
   pendingRewardChoices: RewardChoice[];

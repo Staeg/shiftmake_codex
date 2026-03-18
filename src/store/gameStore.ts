@@ -4,6 +4,7 @@ import {
   applyCycleOutcomes,
   assignTroopToRift,
   buyFactionUpgrade,
+  buyTroopTypeUpgrade,
   buyTroopStatUpgrade,
   buyTroopUnit,
   chooseStartingFaction,
@@ -265,6 +266,9 @@ export const gameStore = (() => {
     },
     buyFactionUpgrade(upgradeId: string) {
       update((state) => saveActiveCampaign({ ...state, game: buyFactionUpgrade(state.game, upgradeId) }));
+    },
+    buyTroopTypeUpgrade(upgradeId: string) {
+      update((state) => saveActiveCampaign({ ...state, game: buyTroopTypeUpgrade(state.game, upgradeId) }));
     },
     unlockFaction(factionId: FactionId) {
       update((state) => saveActiveCampaign({ ...state, game: unlockFaction(state.game, factionId) }));

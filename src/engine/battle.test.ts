@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
 import { resolveAbilityTargetRadius, resolveDebugBattle, resolveBattle } from './battle';
+import { createTroopInstance, resolveTroopCombatant } from './army';
 import { composeTroopDefinition, resolveAbilityDefinition, TROOP_CATALOG, getAbility, getTroopDefinitionOrThrow } from './unitCatalog';
 import { getArmySelectionCost, getTroopSelectionCost } from './unitCatalog';
 import type { AbilityDefinition, BattleInput, ResolvedCombatantDefinition } from './types';
@@ -285,8 +286,34 @@ describe('resolveDebugBattle', () => {
       enemy: { 'human/knight': 2 },
     });
 
-    expect(replay.steps.some((step) => step.message.includes('summons Goblin Wolf'))).toBe(true);
-    expect(replay.steps.filter((step) => step.kind === 'death' && step.message.includes('Goblin Wolf')).length).toBeGreaterThan(0);
+    expect(replay.steps.some((step) => step.message.includes('summons Wolf'))).toBe(true);
+    expect(replay.steps.filter((step) => step.kind === 'death' && step.message.includes('Wolf')).length).toBeGreaterThan(0);
+  });
+
+  it('keeps summoned units on their native stats and attributes instead of inheriting summoner faction traits', () => {
+    const replay = resolveDebugBattle({
+      seed: 22,
+      player: { 'goblin/beastmaster': 1 },
+      enemy: { 'human/knight': 2 },
+    });
+
+    const wolfProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitTypeId === 'wolf');
+
+    expect(wolfProfile).toMatchObject({
+      troopLabel: 'Wolf',
+      factionId: 'goblin',
+      attributes: ['melee', 'summoned'],
+      stats: {
+        health: 70,
+        damage: 6,
+        speed: 12,
+        range: 2,
+        armor: 0,
+        size: 1,
+        capacity: 1,
+      },
+    });
+    expect(wolfProfile?.abilities.map((ability) => ability.id)).toEqual(['bonded', 'pack-1']);
   });
 
   it('consumes a corpse to summon a skeleton and skips fading corpses', () => {
@@ -301,8 +328,8 @@ describe('resolveDebugBattle', () => {
       enemy: { 'troll/skeleton': 1 },
     });
 
-    expect(skeletonReplay.steps.some((step) => step.message.includes('summons Troll Skeleton'))).toBe(true);
-    expect(fadingReplay.steps.some((step) => step.message.includes('summons Troll Skeleton'))).toBe(false);
+    expect(skeletonReplay.steps.some((step) => step.message.includes('summons Skeleton'))).toBe(true);
+    expect(fadingReplay.steps.some((step) => step.message.includes('summons Skeleton'))).toBe(false);
   });
 });
 
@@ -442,5 +469,217 @@ describe('ability mechanics', () => {
       filters: { unengaged: true },
     });
     expect(taunt.effects).toEqual([{ kind: 'redirect' }]);
+  });
+
+  it('resolves troop-type upgrades across matching unit types and rewires replacement upgrades', () => {
+    const upgradedState = {
+      factionUpgradeIds: [],
+      troopTypeUpgradeIds: [
+        'archer-shredding-arrows',
+        'avenger-sevenfold',
+        'beastmaster-blood-in-the-water',
+        'druid-wild-growth',
+        'elementalist-mitosis',
+        'necromancer-rising-tide',
+        'priest-zeal',
+        'ranger-concussive-shots',
+        'shaman-serve-once-more',
+        'wizard-storm',
+      ],
+    };
+
+    const humanArcher = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'archer', 1), 'player');
+    const elfArcher = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'archer', 1), 'player');
+    const trollAvenger = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'avenger', 1), 'player');
+    const goblinBeastmaster = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'beastmaster', 1), 'player');
+    const elfDruid = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'druid', 1), 'player');
+    const elfElementalist = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'elementalist', 1), 'player');
+    const trollNecromancer = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'necromancer', 1), 'player');
+    const humanPriest = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'priest', 1), 'player');
+    const elfRanger = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'ranger', 1), 'player');
+    const trollShaman = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'shaman', 1), 'player');
+    const goblinWizard = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'wizard', 1), 'player');
+
+    expect(humanArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
+    expect(elfArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('uses-7-corpse-summon-skeleton');
+    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('summon-wolf-2-blood');
+    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).not.toContain('summon-wolf-2');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('regen-60');
+    expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('charge-4-summon-elemental-mitosis');
+    expect(elfElementalist.abilities.map((ability) => ability.id)).not.toContain('charge-4-summon-elemental');
+    expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('corpse-summon-skeleton-rising');
+    expect(trollNecromancer.abilities.map((ability) => ability.id)).not.toContain('corpse-summon-skeleton');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('zeal-enhance-1');
+    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('concussive-shots');
+    expect(trollShaman.abilities.map((ability) => ability.id)).toContain('serve-once-more');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('charge-4-random-enemy-r-strike-4');
+  });
+
+  it('executioner prioritizes the lowest-current-hp legal attack target', () => {
+    const champion = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['champion-executioner'] },
+      createTroopInstance('human', 'champion', 1),
+      'player',
+    );
+    const replay = resolveBattle(
+      makeBattleInput(
+        [champion],
+        [makeBattleCombatant('goblin/soldier', 'enemy'), makeBattleCombatant('human/soldier', 'enemy')],
+        52,
+      ),
+    );
+
+    const championAttack = replay.steps.find(
+      (step) => step.kind === 'attack' && step.actorIds[0]?.startsWith('player_') && step.message.includes('Human Champion hits'),
+    );
+
+    expect(championAttack?.message).toContain('Goblin Soldier');
+  });
+
+  it('shredding arrows applies a battle-long armor reduction that can go below zero', () => {
+    const archer = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-shredding-arrows'] },
+      createTroopInstance('human', 'archer', 1),
+      'player',
+    );
+    const tank = makeBattleCombatant('goblin/soldier', 'enemy');
+    tank.stats = { ...tank.stats, health: 200 };
+    const replay = resolveBattle(makeBattleInput([archer], [tank], 19));
+    const enemyArmorHistory = replay.steps
+      .map((step) => step.snapshot.units.find((unit) => unit.side === 'enemy' && unit.troopLabel === 'Goblin Soldier')?.stats.armor)
+      .filter((value): value is number => typeof value === 'number');
+
+    expect(Math.min(...enemyArmorHistory)).toBeLessThan(0);
+  });
+
+  it('concussive shots resets the attacked target initiative', () => {
+    const ranger = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['ranger-concussive-shots'] },
+      createTroopInstance('elf', 'ranger', 1),
+      'player',
+    );
+    const replay = resolveBattle(makeBattleInput([ranger], [makeBattleCombatant('human/soldier', 'enemy')], 23));
+    const initiativeStep = replay.steps.find((step) => step.kind === 'buff' && step.message.includes('sets initiative to 0'));
+
+    expect(initiativeStep).toBeDefined();
+    expect(initiativeStep?.message).toContain('Human Soldier');
+    expect(initiativeStep?.metadata?.value).toBe(0);
+  });
+
+  it('zeal reacts to applied heal effects even when the heal restores 0 HP', () => {
+    const priest = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-zeal'] },
+      createTroopInstance('human', 'priest', 1),
+      'player',
+    );
+    const replay = resolveBattle(
+      makeBattleInput([priest, makeBattleCombatant('human/soldier', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 29),
+    );
+
+    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Human Priest heals Human Soldier for 0.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 speed.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 damage.'))).toBe(true);
+  });
+
+  it('serve once more reacts to both regen and other beneficial effects', () => {
+    const shaman = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['shaman-serve-once-more'] },
+      createTroopInstance('troll', 'shaman', 1),
+      'player',
+    );
+    const replay = resolveBattle(
+      makeBattleInput([shaman, makeBattleCombatant('troll/soldier', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 31),
+    );
+
+    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Troll Shaman heals Troll Shaman for 0.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Shaman gains Fading.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains Fading.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains On Death Summon Skeleton.'))).toBe(true);
+  });
+
+  it('militia with scurry can share a hex past saturation without changing their actual size', () => {
+    const militia = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-scurry'] },
+      createTroopInstance('goblin', 'militia', 1),
+      'player',
+    );
+    const soldier = makeBattleCombatant('human/soldier', 'player');
+    const replay = resolveBattle({
+      seed: 37,
+      riftId: null,
+      tier: null,
+      mutatorIds: [],
+      saturation: 1,
+      playerCombatants: [militia, soldier],
+      enemyCombatants: [],
+    });
+
+    const playerUnits = replay.initial.units.filter((unit) => unit.side === 'player');
+    const sizeByHex = playerUnits.reduce<Record<string, number>>((acc, unit) => {
+      const key = `${unit.position.q},${unit.position.r}`;
+      acc[key] = (acc[key] ?? 0) + unit.stats.size;
+      return acc;
+    }, {});
+
+    expect(playerUnits).toHaveLength(2);
+    expect(Object.values(sizeByHex).some((size) => size > replay.saturation)).toBe(true);
+  });
+
+  it('alternate fuel can substitute health for missing corpses, but never fatally', () => {
+    const upgradedNecromancer = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['necromancer-alternate-fuel'] },
+      createTroopInstance('troll', 'necromancer', 1),
+      'player',
+    );
+    const replay = resolveBattle(makeBattleInput([upgradedNecromancer], [makeBattleCombatant('troll/skeleton', 'enemy')], 43));
+
+    expect(replay.steps.some((step) => step.message.includes('spends 10 health instead of a corpse'))).toBe(true);
+    expect(replay.steps.some((step) => step.message.includes('summons Skeleton'))).toBe(true);
+
+    const fragileNecromancer = makeBattleCombatant('troll/necromancer', 'player', [getAbility('alternate-fuel-10')]);
+    const fragileSkeleton = makeBattleCombatant('troll/skeleton', 'enemy');
+    fragileNecromancer.stats = { ...fragileNecromancer.stats, health: 10 };
+    fragileSkeleton.stats = { ...fragileSkeleton.stats, health: 1 };
+
+    const fragileReplay = resolveBattle(makeBattleInput([fragileNecromancer], [fragileSkeleton], 44));
+
+    expect(fragileReplay.steps.some((step) => step.message.includes('spends 10 health instead of a corpse'))).toBe(false);
+    expect(fragileReplay.steps.some((step) => step.message.includes('summons Skeleton'))).toBe(false);
+  });
+
+  it('retaliate only answers normal attacks once instead of looping indefinitely', () => {
+    const knightA = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-retaliate'] },
+      createTroopInstance('human', 'knight', 1),
+      'player',
+    );
+    const knightB = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-retaliate'] },
+      createTroopInstance('human', 'knight', 1),
+      'enemy',
+    );
+    const replay = resolveBattle(makeBattleInput([knightA], [knightB], 47));
+    const retaliationCount = replay.steps.filter((step) => step.kind === 'attack' && step.metadata?.category === 'retaliation').length;
+    const normalCount = replay.steps.filter((step) => step.kind === 'attack' && step.metadata?.category === 'normal').length;
+
+    expect(retaliationCount).toBeGreaterThan(0);
+    expect(retaliationCount).toBeLessThanOrEqual(normalCount);
+  });
+
+  it('mitosis grants recursively summoned elementals the split ability', () => {
+    const elementalist = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['elementalist-mitosis'] },
+      createTroopInstance('elf', 'elementalist', 1),
+      'player',
+    );
+    const replay = resolveBattle(
+      makeBattleInput([elementalist, makeBattleCombatant('human/knight', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 59),
+    );
+    const elementalSummons = replay.steps.filter((step) => step.message.includes('summons Elemental'));
+    const elementalProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.troopLabel === 'Elemental');
+
+    expect(elementalSummons.length).toBeGreaterThanOrEqual(2);
+    expect(elementalProfile?.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });
 });
