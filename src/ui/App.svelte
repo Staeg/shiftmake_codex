@@ -95,6 +95,70 @@
   let replayRecapOpen = false;
   let expandedReplayRecapTroopKey: string | null = null;
 
+  function getReplayProfileKeyForUnit(unitId: string): string | null {
+    const unit = replaySnapshot.find((entry) => entry.id === unitId);
+    return unit ? replayProfileKey(unit.side, unit.troopLabel) : null;
+  }
+
+  function setReplayUnitLock(unitId: string, options?: { toggle?: boolean; pointer?: UnitPointerInfo | null; profileKey?: string | null }): void {
+    const nextProfileKey = options?.profileKey ?? getReplayProfileKeyForUnit(unitId);
+    const sameUnitLocked = options?.toggle && lockedUnitId === unitId;
+
+    if (sameUnitLocked) {
+      lockedUnitId = null;
+      hoverInfo = options?.pointer ?? null;
+      if (nextProfileKey) {
+        selectedReplayProfileKey = nextProfileKey;
+      }
+      return;
+    }
+
+    lockedUnitId = unitId;
+    hoverInfo = options?.pointer ?? { unitId, x: 0, y: 0 };
+    if (nextProfileKey) {
+      selectedReplayProfileKey = nextProfileKey;
+    }
+  }
+
+  function previewReplayProfile(side: SideId, troopLabel: string): void {
+    hoveredReplayProfileKey = replayProfileKey(side, troopLabel);
+  }
+
+  function clearReplayProfilePreview(): void {
+    hoveredReplayProfileKey = null;
+  }
+
+  function focusReplayProfileUnit(side: SideId, troopLabel: string, options?: { cycle?: boolean; toggle?: boolean }): void {
+    const profileKey = replayProfileKey(side, troopLabel);
+    const matchingUnits = replaySnapshot
+      .filter((unit) => unit.alive && unit.side === side && unit.troopLabel === troopLabel)
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    selectedReplayProfileKey = profileKey;
+    if (matchingUnits.length === 0) {
+      if (options?.toggle) {
+        lockedUnitId = null;
+        hoverInfo = null;
+      }
+      return;
+    }
+
+    const currentIndex = matchingUnits.findIndex((unit) => unit.id === lockedUnitId);
+    const nextUnit =
+      options?.cycle && currentIndex >= 0
+        ? matchingUnits[(currentIndex + 1) % matchingUnits.length] ?? null
+        : matchingUnits[currentIndex >= 0 ? currentIndex : 0] ?? null;
+
+    if (!nextUnit) {
+      return;
+    }
+
+    setReplayUnitLock(nextUnit.id, {
+      toggle: options?.toggle,
+      profileKey,
+    });
+  }
+
   function parseTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeId] {
     return troopUnlockId.split('/') as [FactionId, UnitTypeId];
   }
@@ -300,8 +364,10 @@
         }
       },
       onUnitClick: (info) => {
-        lockedUnitId = lockedUnitId === info.unitId ? null : info.unitId;
-        hoverInfo = info;
+        setReplayUnitLock(info.unitId, {
+          toggle: true,
+          pointer: info,
+        });
       },
     });
 
@@ -578,7 +644,9 @@
   ];
 
   function selectReplayProfile(side: SideId, troopLabel: string): void {
-    selectedReplayProfileKey = replayProfileKey(side, troopLabel);
+    focusReplayProfileUnit(side, troopLabel, {
+      toggle: true,
+    });
   }
 
   function getReplayRecapTroopProfile(side: SideId, troopLabel: string) {
@@ -627,33 +695,17 @@
       gameStore.jumpTo(targetStep);
     }
 
-    selectReplayProfile(side, troopLabel);
-    lockedUnitId = unitId;
-    hoverInfo = { unitId, x: 0, y: 0 };
+    setReplayUnitLock(unitId, {
+      profileKey: replayProfileKey(side, troopLabel),
+    });
     replayRecapOpen = false;
     expandedReplayRecapTroopKey = null;
   }
 
   function cycleReplayProfileUnit(side: SideId, troopLabel: string): void {
-    const matchingUnits = replaySnapshot
-      .filter((unit) => unit.alive && unit.side === side && unit.troopLabel === troopLabel)
-      .sort((left, right) => left.id.localeCompare(right.id));
-    if (matchingUnits.length === 0) {
-      return;
-    }
-
-    selectReplayProfile(side, troopLabel);
-    const currentIndex =
-      inspectedUnit?.side === side && inspectedUnit.troopLabel === troopLabel
-        ? matchingUnits.findIndex((unit) => unit.id === inspectedUnit.id)
-        : -1;
-    const nextUnit = matchingUnits[(currentIndex + 1 + matchingUnits.length) % matchingUnits.length];
-    if (!nextUnit) {
-      return;
-    }
-
-    lockedUnitId = nextUnit.id;
-    hoverInfo = { unitId: nextUnit.id, x: 0, y: 0 };
+    focusReplayProfileUnit(side, troopLabel, {
+      cycle: true,
+    });
   }
 </script>
 
@@ -1486,6 +1538,13 @@
             {/each}
           {/if}
         </div>
+
+        <div class="replay-actions replay-header-actions">
+          <button class="replay-exit-button" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
+          <button class="replay-exit-button replay-recap-button" on:click={toggleReplayRecap}>
+            {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
+          </button>
+        </div>
       </div>
 
       <BattleControls
@@ -1562,10 +1621,10 @@
                         type="button"
                         class="alive-unit-main"
                         on:click={() => selectReplayProfile('player', label)}
-                        on:mouseenter={() => (hoveredReplayProfileKey = replayProfileKey('player', label))}
-                        on:focus={() => (hoveredReplayProfileKey = replayProfileKey('player', label))}
-                        on:mouseleave={() => (hoveredReplayProfileKey = null)}
-                        on:blur={() => (hoveredReplayProfileKey = null)}
+                        on:mouseenter={() => previewReplayProfile('player', label)}
+                        on:focus={() => previewReplayProfile('player', label)}
+                        on:mouseleave={clearReplayProfilePreview}
+                        on:blur={clearReplayProfilePreview}
                       >
                         <span>{label}</span>
                         <strong>{count}</strong>
@@ -1592,10 +1651,10 @@
                         type="button"
                         class="alive-unit-main"
                         on:click={() => selectReplayProfile('enemy', label)}
-                        on:mouseenter={() => (hoveredReplayProfileKey = replayProfileKey('enemy', label))}
-                        on:focus={() => (hoveredReplayProfileKey = replayProfileKey('enemy', label))}
-                        on:mouseleave={() => (hoveredReplayProfileKey = null)}
-                        on:blur={() => (hoveredReplayProfileKey = null)}
+                        on:mouseenter={() => previewReplayProfile('enemy', label)}
+                        on:focus={() => previewReplayProfile('enemy', label)}
+                        on:mouseleave={clearReplayProfilePreview}
+                        on:blur={clearReplayProfilePreview}
                       >
                         <span>{label}</span>
                         <strong>{count}</strong>
@@ -1633,13 +1692,6 @@
         {/if}
       </section>
     </section>
-
-    <div class="replay-exit replay-actions">
-      <button class="replay-exit-button" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
-      <button class="replay-exit-button replay-recap-button" on:click={toggleReplayRecap}>
-        {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
-      </button>
-    </div>
 
     {#if replayRecapOpen}
       <div class="replay-recap-backdrop">
@@ -2569,7 +2621,7 @@
     min-height: 100dvh;
     height: 100dvh;
     grid-template-columns: var(--ui-replay-left-width) minmax(0, 1fr) var(--ui-replay-right-width);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
     overflow: hidden;
     background:
@@ -2587,22 +2639,22 @@
   .replay-left {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
-    gap: var(--ui-space-sm);
+    gap: 0.65rem;
     overflow: hidden;
   }
 
   .replay-right {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: var(--ui-space-sm);
+    gap: 0.65rem;
     overflow: hidden;
   }
 
   .replay-header {
     display: grid;
-    gap: var(--ui-space-sm);
+    gap: 0.55rem;
     align-content: start;
-    padding: 0.2rem 0.15rem;
+    padding: 0.1rem 0;
   }
 
   .replay-name {
@@ -2633,7 +2685,7 @@
   .viewport-shell {
     position: relative;
     height: 100%;
-    min-height: clamp(360px, 52vh, 560px);
+    min-height: clamp(340px, 50vh, 560px);
     border-radius: var(--ui-panel-radius);
     overflow: hidden;
     background:
@@ -2644,7 +2696,7 @@
   .viewport {
     width: 100%;
     height: 100%;
-    min-height: clamp(360px, 52vh, 560px);
+    min-height: clamp(340px, 50vh, 560px);
     border: 1px solid rgba(126, 157, 181, 0.2);
     border-radius: calc(var(--ui-panel-radius) + var(--ui-space-sm));
     background:
@@ -2662,7 +2714,7 @@
   .focus-empty,
   .replay-detail-panel {
     display: grid;
-    gap: var(--ui-space-sm);
+    gap: 0.55rem;
     align-content: start;
   }
 
@@ -2692,18 +2744,18 @@
   }
 
   .collapsible-panel {
-    gap: var(--ui-space-sm);
+    gap: 0.65rem;
   }
 
   .event-log-toggle {
-    padding: var(--ui-space-sm);
+    padding: 0.65rem 0.75rem;
   }
 
   .collapsible-stack {
     min-height: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: var(--ui-space-sm);
+    gap: 0.65rem;
   }
 
   .collapsible-stack.collapsed {
@@ -2841,28 +2893,27 @@
     line-height: 1;
   }
 
-  .replay-exit {
-    grid-column: 2;
+  .replay-actions {
     display: flex;
-    justify-content: center;
-    padding-top: 0.2rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
-  .replay-actions {
-    gap: var(--ui-space-sm);
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .replay-header-actions {
+    justify-content: flex-start;
   }
 
   .replay-exit-button {
-    min-width: 164px;
-    min-height: var(--ui-space-hit);
-    padding: 0.65rem 0.85rem;
+    min-width: 0;
+    min-height: 2.1rem;
+    padding: 0.45rem 0.7rem;
     border-radius: var(--ui-panel-radius-pill);
     border: var(--ui-border-strong);
     background: rgba(20, 26, 34, 0.92);
     color: #f4f7fb;
     font: inherit;
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
   }
 
   .replay-recap-button {

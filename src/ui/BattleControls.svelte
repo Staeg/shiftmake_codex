@@ -56,15 +56,15 @@
     background: linear-gradient(145deg, rgba(20, 24, 32, 0.95), rgba(11, 13, 18, 0.95));
     border: 1px solid #2f3b49;
     border-radius: 14px;
-    padding: 0.75rem;
+    padding: 0.6rem 0.7rem;
     display: grid;
-    gap: 0.65rem;
+    gap: 0.55rem;
   }
 
   .controls {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
 
   button,
@@ -73,10 +73,10 @@
     border: 1px solid #324353;
     color: #f4f9ff;
     border-radius: 8px;
-    min-height: 2.5rem;
-    padding: 0.45rem 0.6rem;
+    min-height: 2.1rem;
+    padding: 0.35rem 0.5rem;
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.74rem;
   }
 
   button {
@@ -93,7 +93,7 @@
     justify-content: space-between;
     align-items: center;
     color: #bfc6ce;
-    gap: 0.75rem;
+    gap: 0.55rem;
     flex-wrap: wrap;
   }
 
@@ -104,21 +104,21 @@
 
   .step-readout span,
   label span {
-    font-size: 0.7rem;
+    font-size: 0.66rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #9cb0bf;
   }
 
   .step-readout strong {
-    font-size: 0.92rem;
+    font-size: 0.86rem;
     color: #f4f9ff;
   }
 
   label {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
 
   @media (max-width: 860px) {

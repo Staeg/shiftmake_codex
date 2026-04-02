@@ -176,11 +176,11 @@
 <style>
   .tooltip {
     position: absolute;
-    width: 272px;
+    width: 256px;
     background: rgba(10, 15, 24, 0.96);
     border: 1px solid #3c5269;
     border-radius: 10px;
-    padding: 0.45rem;
+    padding: 0.38rem;
     color: #ecf2f9;
     z-index: 5;
     pointer-events: auto;
@@ -202,9 +202,9 @@
   header {
     display: flex;
     justify-content: space-between;
-    gap: 0.55rem;
+    gap: 0.45rem;
     align-items: start;
-    margin-bottom: 0.45rem;
+    margin-bottom: 0.35rem;
   }
 
   header p {
@@ -223,8 +223,8 @@
   .rows {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.24rem 0.35rem;
-    margin-bottom: 0.35rem;
+    gap: 0.18rem 0.28rem;
+    margin-bottom: 0.28rem;
   }
 
   .rows div,
@@ -234,8 +234,8 @@
     background: rgba(22, 32, 44, 0.65);
     border: 1px solid #2f4155;
     border-radius: 6px;
-    padding: 0.18rem 0.32rem;
-    font-size: 0.74rem;
+    padding: 0.16rem 0.28rem;
+    font-size: 0.7rem;
   }
 
   .inspect-chip {
@@ -246,23 +246,23 @@
   }
 
   :global(.tooltip .stats-grid) {
-    margin-bottom: 0.45rem;
+    margin-bottom: 0.35rem;
   }
 
   .meta,
   .engaged,
   .abilities {
     display: grid;
-    gap: 0.18rem;
+    gap: 0.14rem;
     color: #bfccd8;
-    font-size: 0.72rem;
-    margin-bottom: 0.3rem;
+    font-size: 0.68rem;
+    margin-bottom: 0.24rem;
   }
 
   .engaged,
   .abilities {
     border-top: 1px solid #28384a;
-    padding-top: 0.3rem;
+    padding-top: 0.24rem;
   }
 
   .engaged ul {
@@ -275,27 +275,27 @@
   .ability-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.28rem;
+    gap: 0.22rem;
   }
 
   .ability-chip {
-    padding: 0.24rem 0.52rem;
+    padding: 0.18rem 0.42rem;
     border: 1px solid rgba(212, 173, 115, 0.24);
     border-radius: 999px;
     background: rgba(31, 24, 16, 0.82);
     color: #f1d7ae;
     font: inherit;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     cursor: help;
   }
 
   .inspect-tooltip {
     display: grid;
     gap: 0.25rem;
-    padding-top: 0.3rem;
+    padding-top: 0.24rem;
     border-top: 1px solid #28384a;
     color: #bfccd8;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
   }
 
   .inspect-tooltip p {
@@ -304,12 +304,12 @@
 
   .role-tooltip {
     margin-top: -0.1rem;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.28rem;
   }
 
   footer {
-    margin-top: 0.3rem;
-    font-size: 0.7rem;
+    margin-top: 0.24rem;
+    font-size: 0.66rem;
     color: #95a5b5;
   }
 </style>
