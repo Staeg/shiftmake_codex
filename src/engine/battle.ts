@@ -10,7 +10,9 @@ import type {
   AbilityTiming,
   BattleInput,
   BattleReplay,
+  BattleStepMetadata,
   EffectDisposition,
+  RoleIntentId,
   ReplayTroopProfile,
   BattleStateSnapshot,
   BattleStep,
@@ -87,6 +89,7 @@ type InternalUnit = {
   };
   resolvedAbilities: RuntimeAbilityState[];
   activeTimedEffects: ActiveTimedEffect[];
+  committedBacklineTargetId: string | null;
 };
 
 type AbilityTriggerEvent = {
@@ -279,7 +282,7 @@ function buildStep(
   actorIds: string[],
   targetIds: string[],
   message: string,
-  metadata?: Record<string, number | string | boolean>,
+  metadata?: BattleStepMetadata,
 ): void {
   state.steps.push({
     index: state.steps.length,
@@ -290,6 +293,17 @@ function buildStep(
     metadata,
     snapshot: cloneSnapshot(state.units),
   });
+}
+
+function emitRoleIntentStep(
+  state: InternalState,
+  kind: 'move' | 'engage',
+  actor: InternalUnit,
+  targets: InternalUnit[],
+  message: string,
+  metadata: BattleStepMetadata,
+): void {
+  buildStep(state, kind, [actor.id], targets.map((target) => target.id), message, metadata);
 }
 
 function startingCorner(side: SideId, radius: number): HexCoord {
@@ -441,6 +455,7 @@ function spawnGroup(
       resolvedStats: { ...combatant.stats },
       resolvedAbilities: combatant.abilities.map(createRuntimeAbilityState),
       activeTimedEffects: [],
+      committedBacklineTargetId: null,
     });
   });
 
@@ -1665,6 +1680,128 @@ function validMovementHexes(state: InternalState, actor: InternalUnit): HexCoord
     .filter((coord) => fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) <= state.saturation);
 }
 
+function compareHex(left: HexCoord, right: HexCoord): number {
+  if (left.q !== right.q) {
+    return left.q - right.q;
+  }
+  return left.r - right.r;
+}
+
+function compareUnitsByDistance(actor: InternalUnit, left: InternalUnit, right: InternalUnit): number {
+  const distanceDelta = hexDistance(actor.position, left.position) - hexDistance(actor.position, right.position);
+  if (distanceDelta !== 0) {
+    return distanceDelta;
+  }
+  const positionDelta = compareHex(left.position, right.position);
+  if (positionDelta !== 0) {
+    return positionDelta;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+function getEnemyUnits(state: InternalState, actor: InternalUnit, roles: RoleId[] = []): InternalUnit[] {
+  return getAliveUnits(state)
+    .filter((unit) => unit.side !== actor.side)
+    .filter((unit) => matchesRoleFilter(unit, roles));
+}
+
+function getAlliedBackline(state: InternalState, actor: InternalUnit): InternalUnit[] {
+  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'backline');
+}
+
+function pickNearestUnit(actor: InternalUnit, candidates: InternalUnit[]): InternalUnit | null {
+  return [...candidates].sort((left, right) => compareUnitsByDistance(actor, left, right))[0] ?? null;
+}
+
+function getScreenPriority(state: InternalState, actor: InternalUnit, candidate: InternalUnit): number {
+  const alliedBackline = getAlliedBackline(state, actor);
+  if (alliedBackline.length === 0) {
+    return hexDistance(actor.position, candidate.position);
+  }
+  const backlineDistance = Math.min(...alliedBackline.map((unit) => hexDistance(unit.position, candidate.position)));
+  const actorDistance = hexDistance(actor.position, candidate.position);
+  return backlineDistance * 100 + actorDistance;
+}
+
+function formatRoleIntentMessage(roleIntent: RoleIntentId): string {
+  return {
+    'screen-frontline': 'screens the front',
+    'fallback-backline': 'falls through to the backline',
+    'breach-backline': 'breaches toward the backline',
+    'hold-backline': 'holds pressure on the backline',
+    'retreat-range': 'retreats to preserve range',
+    'advance-range': 'advances to keep range',
+  }[roleIntent];
+}
+
+type RoleObjective = {
+  target: InternalUnit;
+  roleIntent: RoleIntentId;
+  reasonCode: string;
+  targetRole: RoleId;
+};
+
+function pickFrontlineObjective(state: InternalState, actor: InternalUnit): RoleObjective | null {
+  const screeningTargets = getEnemyUnits(state, actor, ['frontline', 'chaff']).sort((left, right) => {
+    const priorityDelta = getScreenPriority(state, actor, left) - getScreenPriority(state, actor, right);
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+    return compareUnitsByDistance(actor, left, right);
+  });
+  if (screeningTargets.length > 0) {
+    return {
+      target: screeningTargets[0]!,
+      roleIntent: 'screen-frontline',
+      reasonCode: 'block-access',
+      targetRole: screeningTargets[0]!.role,
+    };
+  }
+  const backlineTarget = pickNearestUnit(actor, getEnemyUnits(state, actor, ['backline']));
+  if (!backlineTarget) {
+    return null;
+  }
+  return {
+    target: backlineTarget,
+    roleIntent: 'fallback-backline',
+    reasonCode: 'no-frontline-target',
+    targetRole: backlineTarget.role,
+  };
+}
+
+function pickChaffObjective(state: InternalState, actor: InternalUnit): RoleObjective | null {
+  const committedTarget = actor.committedBacklineTargetId ? state.units.get(actor.committedBacklineTargetId) : null;
+  if (committedTarget?.alive && committedTarget.side !== actor.side && committedTarget.role === 'backline') {
+    return {
+      target: committedTarget,
+      roleIntent: 'hold-backline',
+      reasonCode: 'maintain-backline-commitment',
+      targetRole: committedTarget.role,
+    };
+  }
+  const backlineTarget = pickNearestUnit(actor, getEnemyUnits(state, actor, ['backline']));
+  if (backlineTarget) {
+    actor.committedBacklineTargetId = backlineTarget.id;
+    return {
+      target: backlineTarget,
+      roleIntent: 'breach-backline',
+      reasonCode: 'opened-backline-lane',
+      targetRole: backlineTarget.role,
+    };
+  }
+  actor.committedBacklineTargetId = null;
+  const fallbackTarget = pickNearestUnit(actor, getEnemyUnits(state, actor));
+  if (!fallbackTarget) {
+    return null;
+  }
+  return {
+    target: fallbackTarget,
+    roleIntent: 'screen-frontline',
+    reasonCode: 'no-backline-target',
+    targetRole: fallbackTarget.role,
+  };
+}
+
 function findClosestEnemy(state: InternalState, actor: InternalUnit, preferredRoles: RoleId[], nonEngagedOnly: boolean): InternalUnit | null {
   const enemies = getAliveUnits(state).filter(
     (unit) =>
@@ -1675,10 +1812,17 @@ function findClosestEnemy(state: InternalState, actor: InternalUnit, preferredRo
   if (enemies.length === 0) {
     return null;
   }
-  return enemies.sort((a, b) => hexDistance(actor.position, a.position) - hexDistance(actor.position, b.position))[0] ?? null;
+  return enemies.sort((a, b) => compareUnitsByDistance(actor, a, b))[0] ?? null;
 }
 
-function moveToward(state: InternalState, actor: InternalUnit, target: InternalUnit): boolean {
+function moveToward(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  roleIntent?: RoleIntentId,
+  reasonCode?: string,
+  targetRole?: RoleId,
+): boolean {
   const options = validMovementHexes(state, actor);
   if (options.length === 0) {
     return false;
@@ -1697,13 +1841,25 @@ function moveToward(state: InternalState, actor: InternalUnit, target: InternalU
   const minDistance = Math.min(...pool.map((entry) => entry.distance));
   const byDistance = pool.filter((entry) => entry.distance === minDistance);
   const minEnemies = Math.min(...byDistance.map((entry) => entry.nonEngagedEnemies));
-  const selected = state.rng.pick(byDistance.filter((entry) => entry.nonEngagedEnemies === minEnemies));
+  const selected = byDistance.filter((entry) => entry.nonEngagedEnemies === minEnemies).sort((left, right) => compareHex(left.coord, right.coord))[0]!;
   if (equalsHex(selected.coord, actor.position)) {
     return false;
   }
   removeAllEngagements(state, actor);
   actor.position = { ...selected.coord };
-  buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} moves.`, { toQ: actor.position.q, toR: actor.position.r });
+  if (roleIntent && reasonCode && targetRole) {
+    emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} ${formatRoleIntentMessage(roleIntent)}.`, {
+      roleIntent,
+      reasonCode,
+      targetRole,
+      targetHexQ: target.position.q,
+      targetHexR: target.position.r,
+      toQ: actor.position.q,
+      toR: actor.position.r,
+    });
+  } else {
+    buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} moves.`, { toQ: actor.position.q, toR: actor.position.r });
+  }
   return true;
 }
 
@@ -1711,23 +1867,59 @@ function enemiesInRange(state: InternalState, actor: InternalUnit): InternalUnit
   return getAliveUnits(state).filter((enemy) => enemy.side !== actor.side && hexDistance(actor.position, enemy.position) <= actor.resolvedStats.range);
 }
 
-function pursue(state: InternalState, actor: InternalUnit, preferredRoles: RoleId[]): boolean {
+function nearestEnemyDistance(state: InternalState, actor: InternalUnit): number | null {
+  const enemies = getEnemyUnits(state, actor);
+  if (enemies.length === 0) {
+    return null;
+  }
+  return Math.min(...enemies.map((enemy) => hexDistance(actor.position, enemy.position)));
+}
+
+function engageObjective(state: InternalState, actor: InternalUnit, objective: RoleObjective): boolean {
+  const preferredRoles = objective.targetRole === 'backline' ? ['backline'] : ['frontline', 'chaff'];
   if (enemyUnitsOnHex(state, actor).some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
-    return drawAttention(state, actor, preferredRoles);
+    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles);
+    if (engagedTargets.length > 0) {
+      emitRoleIntentStep(state, 'engage', actor, engagedTargets, `${actor.troopLabel} ${formatRoleIntentMessage(objective.roleIntent)}.`, {
+        roleIntent: objective.roleIntent,
+        reasonCode: objective.reasonCode,
+        targetRole: objective.targetRole,
+        targetHexQ: objective.target.position.q,
+        targetHexR: objective.target.position.r,
+      });
+    }
+    return fight(state, actor) || engagedTargets.length > 0;
   }
-  const target = findClosestEnemy(state, actor, preferredRoles, false) ?? findClosestEnemy(state, actor, [], false);
-  if (!target) {
-    return false;
-  }
-  const moved = moveToward(state, actor, target);
+
+  const moved = moveToward(state, actor, objective.target, objective.roleIntent, objective.reasonCode, objective.targetRole);
   const enemiesOnCell = enemyUnitsOnHex(state, actor);
   if (enemiesOnCell.length === 0) {
     return moved;
   }
   if (enemiesOnCell.some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
-    return drawAttention(state, actor, preferredRoles) || moved;
+    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles);
+    if (engagedTargets.length > 0) {
+      emitRoleIntentStep(state, 'engage', actor, engagedTargets, `${actor.troopLabel} ${formatRoleIntentMessage(objective.roleIntent)}.`, {
+        roleIntent: objective.roleIntent,
+        reasonCode: objective.reasonCode,
+        targetRole: objective.targetRole,
+        targetHexQ: objective.target.position.q,
+        targetHexR: objective.target.position.r,
+      });
+    }
+    return fight(state, actor) || engagedTargets.length > 0 || moved;
   }
   return drawAttention(state, actor) || moved;
+}
+
+function scoreRetreatHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
+  const enemies = getEnemyUnits(state, actor);
+  if (enemies.length === 0) {
+    return 0;
+  }
+  const nearestEnemy = Math.min(...enemies.map((enemy) => hexDistance(coord, enemy.position)));
+  const totalEnemyDistance = enemies.reduce((sum, enemy) => sum + hexDistance(coord, enemy.position), 0);
+  return nearestEnemy * 100 + totalEnemyDistance;
 }
 
 function retreat(state: InternalState, actor: InternalUnit): boolean {
@@ -1735,9 +1927,30 @@ function retreat(state: InternalState, actor: InternalUnit): boolean {
     (coord) => getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord)).length === 0,
   );
   if (options.length > 0) {
+    const selected = [...options]
+      .sort((left, right) => {
+        const scoreDelta = scoreRetreatHex(state, actor, right) - scoreRetreatHex(state, actor, left);
+        if (scoreDelta !== 0) {
+          return scoreDelta;
+        }
+        return compareHex(left, right);
+      })[0]!;
+    const target = pickNearestUnit(actor, getEnemyUnits(state, actor));
     removeAllEngagements(state, actor);
-    actor.position = { ...state.rng.pick(options) };
-    buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} retreats.`, { toQ: actor.position.q, toR: actor.position.r });
+    actor.position = { ...selected };
+    if (target) {
+      emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} retreats to preserve range.`, {
+        roleIntent: 'retreat-range',
+        reasonCode: 'increase-threat-distance',
+        targetRole: target.role,
+        targetHexQ: target.position.q,
+        targetHexR: target.position.r,
+        toQ: actor.position.q,
+        toR: actor.position.r,
+      });
+    } else {
+      buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} retreats.`, { toQ: actor.position.q, toR: actor.position.r });
+    }
     return true;
   }
   const sameHexEnemies = enemyUnitsOnHex(state, actor);
@@ -1765,13 +1978,27 @@ function carefulAdvance(state: InternalState, actor: InternalUnit): boolean {
     return false;
   }
   removeAllEngagements(state, actor);
-  actor.position = { ...state.rng.pick(options) };
-  buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} advances carefully.`, { toQ: actor.position.q, toR: actor.position.r });
+  actor.position = { ...[...options].sort(compareHex)[0]! };
+  emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} advances to keep range.`, {
+    roleIntent: 'advance-range',
+    reasonCode: 'maintain-firing-lane',
+    targetRole: target.role,
+    targetHexQ: target.position.q,
+    targetHexR: target.position.r,
+    toQ: actor.position.q,
+    toR: actor.position.r,
+  });
   return true;
 }
 
 function executeTurnActions(state: InternalState, actor: InternalUnit): void {
   clearStaleEngagements(state);
+  if (actor.committedBacklineTargetId) {
+    const committedTarget = state.units.get(actor.committedBacklineTargetId);
+    if (!committedTarget?.alive || committedTarget.side === actor.side || committedTarget.role !== 'backline') {
+      actor.committedBacklineTargetId = null;
+    }
+  }
   const engagedEnemies = [...actor.engagedWith]
     .map((enemyId) => state.units.get(enemyId))
     .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive));
@@ -1781,24 +2008,29 @@ function executeTurnActions(state: InternalState, actor: InternalUnit): void {
   }
 
   if (actor.role === 'frontline') {
-    if (nonEngagedEnemiesOnHex(state, actor).length > 0) {
-      drawAttention(state, actor);
-      return;
+    const objective = pickFrontlineObjective(state, actor);
+    if (objective) {
+      engageObjective(state, actor, objective);
     }
-    pursue(state, actor, ['frontline', 'chaff']);
     return;
   }
 
   if (actor.role === 'chaff') {
-    if (nonEngagedEnemiesOnHex(state, actor).length === 0) {
-      pursue(state, actor, ['backline']);
+    const sameHexEnemies = enemyUnitsOnHex(state, actor);
+    if (sameHexEnemies.length > 0) {
+      const preferredTargets = sameHexEnemies.filter((enemy) => enemy.role === 'backline');
+      attack(state, actor, chooseAttackTarget(state, actor, preferredTargets.length > 0 ? preferredTargets : sameHexEnemies), 'melee');
       return;
     }
-    pileOn(state, actor);
+    const objective = pickChaffObjective(state, actor);
+    if (objective) {
+      engageObjective(state, actor, objective);
+    }
     return;
   }
 
-  if (enemyUnitsOnHex(state, actor).length > 0) {
+  const nearestThreatDistance = nearestEnemyDistance(state, actor);
+  if ((nearestThreatDistance ?? Number.MAX_SAFE_INTEGER) <= 1) {
     retreat(state, actor);
     return;
   }
