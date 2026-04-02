@@ -11,12 +11,12 @@
 
 ### Role Behavior
 
-- [ ] **ROLE-01**: Frontline units prioritize occupying enemy attention and blocking access paths so enemy units are less able to reach allied backline units
-- [ ] **ROLE-02**: Frontline units fall back to engaging reachable enemy backline targets when no enemy frontline space is available, instead of wasting turns
-- [ ] **ROLE-03**: Chaff units attempt to overrun enemy frontline positioning and spill into any reachable targets, prioritizing enemy backline units when possible
-- [ ] **ROLE-04**: Chaff units remain committed to enemy backline positions once they reach them unless combat state forces a different legal move
-- [ ] **ROLE-05**: Backline units prefer to stay at range and continue preserving distance from enemy threats whenever battlefield geometry allows
-- [ ] **ROLE-06**: Replays make the resulting frontline, chaff, and backline behavior readable enough that the role intent feels intuitive to the player
+- [x] **ROLE-01**: Frontline units prioritize occupying enemy attention and blocking access paths so enemy units are less able to reach allied backline units
+- [x] **ROLE-02**: Frontline units fall back to engaging reachable enemy backline targets when no enemy frontline space is available, instead of wasting turns
+- [x] **ROLE-03**: Chaff units attempt to overrun enemy frontline positioning and spill into any reachable targets, prioritizing enemy backline units when possible
+- [x] **ROLE-04**: Chaff units remain committed to enemy backline positions once they reach them unless combat state forces a different legal move
+- [x] **ROLE-05**: Backline units prefer to stay at range and continue preserving distance from enemy threats whenever battlefield geometry allows
+- [x] **ROLE-06**: Replays make the resulting frontline, chaff, and backline behavior readable enough that the role intent feels intuitive to the player
 
 ### Campaign Balance
 
@@ -46,12 +46,12 @@
 | UI-02 | Phase 1 | Pending |
 | UI-03 | Phase 1 | Pending |
 | UI-04 | Phase 1 | Pending |
-| ROLE-01 | Phase 2 | Pending |
-| ROLE-02 | Phase 2 | Pending |
-| ROLE-03 | Phase 2 | Pending |
-| ROLE-04 | Phase 2 | Pending |
-| ROLE-05 | Phase 2 | Pending |
-| ROLE-06 | Phase 2 | Pending |
+| ROLE-01 | Phase 2 | Complete |
+| ROLE-02 | Phase 2 | Complete |
+| ROLE-03 | Phase 2 | Complete |
+| ROLE-04 | Phase 2 | Complete |
+| ROLE-05 | Phase 2 | Complete |
+| ROLE-06 | Phase 2 | Complete |
 | BAL-01 | Phase 3 | Pending |
 | BAL-02 | Phase 3 | Pending |
 | BAL-03 | Phase 3 | Pending |

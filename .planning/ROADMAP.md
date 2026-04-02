@@ -41,7 +41,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Backline units preserve distance when battlefield geometry allows, and the resulting replay makes each role's intent understandable to the player.
 **Plans**: 3 plans
 Plans:
-- [ ] 02-01-PLAN.md - Lock the engine role contract with scenario tests, typed replay intent metadata, and heuristic refactors
+- [x] 02-01-PLAN.md - Lock the engine role contract with scenario tests, typed replay intent metadata, and heuristic refactors
 - [ ] 02-02-PLAN.md - Add simulation-harness role benchmarks and deterministic seed-sweep regression coverage
 - [ ] 02-03-PLAN.md - Surface role intent in replay copy, event log badges, and recap summaries
 
