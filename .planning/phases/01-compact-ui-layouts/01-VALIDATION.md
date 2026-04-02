@@ -38,16 +38,20 @@ created: 2026-04-02
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 01-01-01 | 01 | 1 | UI-04 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-01-02 | 01 | 1 | UI-04 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-02-01 | 02 | 2 | UI-01 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-02-02 | 02 | 2 | UI-02 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-02-03 | 02 | 2 | UI-03 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-03-01 | 03 | 3 | UI-01 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-03-02 | 03 | 3 | UI-02 | build | `npm run build` | ✅ | ⬜ pending |
-| 01-03-03 | 03 | 3 | UI-03 | build | `npm run build` | ✅ | ⬜ pending |
+| 01-01-01 | 01 | 1 | UI-04 | build | `npm run build` | yes | pending |
+| 01-01-02 | 01 | 1 | UI-04 | build | `npm run build` | yes | pending |
+| 01-02-01 | 02 | 2 | UI-01 | build | `npm run build` | yes | pending |
+| 01-02-02 | 02 | 2 | UI-02 | build | `npm run build` | yes | pending |
+| 01-02-03 | 02 | 2 | UI-03 | build | `npm run build` | yes | pending |
+| 01-03-01 | 03 | 3 | UI-01 | build | `npm run build` | yes | pending |
+| 01-03-02 | 03 | 3 | UI-02 | build | `npm run build` | yes | pending |
+| 01-03-03 | 03 | 3 | UI-03 | build | `npm run build` | yes | pending |
+| 01-04-01 | 04 | 3 | UI-01, UI-02, UI-03 | build | `npm run build` | yes | pending |
+| 01-04-02 | 04 | 3 | UI-01, UI-02, UI-03, UI-04 | build | `npm run build` | yes | pending |
+| 01-05-01 | 05 | 4 | UI-01, UI-02, UI-03 | build | `npm run build` | yes | pending |
+| 01-05-02 | 05 | 4 | UI-01, UI-02, UI-03 | build | `npm run build` | yes | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending, green, red, flaky*
 
 ---
 
