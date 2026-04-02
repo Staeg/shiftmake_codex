@@ -18,6 +18,20 @@
     return 'move';
   }
 
+  function roleIntentLabel(step: BattleStep): string | null {
+    const roleIntent = step.metadata?.roleIntent;
+    if (roleIntent === 'screen-frontline' || roleIntent === 'fallback-backline') {
+      return 'Hold line';
+    }
+    if (roleIntent === 'breach-backline' || roleIntent === 'hold-backline') {
+      return 'Break through';
+    }
+    if (roleIntent === 'retreat-range' || roleIntent === 'advance-range') {
+      return 'Keep range';
+    }
+    return null;
+  }
+
   $: scrollTarget = selected ?? (currentStep >= 0 ? currentStep : null);
 
   $: if (logEl && scrollTarget !== null) {
@@ -45,6 +59,9 @@
         >
           <span>#{index + 1}</span>
           <small>{step.kind.toUpperCase()}</small>
+          {#if step.metadata?.roleIntent}
+            <span class="intent-badge">{roleIntentLabel(step)}</span>
+          {/if}
           <strong>{step.message}</strong>
         </button>
       {/each}
@@ -99,6 +116,19 @@
   .log button strong {
     font-size: 0.88rem;
     font-weight: 500;
+  }
+
+  .intent-badge {
+    justify-self: start;
+    border-radius: 999px;
+    border: 1px solid rgba(232, 209, 122, 0.35);
+    background: rgba(232, 209, 122, 0.12);
+    color: #f0dc98;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.12rem 0.45rem;
+    text-transform: uppercase;
   }
 
   .log button.attack {
