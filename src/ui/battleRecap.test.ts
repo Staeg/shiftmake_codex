@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { BattleReplay, BattleUnit } from '../engine/types';
+import type { BattleReplay, BattleUnit, RoleId } from '../engine/types';
 import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep } from './battleRecap';
 
-function makeUnit(id: string, side: 'player' | 'enemy', troopLabel: string, alive = true): BattleUnit {
+function makeUnit(id: string, side: 'player' | 'enemy', troopLabel: string, alive = true, role: RoleId = 'frontline'): BattleUnit {
   return {
     id,
     troopInstanceId: null,
@@ -11,7 +11,7 @@ function makeUnit(id: string, side: 'player' | 'enemy', troopLabel: string, aliv
     unitTypeId: 'soldier',
     factionId: 'human',
     side,
-    role: 'frontline',
+    role,
     type: 'soldier',
     attributes: [],
     position: { q: 0, r: 0 },
@@ -25,8 +25,8 @@ function makeUnit(id: string, side: 'player' | 'enemy', troopLabel: string, aliv
 }
 
 function makeReplay(): BattleReplay {
-  const playerA = makeUnit('p-1', 'player', 'Elven Archers');
-  const playerB = makeUnit('p-2', 'player', 'Elven Archers');
+  const playerA = makeUnit('p-1', 'player', 'Elven Archers', true, 'backline');
+  const playerB = makeUnit('p-2', 'player', 'Elven Archers', true, 'backline');
   const enemy = makeUnit('e-1', 'enemy', 'Troll Berserkers');
 
   return {
@@ -98,6 +98,77 @@ describe('battleRecap', () => {
     expect(enemyTroop).toMatchObject({
       kills: 1,
     });
+  });
+
+  it('maps replay role intent metadata into troop roleSummary labels', () => {
+    const playerFrontline = makeUnit('p-frontline', 'player', 'Shield Wall');
+    const playerChaff = makeUnit('p-chaff', 'player', 'Militia Swarm', true, 'chaff');
+    const playerBackline = makeUnit('p-backline', 'player', 'Rangers', true, 'backline');
+    const enemy = makeUnit('e-1', 'enemy', 'Raiders');
+    const replay: BattleReplay = {
+      id: 'role-summary',
+      seed: 2,
+      riftId: 'rift',
+      tier: 1,
+      mutatorIds: [],
+      mapRadius: 2,
+      saturation: 2,
+      initial: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+      steps: [
+        {
+          index: 0,
+          kind: 'move',
+          actorIds: ['p-frontline'],
+          targetIds: ['e-1'],
+          message: 'frontline screens',
+          metadata: { roleIntent: 'screen-frontline' },
+          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+        },
+        {
+          index: 1,
+          kind: 'engage',
+          actorIds: ['p-chaff'],
+          targetIds: ['e-1'],
+          message: 'chaff breaches',
+          metadata: { roleIntent: 'breach-backline' },
+          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+        },
+        {
+          index: 2,
+          kind: 'move',
+          actorIds: ['p-backline'],
+          targetIds: [],
+          message: 'backline retreats',
+          metadata: { roleIntent: 'retreat-range' },
+          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+        },
+        {
+          index: 3,
+          kind: 'move',
+          actorIds: ['p-chaff'],
+          targetIds: ['e-1'],
+          message: 'chaff holds',
+          metadata: { roleIntent: 'hold-backline' },
+          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+        },
+      ],
+      outcome: 'victory',
+      troopLabels: {},
+      troopProfiles: [],
+      aliveCounts: [],
+      summary: {
+        playerTroops: ['Shield Wall', 'Militia Swarm', 'Rangers'],
+        enemyTroops: ['Raiders'],
+        finalPlayerAlive: 3,
+        finalEnemyAlive: 1,
+      },
+    };
+
+    const recap = buildBattleRecap(replay);
+
+    expect(recap.find((entry) => entry.troopLabel === 'Shield Wall')?.roleSummary).toEqual(['Held line']);
+    expect(recap.find((entry) => entry.troopLabel === 'Militia Swarm')?.roleSummary).toEqual(['Broke through']);
+    expect(recap.find((entry) => entry.troopLabel === 'Rangers')?.roleSummary).toEqual(['Kept range']);
   });
 
   it('finds the last replay step where a unit was alive', () => {
