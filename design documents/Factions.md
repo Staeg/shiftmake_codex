@@ -2,32 +2,24 @@
 
 This document lists the currently implemented factions and faction-wide upgrades.
 
+Any non-summoned unit type can now be paired with any faction. Faction identity is defined by stat adjustments, added attributes, abilities, and faction upgrades rather than by a restricted troop roster.
+
 ## Humans
 
-- Description: "Slightly better at pretty much everything besides magic. Boring but solid."
+- Description: "Slightly better at pretty much everything. Boring but solid."
 - Added attributes: `human`
 - Health: +10%
 - Damage: +10%
 - Speed: +10%
 - Armor: +1
 - Capacity: +1
-- Cost: -10%
-- Starting troop unlock: Soldier
-- Default troop unlocks: Archer, Knight, Priest
-- Blueprint troop unlocks: Avenger, Militia
+- Cost modifier: none
 - Faction abilities: none
 
-Default faction upgrade:
+Faction upgrades:
 
-- `Humans United`
-- Cost: 20 gold
-- Effect: all human troops gain `United`
-
-Rift reward upgrade:
-
-- `Human Combined Arms`
-- Cost: 80 gold
-- Effect: all human troops gain `Power of Friendship`
+- Tier 1: `Humans United` - all human troops gain `United`
+- Tier 2: `Human Combined Arms` - all human troops gain `Combined Arms 20`
 
 ## Elves
 
@@ -37,23 +29,13 @@ Rift reward upgrade:
 - Damage: +20%
 - Speed: +20%
 - Range: +1 for non-melee units only
-- Cost: +10%
-- Starting troop unlock: Archer
-- Default troop unlocks: Druid, Soldier, Wizard
-- Blueprint troop unlocks: Elementalist, Ranger
+- Cost modifier: none
 - Faction abilities: none
 
-Default faction upgrade:
+Faction upgrades:
 
-- `Elven Eyes`
-- Cost: 60 gold
-- Effect: all non-melee elven troops gain +1 range
-
-Rift reward upgrade:
-
-- `Elven Forsaken`
-- Cost: 60 gold
-- Effect: all elven troops gain `Forsaken 80`
+- Tier 1: `Elven Eyes` - all non-melee elven troops gain +1 range
+- Tier 3: `Elven Forsaken` - all elven troops gain `Forsaken 80`
 
 ## Goblins
 
@@ -65,23 +47,13 @@ Rift reward upgrade:
 - Armor: -2
 - Size: -1, clamped to a minimum of 1
 - Capacity: -2, clamped to a minimum of 0
-- Cost: -60%
-- Starting troop unlock: Militia
-- Default troop unlocks: Shaman, Soldier, Wizard
-- Blueprint troop unlocks: Beastmaster, Druid
+- Cost modifier: -50%
 - Faction abilities: none
 
-Default faction upgrade:
+Faction upgrades:
 
-- `Goblin Farewell`
-- Cost: 20 gold
-- Effect: all goblin troops gain `Goblin Farewell`
-
-Rift reward upgrade:
-
-- `Goblin Pack`
-- Cost: 60 gold
-- Effect: all goblin troops gain `Pack 1`
+- Tier 1: `Goblin Farewell` - all goblin troops gain `Goblin Farewell`
+- Tier 2: `Goblin Pack` - all goblin troops gain `Pack 1`
 
 ## Trolls
 
@@ -92,20 +64,10 @@ Rift reward upgrade:
 - Speed: -20%
 - Size: +1
 - Capacity: +1
-- Cost: +30%
-- Starting troop unlock: Soldier
-- Default troop unlocks: Avenger, Champion, Shaman
-- Blueprint troop unlocks: Necromancer, Knight
+- Cost modifier: none
 - Faction abilities: `Regen 5`
 
-Default faction upgrade:
+Faction upgrades:
 
-- `Troll Momentum`
-- Cost: 100 gold
-- Effect: all troll troops gain `Ramp 1`
-
-Rift reward upgrade:
-
-- `Troll Frenzy`
-- Cost: 20 gold
-- Effect: all troll troops gain `Frenzy: Ramp 1`
+- Tier 1: `Troll Momentum` - all troll troops gain `Ramp 1`
+- Tier 3: `Troll Frenzy` - all troll troops gain `Frenzy: Ramp 1`

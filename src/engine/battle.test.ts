@@ -21,8 +21,8 @@ describe('troop composition', () => {
       size: 1,
       capacity: 3,
     });
-    expect(troop.quantity).toBe(1);
-    expect(troop.cost).toBe(21.6);
+    expect(troop.quantity).toBe(5);
+    expect(troop.cost).toBe(24);
   });
 
   it('clamps composed stats and merges unit and faction abilities', () => {
@@ -38,8 +38,8 @@ describe('troop composition', () => {
       capacity: 2,
     });
     expect(troop.abilities.map((ability) => ability.label)).toEqual(['Valor 20', 'Regen 5']);
-    expect(troop.quantity).toBe(1);
-    expect(troop.cost).toBe(78);
+    expect(troop.quantity).toBe(2);
+    expect(troop.cost).toBe(60);
   });
 
   it('composes knight stats and abilities', () => {
@@ -58,8 +58,8 @@ describe('troop composition', () => {
       capacity: 6,
     });
     expect(troop.abilities.map((ability) => ability.label)).toEqual(['Taunt']);
-    expect(troop.quantity).toBe(1);
-    expect(troop.cost).toBe(54);
+    expect(troop.quantity).toBe(2);
+    expect(troop.cost).toBe(60);
   });
 
   it('adds new faction roster units with their abilities', () => {
@@ -115,10 +115,10 @@ describe('troop composition', () => {
 
 describe('selection cost helpers', () => {
   it('matches the human soldier checksum across starting and upgraded quantities', () => {
-    expect(getTroopSelectionCost('human/soldier', 1)).toBe(21.6);
-    expect(getTroopSelectionCost('human/soldier', 5)).toBe(237.6);
-    expect(getTroopSelectionCost('human/soldier', 6)).toBe(345.6);
-    expect(getTroopSelectionCost('human/soldier', 7)).toBe(475.2);
+    expect(getTroopSelectionCost('human/soldier', 1)).toBe(4.8);
+    expect(getTroopSelectionCost('human/soldier', 5)).toBe(24);
+    expect(getTroopSelectionCost('human/soldier', 6)).toBe(28.8);
+    expect(getTroopSelectionCost('human/soldier', 7)).toBe(33.6);
   });
 
   it('sums side cost totals across multiple troop selections', () => {
@@ -127,7 +127,7 @@ describe('selection cost helpers', () => {
         'human/soldier': 1,
         'elf/archer': 1,
       }),
-    ).toBe(43.6);
+    ).toBe(8.13);
   });
 });
 
@@ -488,17 +488,17 @@ describe('ability mechanics', () => {
       ],
     };
 
-    const humanArcher = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'archer', 1), 'player');
-    const elfArcher = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'archer', 1), 'player');
-    const trollAvenger = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'avenger', 1), 'player');
-    const goblinBeastmaster = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'beastmaster', 1), 'player');
-    const elfDruid = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'druid', 1), 'player');
-    const elfElementalist = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'elementalist', 1), 'player');
-    const trollNecromancer = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'necromancer', 1), 'player');
-    const humanPriest = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'priest', 1), 'player');
-    const elfRanger = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'ranger', 1), 'player');
-    const trollShaman = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'shaman', 1), 'player');
-    const goblinWizard = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'wizard', 1), 'player');
+    const humanArcher = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'archer'), 'player');
+    const elfArcher = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'archer'), 'player');
+    const trollAvenger = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'avenger'), 'player');
+    const goblinBeastmaster = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'beastmaster'), 'player');
+    const elfDruid = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'druid'), 'player');
+    const elfElementalist = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'elementalist'), 'player');
+    const trollNecromancer = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'necromancer'), 'player');
+    const humanPriest = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'priest'), 'player');
+    const elfRanger = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'ranger'), 'player');
+    const trollShaman = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'shaman'), 'player');
+    const goblinWizard = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'wizard'), 'player');
 
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
@@ -519,7 +519,7 @@ describe('ability mechanics', () => {
   it('executioner prioritizes the lowest-current-hp legal attack target', () => {
     const champion = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['champion-executioner'] },
-      createTroopInstance('human', 'champion', 1),
+      createTroopInstance('human', 'champion'),
       'player',
     );
     const replay = resolveBattle(
@@ -540,7 +540,7 @@ describe('ability mechanics', () => {
   it('shredding arrows applies a battle-long armor reduction that can go below zero', () => {
     const archer = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-shredding-arrows'] },
-      createTroopInstance('human', 'archer', 1),
+      createTroopInstance('human', 'archer'),
       'player',
     );
     const tank = makeBattleCombatant('goblin/soldier', 'enemy');
@@ -556,7 +556,7 @@ describe('ability mechanics', () => {
   it('concussive shots resets the attacked target initiative', () => {
     const ranger = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['ranger-concussive-shots'] },
-      createTroopInstance('elf', 'ranger', 1),
+      createTroopInstance('elf', 'ranger'),
       'player',
     );
     const replay = resolveBattle(makeBattleInput([ranger], [makeBattleCombatant('human/soldier', 'enemy')], 23));
@@ -570,7 +570,7 @@ describe('ability mechanics', () => {
   it('zeal reacts to applied heal effects even when the heal restores 0 HP', () => {
     const priest = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-zeal'] },
-      createTroopInstance('human', 'priest', 1),
+      createTroopInstance('human', 'priest'),
       'player',
     );
     const replay = resolveBattle(
@@ -585,7 +585,7 @@ describe('ability mechanics', () => {
   it('serve once more reacts to both regen and other beneficial effects', () => {
     const shaman = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['shaman-serve-once-more'] },
-      createTroopInstance('troll', 'shaman', 1),
+      createTroopInstance('troll', 'shaman'),
       'player',
     );
     const replay = resolveBattle(
@@ -601,7 +601,7 @@ describe('ability mechanics', () => {
   it('militia with scurry can share a hex past saturation without changing their actual size', () => {
     const militia = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-scurry'] },
-      createTroopInstance('goblin', 'militia', 1),
+      createTroopInstance('human', 'militia'),
       'player',
     );
     const soldier = makeBattleCombatant('human/soldier', 'player');
@@ -622,14 +622,15 @@ describe('ability mechanics', () => {
       return acc;
     }, {});
 
-    expect(playerUnits).toHaveLength(2);
+    expect(playerUnits.length).toBeGreaterThan(2);
+    expect(playerUnits.filter((unit) => unit.troopLabel === 'Human Militia').every((unit) => unit.stats.size === 1)).toBe(true);
     expect(Object.values(sizeByHex).some((size) => size > replay.saturation)).toBe(true);
   });
 
   it('alternate fuel can substitute health for missing corpses, but never fatally', () => {
     const upgradedNecromancer = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['necromancer-alternate-fuel'] },
-      createTroopInstance('troll', 'necromancer', 1),
+      createTroopInstance('troll', 'necromancer'),
       'player',
     );
     const replay = resolveBattle(makeBattleInput([upgradedNecromancer], [makeBattleCombatant('troll/skeleton', 'enemy')], 43));
@@ -651,12 +652,12 @@ describe('ability mechanics', () => {
   it('retaliate only answers normal attacks once instead of looping indefinitely', () => {
     const knightA = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-retaliate'] },
-      createTroopInstance('human', 'knight', 1),
+      createTroopInstance('human', 'knight'),
       'player',
     );
     const knightB = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-retaliate'] },
-      createTroopInstance('human', 'knight', 1),
+      createTroopInstance('human', 'knight'),
       'enemy',
     );
     const replay = resolveBattle(makeBattleInput([knightA], [knightB], 47));
@@ -670,7 +671,7 @@ describe('ability mechanics', () => {
   it('mitosis grants recursively summoned elementals the split ability', () => {
     const elementalist = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['elementalist-mitosis'] },
-      createTroopInstance('elf', 'elementalist', 1),
+      createTroopInstance('elf', 'elementalist'),
       'player',
     );
     const replay = resolveBattle(

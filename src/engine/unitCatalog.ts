@@ -1,4 +1,4 @@
-import { fixed, fixedClamp, fixedMax, fixedMul } from './fixed';
+import { fixed, fixedClamp, fixedMax, fixedMul, fixedSum } from './fixed';
 import type {
   AbilityDefinition,
   AbilityDurationDefinition,
@@ -19,9 +19,9 @@ import type {
   UnitTypeDefinition,
   UnitTypeId,
 } from './types';
-import { fixedAdd, fixedSum } from './fixed';
 
 const STAT_KEYS: Array<keyof UnitStats> = ['health', 'damage', 'speed', 'range', 'armor', 'size', 'capacity'];
+const TROOP_UNIT_BUDGET = 120;
 
 function makeAbility(definition: AbilityDefinition): AbilityDefinition {
   return definition;
@@ -636,15 +636,12 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Human',
     description: 'Slightly better at pretty much everything. Boring but solid.',
     addedAttributes: ['human'],
-    defaultUnitTypeIds: ['soldier', 'archer', 'knight', 'priest'],
-    blueprintUnitTypeIds: ['avenger', 'militia'],
     statAdjustments: {
       health: { multiplier: 1.1 },
       damage: { multiplier: 1.1 },
       speed: { multiplier: 1.1 },
       armor: { flat: 1 },
       capacity: { flat: 1 },
-      cost: { multiplier: 0.9 },
     },
     abilityIds: [],
   },
@@ -654,14 +651,11 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Elven',
     description: 'Feared from afar. Less so up close.',
     addedAttributes: ['elf'],
-    defaultUnitTypeIds: ['archer', 'druid', 'soldier', 'wizard'],
-    blueprintUnitTypeIds: ['elementalist', 'ranger'],
     statAdjustments: {
       health: { multiplier: 0.9 },
       damage: { multiplier: 1.2 },
       speed: { multiplier: 1.2 },
       range: { flat: 1 },
-      cost: { multiplier: 1.1 },
     },
     abilityIds: [],
   },
@@ -671,8 +665,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Goblin',
     description: "The one good thing you can say about goblins is that there's more than one of them.",
     addedAttributes: ['goblin', 'expendable'],
-    defaultUnitTypeIds: ['militia', 'shaman', 'soldier', 'wizard'],
-    blueprintUnitTypeIds: ['beastmaster', 'druid'],
     statAdjustments: {
       health: { multiplier: 0.7 },
       damage: { multiplier: 0.8 },
@@ -680,7 +672,7 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
       armor: { flat: -2 },
       size: { flat: -1 },
       capacity: { flat: -2 },
-      cost: { multiplier: 0.4 },
+      cost: { multiplier: 0.5 },
     },
     abilityIds: [],
   },
@@ -690,15 +682,12 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Troll',
     description: 'Never down for the count, never down for counting.',
     addedAttributes: ['troll'],
-    defaultUnitTypeIds: ['avenger', 'champion', 'shaman', 'soldier'],
-    blueprintUnitTypeIds: ['necromancer', 'knight'],
     statAdjustments: {
       health: { multiplier: 1.3 },
       damage: { multiplier: 1.2 },
       speed: { multiplier: 0.8 },
       size: { flat: 1 },
       capacity: { flat: 1 },
-      cost: { multiplier: 1.3 },
     },
     abilityIds: ['regen-5'],
   },
@@ -710,8 +699,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'human',
     label: 'Humans United',
     tier: 1,
-    cost: 20,
-    source: 'default',
     description: 'All human troops become United.',
     effects: [{ kind: 'addAbility', abilityId: 'united' }],
   },
@@ -720,8 +707,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'human',
     label: 'Human Combined Arms',
     tier: 2,
-    cost: 80,
-    source: 'rift',
     description: 'All human troops gain Combined Arms 20.',
     effects: [{ kind: 'addAbility', abilityId: 'combined-arms-20' }],
   },
@@ -730,8 +715,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'elf',
     label: 'Elven Eyes',
     tier: 1,
-    cost: 60,
-    source: 'default',
     description: 'All non-melee elven troops gain +1 range.',
     effects: [{ kind: 'modifyStats', unitFilter: 'nonMelee', statModifiers: { range: { flat: 1 } } }],
   },
@@ -740,8 +723,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'elf',
     label: 'Elven Forsaken',
     tier: 3,
-    cost: 60,
-    source: 'rift',
     description: 'All elven troops gain Forsaken 80.',
     effects: [{ kind: 'addAbility', abilityId: 'forsaken-80' }],
   },
@@ -750,8 +731,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Goblin Farewell',
     tier: 1,
-    cost: 20,
-    source: 'default',
     description: 'All goblin units gain Goblin Farewell.',
     effects: [{ kind: 'addAbility', abilityId: 'goblin-farewell' }],
   },
@@ -760,8 +739,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Goblin Pack',
     tier: 2,
-    cost: 60,
-    source: 'rift',
     description: 'All goblin units gain Pack 1.',
     effects: [{ kind: 'addAbility', abilityId: 'pack-1' }],
   },
@@ -770,8 +747,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'troll',
     label: 'Troll Momentum',
     tier: 1,
-    cost: 100,
-    source: 'default',
     description: 'All troll units gain Ramp 1.',
     effects: [{ kind: 'addAbility', abilityId: 'ramp-1' }],
   },
@@ -780,8 +755,6 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'troll',
     label: 'Troll Frenzy',
     tier: 3,
-    cost: 20,
-    source: 'rift',
     description: 'All troll units gain Frenzy: Ramp 1.',
     effects: [{ kind: 'addAbility', abilityId: 'frenzy-ramp-1' }],
   },
@@ -793,7 +766,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'archer',
     label: 'Shredding Arrows',
     tier: 2,
-    cost: 40,
     description: 'All Archers remove 1 armor from their target after attacking.',
     effects: [{ kind: 'addAbility', abilityId: 'shredding-arrows' }],
   },
@@ -802,7 +774,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'avenger',
     label: 'Sevenfold',
     tier: 2,
-    cost: 90,
     description: 'All Avengers gain Uses 7 Corpse Summon Skeleton.',
     effects: [{ kind: 'addAbility', abilityId: 'uses-7-corpse-summon-skeleton' }],
   },
@@ -811,7 +782,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'beastmaster',
     label: 'Blood in the Water',
     tier: 2,
-    cost: 20,
     description: 'Beastmaster wolves gain On Kill Summon Wolf 1 recursively.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }],
   },
@@ -820,7 +790,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'champion',
     label: 'Executioner',
     tier: 2,
-    cost: 20,
     description: 'All Champions prioritize the lowest-health legal attack target.',
     effects: [{ kind: 'addAbility', abilityId: 'executioner' }],
   },
@@ -829,7 +798,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'druid',
     label: 'Wild Growth',
     tier: 2,
-    cost: 60,
     description: 'All Druids gain Regen 60.',
     effects: [{ kind: 'addAbility', abilityId: 'regen-60' }],
   },
@@ -838,7 +806,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'elementalist',
     label: 'Mitosis',
     tier: 3,
-    cost: 110,
     description: 'Elementalist elementals gain Charge 4 Uses 1 Summon Elemental recursively.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'charge-4-summon-elemental', addAbilityId: 'charge-4-summon-elemental-mitosis' }],
   },
@@ -847,7 +814,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'knight',
     label: 'Retaliate',
     tier: 2,
-    cost: 90,
     description: 'All Knights counter normal attacks with a normal attack of their own.',
     effects: [{ kind: 'addAbility', abilityId: 'retaliate' }],
   },
@@ -856,7 +822,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'militia',
     label: 'Scurry',
     tier: 3,
-    cost: 30,
     description: 'All Militia ignore allied saturation limits.',
     effects: [{ kind: 'addAbility', abilityId: 'scurry' }],
   },
@@ -865,7 +830,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'necromancer',
     label: 'Alternate Fuel',
     tier: 2,
-    cost: 40,
     description: 'All Necromancers may spend 10 health instead of a corpse for corpse-consuming abilities.',
     effects: [{ kind: 'addAbility', abilityId: 'alternate-fuel-10' }],
   },
@@ -874,7 +838,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'necromancer',
     label: 'Rising Tide',
     tier: 3,
-    cost: 70,
     description: 'Necromancer skeletons gain AoE Ally 0 Heal 7.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'corpse-summon-skeleton', addAbilityId: 'corpse-summon-skeleton-rising' }],
   },
@@ -883,7 +846,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'priest',
     label: 'Zeal',
     tier: 3,
-    cost: 110,
     description: 'All Priests also Enhance 1 whoever they heal.',
     effects: [{ kind: 'addAbility', abilityId: 'zeal-enhance-1' }],
   },
@@ -892,7 +854,6 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'ranger',
     label: 'Concussive Shots',
     tier: 2,
-    cost: 40,
     description: 'All Rangers set attack targets initiative to 0.',
     effects: [{ kind: 'addAbility', abilityId: 'concussive-shots' }],
   },
@@ -901,25 +862,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'shaman',
     label: 'Serve Once More',
     tier: 3,
-    cost: 60,
     description: 'All Shamans make beneficial effects also apply Fading and On Death Summon Skeleton.',
     effects: [{ kind: 'addAbility', abilityId: 'serve-once-more' }],
-  },
-  'soldier-just-a-bunch-of-guys': {
-    id: 'soldier-just-a-bunch-of-guys',
-    unitTypeId: 'soldier',
-    label: 'Just a Bunch of Guys',
-    tier: 3,
-    cost: 20,
-    description: 'All Soldier quantity upgrades stop escalating past the first added unit cost.',
-    effects: [{ kind: 'flattenAddUnitCostAfterFirst' }],
   },
   'wizard-storm': {
     id: 'wizard-storm',
     unitTypeId: 'wizard',
     label: 'Storm',
     tier: 2,
-    cost: 80,
     description: 'All Wizards gain Charge 4 random enemy R Strike 4.',
     effects: [{ kind: 'addAbility', abilityId: 'charge-4-random-enemy-r-strike-4' }],
   },
@@ -930,43 +880,21 @@ export const MUTATORS: Record<string, MutatorDefinition> = {
     id: 'momentum',
     label: 'Momentum',
     description: 'All units gain +10 initiative every beat.',
-    enemyBudgetMultiplier: 1,
-    rewardMultiplier: 1,
     initiativeBonusPerBeat: 10,
   },
   'heavy-air': {
     id: 'heavy-air',
     label: 'Heavy Air',
     description: 'Ranged attack damage is reduced by 50%.',
-    enemyBudgetMultiplier: 1,
-    rewardMultiplier: 1,
     rangedDamageMultiplier: 0.5,
-  },
-  rich: {
-    id: 'rich',
-    label: 'Rich',
-    description: 'Enemy budget increased by 50%. Rewards doubled.',
-    enemyBudgetMultiplier: 1.5,
-    rewardMultiplier: 2,
-  },
-  outpost: {
-    id: 'outpost',
-    label: 'Outpost',
-    description: 'Enemy budget decreased by 20%.',
-    enemyBudgetMultiplier: 0.8,
-    rewardMultiplier: 1,
   },
   quagmire: {
     id: 'quagmire',
     label: 'Quagmire',
-    description: 'Enemy budget decreased by 50%. Recovery time is doubled.',
-    enemyBudgetMultiplier: 0.5,
-    rewardMultiplier: 1,
+    description: 'Troops sent here take twice as long to recover.',
     recoveryMultiplier: 2,
   },
 };
-
-export const STARTING_FACTION_COUNT = 3;
 
 export function getAbility(id: AbilityId): AbilityDefinition {
   const ability = ABILITIES[id];
@@ -1036,6 +964,10 @@ export function clampStat(key: keyof UnitStats, value: number): number {
   return fixed(value);
 }
 
+export function getTroopQuantityForCost(cost: number): number {
+  return fixedMax(fixed(TROOP_UNIT_BUDGET / Math.max(cost, 1)), 1);
+}
+
 export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: UnitTypeId): TroopDefinition {
   const faction = getFaction(factionId);
   const unitType = getUnitType(unitTypeId);
@@ -1051,6 +983,7 @@ export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: Uni
     },
     { health: 0, damage: 0, speed: 0, range: 0, armor: 0, size: 0, capacity: 0 },
   );
+  const cost = fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 1);
   const abilities = [...unitType.abilityIds, ...faction.abilityIds].map(getAbility);
   return {
     id: `${factionId}/${unitTypeId}`,
@@ -1061,8 +994,8 @@ export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: Uni
     type: unitType.type,
     attributes,
     stats,
-    quantity: unitType.quantity,
-    cost: fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 1),
+    quantity: getTroopQuantityForCost(cost),
+    cost,
     abilities,
   };
 }
@@ -1092,6 +1025,12 @@ export const TROOP_CATALOG = Object.values(FACTIONS).reduce<Record<string, Troop
 }, {});
 
 export const TROOP_TYPE_IDS = Object.keys(TROOP_CATALOG);
+export const UNLOCKABLE_UNIT_TYPE_IDS = Object.values(UNIT_TYPES)
+  .filter((unitType) => !unitType.attributes.includes('summoned'))
+  .map((unitType) => unitType.id);
+export const ALL_TROOP_UNLOCK_IDS = Object.keys(FACTIONS).flatMap((factionId) =>
+  UNLOCKABLE_UNIT_TYPE_IDS.map((unitTypeId) => getTroopUnlockId(factionId as FactionId, unitTypeId)),
+);
 
 export function getTroopDefinitionOrThrow(id: string): TroopDefinition {
   const troop = TROOP_CATALOG[id];
@@ -1116,19 +1055,7 @@ export function getTroopStartingQuantity(troopId: string): number {
 export function getTroopSelectionCost(troopId: string, quantity: number): number {
   const troop = getTroopDefinitionOrThrow(troopId);
   const unitCount = Math.max(0, Math.floor(quantity));
-  if (unitCount === 0) {
-    return 0;
-  }
-  const perStartingUnitCost = fixed(troop.cost / troop.quantity);
-  if (unitCount <= troop.quantity) {
-    return fixedMul(perStartingUnitCost, unitCount);
-  }
-
-  const extraUnitCosts: number[] = [];
-  for (let currentQuantity = troop.quantity; currentQuantity < unitCount; currentQuantity += 1) {
-    extraUnitCosts.push(fixedMul(perStartingUnitCost, currentQuantity - troop.quantity + 1));
-  }
-  return fixedAdd(troop.cost, fixedSum(extraUnitCosts));
+  return fixedMul(fixed(troop.cost / troop.quantity), unitCount);
 }
 
 export function getArmySelectionCost(selection: Partial<Record<string, number>>): number {
@@ -1150,20 +1077,6 @@ export function getTroopUnlockId(factionId: FactionId, unitTypeId: UnitTypeId): 
   return `${factionId}/${unitTypeId}`;
 }
 
-export function getUpgradeableStatsForUnitType(unitTypeId: UnitTypeId): TroopStatKey[] {
-  const stats: TroopStatKey[] = ['health', 'damage'];
-  if (unitTypeId === 'champion' || unitTypeId === 'wizard') {
-    stats.push('speed');
-  }
-  if (unitTypeId === 'archer') {
-    stats.push('range');
-  }
-  if (unitTypeId === 'soldier' || unitTypeId === 'knight') {
-    stats.push('armor');
-  }
-  return stats;
-}
-
 export function applyStatModifier(
   stats: UnitStats,
   modifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>,
@@ -1177,12 +1090,4 @@ export function applyStatModifier(
     next[key] = clampStat(key, applyAdjustment(next[key], modifiers[key]));
   });
   return next;
-}
-
-export function applyPercentageUpgrade(value: number, levels: number): number {
-  let current = value;
-  for (let i = 0; i < levels; i += 1) {
-    current = fixedMul(current, 1.1);
-  }
-  return fixed(current);
 }

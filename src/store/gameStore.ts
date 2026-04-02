@@ -1,31 +1,30 @@
 import { writable } from 'svelte/store';
 import {
-  advanceFromRewards,
   applyCycleOutcomes,
   assignTroopToRift,
-  buyFactionUpgrade,
-  buyTroopTypeUpgrade,
-  buyTroopStatUpgrade,
-  buyTroopUnit,
-  chooseStartingFaction,
-  claimRewardChoice,
+  claimOpeningTroop,
+  claimTroopOffer,
+  claimUpgradeOffer,
   clearTroopAssignment,
+  continuePlaying,
   resolveAssignedRifts,
+  revealTroopOffer,
+  revealUpgradeOffer,
   startNewGame,
-  unlockFaction,
-  unlockTroopType,
   validateAssignments,
 } from '../engine/game';
-import type {
-  BattleReplay,
-  FactionId,
-  GameState,
-  ReplayIndexEntry,
-  ReplayPayloadWrite,
-  TroopId,
-  TroopStatKey,
-} from '../engine/types';
-import { createNewSlotCampaign, listSaveSlots, loadSaveSlot, migrateLegacySave, readSlotReplay, removeSlotReplay, type SaveSlotId, type SaveSlotSummary, saveToSlot } from './saveSlots';
+import type { BattleReplay, GameState, ReplayIndexEntry, ReplayPayloadWrite, TroopId, TroopUnlockId, UpgradeId } from '../engine/types';
+import {
+  createNewSlotCampaign,
+  listSaveSlots,
+  loadSaveSlot,
+  migrateLegacySave,
+  readSlotReplay,
+  removeSlotReplay,
+  type SaveSlotId,
+  type SaveSlotSummary,
+  saveToSlot,
+} from './saveSlots';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 
 export type CenterMode = 'rifts' | 'troops';
@@ -44,6 +43,7 @@ interface StoreState {
   speedMs: number;
   validationMessages: string[];
   systemMessage: string | null;
+  cycleEndConfirmationPending: boolean;
 }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -75,6 +75,15 @@ function makeInitialState(): StoreState {
     speedMs: 500,
     validationMessages: [],
     systemMessage: null,
+    cycleEndConfirmationPending: false,
+  };
+}
+
+function clearCycleEndConfirmation<T extends Pick<StoreState, 'cycleEndConfirmationPending' | 'systemMessage'>>(state: T): T {
+  return {
+    ...state,
+    cycleEndConfirmationPending: false,
+    systemMessage: state.cycleEndConfirmationPending ? null : state.systemMessage,
   };
 }
 
@@ -126,6 +135,16 @@ function getOldestReplayCandidate(
     return entry;
   }
   return null;
+}
+
+function buildEndCycleWarning(hasNoAssignments: boolean, hasUnspentEssence: boolean): string {
+  if (hasNoAssignments && hasUnspentEssence) {
+    return 'No troops are assigned and you still have unspent Essence. End the cycle anyway?';
+  }
+  if (hasNoAssignments) {
+    return 'No troops are assigned. End the cycle anyway?';
+  }
+  return 'You still have unspent Essence. End the cycle anyway?';
 }
 
 export function persistReplayPayloadWrites(
@@ -209,8 +228,8 @@ export const gameStore = (() => {
       });
       return true;
     },
-    startNewCampaign(slotId: SaveSlotId, options?: { cheatUpgrades?: boolean; cheatBlueprints?: boolean; cheatResources?: boolean }) {
-      const game = createNewSlotCampaign(localStorage, slotId, Date.now() >>> 0, options);
+    startNewCampaign(slotId: SaveSlotId) {
+      const game = createNewSlotCampaign(localStorage, slotId, Date.now() >>> 0);
       set({
         ...makeInitialState(),
         screen: 'overworld',
@@ -229,19 +248,57 @@ export const gameStore = (() => {
         selectedEvent: null,
         autoPlay: false,
         systemMessage: null,
+        cycleEndConfirmationPending: false,
       }));
     },
-    chooseStartingFaction(factionId: FactionId) {
-      update((state) => saveActiveCampaign({ ...state, game: chooseStartingFaction(state.game, factionId) }));
+    claimOpeningTroop(troopUnlockId: TroopUnlockId) {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: claimOpeningTroop(state.game, troopUnlockId),
+        }),
+      );
     },
     setCenterMode(mode: CenterMode) {
       update((state) => ({ ...state, centerMode: mode }));
+    },
+    revealTroopOffer() {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: revealTroopOffer(state.game),
+        }),
+      );
+    },
+    revealUpgradeOffer() {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: revealUpgradeOffer(state.game),
+        }),
+      );
+    },
+    claimTroopOffer(troopUnlockId: TroopUnlockId) {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: claimTroopOffer(state.game, troopUnlockId),
+        }),
+      );
+    },
+    claimUpgradeOffer(upgradeId: UpgradeId) {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: claimUpgradeOffer(state.game, upgradeId),
+        }),
+      );
     },
     assignTroopToRift(troopId: TroopId, riftId: string) {
       update((state) => {
         const nextGame = assignTroopToRift(state.game, troopId, riftId);
         return saveActiveCampaign({
-          ...state,
+          ...clearCycleEndConfirmation(state),
           game: nextGame,
           validationMessages: blockingValidationMessages(nextGame),
           systemMessage: null,
@@ -252,38 +309,45 @@ export const gameStore = (() => {
       update((state) => {
         const nextGame = clearTroopAssignment(state.game, troopId);
         return saveActiveCampaign({
-          ...state,
+          ...clearCycleEndConfirmation(state),
           game: nextGame,
           validationMessages: blockingValidationMessages(nextGame),
         });
       });
     },
-    buyTroopUnit(troopId: TroopId) {
-      update((state) => saveActiveCampaign({ ...state, game: buyTroopUnit(state.game, troopId) }));
-    },
-    buyTroopStatUpgrade(troopId: TroopId, stat: TroopStatKey) {
-      update((state) => saveActiveCampaign({ ...state, game: buyTroopStatUpgrade(state.game, troopId, stat) }));
-    },
-    buyFactionUpgrade(upgradeId: string) {
-      update((state) => saveActiveCampaign({ ...state, game: buyFactionUpgrade(state.game, upgradeId) }));
-    },
-    buyTroopTypeUpgrade(upgradeId: string) {
-      update((state) => saveActiveCampaign({ ...state, game: buyTroopTypeUpgrade(state.game, upgradeId) }));
-    },
-    unlockFaction(factionId: FactionId) {
-      update((state) => saveActiveCampaign({ ...state, game: unlockFaction(state.game, factionId) }));
-    },
-    unlockTroopType(factionId: FactionId, unitTypeId: string) {
-      update((state) => saveActiveCampaign({ ...state, game: unlockTroopType(state.game, factionId, unitTypeId) }));
+    continuePlaying() {
+      update((state) =>
+        saveActiveCampaign({
+          ...state,
+          game: continuePlaying(state.game),
+          cycleEndConfirmationPending: false,
+          systemMessage: null,
+        }),
+      );
     },
     endCycle(force = false) {
       update((state) => {
         const validation = validateAssignments(state.game);
         const blockingIssues = validation.issues.filter((issue) => issue.kind !== 'no_assignments');
-        const shouldWarnOnly = !force && validation.issues.some((issue) => issue.kind === 'no_assignments');
+        const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_assignments');
+        const hasUnspentEssence = state.game.essence > 0;
 
-        if (blockingIssues.length > 0 || shouldWarnOnly) {
-          return { ...state, validationMessages: blockingIssues.map((issue) => issue.message), systemMessage: null };
+        if (blockingIssues.length > 0) {
+          return {
+            ...state,
+            validationMessages: blockingIssues.map((issue) => issue.message),
+            systemMessage: null,
+            cycleEndConfirmationPending: false,
+          };
+        }
+
+        if (!force && (hasNoAssignments || hasUnspentEssence)) {
+          return {
+            ...state,
+            validationMessages: [],
+            systemMessage: buildEndCycleWarning(hasNoAssignments, hasUnspentEssence),
+            cycleEndConfirmationPending: true,
+          };
         }
 
         if (!state.activeSlotId) {
@@ -322,21 +386,17 @@ export const gameStore = (() => {
             game: nextGame,
             validationMessages: [],
             systemMessage,
+            cycleEndConfirmationPending: false,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown storage error.';
           return {
             ...state,
             systemMessage: `Unable to end cycle: ${message}`,
+            cycleEndConfirmationPending: false,
           };
         }
       });
-    },
-    claimReward(choiceId: string, optionId: string) {
-      update((state) => saveActiveCampaign({ ...state, game: claimRewardChoice(state.game, choiceId, optionId) }));
-    },
-    finishRewards() {
-      update((state) => saveActiveCampaign({ ...state, game: advanceFromRewards(state.game) }));
     },
     openReplay(replayId: string) {
       update((state) => {
@@ -431,7 +491,7 @@ export const gameStore = (() => {
       update((state) => ({ ...state, speedMs }));
     },
     clearSystemMessage() {
-      update((state) => ({ ...state, systemMessage: null }));
+      update((state) => ({ ...state, systemMessage: null, cycleEndConfirmationPending: false }));
     },
   };
 })();

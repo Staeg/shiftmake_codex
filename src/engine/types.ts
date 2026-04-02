@@ -7,14 +7,23 @@ export type AbilityId = string;
 export type MutatorId = string;
 export type RoleId = 'frontline' | 'chaff' | 'backline';
 export type SideId = 'player' | 'enemy';
-export type ResourceId = 'gold' | 'essence';
 export type TroopUnlockId = string;
 export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
 export type ExplainedStatKey = TroopStatKey | 'size';
-export type AbilityTiming = 'startOfBattle' | 'startOfTurn' | 'endOfTurn' | 'onAttack' | 'onKill' | 'onDeath' | 'onDamaged' | 'onFallen' | 'onEffectApplied' | 'passive';
+export type AbilityTiming =
+  | 'startOfBattle'
+  | 'startOfTurn'
+  | 'endOfTurn'
+  | 'onAttack'
+  | 'onKill'
+  | 'onDeath'
+  | 'onDamaged'
+  | 'onFallen'
+  | 'onEffectApplied'
+  | 'passive';
 export type AbilityAllegiance = 'ally' | 'enemy' | 'all';
 export type AbilityMagnitudeMode = 'flat' | 'percent';
-export type CampaignPhase = 'faction_draft' | 'planning' | 'reward_claims';
+export type CampaignPhase = 'opening_unlock' | 'planning' | 'game_over';
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
 export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
@@ -32,11 +41,6 @@ export interface UnitStats {
   armor: number;
   size: number;
   capacity: number;
-}
-
-export interface ResourceAmounts {
-  gold: number;
-  essence: number;
 }
 
 export interface AbilityTriggerDefinition {
@@ -164,8 +168,6 @@ export interface FactionDefinition {
   singularLabel: string;
   description: string;
   addedAttributes: string[];
-  defaultUnitTypeIds: UnitTypeId[];
-  blueprintUnitTypeIds: UnitTypeId[];
   statAdjustments: Partial<Record<keyof UnitStats | 'cost', { flat?: number; multiplier?: number }>>;
   abilityIds: AbilityId[];
 }
@@ -175,8 +177,6 @@ export interface FactionUpgradeDefinition {
   factionId: FactionId;
   label: string;
   tier: 1 | 2 | 3;
-  cost: number;
-  source: 'default' | 'rift';
   description: string;
   effects: Array<
     | {
@@ -200,7 +200,6 @@ export interface TroopTypeUpgradeDefinition {
   unitTypeId: UnitTypeId;
   label: string;
   tier: 1 | 2 | 3;
-  cost: number;
   description: string;
   effects: Array<
     | {
@@ -219,9 +218,6 @@ export interface TroopTypeUpgradeDefinition {
     | {
         kind: 'modifyStats';
         statModifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>;
-      }
-    | {
-        kind: 'flattenAddUnitCostAfterFirst';
       }
   >;
 }
@@ -244,9 +240,6 @@ export interface TroopInstance {
   id: TroopId;
   factionId: FactionId;
   unitTypeId: UnitTypeId;
-  quantity: number;
-  unlocked: boolean;
-  statUpgradeLevels: Record<TroopStatKey, number>;
   recoveryCyclesRemaining: number;
   assignmentRiftId: string | null;
 }
@@ -384,29 +377,14 @@ export interface ReplayIndexEntry {
   summaryOnly?: boolean;
 }
 
-export interface UpgradeRewardChoice {
-  id: string;
-  riftId: string;
-  title: string;
-  kind: 'upgrade';
-  optionUpgradeIds: UpgradeId[];
-}
-
-export interface BlueprintRewardChoice {
-  id: string;
-  riftId: string;
-  title: string;
-  kind: 'blueprint';
+export interface TroopDraftOffer {
+  kind: 'troop';
   optionTroopUnlockIds: TroopUnlockId[];
 }
 
-export type RewardChoice = UpgradeRewardChoice | BlueprintRewardChoice;
-
-export interface RewardPackage {
-  resources: ResourceAmounts;
-  upgradeChoiceBatches: number;
-  blueprintChoiceCountByTier: number[];
-  summaryParts: string[];
+export interface UpgradeDraftOffer {
+  kind: 'upgrade';
+  optionUpgradeIds: UpgradeId[];
 }
 
 export interface RiftInstance {
@@ -416,29 +394,29 @@ export interface RiftInstance {
   tier: number;
   mutatorIds: MutatorId[];
   enemyArmy: ResolvedCombatantDefinition[];
-  rewardPackage: RewardPackage;
+  victoryPoints: number;
   saturation: number;
   expiresInCycles: number;
   state: RiftState;
 }
 
 export interface GameState {
-  version: 1;
+  version: 2;
   campaignSeed: number;
   cycleNumber: number;
   phase: CampaignPhase;
-  cheatUpgrades: boolean;
-  cheatBlueprints: boolean;
-  cheatResources: boolean;
-  resources: ResourceAmounts;
+  essence: number;
+  victoryPoints: number;
   unlockedFactionIds: FactionId[];
-  availableFactionDraft: FactionId[];
   troops: TroopInstance[];
   factionUpgradeIds: UpgradeId[];
   troopTypeUpgradeIds: UpgradeId[];
-  unlockedBlueprintTroopIds: TroopUnlockId[];
+  activeTroopOffer: TroopDraftOffer | null;
+  activeUpgradeOffer: UpgradeDraftOffer | null;
+  troopOfferRolls: number;
+  upgradeOfferRolls: number;
+  postgameDismissed: boolean;
   openRifts: RiftInstance[];
-  pendingRewardChoices: RewardChoice[];
   replayIndex: ReplayIndexEntry[];
 }
 
@@ -460,7 +438,7 @@ export interface RiftResolutionRecord {
   battleInput: BattleInput;
   replay: BattleReplay;
   outcome: BattleOutcome;
-  rewardPackage: RewardPackage;
+  victoryPoints: number;
   recoveryMap: Record<TroopId, number>;
 }
 
@@ -494,8 +472,6 @@ export interface MutatorDefinition {
   id: MutatorId;
   label: string;
   description: string;
-  enemyBudgetMultiplier: number;
-  rewardMultiplier: number;
   initiativeBonusPerBeat?: number;
   rangedDamageMultiplier?: number;
   recoveryMultiplier?: number;

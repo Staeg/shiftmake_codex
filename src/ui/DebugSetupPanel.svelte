@@ -1,11 +1,12 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
   import {
-    composeTroopId,
     FACTIONS,
     getArmySelectionCost,
     getTroopStartingQuantity,
+    getTroopUnlockId,
     TROOP_CATALOG,
+    UNLOCKABLE_UNIT_TYPE_IDS,
     UNIT_TYPES,
   } from '../engine/unitCatalog';
   import type { FactionId, TroopTypeId, UnitTypeId } from '../engine/types';
@@ -27,10 +28,11 @@
   } as const;
 
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
+  const DEFAULT_UNIT_TYPE_ID = UNLOCKABLE_UNIT_TYPE_IDS[0];
 
   let addMenuSide: 'player' | 'enemy' | null = null;
   let selectedFactionId: FactionId = FACTION_IDS[0];
-  let selectedUnitTypeId: UnitTypeId = FACTIONS[selectedFactionId].defaultUnitTypeIds[0];
+  let selectedUnitTypeId: UnitTypeId = DEFAULT_UNIT_TYPE_ID;
 
   function visibleTroops(selection: ArmyDebugSelection): TroopTypeId[] {
     return Object.entries(selection)
@@ -56,7 +58,7 @@
   function openAddMenu(side: 'player' | 'enemy'): void {
     addMenuSide = side;
     selectedFactionId = FACTION_IDS[0];
-    selectedUnitTypeId = FACTIONS[selectedFactionId].defaultUnitTypeIds[0];
+    selectedUnitTypeId = DEFAULT_UNIT_TYPE_ID;
   }
 
   function closeAddMenu(): void {
@@ -66,9 +68,8 @@
   function handleFactionChange(event: Event): void {
     const input = event.currentTarget as HTMLSelectElement;
     selectedFactionId = input.value as FactionId;
-    const allowedUnitTypes = FACTIONS[selectedFactionId].defaultUnitTypeIds;
-    if (!allowedUnitTypes.includes(selectedUnitTypeId)) {
-      selectedUnitTypeId = allowedUnitTypes[0];
+    if (!UNLOCKABLE_UNIT_TYPE_IDS.includes(selectedUnitTypeId)) {
+      selectedUnitTypeId = DEFAULT_UNIT_TYPE_ID;
     }
   }
 
@@ -82,7 +83,7 @@
       return;
     }
 
-    const troopId = composeTroopId(selectedFactionId, selectedUnitTypeId);
+    const troopId = getTroopUnlockId(selectedFactionId, selectedUnitTypeId);
     const currentCount = (addMenuSide === 'player' ? player : enemy)[troopId] ?? 0;
     onSetArmy(addMenuSide, troopId, currentCount + getTroopStartingQuantity(troopId));
     closeAddMenu();
@@ -90,7 +91,7 @@
 
   $: playerVisibleTroops = visibleTroops(player);
   $: enemyVisibleTroops = visibleTroops(enemy);
-  $: availableUnitTypeIds = FACTIONS[selectedFactionId]?.defaultUnitTypeIds ?? [];
+  $: availableUnitTypeIds = UNLOCKABLE_UNIT_TYPE_IDS;
   $: playerTotalCost = getArmySelectionCost(player);
   $: enemyTotalCost = getArmySelectionCost(enemy);
 </script>
@@ -155,7 +156,7 @@
 
       <div class="add-preview">
         <span>Will add</span>
-        <strong>{TROOP_CATALOG[composeTroopId(selectedFactionId, selectedUnitTypeId)].label}</strong>
+        <strong>{TROOP_CATALOG[getTroopUnlockId(selectedFactionId, selectedUnitTypeId)].label}</strong>
         <small>to {SIDE_LABELS[addMenuSide]}</small>
       </div>
 

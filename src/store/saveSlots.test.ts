@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseStartingFaction, serializeGameState, startNewGame } from '../engine/game';
+import { claimOpeningTroop, serializeGameState, startNewGame } from '../engine/game';
 import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot } from './saveSlots';
 
 class MemoryStorage implements Storage {
@@ -31,45 +31,32 @@ class MemoryStorage implements Storage {
 }
 
 describe('save slot repository', () => {
-  it('always exposes three slots and marks empty slots correctly', () => {
+  it('always exposes three slots and uses the v2 empty summary', () => {
     const storage = new MemoryStorage();
 
     expect(listSaveSlots(storage)).toEqual([
-      {
-        slotId: 1,
-        status: 'empty',
-        cycleNumber: null,
-        phase: null,
-        factionLabel: null,
-        lastPlayedAt: null,
-      },
-      {
-        slotId: 2,
-        status: 'empty',
-        cycleNumber: null,
-        phase: null,
-        factionLabel: null,
-        lastPlayedAt: null,
-      },
-      {
-        slotId: 3,
-        status: 'empty',
-        cycleNumber: null,
-        phase: null,
-        factionLabel: null,
-        lastPlayedAt: null,
-      },
+      { slotId: 1, status: 'empty', cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
+      { slotId: 2, status: 'empty', cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
+      { slotId: 3, status: 'empty', cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
     ]);
   });
 
-  it('summarizes occupied slots from the saved campaign', () => {
+  it('summarizes opening and active runs with the new campaign phases', () => {
     const storage = new MemoryStorage();
-    const game = chooseStartingFaction(startNewGame(7), 'troll');
+    const opening = createNewSlotCampaign(storage, 1, 7);
 
-    saveToSlot(storage, 2, game);
+    expect(listSaveSlots(storage)[0]).toMatchObject({
+      slotId: 1,
+      status: 'occupied',
+      cycleNumber: 1,
+      phase: 'opening_unlock',
+      factionLabel: null,
+    });
 
-    expect(listSaveSlots(storage)[1]).toMatchObject({
-      slotId: 2,
+    saveToSlot(storage, 1, claimOpeningTroop(opening, 'troll/soldier'));
+
+    expect(listSaveSlots(storage)[0]).toMatchObject({
+      slotId: 1,
       status: 'occupied',
       cycleNumber: 1,
       phase: 'planning',
@@ -77,25 +64,43 @@ describe('save slot repository', () => {
     });
   });
 
-  it('overwriting a slot starts a fresh campaign and isolates replay payloads by slot', () => {
+  it('overwriting a slot starts a fresh campaign and clears only that slot replays', () => {
     const storage = new MemoryStorage();
 
     createNewSlotCampaign(storage, 1, 11);
     storage.setItem('shiftmake:slot:1:replay:test-battle', JSON.stringify({ version: 1, input: { seed: 1, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
+    storage.setItem('shiftmake:slot:1:replay:v2:test-battle-v2', JSON.stringify({ version: 1, input: { seed: 1, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
     storage.setItem('shiftmake:slot:2:replay:test-battle', JSON.stringify({ version: 1, input: { seed: 2, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
 
     const fresh = createNewSlotCampaign(storage, 1, 22);
 
     expect(fresh.campaignSeed).toBe(22);
     expect(readSlotReplay(storage, 1, 'test-battle')).toBeNull();
+    expect(readSlotReplay(storage, 1, 'test-battle-v2')).toBeNull();
     expect(readSlotReplay(storage, 2, 'test-battle')).not.toBeNull();
   });
 
-  it('migrates the legacy single save into slot one when slots are empty', () => {
+  it('migrates a legacy save into slot one and copies legacy replay payloads', () => {
     const storage = new MemoryStorage();
-    const game = chooseStartingFaction(startNewGame(9), 'elf');
-
+    const game = {
+      ...claimOpeningTroop(startNewGame(9), 'elf/archer'),
+      replayIndex: [
+        {
+          id: 'test-battle',
+          riftId: 'rift',
+          cycleNumber: 1,
+          battleSeed: 3,
+          outcome: 'victory' as const,
+          playerTroopLabels: ['Elven Archers'],
+          mutatorIds: [],
+          summary: 'VICTORY // Elven Archers',
+          replayId: 'test-battle',
+          estimatedBytes: 100,
+        },
+      ],
+    };
     storage.setItem('shiftmake:save:v1', serializeGameState(game));
+    storage.setItem('shiftmake:replay:test-battle', JSON.stringify({ version: 1, input: { seed: 3, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
 
     const slots = migrateLegacySave(storage);
 
@@ -105,5 +110,6 @@ describe('save slot repository', () => {
       factionLabel: 'Elves',
     });
     expect(storage.getItem('shiftmake:save:v1')).toBeNull();
+    expect(readSlotReplay(storage, 1, 'test-battle')).not.toBeNull();
   });
 });

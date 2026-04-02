@@ -1,6 +1,34 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload } from '../engine/types';
-import { persistReplayPayloadWrites } from './gameStore';
+import { gameStore, persistReplayPayloadWrites } from './gameStore';
+
+class MemoryStorage implements Storage {
+  private values = new Map<string, string>();
+
+  get length(): number {
+    return this.values.size;
+  }
+
+  clear(): void {
+    this.values.clear();
+  }
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null;
+  }
+
+  key(index: number): string | null {
+    return [...this.values.keys()][index] ?? null;
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key);
+  }
+
+  setItem(key: string, value: string): void {
+    this.values.set(key, value);
+  }
+}
 
 class QuotaStorage {
   private values = new Map<string, string>();
@@ -69,6 +97,19 @@ function makeReplayWrite(replayId: string, seed: number): ReplayPayloadWrite {
   };
 }
 
+function latestPayloadSlack(write: ReplayPayloadWrite): number {
+  return JSON.stringify(write.replay).length;
+}
+
+function currentStoreState<T>(): T {
+  let value: T | undefined;
+  const unsubscribe = gameStore.subscribe((state) => {
+    value = state as T;
+  });
+  unsubscribe();
+  return value as T;
+}
+
 describe('persistReplayPayloadWrites', () => {
   it('evicts the oldest replay payload and retries when storage is full', () => {
     const oldestKey = 'shiftmake:replay:oldest';
@@ -108,6 +149,84 @@ describe('persistReplayPayloadWrites', () => {
   });
 });
 
-function latestPayloadSlack(write: ReplayPayloadWrite): number {
-  return JSON.stringify(write.replay).length;
-}
+describe('gameStore progression flow', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+    });
+    gameStore.initialize();
+  });
+
+  it('warns before ending a cycle with unspent Essence and requires confirmation', () => {
+    gameStore.startNewCampaign(1);
+    gameStore.claimOpeningTroop('human/soldier');
+
+    gameStore.endCycle();
+    let state = currentStoreState<{
+      game: { cycleNumber: number };
+      cycleEndConfirmationPending: boolean;
+      systemMessage: string | null;
+    }>();
+
+    expect(state.cycleEndConfirmationPending).toBe(true);
+    expect(state.systemMessage).toBe('No troops are assigned and you still have unspent Essence. End the cycle anyway?');
+
+    gameStore.endCycle(true);
+    state = currentStoreState<{
+      game: { cycleNumber: number };
+      cycleEndConfirmationPending: boolean;
+      systemMessage: string | null;
+    }>();
+
+    expect(state.game.cycleNumber).toBe(2);
+    expect(state.cycleEndConfirmationPending).toBe(false);
+  });
+
+  it('keeps active draft offers stable through save and reload', () => {
+    gameStore.startNewCampaign(1);
+    gameStore.claimOpeningTroop('human/soldier');
+    gameStore.revealTroopOffer();
+
+    const beforeReload = currentStoreState<{ game: { activeTroopOffer: unknown } }>().game.activeTroopOffer;
+
+    gameStore.returnToMainMenu();
+    expect(gameStore.loadSlot(1)).toBe(true);
+
+    const afterReload = currentStoreState<{ game: { activeTroopOffer: unknown } }>().game.activeTroopOffer;
+
+    expect(afterReload).toEqual(beforeReload);
+  });
+
+  it('adds resolved battles to the archive index when a cycle ends', () => {
+    gameStore.startNewCampaign(1);
+    gameStore.claimOpeningTroop('human/soldier');
+
+    const started = currentStoreState<{
+      game: {
+        troops: Array<{ id: string }>;
+        openRifts: Array<{ id: string }>;
+      };
+    }>();
+    const troopId = started.game.troops[0]?.id;
+    const riftId = started.game.openRifts[0]?.id;
+
+    expect(troopId).toBeTruthy();
+    expect(riftId).toBeTruthy();
+
+    gameStore.assignTroopToRift(troopId!, riftId!);
+    gameStore.endCycle(true);
+
+    const ended = currentStoreState<{
+      game: {
+        cycleNumber: number;
+        replayIndex: ReplayIndexEntry[];
+      };
+    }>();
+
+    expect(ended.game.cycleNumber).toBe(2);
+    expect(ended.game.replayIndex).toHaveLength(1);
+    expect(ended.game.replayIndex[0]?.cycleNumber).toBe(1);
+    expect(ended.game.replayIndex[0]?.riftId).toBe(riftId);
+  });
+});

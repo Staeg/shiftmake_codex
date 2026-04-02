@@ -1,244 +1,177 @@
 import { describe, expect, it } from 'vitest';
-import { createTroopInstance, getAvailableFactionTroopUnlocks, getTroopAddUnitCost, getTroopUnlockCost } from './army';
-import { generateCycleRifts, getEnemyUnitBudgetCost } from './rift';
-import { applyCycleOutcomes, buyTroopTypeUpgrade, chooseStartingFaction, claimRewardChoice, deserializeGameState, serializeGameState, startNewGame, unlockTroopType } from './game';
-import { getPurchasableFactionUpgrades, getPurchasableTroopTypeUpgrades } from './upgrades';
+import {
+  applyCycleOutcomes,
+  claimOpeningTroop,
+  claimTroopOffer,
+  claimUpgradeOffer,
+  continuePlaying,
+  deserializeGameState,
+  revealTroopOffer,
+  revealUpgradeOffer,
+  serializeGameState,
+  startNewGame,
+} from './game';
+import { FACTION_UPGRADES, TROOP_TYPE_UPGRADES } from './unitCatalog';
+import type { BattleReplay, GameState, RiftResolutionRecord, UpgradeId } from './types';
 
-describe('campaign balance helpers', () => {
-  it('prices added units as the next step in the troop curve', () => {
-    const trollSoldiers = createTroopInstance('troll', 'soldier', 1);
-    expect(getTroopAddUnitCost({ troopTypeUpgradeIds: [] }, trollSoldiers)).toBe(31.2);
+function makeReplay(recordId: string, riftId: string, outcome: 'victory' | 'defeat'): BattleReplay {
+  return {
+    id: recordId,
+    seed: 1,
+    riftId,
+    tier: 1,
+    mutatorIds: [],
+    mapRadius: 3,
+    saturation: 3,
+    initial: { units: [] },
+    steps: [],
+    outcome,
+    troopLabels: {},
+    troopProfiles: [],
+    aliveCounts: [{ player: outcome === 'victory' ? 1 : 0, enemy: outcome === 'victory' ? 0 : 1, byTroopLabel: {} }],
+    summary: {
+      playerTroops: ['Test Troop'],
+      enemyTroops: ['Enemy Troop'],
+      finalPlayerAlive: outcome === 'victory' ? 1 : 0,
+      finalEnemyAlive: outcome === 'victory' ? 0 : 1,
+    },
+  };
+}
 
-    const trollChampions = createTroopInstance('troll', 'champion', 1);
-    expect(getTroopAddUnitCost({ troopTypeUpgradeIds: [] }, trollChampions)).toBe(78);
+function makeResolutionRecord(state: GameState, outcome: 'victory' | 'defeat'): RiftResolutionRecord {
+  const troop = state.troops[0]!;
+  const rift = state.openRifts[0]!;
+  return {
+    riftId: rift.id,
+    assignedTroopIds: [troop.id],
+    battleInput: {
+      seed: 11,
+      riftId: rift.id,
+      tier: rift.tier,
+      mutatorIds: rift.mutatorIds,
+      saturation: rift.saturation,
+      playerCombatants: [],
+      enemyCombatants: [],
+    },
+    replay: makeReplay(`replay-${outcome}`, rift.id, outcome),
+    outcome,
+    victoryPoints: rift.victoryPoints,
+    recoveryMap: { [troop.id]: 1 },
+  };
+}
+
+describe('campaign progression', () => {
+  it('starts in opening unlock and the free pick moves the run into planning with two Essence', () => {
+    const state = startNewGame(7);
+    const opened = claimOpeningTroop(state, 'human/soldier');
+
+    expect(state.phase).toBe('opening_unlock');
+    expect(opened.phase).toBe('planning');
+    expect(opened.essence).toBe(2);
+    expect(opened.unlockedFactionIds).toEqual(['human']);
+    expect(opened.troops.map((troop) => troop.id)).toEqual(['human/soldier']);
+    expect(opened.openRifts).toHaveLength(4);
   });
 
-  it('uses per-starting-unit troop value for enemy budgeting', () => {
-    expect(getEnemyUnitBudgetCost('goblin', 'soldier')).toBe(9.6);
-    expect(getEnemyUnitBudgetCost('goblin', 'champion')).toBe(24);
+  it('builds troop draft offers from owned faction, owned troop type, and new faction buckets', () => {
+    const state = revealTroopOffer(claimOpeningTroop(startNewGame(8), 'human/soldier'));
+    const offer = state.activeTroopOffer;
+
+    expect(offer).not.toBeNull();
+    expect(offer?.optionTroopUnlockIds).toHaveLength(3);
+    expect(new Set(offer?.optionTroopUnlockIds).size).toBe(3);
+    expect(offer?.optionTroopUnlockIds[0]?.startsWith('human/')).toBe(true);
+    expect(offer?.optionTroopUnlockIds[1]?.endsWith('/soldier')).toBe(true);
+    expect(offer?.optionTroopUnlockIds[2]?.startsWith('human/')).toBe(false);
   });
 
-  it('always generates four Rifts per cycle', () => {
-    const rifts = generateCycleRifts({
-      campaignSeed: 12345,
-      cycleNumber: 1,
-    });
+  it('claims a troop offer for one Essence and rerolls from updated ownership', () => {
+    const offered = revealTroopOffer(claimOpeningTroop(startNewGame(9), 'human/soldier'));
+    const chosen = offered.activeTroopOffer!.optionTroopUnlockIds[0]!;
+    const claimed = claimTroopOffer(offered, chosen);
+    const rerolled = revealTroopOffer(claimed);
 
-    expect(rifts).toHaveLength(4);
+    expect(claimed.essence).toBe(1);
+    expect(claimed.activeTroopOffer).toBeNull();
+    expect(claimed.troops.map((troop) => troop.id)).toContain(chosen);
+    expect(rerolled.activeTroopOffer?.optionTroopUnlockIds).not.toContain(chosen);
   });
 
-  it('gives each Rift exactly one mutator', () => {
-    const rifts = generateCycleRifts({
-      campaignSeed: 12345,
-      cycleNumber: 3,
-    });
+  it('builds upgrade offers from owned troop type, owned faction, and off-bucket options', () => {
+    const state = revealUpgradeOffer(claimOpeningTroop(startNewGame(10), 'human/archer'));
+    const offer = state.activeUpgradeOffer;
+    const troopUpgradeId = offer?.optionUpgradeIds[0]!;
+    const factionUpgradeId = offer?.optionUpgradeIds[1]!;
+    const offBucketId = offer?.optionUpgradeIds[2]!;
 
-    expect(rifts.map((rift) => rift.mutatorIds.length)).toEqual([1, 1, 1, 1]);
+    expect(offer).not.toBeNull();
+    expect(offer?.optionUpgradeIds).toHaveLength(3);
+    expect(new Set(offer?.optionUpgradeIds).size).toBe(3);
+    expect(TROOP_TYPE_UPGRADES[troopUpgradeId]?.unitTypeId).toBe('archer');
+    expect(FACTION_UPGRADES[factionUpgradeId]?.factionId).toBe('human');
+    expect(FACTION_UPGRADES[offBucketId]?.factionId === 'human').toBe(false);
+    expect(TROOP_TYPE_UPGRADES[offBucketId]?.unitTypeId === 'archer').toBe(false);
   });
 
-  it('keeps tier 1 Rift enemy budget spend within explicit per-mutator bands', () => {
-    const defaultBand = { min: 75, max: 161 };
-    const budgetAffectingBands = {
-      outpost: { min: 66, max: 156 },
-      quagmire: { min: 36, max: 156 },
-      rich: { min: 108, max: 241 },
-    } as const;
+  it('claims an upgrade offer for one Essence and persists active offers through save round-trips', () => {
+    const offered = revealUpgradeOffer(revealTroopOffer(claimOpeningTroop(startNewGame(11), 'human/soldier')));
+    const claimedUpgradeId = offered.activeUpgradeOffer!.optionUpgradeIds[0] as UpgradeId;
+    const claimed = claimUpgradeOffer(offered, claimedUpgradeId);
+    const reoffered = revealTroopOffer(claimed);
+    const loaded = deserializeGameState(serializeGameState(reoffered));
 
-    const seenBudgetAffectingMutators = new Set<keyof typeof budgetAffectingBands>();
-
-    for (let campaignSeed = 1; campaignSeed <= 200; campaignSeed += 1) {
-      for (let cycleNumber = 1; cycleNumber <= 5; cycleNumber += 1) {
-        const rifts = generateCycleRifts({ campaignSeed, cycleNumber }).filter((rift) => rift.tier === 1);
-
-        rifts.forEach((rift) => {
-          const mutatorId = rift.mutatorIds[0];
-          const expected = budgetAffectingBands[mutatorId as keyof typeof budgetAffectingBands] ?? defaultBand;
-          const spentBudget = rift.enemyArmy.reduce(
-            (sum, troop) => sum + troop.quantity * getEnemyUnitBudgetCost(troop.factionId, troop.unitTypeId),
-            0,
-          );
-
-          if (mutatorId in budgetAffectingBands) {
-            seenBudgetAffectingMutators.add(mutatorId as keyof typeof budgetAffectingBands);
-          }
-          expect(spentBudget).toBeGreaterThanOrEqual(expected.min);
-          expect(spentBudget).toBeLessThanOrEqual(expected.max);
-        });
-      }
-    }
-
-    expect([...seenBudgetAffectingMutators].sort()).toEqual(Object.keys(budgetAffectingBands).sort());
+    expect(claimed.essence).toBe(1);
+    expect(claimed.activeUpgradeOffer).toBeNull();
+    expect([...claimed.factionUpgradeIds, ...claimed.troopTypeUpgradeIds]).toContain(claimedUpgradeId);
+    expect(loaded.ok).toBe(true);
+    expect(loaded.state?.activeTroopOffer).toEqual(reoffered.activeTroopOffer);
   });
 
-  it('only offers troop unlocks from the faction roster', () => {
-    const state = chooseStartingFaction(startNewGame(7), 'troll');
-    expect(getAvailableFactionTroopUnlocks(state, 'troll')).toEqual(['avenger', 'champion', 'shaman']);
+  it('awards VP only on Rift victories, adds two Essence, and clears recovery by next cycle', () => {
+    const state = claimOpeningTroop(startNewGame(12), 'human/soldier');
+    const result = applyCycleOutcomes(state, { records: [makeResolutionRecord(state, 'victory')] });
 
-    const afterInvalidUnlock = unlockTroopType(state, 'troll', 'wizard');
-    expect(afterInvalidUnlock).toEqual(state);
+    expect(result.nextState.cycleNumber).toBe(2);
+    expect(result.nextState.victoryPoints).toBe(state.openRifts[0]!.tier);
+    expect(result.nextState.essence).toBe(4);
+    expect(result.nextState.troops[0]?.recoveryCyclesRemaining).toBe(0);
+    expect(result.nextState.activeTroopOffer).toBeNull();
+    expect(result.nextState.activeUpgradeOffer).toBeNull();
   });
 
-  it('does not surcharge the first non-starting troop unlock for factions with non-soldier starters', () => {
-    const elfState = chooseStartingFaction(startNewGame(8), 'elf');
-    const goblinState = chooseStartingFaction(startNewGame(9), 'goblin');
-    const trollState = chooseStartingFaction(startNewGame(10), 'troll');
+  it('does not award VP for defeats and still leaves troops ready next cycle by default', () => {
+    const state = claimOpeningTroop(startNewGame(13), 'human/soldier');
+    const result = applyCycleOutcomes(state, { records: [makeResolutionRecord(state, 'defeat')] });
 
-    expect(getTroopUnlockCost(elfState, 'elf', 'druid')).toBe(100);
-    expect(getTroopUnlockCost(elfState, 'elf', 'wizard')).toBe(100);
-    expect(getTroopUnlockCost(goblinState, 'goblin', 'shaman')).toBe(100);
-    expect(getTroopUnlockCost(goblinState, 'goblin', 'wizard')).toBe(100);
-    expect(getTroopUnlockCost(trollState, 'troll', 'shaman')).toBe(100);
+    expect(result.nextState.victoryPoints).toBe(0);
+    expect(result.nextState.troops[0]?.recoveryCyclesRemaining).toBe(0);
+    expect(result.nextState.replayIndex[0]?.outcome).toBe('defeat');
   });
 
-  it('scales troop unlock cost by total currently unlocked troops', () => {
-    const startingState = {
-      ...chooseStartingFaction(startNewGame(14), 'human'),
-      resources: { gold: 1000, essence: 1000 },
-    };
-    const withSecondTroop = unlockTroopType(startingState, 'human', 'archer');
-    const withThirdTroop = unlockTroopType(withSecondTroop, 'human', 'knight');
-
-    expect(getTroopUnlockCost(startingState, 'human', 'knight')).toBe(100);
-    expect(getTroopUnlockCost(withSecondTroop, 'human', 'priest')).toBe(200);
-    expect(getTroopUnlockCost(withThirdTroop, 'human', 'priest')).toBe(300);
-  });
-
-  it('cheat blueprints unlock blueprint troop rewards from the start', () => {
-    const state = chooseStartingFaction(startNewGame(11, { cheatBlueprints: true }), 'troll');
-
-    expect(state.unlockedBlueprintTroopIds).toContain('troll/necromancer');
-    expect(state.unlockedBlueprintTroopIds).toContain('troll/knight');
-    expect(getAvailableFactionTroopUnlocks(state, 'troll')).toEqual(['avenger', 'champion', 'shaman', 'necromancer', 'knight']);
-  });
-
-  it('claiming a blueprint reward makes that troop type unlockable instead of granting it for free', () => {
-    const state = chooseStartingFaction(startNewGame(12), 'elf');
-    const rewarded = claimRewardChoice(
-      {
-        ...state,
-        phase: 'reward_claims',
-        pendingRewardChoices: [
-          {
-            id: 'reward-1',
-            riftId: 'rift-1',
-            title: 'Choose a blueprint',
-            kind: 'blueprint',
-            optionTroopUnlockIds: ['elf/elementalist', 'elf/ranger'],
-          },
-        ],
-      },
-      'reward-1',
-      'elf/elementalist',
-    );
-
-    expect(rewarded.unlockedBlueprintTroopIds).toContain('elf/elementalist');
-    expect(rewarded.troops.some((troop) => troop.factionId === 'elf' && troop.unitTypeId === 'elementalist')).toBe(false);
-    expect(getAvailableFactionTroopUnlocks(rewarded, 'elf')).toContain('elementalist');
-  });
-
-  it('cheat resources starts the campaign with bonus gold and essence', () => {
-    const state = startNewGame(13, { cheatResources: true });
-
-    expect(state.resources).toEqual({ gold: 1120, essence: 1120 });
-  });
-
-  it('cheat upgrades unlocks upgrade purchases without granting ownership immediately', () => {
-    const state = chooseStartingFaction(startNewGame(18, { cheatUpgrades: true }), 'human');
-
-    expect(state.factionUpgradeIds).toEqual([]);
-    expect(state.troopTypeUpgradeIds).toEqual([]);
-    expect(getPurchasableFactionUpgrades(state, 'human')).toEqual(['human-united', 'human-combined-arms']);
-    expect(getPurchasableTroopTypeUpgrades(state, 'soldier')).toContain('soldier-just-a-bunch-of-guys');
-  });
-
-  it('archives defeats in the replay index while keeping the troop in recovery', () => {
-    const state = chooseStartingFaction(startNewGame(19), 'human');
-    const troop = state.troops[0]!;
-    const riftId = state.openRifts[0]!.id;
-
-    const { nextState } = applyCycleOutcomes(state, {
-      records: [
-        {
-          riftId,
-          assignedTroopIds: [troop.id],
-          battleInput: {
-            seed: 19,
-            riftId,
-            tier: 1,
-            mutatorIds: [],
-            playerCombatants: [],
-            enemyCombatants: [],
-          },
-          replay: {
-            id: 'replay-defeat-1',
-            seed: 19,
-            riftId,
-            tier: 1,
-            mutatorIds: [],
-            mapRadius: 3,
-            saturation: 1,
-            initial: { units: [] },
-            steps: [],
-            outcome: 'defeat',
-            troopLabels: {},
-            troopProfiles: [],
-            aliveCounts: [{ player: 0, enemy: 1, byTroopLabel: {} }],
-            summary: {
-              playerTroops: ['Human Soldier 1'],
-              enemyTroops: ['Enemy Troop'],
-              finalPlayerAlive: 0,
-              finalEnemyAlive: 1,
-            },
-          },
-          outcome: 'defeat',
-          rewardPackage: {
-            resources: { gold: 0, essence: 0 },
-            upgradeChoiceBatches: 0,
-            blueprintChoiceCountByTier: [],
-            summaryParts: [],
-          },
-          recoveryMap: { [troop.id]: 2 },
-        },
-      ],
-    });
-
-    expect(nextState.replayIndex[0]?.summary).toBe('DEFEAT 0-1');
-    expect(nextState.replayIndex[0]?.outcome).toBe('defeat');
-    expect(nextState.troops.find((entry) => entry.id === troop.id)?.recoveryCyclesRemaining).toBeGreaterThan(0);
-  });
-
-  it('purchases troop-type upgrades once and persists them through save round-trips', () => {
-    const state = {
-      ...chooseStartingFaction(startNewGame(15), 'human'),
-      resources: { gold: 1000, essence: 1000 },
+  it('transitions to game over after resolving cycle ten and continue playing resumes planning', () => {
+    const seeded = claimOpeningTroop(startNewGame(14), 'human/soldier');
+    const cycleTenState: GameState = {
+      ...seeded,
+      cycleNumber: 10,
+      phase: 'planning',
+      postgameDismissed: false,
+      openRifts: seeded.openRifts,
     };
 
-    const upgraded = buyTroopTypeUpgrade(state, 'archer-shredding-arrows');
-    const loaded = deserializeGameState(serializeGameState(upgraded));
+    const ended = applyCycleOutcomes(cycleTenState, { records: [] }).nextState;
+    const continued = continuePlaying(ended);
 
-    expect(upgraded.troopTypeUpgradeIds).toContain('archer-shredding-arrows');
-    expect(loaded.ok).toBe(true);
-    expect(loaded.state?.troopTypeUpgradeIds).toContain('archer-shredding-arrows');
+    expect(ended.cycleNumber).toBe(11);
+    expect(ended.phase).toBe('game_over');
+    expect(ended.openRifts.some((rift) => rift.cycleNumber === 11 && rift.state === 'discovered')).toBe(true);
+    expect(continued.phase).toBe('planning');
+    expect(continued.postgameDismissed).toBe(true);
   });
 
-  it('defaults missing troop-type upgrade data when loading older saves', () => {
-    const state = chooseStartingFaction(startNewGame(16), 'human');
-    const legacyLike = JSON.stringify(
-      Object.fromEntries(Object.entries(state).filter(([key]) => key !== 'troopTypeUpgradeIds')),
-    );
-
-    const loaded = deserializeGameState(legacyLike);
-
-    expect(loaded.ok).toBe(true);
-    expect(loaded.state?.troopTypeUpgradeIds).toEqual([]);
-  });
-
-  it('flattens later soldier add-unit costs after the troop-type upgrade is purchased', () => {
-    const state = chooseStartingFaction(startNewGame(17), 'human');
-    const soldier = state.troops[0]!;
-    const upgradedState = { ...state, troopTypeUpgradeIds: ['soldier-just-a-bunch-of-guys'] };
-    const grownSoldier = { ...soldier, quantity: 2 };
-
-    expect(getTroopAddUnitCost(upgradedState, grownSoldier)).toBe(getTroopAddUnitCost(upgradedState, soldier));
+  it('rejects old save formats instead of migrating them', () => {
+    expect(deserializeGameState(JSON.stringify({ version: 1 }))).toEqual({
+      ok: false,
+      error: 'unsupported_version',
+    });
   });
 });

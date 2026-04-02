@@ -1,88 +1,107 @@
 # Upgrades and unlocks
 
-This document describes the upgrade and unlock systems that are currently implemented.
+This document describes the current progression system.
 
-## Resources
+## Currency
 
-- `gold`: used for upgrades and adding units
-- `essence`: used for faction and troop unlocks
+The only progression currency is `Essence`.
 
-## Unlocking factions
+Current rules:
 
-Current implementation:
+- the opening faction-and-troop choice is free
+- each cycle grants `+2` Essence after battles resolve
+- claiming a troop unlock costs `1` Essence
+- claiming an upgrade unlock costs `1` Essence
+- unused Essence carries over between cycles
 
-- At campaign start, the player chooses 1 starting faction for free.
-- Unlocking an additional faction costs `100 * current unlocked faction count` essence.
-- Unlocking a faction immediately creates that faction's Soldier troop at quantity `1`.
+Removed from the progression model:
 
-The older idea of random post-start faction draft choices is not currently implemented.
+- gold
+- buying units
+- stat upgrades
+- faction unlock purchases
+- blueprints
+- post-battle reward claims
 
-## Unlocking troop types
+## Unlocking troops
 
-A faction may only unlock troop types from its `defaultUnitTypeIds`.
+All non-summoned faction-and-troop combinations are valid player unlocks.
 
-Rules:
+There is no longer a separation between:
 
-- Soldier is the only troop type granted automatically when a faction is unlocked.
-- A troop type cannot be unlocked twice for the same faction.
-- Newly unlocked troop types start at quantity `1`.
-- Troop unlock cost is `100` essence for each currently unlocked troop.
+- starting troops
+- default unlocks
+- blueprint-only unlocks
 
-## Adding units to a troop
+Owning any troop from a faction marks that faction as owned for draft bucketing.
 
-Buying a unit increases that troop's quantity by 1.
+## Troop offer generation
 
-Cost is based on total troop-selection cost growth using the troop's per-unit cost:
+Troop offers show 3 unique options.
 
-- first compute the total cost of the troop at current quantity
-- compute it again at quantity +1
-- the purchase price is the difference
+Buckets are filled in this order:
 
-Because troops now start at quantity `1`, every extra unit after the first uses the escalating extra-unit curve.
+1. a troop from a faction the player already owns
+2. a troop of a unit type the player already owns
+3. a troop from a faction the player does not yet own
 
-## Troop stat upgrades
+If any bucket cannot be satisfied, that slot falls back to a random unowned troop unlock from the remaining pool.
 
-Implemented upgradeable stats:
+Generated offers persist in save data until they are claimed or the cycle advances.
 
-- health
-- damage
-- speed for champions and wizards
-- armor for soldiers and knights
-- range for archers
+## Unlocking upgrades
 
-Upgrade effects:
+Upgrades are permanent unlocks, not purchases with escalating costs.
 
-- health, damage, speed: +10% multiplicative per level
-- armor: +1 per level
-- range: +1 per level
+Implemented upgrade families:
 
-Current formulas:
+- faction upgrades
+- troop-type upgrades
 
-- health/damage/speed cost: `(100 / 10) * (existing levels + 1)`
-- armor cost: `(100 / 20 + starting armor) * (existing levels + 1)`
-- range/capacity style cost formula uses `100` as its base value; capacity upgrades are not currently granted to any unit type
+There are no troop stat upgrades.
 
-## Faction upgrades
+## Upgrade offer generation
 
-Faction upgrades are global for all troops in that faction.
+Upgrade offers show 3 unique options.
 
-Implemented sources:
+Buckets are filled in this order:
 
-- `default`: purchasable in planning with gold
-- `rift`: earned through reward choices after victories
+1. a troop-type upgrade for a unit type the player already owns
+2. a faction upgrade for a faction the player already owns
+3. an upgrade that matches neither of the first two buckets
 
-Implemented effect kinds:
+If any bucket cannot be satisfied, that slot falls back to a random unowned upgrade from the remaining pool.
 
-- add an ability
-- add an attribute
-- modify stats, optionally only for non-melee troops
+Generated offers persist in save data until they are claimed or the cycle advances.
 
-## Reward upgrades
+## Implemented faction upgrades
 
-Victorious Rifts can generate choice batches of 3 faction upgrades.
+- `Humans United`
+- `Human Combined Arms`
+- `Elven Eyes`
+- `Elven Forsaken`
+- `Goblin Farewell`
+- `Goblin Pack`
+- `Troll Momentum`
+- `Troll Frenzy`
 
-Important current limitation:
+## Implemented troop-type upgrades
 
-- only faction upgrades exist as reward choices
-- troop-type-wide upgrades are not currently implemented
-- blueprint rewards are not implemented and always fall back to resources
+- `Shredding Arrows`
+- `Sevenfold`
+- `Blood in the Water`
+- `Executioner`
+- `Wild Growth`
+- `Mitosis`
+- `Retaliate`
+- `Scurry`
+- `Alternate Fuel`
+- `Rising Tide`
+- `Zeal`
+- `Concussive Shots`
+- `Serve Once More`
+- `Storm`
+
+Removed upgrade:
+
+- `Just a bunch of guys`

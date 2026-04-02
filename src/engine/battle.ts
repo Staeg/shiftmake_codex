@@ -1369,10 +1369,9 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     if (!origin) {
       return false;
     }
-    const usesAlternateFuel = summon.consumeFallenUnitCorpse && hasAbility(actor, 'alternate-fuel-10');
     if (summon.consumeFallenUnitCorpse && event.fallenUnit) {
-      if (usesAlternateFuel) {
-        if (actor.hp <= 10) {
+      if (!state.corpses.has(event.fallenUnit.id)) {
+        if (!hasAbility(actor, 'alternate-fuel-10') || actor.hp <= 10) {
           return false;
         }
         actor.hp = fixedSub(actor.hp, 10);
@@ -1381,15 +1380,13 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
           sourceAbilityId: runtime.definition.id,
           sourceAbilityLabel: runtime.definition.label,
         });
-      } else if (!state.corpses.has(event.fallenUnit.id)) {
-        return false;
       }
     }
     let summonedAny = false;
     for (let index = 0; index < summon.count; index += 1) {
       summonedAny = summonUnit(state, actor, runtime, summon, origin) || summonedAny;
     }
-    if (summonedAny && summon.consumeFallenUnitCorpse && event.fallenUnit && !usesAlternateFuel) {
+    if (summonedAny && summon.consumeFallenUnitCorpse && event.fallenUnit) {
       state.corpses.delete(event.fallenUnit.id);
     }
     return summonedAny;
@@ -1483,8 +1480,16 @@ function executeAbilityEffect(
   return applied;
 }
 
-function triggerUnitAbilities(state: InternalState, actor: InternalUnit, event: AbilityTriggerEvent): void {
+function triggerUnitAbilities(
+  state: InternalState,
+  actor: InternalUnit,
+  event: AbilityTriggerEvent,
+  filter?: (runtime: RuntimeAbilityState) => boolean,
+): void {
   actor.resolvedAbilities.forEach((runtime) => {
+    if (filter && !filter(runtime)) {
+      return;
+    }
     if (!canTriggerAbility(state, actor, runtime, event)) {
       return;
     }
@@ -1508,9 +1513,20 @@ function triggerUnitAbilities(state: InternalState, actor: InternalUnit, event: 
   });
 }
 
+function isArmyCompositionAbility(runtime: RuntimeAbilityState): boolean {
+  return !!(runtime.definition.trigger.condition || runtime.definition.trigger.repeatPerDistinctFriendlyTroopType);
+}
+
 function executeStartOfBattleAbilities(state: InternalState): void {
-  getAliveUnits(state).forEach((unit) => {
-    triggerUnitAbilities(state, unit, { timing: 'startOfBattle' });
+  const initialUnits = getAliveUnits(state);
+  // Phase 1: abilities that check army composition (forsaken, combined-arms) must fire before
+  // any startOfBattle summons alter the unit roster.
+  initialUnits.forEach((unit) => {
+    triggerUnitAbilities(state, unit, { timing: 'startOfBattle' }, isArmyCompositionAbility);
+  });
+  // Phase 2: all other startOfBattle abilities (e.g. summons).
+  initialUnits.forEach((unit) => {
+    triggerUnitAbilities(state, unit, { timing: 'startOfBattle' }, (r) => !isArmyCompositionAbility(r));
   });
 }
 

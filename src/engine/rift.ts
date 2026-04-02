@@ -1,18 +1,7 @@
 import { createRng } from './rng';
-import { fixed } from './fixed';
-import { composeBaseTroopDefinition, getMutator, FACTIONS, getTroopUnlockId, UNIT_TYPES } from './unitCatalog';
+import { ALL_TROOP_UNLOCK_IDS, getMutator } from './unitCatalog';
 import { resolveEnemyCombatant } from './army';
-import { getFallbackRewardForExhaustedUpgradeSlots } from './upgrades';
-import type {
-  FactionId,
-  GameState,
-  MutatorId,
-  ResourceAmounts,
-  RewardPackage,
-  RiftInstance,
-  UnitTypeId,
-  UpgradeId,
-} from './types';
+import type { FactionId, GameState, MutatorId, RiftInstance, TroopUnlockId, UnitTypeId } from './types';
 
 const CYCLE_RIFT_TIERS: number[][] = [
   [2, 1, 1, 1],
@@ -22,7 +11,7 @@ const CYCLE_RIFT_TIERS: number[][] = [
   [3, 3, 2, 1],
 ];
 
-const MUTATOR_POOL: MutatorId[] = ['momentum', 'heavy-air', 'rich', 'outpost', 'quagmire'];
+const MUTATOR_POOL: MutatorId[] = ['momentum', 'heavy-air', 'quagmire'];
 
 export function deriveSeed(seed: number, salt: number): number {
   return (seed * 1664525 + 1013904223 + salt * 2654435761) >>> 0;
@@ -38,159 +27,36 @@ function mixSeed(seed: number): number {
   return value >>> 0;
 }
 
-export function getCycleTierSchedule(cycleNumber: number): number[] {
-  return cycleNumber <= CYCLE_RIFT_TIERS.length
-    ? [...CYCLE_RIFT_TIERS[cycleNumber - 1]]
-    : [4, 3, 2, 1];
+function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeId] {
+  return troopUnlockId.split('/') as [FactionId, UnitTypeId];
 }
 
-function randomFactionUnitPairs(): Array<{ factionId: FactionId; unitTypeId: UnitTypeId }> {
-  return Object.keys(FACTIONS).flatMap((factionId) =>
-    Object.values(UNIT_TYPES)
-      .filter((unitType) => !unitType.attributes.includes('summoned'))
-      .map((unitType) => ({
-        factionId: factionId as FactionId,
-        unitTypeId: unitType.id,
-      })),
-  );
+export function getCycleTierSchedule(cycleNumber: number): number[] {
+  return cycleNumber <= CYCLE_RIFT_TIERS.length ? [...CYCLE_RIFT_TIERS[cycleNumber - 1]] : [4, 3, 2, 1];
 }
 
 function pickMutators(tier: number, seed: number): MutatorId[] {
-  // Hash the Rift seed before drawing the first mutator so adjacent Rifts/cycles
-  // do not collapse into visible streak patterns.
   const rng = createRng(mixSeed(seed));
   const count = tier > 0 ? 1 : 0;
   const selected: MutatorId[] = [];
   let pool = [...MUTATOR_POOL];
-  for (let i = 0; i < count && pool.length > 0; i += 1) {
-    const pick = rng.pick(pool);
-    selected.push(pick);
-    pool = pool.filter((entry) => entry !== pick);
+
+  for (let index = 0; index < count && pool.length > 0; index += 1) {
+    const mutatorId = rng.pick(pool);
+    selected.push(mutatorId);
+    pool = pool.filter((entry) => entry !== mutatorId);
   }
+
   return selected;
 }
 
-function getBudgetForRift(tier: number, seed: number, mutatorIds: MutatorId[]): number {
-  const rng = createRng(seed);
-  const variance = rng.pick([0.9, 0.95, 1, 1.05, 1.1]);
-  return fixed(
-    150 *
-      tier *
-      variance *
-      mutatorIds.reduce((multiplier, id) => multiplier * getMutator(id).enemyBudgetMultiplier, 1),
-  );
-}
+function buildEnemyArmy(tier: number, seed: number) {
+  const rng = createRng(deriveSeed(seed, 97));
+  const selections = rng.shuffle([...ALL_TROOP_UNLOCK_IDS]).slice(0, tier + 1);
 
-export function getEnemyUnitBudgetCost(factionId: FactionId, unitTypeId: UnitTypeId): number {
-  const troop = composeBaseTroopDefinition(factionId, unitTypeId);
-  return fixed(troop.cost / troop.quantity);
-}
-
-function makeResourceAmounts(): ResourceAmounts {
-  return { gold: 0, essence: 0 };
-}
-
-type RandomRewardCategory = 'gold' | 'essence' | 'upgrade' | 'blueprint';
-
-function applyRewardCategory(
-  rewardPackage: RewardPackage,
-  category: RandomRewardCategory,
-  slotTier: number,
-  availableUpgradeIds: UpgradeId[],
-  availableBlueprintTroopIds: string[],
-): void {
-  if (category === 'gold') {
-    rewardPackage.resources.gold += 50 * slotTier;
-    rewardPackage.summaryParts.push(`${50 * slotTier} gold`);
-    return;
-  }
-
-  if (category === 'essence') {
-    rewardPackage.resources.essence += 50 * slotTier;
-    rewardPackage.summaryParts.push(`${50 * slotTier} essence`);
-    return;
-  }
-
-  if (category === 'upgrade') {
-    if (availableUpgradeIds.length >= 3) {
-      rewardPackage.upgradeChoiceBatches += 1;
-      rewardPackage.summaryParts.push('upgrade choice x1');
-    } else {
-      const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
-      rewardPackage.resources.gold += fallback.gold;
-      rewardPackage.resources.essence += fallback.essence;
-      rewardPackage.summaryParts.push(`${fallback.gold} gold`, `${fallback.essence} essence`);
-    }
-    return;
-  }
-
-  if (availableBlueprintTroopIds.length >= slotTier) {
-    rewardPackage.blueprintChoiceCountByTier.push(slotTier);
-    rewardPackage.summaryParts.push(`blueprint choice x${slotTier}`);
-    return;
-  }
-
-  const fallback = getFallbackRewardForExhaustedUpgradeSlots(slotTier);
-  rewardPackage.resources.gold += fallback.gold;
-  rewardPackage.resources.essence += fallback.essence;
-  rewardPackage.summaryParts.push(`${fallback.gold} gold`, `${fallback.essence} essence`);
-}
-
-function buildRewardPackage(
-  tier: number,
-  mutatorIds: MutatorId[],
-  availableUpgradeIds: UpgradeId[],
-  availableBlueprintTroopIds: string[],
-  seed: number,
-): RewardPackage {
-  const base: RewardPackage = {
-    resources: makeResourceAmounts(),
-    upgradeChoiceBatches: 0,
-    blueprintChoiceCountByTier: [],
-    summaryParts: [],
-  };
-  const rewardMultiplier = mutatorIds.reduce((multiplier, id) => multiplier * getMutator(id).rewardMultiplier, 1);
-  const rng = createRng(deriveSeed(seed, 401));
-  const firstRewardPool: RandomRewardCategory[] = ['gold', 'essence'];
-  if (availableBlueprintTroopIds.length >= 1) {
-    firstRewardPool.push('blueprint');
-  }
-  const firstReward = rng.pick<RandomRewardCategory>(firstRewardPool);
-  applyRewardCategory(base, firstReward, 1, availableUpgradeIds, availableBlueprintTroopIds);
-
-  let remainingCategories = (['gold', 'essence', 'upgrade', 'blueprint'] as RandomRewardCategory[]).filter(
-    (category) => category !== firstReward,
-  );
-
-  for (let slotTier = 2; slotTier <= tier; slotTier += 1) {
-    const category = rng.pick(remainingCategories);
-    applyRewardCategory(base, category, slotTier, availableUpgradeIds, availableBlueprintTroopIds);
-    remainingCategories = remainingCategories.filter((entry) => entry !== category);
-  }
-
-  base.resources.gold = fixed(base.resources.gold * rewardMultiplier);
-  base.resources.essence = fixed(base.resources.essence * rewardMultiplier);
-
-  if (rewardMultiplier > 1 && base.upgradeChoiceBatches > 0) {
-    base.upgradeChoiceBatches *= rewardMultiplier;
-    const wholeBatches = Math.floor(base.upgradeChoiceBatches);
-    base.upgradeChoiceBatches = wholeBatches;
-  }
-
-  return base;
-}
-
-function buildEnemyArmy(tier: number, seed: number, mutatorIds: MutatorId[]) {
-  const rng = createRng(seed);
-  const budget = getBudgetForRift(tier, deriveSeed(seed, 97), mutatorIds);
-  const pairs = rng.shuffle(randomFactionUnitPairs());
-  const selections = pairs.slice(0, tier + 1);
-  const perSelectionBudget = budget / selections.length;
-
-  return selections.map((selection, index) => {
-    const perUnitCost = getEnemyUnitBudgetCost(selection.factionId, selection.unitTypeId);
-    const quantity = Math.max(1, Math.floor(perSelectionBudget / Math.max(1, perUnitCost)));
-    return resolveEnemyCombatant([], [], selection.factionId, selection.unitTypeId, quantity, tier, `rift-${seed}-${index}`);
+  return selections.map((troopUnlockId, index) => {
+    const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
+    return resolveEnemyCombatant([], [], factionId, unitTypeId, tier, `rift-${seed}-${index}`);
   });
 }
 
@@ -205,34 +71,19 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
 
   return tiers.map((tier, index) => {
     const riftSeed = deriveSeed(cycleSeed, index + 1);
-    const mutatorIds = pickMutators(tier, riftSeed);
-    const enemyArmy = buildEnemyArmy(tier, riftSeed, mutatorIds);
     return {
       id: `cycle-${state.cycleNumber}-rift-${index + 1}`,
       cycleNumber: state.cycleNumber,
       seed: riftSeed,
       tier,
-      mutatorIds,
-      enemyArmy,
-      rewardPackage: buildRewardPackage(tier, mutatorIds, [], [], riftSeed),
+      mutatorIds: pickMutators(tier, riftSeed),
+      enemyArmy: buildEnemyArmy(tier, riftSeed),
+      victoryPoints: tier,
       saturation: pickRiftSaturation(riftSeed),
       expiresInCycles: 2,
       state: 'discovered',
     };
   });
-}
-
-export function enrichRiftRewards(rifts: RiftInstance[], availableUpgradeIds: UpgradeId[], availableBlueprintTroopIds: string[] = []): RiftInstance[] {
-  return rifts.map((rift) => ({
-    ...rift,
-    rewardPackage: buildRewardPackage(rift.tier, rift.mutatorIds, availableUpgradeIds, availableBlueprintTroopIds, rift.seed),
-  }));
-}
-
-export function getBlueprintRewardPool(): string[] {
-  return Object.values(FACTIONS).flatMap((faction) =>
-    faction.blueprintUnitTypeIds.map((unitTypeId) => getTroopUnlockId(faction.id, unitTypeId)),
-  );
 }
 
 export function getMutatorLabels(mutatorIds: MutatorId[]): string[] {

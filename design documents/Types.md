@@ -14,6 +14,7 @@ Every combatant has exactly one primary `type`, for example:
 Primary type matters for:
 
 - Combined Arms counting
+- draft bucketing for troop-type upgrades
 - ability filters such as `Only`, `Not`, and `Prio`
 - troop identity in replays and tooltips
 
@@ -23,7 +24,7 @@ Combatants also have secondary `attributes`, for example:
 
 - combat style tags: `melee`, `ranged`, `caster`
 - faction tags: `human`, `elf`, `goblin`, `troll`
-- special traits: `expendable`
+- special traits: `expendable`, `summoner`, `summoned`
 
 Ability target filters match against the combined visible identity set of:
 
@@ -32,19 +33,20 @@ Ability target filters match against the combined visible identity set of:
 
 That means a filter for `caster` matches shamans, druids, and wizards, while a filter for `archer` only matches the primary archer type.
 
-## Upgradeable stats by unit type
+## Upgrade matching
 
-All unit types can upgrade:
+Troop-type upgrades key off the primary unit `type`, not faction.
 
-- health
-- damage
+Examples:
 
-Additional implemented upgrade permissions:
+- `Shredding Arrows` applies to all Archers
+- `Scurry` applies to all Militia
+- `Storm` applies to all Wizards
 
-- `champion`: speed
-- `wizard`: speed
-- `archer`: range
-- `soldier`: armor
-- `knight`: armor
+Faction upgrades key off faction only and can modify:
 
-No faction attribute currently unlocks extra stat-upgrade categories on its own.
+- abilities
+- attributes
+- stats, optionally only for non-melee troops
+
+There are no troop stat-upgrade permissions anymore because stat upgrades were removed from the game.
