@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildRoleScenarioBattleInput,
   buildSimulationBattleInput,
   buildEqualCostBundle,
+  countRoleIntentSteps,
   createCatalogTroopCombatant,
   createSeedRange,
   createUnitTypeCombatant,
   extractSimulationMetrics,
+  findFirstRoleIntentBeat,
   runBattleWithMetrics,
   sweepBattleSeeds,
 } from './simulationHarness';
@@ -115,5 +118,46 @@ describe('sweepBattleSeeds', () => {
     expect(result.summary.wins + result.summary.losses + result.summary.draws).toBe(5);
     expect(result.summary.percentiles.beatsToEnd.p10).toBeLessThanOrEqual(result.summary.percentiles.beatsToEnd.median);
     expect(result.summary.percentiles.beatsToEnd.median).toBeLessThanOrEqual(result.summary.percentiles.beatsToEnd.p90);
+  });
+});
+
+describe('role behavior seed sweeps', () => {
+  const seeds = createSeedRange(8, 200);
+
+  it('keeps frontline screening active across most seeds before the allied backline is threatened', () => {
+    const results = seeds.map((seed) => runBattleWithMetrics(buildRoleScenarioBattleInput('frontline-screen', seed)));
+    const screenedSeeds = results.filter(({ replay }) => countRoleIntentSteps(replay, { actorSide: 'player', roleIntent: 'screen-frontline' }) > 0).length;
+    const delayedThreatSeeds = results.filter(({ metrics }) => {
+      if (metrics.firstBacklineThreatBeat === null) {
+        return true;
+      }
+      return metrics.firstContactBeat !== null && metrics.firstBacklineThreatBeat > metrics.firstContactBeat;
+    }).length;
+
+    expect(screenedSeeds).toBeGreaterThanOrEqual(8);
+    expect(delayedThreatSeeds).toBeGreaterThanOrEqual(8);
+  });
+
+  it('shows both breach and hold-backline intent across the chaff benchmark sweep', () => {
+    const results = seeds.map((seed) => runBattleWithMetrics(buildRoleScenarioBattleInput('chaff-breach', seed)));
+    const breachSeeds = results.filter(({ replay }) => countRoleIntentSteps(replay, { actorSide: 'player', roleIntent: 'breach-backline' }) > 0).length;
+    const holdSeeds = results.filter(({ replay }) => countRoleIntentSteps(replay, { actorSide: 'player', roleIntent: 'hold-backline' }) > 0).length;
+
+    expect(breachSeeds).toBeGreaterThanOrEqual(8);
+    expect(holdSeeds).toBeGreaterThanOrEqual(8);
+  });
+
+  it('preserves spacing behavior without an immediate same-hex collapse in the backline benchmark sweep', () => {
+    const results = seeds.map((seed) => runBattleWithMetrics(buildRoleScenarioBattleInput('backline-spacing', seed)));
+    const spacingSeeds = results.filter(({ replay }) =>
+      countRoleIntentSteps(replay, { actorSide: 'player', roleIntent: ['retreat-range', 'advance-range'] }) > 0,
+    ).length;
+    const earlyThreatSeeds = results.filter(({ replay, metrics }) => {
+      const firstSpacingBeat = findFirstRoleIntentBeat(replay, { actorSide: 'player', roleIntent: ['retreat-range', 'advance-range'] });
+      return metrics.firstBacklineThreatBeat !== null && metrics.firstBacklineThreatBeat <= (firstSpacingBeat ?? 0);
+    }).length;
+
+    expect(spacingSeeds).toBeGreaterThanOrEqual(8);
+    expect(earlyThreatSeeds).toBe(0);
   });
 });
