@@ -1,4 +1,4 @@
-import type { BattleReplay, BattleStateSnapshot, SideId } from '../engine/types';
+import type { BattleReplay, BattleStateSnapshot, RoleIntentId, SideId } from '../engine/types';
 
 export interface BattleRecapUnitEntry {
   unitId: string;
@@ -16,8 +16,18 @@ export interface BattleRecapTroopEntry {
   damageDone: number;
   healingDone: number;
   kills: number;
+  roleSummary: string[];
   units: BattleRecapUnitEntry[];
 }
+
+const ROLE_SUMMARY_LABELS: Partial<Record<RoleIntentId, string>> = {
+  'screen-frontline': 'Held line',
+  'fallback-backline': 'Held line',
+  'breach-backline': 'Broke through',
+  'hold-backline': 'Broke through',
+  'retreat-range': 'Kept range',
+  'advance-range': 'Kept range',
+};
 
 function troopKey(side: SideId, troopLabel: string): string {
   return `${side}:${troopLabel}`;
@@ -34,6 +44,7 @@ function snapshotForStep(replay: BattleReplay, step: number): BattleStateSnapsho
 export function buildBattleRecap(replay: BattleReplay): BattleRecapTroopEntry[] {
   const troops = new Map<string, BattleRecapTroopEntry>();
   const units = new Map<string, BattleRecapUnitEntry>();
+  const roleSummaryByTroop = new Map<string, Set<string>>();
 
   replay.initial.units.forEach((unit) => {
     const key = troopKey(unit.side, unit.troopLabel);
@@ -44,6 +55,8 @@ export function buildBattleRecap(replay: BattleReplay): BattleRecapTroopEntry[] 
         troopLabel: unit.troopLabel,
         damageDone: 0,
         healingDone: 0,
+        kills: 0,
+        roleSummary: [],
         units: [],
       };
       troops.set(key, troop);
@@ -74,6 +87,17 @@ export function buildBattleRecap(replay: BattleReplay): BattleRecapTroopEntry[] 
       return;
     }
 
+    const roleSummary = step.metadata?.roleIntent ? ROLE_SUMMARY_LABELS[step.metadata.roleIntent] : undefined;
+    if (roleSummary) {
+      const key = troopKey(unit.side, unit.troopLabel);
+      let summaries = roleSummaryByTroop.get(key);
+      if (!summaries) {
+        summaries = new Set<string>();
+        roleSummaryByTroop.set(key, summaries);
+      }
+      summaries.add(roleSummary);
+    }
+
     if (step.kind === 'attack' && typeof step.metadata?.damage === 'number') {
       unit.damageDone += step.metadata.damage;
     }
@@ -92,6 +116,7 @@ export function buildBattleRecap(replay: BattleReplay): BattleRecapTroopEntry[] 
     damageDone: troop.units.reduce((sum, unit) => sum + unit.damageDone, 0),
     healingDone: troop.units.reduce((sum, unit) => sum + unit.healingDone, 0),
     kills: troop.units.reduce((sum, unit) => sum + unit.kills, 0),
+    roleSummary: [...(roleSummaryByTroop.get(troopKey(troop.side, troop.troopLabel)) ?? [])],
     units: [...troop.units],
   }));
 }
