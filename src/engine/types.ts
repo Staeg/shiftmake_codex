@@ -6,6 +6,13 @@ export type UpgradeId = string;
 export type AbilityId = string;
 export type MutatorId = string;
 export type RoleId = 'frontline' | 'chaff' | 'backline';
+export type RoleIntentId =
+  | 'screen-frontline'
+  | 'fallback-backline'
+  | 'breach-backline'
+  | 'hold-backline'
+  | 'retreat-range'
+  | 'advance-range';
 export type SideId = 'player' | 'enemy';
 export type TroopUnlockId = string;
 export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
@@ -297,6 +304,26 @@ export interface BattleStateSnapshot {
 
 export type BattleStepKind = 'beat' | 'move' | 'engage' | 'attack' | 'death' | 'heal' | 'buff';
 
+export interface BattleStepMetadata {
+  roleIntent?: RoleIntentId;
+  reasonCode?: string;
+  targetRole?: RoleId;
+  targetHexQ?: number;
+  targetHexR?: number;
+  damage?: number;
+  mode?: 'melee' | 'ranged';
+  category?: 'normal' | 'retaliation' | 'strike';
+  beat?: number;
+  initiativeBonus?: number;
+  effect?: string;
+  sourceAbilityId?: string;
+  sourceAbilityLabel?: string;
+  value?: number;
+  toQ?: number;
+  toR?: number;
+  [key: string]: number | string | boolean | undefined;
+}
+
 export interface BattleStep {
   index: number;
   kind: BattleStepKind;
@@ -304,7 +331,7 @@ export interface BattleStep {
   targetIds: string[];
   message: string;
   snapshot: BattleStateSnapshot;
-  metadata?: Record<string, number | string | boolean>;
+  metadata?: BattleStepMetadata;
 }
 
 export interface BattleReplay {
