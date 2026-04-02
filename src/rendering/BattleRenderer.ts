@@ -232,6 +232,16 @@ export class BattleRenderer {
     this.setZoom(this.zoom / ZOOM_STEP_FACTOR);
   }
 
+  resetZoom(): void {
+    if (!this.currentMapRadius) {
+      return;
+    }
+
+    this.zoom = this.baseFitZoom;
+    this.cameraOffset = { x: 0, y: 0 };
+    this.applyCameraTransform();
+  }
+
   refreshViewport(): void {
     this.syncStageHitArea();
 

@@ -29,14 +29,17 @@
 
 <section class="panel">
   <div class="controls">
-    <button on:click={onJumpStart} disabled={currentStep < 0}>Start</button>
-    <button on:click={onStepBack} disabled={currentStep < 0}>Step -</button>
-    <button on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Auto'}</button>
-    <button on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>Step +</button>
+    <button on:click={onJumpStart} disabled={currentStep < 0}>Reset Replay</button>
+    <button on:click={onStepBack} disabled={currentStep < 0}>Previous Step</button>
+    <button on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Play'}</button>
+    <button on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>Next Step</button>
   </div>
 
   <div class="meta">
-    <div>Step: {Math.max(0, currentStep + 1)}/{replayLength}</div>
+    <div class="step-readout">
+      <span>Step</span>
+      <strong>{Math.max(0, currentStep + 1)}/{replayLength}</strong>
+    </div>
     <label>
       <span>Speed</span>
       <select bind:value={speedSelection} on:change={handleSpeedChange}>
@@ -53,15 +56,15 @@
     background: linear-gradient(145deg, rgba(20, 24, 32, 0.95), rgba(11, 13, 18, 0.95));
     border: 1px solid #2f3b49;
     border-radius: 14px;
-    padding: 1rem;
+    padding: 0.75rem;
     display: grid;
-    gap: 0.8rem;
+    gap: 0.65rem;
   }
 
   .controls {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   button,
@@ -70,8 +73,10 @@
     border: 1px solid #324353;
     color: #f4f9ff;
     border-radius: 8px;
-    padding: 0.5rem 0.7rem;
+    min-height: 2.5rem;
+    padding: 0.45rem 0.6rem;
     font: inherit;
+    font-size: 0.78rem;
   }
 
   button {
@@ -88,8 +93,26 @@
     justify-content: space-between;
     align-items: center;
     color: #bfc6ce;
-    gap: 1rem;
+    gap: 0.75rem;
     flex-wrap: wrap;
+  }
+
+  .step-readout {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .step-readout span,
+  label span {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9cb0bf;
+  }
+
+  .step-readout strong {
+    font-size: 0.92rem;
+    color: #f4f9ff;
   }
 
   label {

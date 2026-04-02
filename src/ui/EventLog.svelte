@@ -74,10 +74,10 @@
     background: linear-gradient(145deg, rgba(20, 24, 32, 0.95), rgba(11, 13, 18, 0.95));
     border: 1px solid #2f3b49;
     border-radius: 14px;
-    padding: 1rem;
+    padding: 0.75rem;
     min-height: 0;
     display: grid;
-    gap: 0.75rem;
+    gap: 0.55rem;
   }
 
   h2,
@@ -87,8 +87,8 @@
 
   .log {
     display: grid;
-    gap: 0.4rem;
-    max-height: 420px;
+    gap: 0.3rem;
+    min-height: 0;
     overflow: auto;
   }
 
@@ -98,10 +98,10 @@
     background: #111922;
     border: 1px solid #2d3c4a;
     color: #e8edf3;
-    border-radius: 8px;
-    padding: 0.45rem 0.55rem;
+    border-radius: 10px;
+    padding: 0.38rem 0.5rem;
     display: grid;
-    gap: 0.15rem;
+    gap: 0.12rem;
     cursor: pointer;
   }
 
@@ -114,7 +114,7 @@
   }
 
   .log button strong {
-    font-size: 0.88rem;
+    font-size: 0.82rem;
     font-weight: 500;
   }
 
@@ -124,10 +124,10 @@
     border: 1px solid rgba(232, 209, 122, 0.35);
     background: rgba(232, 209, 122, 0.12);
     color: #f0dc98;
-    font-size: 0.68rem;
+    font-size: 0.64rem;
     font-weight: 700;
     letter-spacing: 0.04em;
-    padding: 0.12rem 0.45rem;
+    padding: 0.08rem 0.38rem;
     text-transform: uppercase;
   }
 

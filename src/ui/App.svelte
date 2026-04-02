@@ -363,6 +363,10 @@
     renderer?.zoomOut();
   }
 
+  function resetReplayZoom(): void {
+    renderer?.resetZoom();
+  }
+
   function openSlot(slot: SaveSlotSummary): void {
     if (slot.status === 'occupied') {
       gameStore.loadSlot(slot.slotId);
@@ -1511,7 +1515,7 @@
           <div class="focus-empty">
             <p class="eyebrow">Unit Focus</p>
             <h2>Battle Reference</h2>
-            <p>Hover a mutator, a unit on the field, or a troop row in alive counts to inspect it.</p>
+            <p>Hover a mutator, field unit, or alive-count row to inspect it without leaving the replay.</p>
           </div>
         {/if}
       </section>
@@ -1520,8 +1524,9 @@
     <section class="center replay-center">
       <div class="viewport-shell">
         <div class="replay-zoom-controls" aria-label="Replay zoom controls">
-          <button class="replay-zoom-button" type="button" aria-label="Zoom in" on:click={zoomReplayIn}>+</button>
-          <button class="replay-zoom-button" type="button" aria-label="Zoom out" on:click={zoomReplayOut}>-</button>
+          <button class="replay-zoom-button" type="button" aria-label="Zoom In" title="Zoom In" on:click={zoomReplayIn}>+</button>
+          <button class="replay-zoom-button" type="button" aria-label="Zoom Out" title="Zoom Out" on:click={zoomReplayOut}>-</button>
+          <button class="replay-reset-button" type="button" aria-label="Reset Zoom" title="Reset Zoom" on:click={resetReplayZoom}>Reset Zoom</button>
         </div>
         <div class="viewport" bind:this={battleHost}></div>
       </div>
@@ -1626,7 +1631,7 @@
     <div class="replay-exit replay-actions">
       <button class="replay-exit-button" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
       <button class="replay-exit-button replay-recap-button" on:click={toggleReplayRecap}>
-        {replayRecapOpen ? 'Close Battle Recap' : 'Battle Recap'}
+        {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
       </button>
     </div>
 
@@ -2477,7 +2482,8 @@
   }
 
   .replay-shell {
-    height: 100vh;
+    min-height: 100dvh;
+    height: 100dvh;
     grid-template-columns: var(--ui-replay-left-width) minmax(0, 1fr) var(--ui-replay-right-width);
     grid-template-rows: minmax(0, 1fr) auto;
     align-items: stretch;
@@ -2543,7 +2549,7 @@
   .viewport-shell {
     position: relative;
     height: 100%;
-    min-height: clamp(420px, 58vh, 640px);
+    min-height: clamp(360px, 52vh, 560px);
     border-radius: var(--ui-panel-radius);
     overflow: hidden;
     background:
@@ -2554,7 +2560,7 @@
   .viewport {
     width: 100%;
     height: 100%;
-    min-height: clamp(420px, 58vh, 640px);
+    min-height: clamp(360px, 52vh, 560px);
     border: 1px solid rgba(126, 157, 181, 0.2);
     border-radius: calc(var(--ui-panel-radius) + var(--ui-space-sm));
     background:
@@ -2606,7 +2612,7 @@
   }
 
   .event-log-toggle {
-    padding: var(--ui-space-sm) var(--ui-space-md);
+    padding: var(--ui-space-sm);
   }
 
   .collapsible-stack {
@@ -2761,11 +2767,13 @@
   .replay-actions {
     gap: var(--ui-space-sm);
     flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .replay-exit-button {
-    min-width: 180px;
-    padding: var(--ui-space-sm) var(--ui-space-md);
+    min-width: 164px;
+    min-height: var(--ui-space-hit);
+    padding: 0.65rem 0.85rem;
     border-radius: var(--ui-panel-radius-pill);
     border: var(--ui-border-strong);
     background: rgba(20, 26, 34, 0.92);
@@ -2799,21 +2807,21 @@
     position: relative;
     z-index: 1;
     width: min(880px, 100%);
-    max-height: min(80vh, 760px);
-    overflow: auto;
-    gap: var(--ui-space-md);
+    max-height: min(88dvh, 760px);
+    overflow: hidden;
+    gap: var(--ui-space-sm);
   }
 
   .replay-recap-header {
     display: flex;
     align-items: start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.85rem;
   }
 
   .replay-recap-header h2 {
-    margin: 0.2rem 0 0.35rem;
-    font-size: 1.4rem;
+    margin: 0.15rem 0 0.25rem;
+    font-size: 1.2rem;
   }
 
   .replay-recap-header p:last-child {
@@ -2822,7 +2830,7 @@
   }
 
   .replay-recap-close {
-    padding: 0.55rem 0.9rem;
+    padding: 0.45rem 0.75rem;
     border-radius: 999px;
     border: 1px solid rgba(196, 214, 227, 0.22);
     background: rgba(12, 18, 28, 0.52);
@@ -2834,33 +2842,36 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ui-space-md);
+    min-height: 0;
+    overflow: auto;
   }
 
   .replay-recap-side {
     display: grid;
-    gap: 0.8rem;
+    gap: 0.55rem;
     align-content: start;
+    min-height: 0;
   }
 
   .replay-recap-list,
   .replay-recap-units {
     display: grid;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .replay-recap-group {
     display: grid;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .replay-recap-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.8rem;
+    gap: 0.55rem;
     width: 100%;
-    padding: 0.75rem 0.85rem;
-    border-radius: 16px;
+    padding: 0.55rem 0.65rem;
+    border-radius: 14px;
     border: 1px solid rgba(124, 153, 176, 0.15);
     background: rgba(20, 28, 38, 0.7);
     color: #f4f7fb;
@@ -2876,8 +2887,8 @@
   }
 
   .replay-recap-row.unit {
-    margin-left: 1rem;
-    width: calc(100% - 1rem);
+    margin-left: 0.75rem;
+    width: calc(100% - 0.75rem);
     background: rgba(14, 21, 31, 0.88);
   }
 
@@ -2888,16 +2899,16 @@
   }
 
   .replay-recap-art {
-    width: 2.6rem;
-    height: 2.6rem;
+    width: 2.2rem;
+    height: 2.2rem;
     object-fit: contain;
     image-rendering: pixelated;
     filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
   }
 
   .replay-recap-art.small {
-    width: 2.15rem;
-    height: 2.15rem;
+    width: 1.9rem;
+    height: 1.9rem;
   }
 
   .replay-recap-bars {
@@ -2936,9 +2947,57 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.7rem;
+    gap: 0.45rem;
     color: #d8e1e9;
-    font-size: 0.92rem;
+    font-size: 0.82rem;
+  }
+
+  .replay-zoom-controls {
+    position: absolute;
+    top: var(--ui-space-sm);
+    right: var(--ui-space-sm);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    border-radius: 999px;
+    border: 1px solid rgba(126, 157, 181, 0.18);
+    background: rgba(7, 11, 18, 0.74);
+    backdrop-filter: blur(10px);
+  }
+
+  .replay-zoom-button,
+  .replay-reset-button {
+    min-height: 2rem;
+    border: 1px solid rgba(124, 153, 176, 0.22);
+    background: rgba(15, 23, 35, 0.96);
+    color: #f4f7fb;
+    font: inherit;
+  }
+
+  .replay-zoom-button {
+    width: 2rem;
+    padding: 0;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+  }
+
+  .replay-reset-button {
+    padding: 0 0.7rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+  }
+
+  .event-log-wrap,
+  .alive-sides {
+    min-height: 0;
+  }
+
+  .alive-sides {
+    overflow: auto;
   }
 
   .replay-recap-empty {
