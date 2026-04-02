@@ -383,28 +383,34 @@
     gameStore.endCycle($gameStore.cycleEndConfirmationPending);
   }
 
+  function setRiftCenterMode(): void {
+    gameStore.setCenterMode('rifts');
+  }
+
+  function setTroopCenterMode(): void {
+    selectedRiftId = null;
+    selectedReplayId = null;
+    gameStore.setCenterMode('troops');
+  }
+
   function selectRift(riftId: string): void {
     selectedRiftId = riftId;
     selectedTroopId = null;
     selectedFactionId = null;
     selectedReplayId = null;
-    gameStore.setCenterMode('rifts');
+    setRiftCenterMode();
   }
 
   function selectTroop(troopId: TroopId): void {
     selectedTroopId = troopId;
     const troop = $gameStore.game.troops.find((entry) => entry.id === troopId);
     selectedFactionId = troop?.factionId ?? null;
-    selectedRiftId = null;
-    selectedReplayId = null;
-    gameStore.setCenterMode('troops');
+    setTroopCenterMode();
   }
 
   function selectFaction(factionId: FactionId): void {
     selectedFactionId = factionId;
-    selectedRiftId = null;
-    selectedReplayId = null;
-    gameStore.setCenterMode('troops');
+    setTroopCenterMode();
   }
 
   function selectReplay(replayId: string): void {
@@ -692,11 +698,11 @@
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'opening_unlock'}
   <main class="draft-screen">
-    <section class="draft-panel">
+    <section class="draft-panel opening-shell">
       <div class="draft-layout">
         <aside class="panel draft-focus-panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
-            <div class="detail-panel">
+            <div class="detail-panel opening-detail-panel">
               <p class="eyebrow">{activeDetail.kind === 'faction' ? 'Faction Modifiers' : activeDetail.kind === 'unit' ? 'Troop Preview' : 'Detail'}</p>
               <h2>{activeDetail.label}</h2>
               {#if activeDetail.kind === 'unit'}
@@ -803,7 +809,7 @@
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld'}
-  <main class="shell">
+  <main class="shell overworld-shell" class:troops-mode={$gameStore.centerMode === 'troops'}>
     <header class="topbar">
       <div>
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber}</p>
@@ -819,14 +825,14 @@
       </div>
 
       <div class="mode-toggle">
-        <button class:selected={$gameStore.centerMode === 'rifts'} on:click={() => gameStore.setCenterMode('rifts')}>Rifts</button>
-        <button class:selected={$gameStore.centerMode === 'troops'} on:click={() => gameStore.setCenterMode('troops')}>Factions & Troops</button>
+        <button class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
+        <button class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
         <button on:click={() => gameStore.returnToMainMenu()}>Main Menu</button>
       </div>
     </header>
 
     <section class="left-column">
-      <div class="panel">
+      <div class="panel overworld-detail-panel">
         {#if $gameStore.centerMode === 'rifts' && selectedRift}
           {@const selectedRiftVisual = getRiftVisual(selectedRift)}
           <p class="eyebrow">Selected Rift</p>
@@ -1106,7 +1112,7 @@
           {/each}
         </div>
       {:else}
-        <div class="faction-grid">
+        <div class="faction-grid troop-faction-grid">
           {#each factionRosterIds as factionId}
             {@const faction = getFaction(factionId)}
             {@const factionDetail = buildFactionDetail(factionId)}
@@ -1774,13 +1780,26 @@
     padding: var(--ui-space-md);
   }
 
+  .overworld-shell,
+  .opening-shell {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .overworld-shell {
+    width: min(1320px, 100%);
+    grid-template-columns: minmax(278px, 294px) minmax(0, 1.38fr) minmax(278px, 294px);
+    gap: 0.75rem;
+    padding-block: 0.75rem;
+  }
+
   .topbar {
     grid-column: 1 / -1;
     display: grid;
     grid-template-columns: 1.2fr 1fr auto;
-    gap: var(--ui-space-md);
+    gap: 0.75rem;
     align-items: center;
-    padding: var(--ui-space-md) var(--ui-space-lg);
+    padding: 0.8rem 1rem;
     border: 1px solid rgba(165, 191, 210, 0.18);
     border-radius: var(--ui-panel-radius);
     background:
@@ -1803,7 +1822,7 @@
   .resource-strip {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: var(--ui-space-sm);
+    gap: 0.45rem;
   }
 
   .resource-strip div,
@@ -1893,8 +1912,10 @@
   .right {
     min-height: 0;
     display: grid;
-    gap: var(--ui-space-md);
+    gap: 0.75rem;
     align-content: start;
+    overflow: auto;
+    padding-right: 0.2rem;
   }
 
   .panel,
@@ -1911,6 +1932,10 @@
     box-shadow: var(--ui-shadow-panel);
   }
 
+  .opening-shell {
+    width: min(1240px, 100%);
+  }
+
   .rift-grid,
   .faction-grid,
   .slot-grid,
@@ -1918,6 +1943,13 @@
     display: grid;
     gap: var(--ui-space-md);
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .draft-grid {
+    min-height: 0;
+    overflow: auto;
+    align-content: start;
+    padding-right: 0.2rem;
   }
 
   .slot-grid {
@@ -2348,8 +2380,10 @@
   }
 
   .draft-layout {
-    grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
+    min-height: 0;
+    grid-template-columns: minmax(264px, 288px) minmax(0, 1fr);
     align-items: start;
+    gap: 0.75rem;
   }
 
   .draft-section {
@@ -2358,9 +2392,8 @@
   }
 
   .draft-focus-panel {
-    position: sticky;
-    top: var(--ui-space-md);
-    max-height: calc(100vh - (2 * var(--ui-space-md)));
+    min-height: 0;
+    max-height: none;
     overflow: auto;
   }
 
@@ -2404,12 +2437,35 @@
     align-content: start;
   }
 
+  .overworld-detail-panel,
+  .opening-detail-panel {
+    min-height: 0;
+    align-content: start;
+    overflow: auto;
+  }
+
   .compact-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .detail-panel {
     min-height: 0;
+  }
+
+  .opening-detail-panel {
+    gap: 0.65rem;
+  }
+
+  .opening-detail-panel h2,
+  .overworld-detail-panel h2 {
+    line-height: 1.08;
+  }
+
+  .opening-detail-panel .ability-list,
+  .overworld-detail-panel .ability-list {
+    max-height: 8rem;
+    overflow: auto;
+    padding-right: 0.15rem;
   }
 
   .warning-panel {
@@ -2430,6 +2486,11 @@
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 
+  .troop-faction-grid {
+    grid-template-columns: repeat(auto-fit, minmax(208px, 1fr));
+    gap: 0.75rem;
+  }
+
   .rift-grid {
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   }
@@ -2442,6 +2503,11 @@
     padding: var(--ui-space-sm);
   }
 
+  .troops-mode .faction-card {
+    gap: 0.55rem;
+    padding: 0.7rem;
+  }
+
   .faction-name-button {
     width: 100%;
   }
@@ -2449,6 +2515,24 @@
   .troop-chip,
   .draft-option {
     padding: var(--ui-space-sm);
+  }
+
+  .troops-mode .troop-list,
+  .troops-mode .unlock-row,
+  .troops-mode .assignment-list {
+    gap: 0.45rem;
+  }
+
+  .troops-mode .troop-chip,
+  .troops-mode .list-button {
+    padding: 0.55rem 0.65rem;
+  }
+
+  .troops-mode .troop-chip small,
+  .troops-mode .list-button small,
+  .opening-detail-panel p,
+  .overworld-detail-panel p {
+    line-height: 1.35;
   }
 
   .unlock-faction-overlay {
