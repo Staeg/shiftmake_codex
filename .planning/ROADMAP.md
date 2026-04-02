@@ -21,10 +21,12 @@ This milestone follows the explicit project priority order for the existing brow
 2. Player can see the main decision-critical information for the current screen without opening oversized popups that hide nearby context.
 3. Player can inspect Rift, troop, offer, and replay details in compact layouts that keep related controls and information visible together.
 4. Player can move through core campaign flows in stable layouts that feel visually tidy and easier to parse than the previous interface.
-**Plans**: 3 plans
+**Plans**: 5 plans
 - [x] 01-01-PLAN.md - Establish shared compact layout tokens and shell density rules without changing navigation
 - [ ] 01-02-PLAN.md - Compact the main menu, opening unlock, and overworld planning surfaces into single-screen desktop layouts
 - [ ] 01-03-PLAN.md - Compact the replay shell, controls, side rails, and recap while keeping the battlefield dominant
+- [ ] 01-04-PLAN.md - Close overworld fit, inspect overflow, and stale cross-mode selection carryover from UAT
+- [ ] 01-05-PLAN.md - Close replay control sizing, dead-space, and click-lock consistency gaps from UAT
 
 ### Phase 2: Intuitive Battlefield Roles
 **Goal**: Battle roles behave and replay clearly enough that frontline, chaff, and backline intent matches player intuition without leaking gameplay logic out of the pure engine.
