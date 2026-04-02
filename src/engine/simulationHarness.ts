@@ -11,6 +11,7 @@ import type {
   FactionId,
   ResolvedCombatantDefinition,
   RoleId,
+  RoleIntentId,
   SideId,
   UnitStats,
   UnitTypeId,
@@ -21,6 +22,15 @@ type NumericPercentiles = {
   median: number;
   p90: number;
 };
+
+export type RoleScenarioId = 'frontline-screen' | 'chaff-breach' | 'backline-spacing';
+
+export interface RoleIntentStepFilter {
+  actorSide?: SideId;
+  actorRole?: RoleId;
+  roleIntent?: RoleIntentId | RoleIntentId[];
+  targetRole?: RoleId;
+}
 
 export interface SyntheticCombatantOptions {
   combatantId: string;
@@ -185,6 +195,39 @@ function buildNullablePercentiles(values: Array<number | null>): NumericPercenti
 
 function getSnapshotUnit(snapshot: BattleStateSnapshot, unitId: string) {
   return snapshot.units.find((unit) => unit.id === unitId);
+}
+
+function isRoleIntentStep(step: BattleStep): boolean {
+  return (step.kind === 'move' || step.kind === 'engage') && typeof step.metadata?.roleIntent === 'string';
+}
+
+function matchesRoleIntentFilter(replay: BattleReplay, step: BattleStep, filter: RoleIntentStepFilter): boolean {
+  if (!isRoleIntentStep(step)) {
+    return false;
+  }
+
+  const actor = step.actorIds.map((actorId) => getSnapshotUnit(step.snapshot, actorId)).find((unit) => Boolean(unit));
+  if (!actor) {
+    return false;
+  }
+
+  if (filter.actorSide && actor.side !== filter.actorSide) {
+    return false;
+  }
+  if (filter.actorRole && actor.role !== filter.actorRole) {
+    return false;
+  }
+
+  const intents = filter.roleIntent ? (Array.isArray(filter.roleIntent) ? filter.roleIntent : [filter.roleIntent]) : null;
+  if (intents && !intents.includes(step.metadata!.roleIntent as RoleIntentId)) {
+    return false;
+  }
+
+  if (filter.targetRole && step.metadata?.targetRole !== filter.targetRole) {
+    return false;
+  }
+
+  return true;
 }
 
 function stepBeat(step: BattleStep, fallbackBeat: number): number {
@@ -353,6 +396,99 @@ export function buildEqualCostBundle(leftCost: number, rightCost: number): { lef
 
 export function createSeedRange(count: number, start = 0): number[] {
   return Array.from({ length: count }, (_, index) => start + index);
+}
+
+export function buildRoleScenarioBattleInput(scenarioId: RoleScenarioId, seed: number): BattleInput {
+  switch (scenarioId) {
+    case 'frontline-screen':
+      return buildSimulationBattleInput(
+        seed,
+        [
+          createCatalogTroopCombatant('human/soldier', {
+            combatantId: 'player-frontline',
+            side: 'player',
+            quantity: 1,
+          }),
+          createCatalogTroopCombatant('elf/archer', {
+            combatantId: 'player-backline',
+            side: 'player',
+            quantity: 1,
+          }),
+        ],
+        [
+          createCatalogTroopCombatant('human/soldier', {
+            combatantId: 'enemy-frontline',
+            side: 'enemy',
+            quantity: 1,
+          }),
+          createCatalogTroopCombatant('elf/archer', {
+            combatantId: 'enemy-backline',
+            side: 'enemy',
+            quantity: 1,
+          }),
+        ],
+      );
+    case 'chaff-breach':
+      return buildSimulationBattleInput(
+        seed,
+        [
+          createUnitTypeCombatant('militia', {
+            combatantId: 'player-chaff',
+            label: 'Benchmark Chaff',
+            side: 'player',
+            stats: { speed: 20 },
+            quantity: 1,
+          }),
+        ],
+        [
+          createCatalogTroopCombatant('human/soldier', {
+            combatantId: 'enemy-screen',
+            side: 'enemy',
+            quantity: 1,
+          }),
+          createCatalogTroopCombatant('elf/archer', {
+            combatantId: 'enemy-backline',
+            side: 'enemy',
+            quantity: 1,
+          }),
+        ],
+      );
+    case 'backline-spacing':
+      return buildSimulationBattleInput(
+        seed,
+        [
+          createCatalogTroopCombatant('elf/archer', {
+            combatantId: 'player-backline',
+            side: 'player',
+            quantity: 1,
+          }),
+        ],
+        [
+          createCatalogTroopCombatant('human/knight', {
+            combatantId: 'enemy-pursuer',
+            side: 'enemy',
+            quantity: 1,
+          }),
+        ],
+      );
+  }
+}
+
+export function countRoleIntentSteps(replay: BattleReplay, filter: RoleIntentStepFilter): number {
+  return replay.steps.filter((step) => matchesRoleIntentFilter(replay, step, filter)).length;
+}
+
+export function findFirstRoleIntentBeat(replay: BattleReplay, filter: RoleIntentStepFilter): number | null {
+  let currentBeat = 0;
+
+  for (const step of replay.steps) {
+    currentBeat = stepBeat(step, currentBeat);
+    if (matchesRoleIntentFilter(replay, step, filter)) {
+      return currentBeat;
+    }
+  }
+
+  return null;
 }
 
 export function extractSimulationMetrics(replay: BattleReplay): SimulationMetrics {

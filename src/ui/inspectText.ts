@@ -118,8 +118,9 @@ export function formatAbilityExact(ability: AbilityDefinition): string {
 
 export function formatRoleExact(role: RoleId): string {
   return {
-    frontline: 'Frontline units push toward enemies, prefer holding contested hexes, and commit to engagements first.',
-    chaff: 'Chaff units look for swarm opportunities, reinforce friendly stacks, and trade positioning for pressure.',
-    backline: 'Backline units prefer space, attack from range when possible, and retreat rather than hold a crowded hex.',
+    frontline:
+      'Frontline units block access to allied backline, engage first, and spill into enemy backline when the lane opens.',
+    chaff: 'Chaff units spill into enemy backline whenever possible and stay committed there once they break through.',
+    backline: 'Backline units attack from range and preserve distance when geometry allows instead of holding a crowded hex.',
   }[role];
 }
