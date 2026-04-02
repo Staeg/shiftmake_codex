@@ -47,7 +47,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md - Lock the engine role contract with scenario tests, typed replay intent metadata, and heuristic refactors
 - [x] 02-02-PLAN.md - Add simulation-harness role benchmarks and deterministic seed-sweep regression coverage
-- [ ] 02-03-PLAN.md - Surface role intent in replay copy, event log badges, and recap summaries
+- [x] 02-03-PLAN.md - Surface role intent in replay copy, event log badges, and recap summaries
 
 ### Phase 3: Full-Run Campaign Balance
 **Goal**: Campaign pacing stays strategically readable, survivable, and tense from early cycles through late cycles through tuned Rift scaling, rewards, and unlock flow.
