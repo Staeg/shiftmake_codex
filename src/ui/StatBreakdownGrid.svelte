@@ -130,17 +130,17 @@
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(var(--stat-columns, 3), minmax(0, 1fr));
-    gap: 0.55rem;
+    gap: 0.45rem;
   }
 
   .stat-card {
     position: relative;
     display: grid;
     align-content: start;
-    gap: 0.2rem;
-    padding: 0.55rem 0.65rem;
+    gap: 0.15rem;
+    padding: 0.45rem 0.55rem;
     border: 1px solid rgba(124, 153, 176, 0.15);
-    border-radius: 14px;
+    border-radius: 12px;
     background: rgba(20, 28, 38, 0.7);
     outline: none;
     width: 100%;
@@ -151,14 +151,14 @@
 
   .stat-main {
     display: grid;
-    gap: 0.2rem;
+    gap: 0.15rem;
   }
 
   .stat-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.55rem;
+    gap: 0.4rem;
   }
 
   .stat-main.inspectable {
@@ -178,11 +178,11 @@
 
   .stat-main > span {
     color: #93a9bc;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 
   .stat-head > strong {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     line-height: 1;
   }
 
@@ -205,7 +205,7 @@
   .stat-action-row {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.35rem;
   }
 
   .stat-action-plus {
@@ -220,7 +220,7 @@
     align-items: center;
     gap: 0.35rem;
     color: #d7c8a4;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     line-height: 1;
   }
 

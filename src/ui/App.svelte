@@ -653,7 +653,7 @@
       <div class="menu-copy">
         <p class="eyebrow">Shiftmake</p>
         <h1>Choose A Save Slot</h1>
-        <p class="intro">Each slot keeps its own campaign and battle archive. Load an existing command table or begin a fresh campaign in any slot.</p>
+        <p class="intro">Each slot keeps its own campaign and battle archive. Load one or start fresh.</p>
       </div>
 
       <div class="slot-grid">
@@ -1760,6 +1760,8 @@
   .shell,
   .replay-shell {
     min-height: 100vh;
+    width: min(calc(var(--ui-shell-max-width) + (2 * var(--ui-shell-column)) + (2 * var(--ui-space-md))), 100%);
+    margin: 0 auto;
     display: grid;
     grid-template-columns: var(--ui-shell-column) minmax(0, 1fr) var(--ui-shell-column);
     grid-template-rows: auto 1fr auto;
@@ -1780,6 +1782,17 @@
       linear-gradient(135deg, rgba(17, 29, 41, 0.92), rgba(16, 21, 30, 0.94)),
       radial-gradient(circle at top left, rgba(190, 147, 92, 0.14), transparent 48%);
     box-shadow: var(--ui-shadow-panel);
+  }
+
+  .topbar > div:first-child {
+    min-width: 0;
+    display: grid;
+    gap: var(--ui-space-xs);
+  }
+
+  .topbar h1 {
+    font-size: clamp(1.55rem, 1.8vw, 1.9rem);
+    line-height: 1.05;
   }
 
   .resource-strip {
@@ -1902,6 +1915,10 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
+  .slot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .archive-list,
   .troop-list,
   .unlock-row,
@@ -2014,7 +2031,7 @@
   .slot-card,
   .draft-card {
     display: grid;
-    gap: 0.8rem;
+    gap: var(--ui-space-sm);
     align-content: start;
   }
 
@@ -2192,6 +2209,12 @@
     gap: 0.45rem;
   }
 
+  .assignment-panel,
+  .warning-panel,
+  .draft-offer-block {
+    padding-top: var(--ui-space-xs);
+  }
+
   .ability-hover-tooltip {
     display: grid;
     gap: 0.3rem;
@@ -2263,8 +2286,65 @@
     align-content: start;
   }
 
+  .menu-panel {
+    max-width: 980px;
+  }
+
+  .menu-copy {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 36rem;
+  }
+
+  .menu-copy h1 {
+    font-size: clamp(2rem, 3vw, var(--ui-text-display));
+    line-height: var(--ui-line-display);
+  }
+
+  .intro {
+    max-width: 28rem;
+  }
+
+  .slot-card {
+    min-height: 0;
+    padding: var(--ui-space-sm);
+  }
+
+  .slot-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-sm);
+  }
+
+  .slot-label {
+    color: var(--ui-color-text-dim);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .slot-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ui-space-xs) var(--ui-space-sm);
+  }
+
+  .slot-meta span:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .slot-card .actions-grid {
+    gap: var(--ui-space-sm);
+  }
+
+  .slot-card .actions-grid button {
+    min-height: var(--ui-space-hit);
+  }
+
   .draft-layout {
-    grid-template-columns: var(--ui-shell-column) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
+    align-items: start;
   }
 
   .draft-section {
@@ -2272,23 +2352,98 @@
     gap: 0.55rem;
   }
 
+  .draft-focus-panel {
+    position: sticky;
+    top: var(--ui-space-md);
+    max-height: calc(100vh - (2 * var(--ui-space-md)));
+    overflow: auto;
+  }
+
   .draft-icon-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    gap: 0.6rem;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: var(--ui-space-sm);
   }
 
   .draft-troop-icon {
     display: grid;
     justify-items: center;
-    gap: 0.45rem;
+    gap: var(--ui-space-xs);
     text-align: center;
+    padding: var(--ui-space-sm);
   }
 
   .sprite-inspect-button {
     display: grid;
     place-items: center;
     padding: 0.35rem;
+  }
+
+  .draft-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .draft-card-header,
+  .faction-card > header {
+    display: grid;
+    gap: var(--ui-space-xs);
+  }
+
+  .left-column,
+  .right-column {
+    grid-auto-rows: min-content;
+  }
+
+  .center-column {
+    min-width: 0;
+    align-content: start;
+  }
+
+  .compact-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-panel {
+    min-height: 0;
+  }
+
+  .warning-panel {
+    gap: var(--ui-space-sm);
+  }
+
+  .archive-list {
+    max-height: min(20rem, 42vh);
+    overflow: auto;
+    padding-right: var(--ui-space-xs);
+  }
+
+  .assignment-panel .assignment-list {
+    gap: var(--ui-space-xs);
+  }
+
+  .faction-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .rift-grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+
+  .rift-card {
+    padding: var(--ui-space-sm);
+  }
+
+  .faction-card {
+    padding: var(--ui-space-sm);
+  }
+
+  .faction-name-button {
+    width: 100%;
+  }
+
+  .troop-chip,
+  .draft-option {
+    padding: var(--ui-space-sm);
   }
 
   .unlock-faction-overlay {
@@ -2807,6 +2962,10 @@
       grid-template-columns: 1fr;
     }
 
+    .slot-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
     .resource-strip {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -2834,6 +2993,11 @@
     .shell,
     .replay-shell {
       padding: 0.75rem;
+    }
+
+    .slot-meta,
+    .compact-list {
+      grid-template-columns: 1fr;
     }
   }
 </style>
