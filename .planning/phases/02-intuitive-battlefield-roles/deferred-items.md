@@ -1,0 +1,1 @@
+- `src/ui/battleRecap.test.ts`: `npm run test` currently fails in `maps replay role intent metadata into troop roleSummary labels` because [`src/ui/battleRecap.ts`] has not yet been updated to emit `roleSummary`. This surfaced during plan `02-02` verification but is outside this plan's engine-harness scope and aligns with concurrent `02-03` UI recap work.

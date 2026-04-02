@@ -46,7 +46,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 02-01-PLAN.md - Lock the engine role contract with scenario tests, typed replay intent metadata, and heuristic refactors
-- [ ] 02-02-PLAN.md - Add simulation-harness role benchmarks and deterministic seed-sweep regression coverage
+- [x] 02-02-PLAN.md - Add simulation-harness role benchmarks and deterministic seed-sweep regression coverage
 - [ ] 02-03-PLAN.md - Surface role intent in replay copy, event log badges, and recap summaries
 
 ### Phase 3: Full-Run Campaign Balance
