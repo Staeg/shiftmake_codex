@@ -7,7 +7,7 @@
 - [ ] **UI-01**: Player can use the main menu, overworld planning screen, and replay screen without routine vertical scrolling at common desktop sizes, except in unusually content-heavy edge cases
 - [ ] **UI-02**: Player can see the primary actionable information for the current screen without opening oversized popups or losing nearby context
 - [ ] **UI-03**: Player can review Rift, troop, offer, and replay details within compact layouts that minimize dead space and keep related controls visible together
-- [ ] **UI-04**: Player can navigate core game flows through stable single-screen layouts that feel visually tidy and easier to parse than the current interface
+- [x] **UI-04**: Player can navigate core game flows through stable single-screen layouts that feel visually tidy and easier to parse than the current interface
 
 ### Role Behavior
 
@@ -45,7 +45,7 @@
 | UI-01 | Phase 1 | Pending |
 | UI-02 | Phase 1 | Pending |
 | UI-03 | Phase 1 | Pending |
-| UI-04 | Phase 1 | Pending |
+| UI-04 | Phase 1 | Complete |
 | ROLE-01 | Phase 2 | Complete |
 | ROLE-02 | Phase 2 | Complete |
 | ROLE-03 | Phase 2 | Complete |

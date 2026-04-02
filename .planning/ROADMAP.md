@@ -22,7 +22,7 @@ This milestone follows the explicit project priority order for the existing brow
 3. Player can inspect Rift, troop, offer, and replay details in compact layouts that keep related controls and information visible together.
 4. Player can move through core campaign flows in stable layouts that feel visually tidy and easier to parse than the previous interface.
 **Plans**: 3 plans
-- [ ] 01-01-PLAN.md - Establish shared compact layout tokens and shell density rules without changing navigation
+- [x] 01-01-PLAN.md - Establish shared compact layout tokens and shell density rules without changing navigation
 - [ ] 01-02-PLAN.md - Compact the main menu, opening unlock, and overworld planning surfaces into single-screen desktop layouts
 - [ ] 01-03-PLAN.md - Compact the replay shell, controls, side rails, and recap while keeping the battlefield dominant
 
