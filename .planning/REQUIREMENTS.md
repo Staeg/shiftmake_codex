@@ -40,23 +40,23 @@
 
 ## Traceability
 
-| Requirement ID | Planned Phase |
-|---|---|
-| UI-01 | TBA |
-| UI-02 | TBA |
-| UI-03 | TBA |
-| UI-04 | TBA |
-| ROLE-01 | TBA |
-| ROLE-02 | TBA |
-| ROLE-03 | TBA |
-| ROLE-04 | TBA |
-| ROLE-05 | TBA |
-| ROLE-06 | TBA |
-| BAL-01 | TBA |
-| BAL-02 | TBA |
-| BAL-03 | TBA |
-| BAL-04 | TBA |
-| BAL-05 | TBA |
+| Requirement ID | Planned Phase | Status |
+|---|---|---|
+| UI-01 | Phase 1 | Pending |
+| UI-02 | Phase 1 | Pending |
+| UI-03 | Phase 1 | Pending |
+| UI-04 | Phase 1 | Pending |
+| ROLE-01 | Phase 2 | Pending |
+| ROLE-02 | Phase 2 | Pending |
+| ROLE-03 | Phase 2 | Pending |
+| ROLE-04 | Phase 2 | Pending |
+| ROLE-05 | Phase 2 | Pending |
+| ROLE-06 | Phase 2 | Pending |
+| BAL-01 | Phase 3 | Pending |
+| BAL-02 | Phase 3 | Pending |
+| BAL-03 | Phase 3 | Pending |
+| BAL-04 | Phase 3 | Pending |
+| BAL-05 | Phase 3 | Pending |
 
 ---
-*Last updated: 2026-04-02 after initialization*
+*Last updated: 2026-04-02 after roadmap creation*
