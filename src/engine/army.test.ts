@@ -44,20 +44,33 @@ describe('troop composition', () => {
     expect(archerResolved.stats.range).toBe(4);
   });
 
-  it('explains enemy tier scaling at 10 percent per tier past the first and no longer references stat purchases', () => {
-    const breakdowns = getResolvedStatBreakdowns(
+  it('only applies enemy stat scaling at tier 4 and leaves tier 3 at base stats', () => {
+    const humanSoldierBase = composeBaseTroopDefinition('human', 'soldier');
+    const tier3Breakdowns = getResolvedStatBreakdowns(
       { factionUpgradeIds: ['elven-eyes'], troopTypeUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       3,
     );
-    const enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 3, 'enemy-1');
+    const tier3Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 3, 'enemy-1');
+    const tier4Breakdowns = getResolvedStatBreakdowns(
+      { factionUpgradeIds: ['elven-eyes'], troopTypeUpgradeIds: [] },
+      createTroopInstance('elf', 'archer'),
+      'enemy',
+      4,
+    );
+    const tier4Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 4, 'enemy-2');
 
-    expect(breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Enemy Rift Tier 3']);
-    expect(breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Elven Eyes']);
+    expect(tier3Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves']);
+    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Elven Eyes']);
+    expect(tier4Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Enemy Rift Tier 4']);
 
-    expect(enemy.stats.health).toBe(132);
-    expect(enemy.stats.damage).toBe(13.2);
-    expect(enemy.stats.speed).toBe(13.2);
+    expect(tier3Enemy.stats.health).toBe(humanSoldierBase.stats.health);
+    expect(tier3Enemy.stats.damage).toBe(humanSoldierBase.stats.damage);
+    expect(tier3Enemy.stats.speed).toBe(humanSoldierBase.stats.speed);
+
+    expect(tier4Enemy.stats.health).toBe(humanSoldierBase.stats.health * 1.2);
+    expect(tier4Enemy.stats.damage).toBe(humanSoldierBase.stats.damage * 1.2);
+    expect(tier4Enemy.stats.speed).toBe(humanSoldierBase.stats.speed * 1.2);
   });
 });

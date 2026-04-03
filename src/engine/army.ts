@@ -59,10 +59,10 @@ export function isFactionUnited(state: Pick<GameState, 'factionUpgradeIds'>, fac
 }
 
 function applyTierScaling(stats: UnitStats, tier: number | null): UnitStats {
-  if (tier === null || tier <= 1) {
+  if (tier === null || tier < 4) {
     return stats;
   }
-  const multiplier = fixed(1 + 0.1 * (tier - 1));
+  const multiplier = 1.2;
   return {
     ...stats,
     health: fixed(stats.health * multiplier),

@@ -488,7 +488,6 @@
 
   function selectRift(riftId: string): void {
     selectedRiftId = riftId;
-    selectedTroopId = null;
     selectedFactionId = null;
     selectedReplayId = null;
     setRiftCenterMode();
@@ -504,6 +503,11 @@
   function selectFaction(factionId: FactionId): void {
     selectedFactionId = factionId;
     setTroopCenterMode();
+  }
+
+  function selectTroopForRift(troopId: TroopId): void {
+    selectedTroopId = selectedTroopId === troopId ? null : troopId;
+    selectedReplayId = null;
   }
 
   function selectReplay(replayId: string): void {
@@ -626,6 +630,7 @@
     : null;
   $: selectedReplayAvailable =
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
+  $: readyTroops = $gameStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
   $: selectedRiftAssignableTroops = selectedRift
     ? $gameStore.game.troops.filter(
         (troop) => troop.recoveryCyclesRemaining === 0 && (troop.assignmentRiftId === null || troop.assignmentRiftId === selectedRift.id),
@@ -932,7 +937,7 @@
 
     <section class="left-column">
       <div class="panel overworld-detail-panel">
-        {#if $gameStore.centerMode === 'troops' && activeDetail}
+        {#if activeDetail}
           <div class="detail-panel overworld-detail-panel" role="presentation" on:mouseleave={clearDetail}>
             <p class="eyebrow">
               {activeDetail.kind === 'mutator'
@@ -980,7 +985,7 @@
               <p>{activeDetail.description}</p>
             {/if}
           </div>
-        {:else if $gameStore.centerMode === 'rifts' && selectedRift}
+        {:else if false && $gameStore.centerMode === 'rifts' && selectedRift}
           {@const selectedRiftVisual = getRiftVisual(selectedRift)}
           <p class="eyebrow">Selected Rift</p>
           <div
@@ -1162,9 +1167,13 @@
             <button class="primary" on:click={() => gameStore.clearTroopAssignment(selectedTroop.id)}>Clear Assignment</button>
           {/if}
         {:else}
-          <p class="eyebrow">Selection</p>
+          <p class="eyebrow">Unit Inspect</p>
           <h2>No Focus Item</h2>
-          <p>Choose a Rift or troop to inspect its roster, stats, and assignments.</p>
+          <p>
+            {$gameStore.centerMode === 'rifts'
+              ? 'Hover or select a troop, enemy, or mutator from the Rift board to inspect it here.'
+              : 'Choose a Rift or troop to inspect its roster, stats, and assignments.'}
+          </p>
         {/if}
       </div>
     </section>
@@ -1181,8 +1190,7 @@
                 style={`--rift-tint:${riftVisual.tint}; --rift-glow:${riftVisual.glow}; --rift-rotation:${riftVisual.rotationDeg}deg;`}
               >
                 <header>
-                  <strong>Tier {rift.tier}</strong>
-                  <span>{rift.id}</span>
+                  <strong>Tier {rift.tier} <span>{rift.id}</span></strong>
                 </header>
                 <div class="rift-visual-shell inline">
                   <div class="rift-visual-frame">
@@ -1197,18 +1205,15 @@
                 </div>
               </button>
 
-              <div class="reward-summary">
+              <div class="rift-meta-row">
                 <span class="reward-pill">VP {rift.victoryPoints}</span>
-                <span class="reward-pill">Hex Fit {rift.saturation}</span>
-              </div>
-
-              <div class="mutator-list">
+                <span class="reward-pill">Fit {rift.saturation}</span>
                 {#if rift.mutatorIds.length === 0}
                   <span class="mutator-chip empty">No mutators</span>
                 {:else}
                   {#each rift.mutatorIds as mutatorId}
                     <button
-                      class="mutator-chip"
+                      class="mutator-chip rift-mutator-chip"
                       on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
                       on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
                       on:mouseleave={clearDetail}
@@ -1219,6 +1224,36 @@
                     </button>
                   {/each}
                 {/if}
+              </div>
+
+              <div class="rift-card-section">
+                <div class="assigned-strip enemy-strip">
+                  {#each rift.enemyArmy as enemy}
+                    {@const enemyDetail = buildResolvedUnitDetail(
+                      `enemy:${rift.id}:${enemy.combatantId}`,
+                      enemy.label,
+                      enemy.factionId,
+                      enemy.unitTypeId,
+                      enemy.stats,
+                      enemy.quantity,
+                      'Enemy troop',
+                      enemy.abilities,
+                      enemy.statBreakdowns,
+                    )}
+                    <button
+                      class="unit-tile enemy-tile"
+                      class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
+                      on:mouseenter={() => previewDetail(enemyDetail)}
+                      on:focus={() => previewDetail(enemyDetail)}
+                      on:mouseleave={clearDetail}
+                      on:blur={clearDetail}
+                      on:click={() => togglePinnedDetail(enemyDetail)}
+                    >
+                      <img class="unit-tile-art" src={getFactionUnitPortrait(enemy.factionId, enemy.unitTypeId)} alt="" aria-hidden="true" />
+                      <strong>x{enemy.quantity}</strong>
+                    </button>
+                  {/each}
+                </div>
               </div>
 
               <div class="assigned-strip">
@@ -1237,15 +1272,18 @@
                   )}
                   <button
                     class="unit-tile assigned-summary-tile"
-                    class:selected={activeDetail?.detailKey === assignedDetail.detailKey}
+                    class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === assignedDetail.detailKey}
                     on:mouseenter={() => previewDetail(assignedDetail)}
                     on:focus={() => previewDetail(assignedDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(assignedDetail)}
+                    on:click={() => {
+                      selectTroopForRift(troop.id);
+                      togglePinnedDetail(assignedDetail);
+                    }}
                   >
                     <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
-                    <small>✅</small>
+                    <small>Assigned</small>
                   </button>
                 {/each}
               </div>
@@ -1469,7 +1507,7 @@
         </div>
       {/if}
 
-      {#if activeDetail && $gameStore.centerMode !== 'troops'}
+      {#if false && activeDetail && $gameStore.centerMode !== 'troops'}
         <div class="panel detail-panel" role="presentation" on:mouseleave={clearDetail}>
           <p class="eyebrow">
             {activeDetail.kind === 'mutator'
@@ -1585,6 +1623,57 @@
           {selectedReplayAvailable ? 'Watch Battle' : selectedReplayEntry.summaryOnly ? 'Summary Only' : 'Replay Missing'}
         </button>
       {:else}
+        {#if $gameStore.centerMode === 'rifts'}
+          <div class="panel ready-troops-panel footer-ready-troops-panel">
+            <div class="ready-troops-header">
+              <h2>Ready Troops</h2>
+              {#if selectedTroop && selectedTroopDefinition}
+                <p class="ready-troops-summary">
+                  Selected: <strong>{selectedTroopDefinition.label}</strong>
+                </p>
+              {/if}
+            </div>
+
+            {#if readyTroops.length === 0}
+              <p class="assignment-empty">No idle troops are ready right now.</p>
+            {:else}
+              <div class="ready-troops-grid">
+                {#each readyTroops as troop}
+                  {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
+                  {@const troopDetail = buildResolvedUnitDetail(
+                    `ready:${troop.id}`,
+                    troopDef.label,
+                    troop.factionId,
+                    troop.unitTypeId,
+                    troopDef.stats,
+                    troopDef.quantity,
+                    'Ready troop',
+                    troopDef.abilities,
+                    troopDef.statBreakdowns,
+                  )}
+                  <button
+                    class="unit-tile ready-troop-tile"
+                    class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
+                    on:mouseenter={() => previewDetail(troopDetail)}
+                    on:focus={() => previewDetail(troopDetail)}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => {
+                      selectTroopForRift(troop.id);
+                      togglePinnedDetail(troopDetail);
+                    }}
+                  >
+                    <span class="unit-button-copy">
+                      <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
+                      <span>{troopDef.label}</span>
+                    </span>
+                    <small>Qty {troopDef.quantity}</small>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
         <button class="primary large" on:click={handleEndCycle}>
           {$gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
         </button>
@@ -2173,16 +2262,18 @@
   .sprite-inspect-button.selected,
   .unit-tile.selected,
   .rift-card.selected {
-    outline: 2px solid #d4ad73;
     background:
       linear-gradient(145deg, rgba(44, 31, 15, 0.96), rgba(17, 22, 30, 0.96)),
       radial-gradient(circle at top left, rgba(212, 173, 115, 0.18), transparent 42%);
+    box-shadow:
+      inset 0 0 0 2px #d4ad73,
+      0 10px 22px rgba(0, 0, 0, 0.22);
   }
 
   .mutator-chip {
     border: 1px solid rgba(124, 153, 176, 0.2);
     border-radius: 999px;
-    padding: 0.35rem 0.7rem;
+    padding: 0.3rem 0.6rem;
     background: rgba(20, 28, 38, 0.76);
     color: inherit;
     font: inherit;
@@ -2192,22 +2283,26 @@
     color: #95a9ba;
   }
 
-  .reward-summary {
+  .rift-meta-row {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+
+  .rift-meta-row {
+    align-items: center;
   }
 
   .reward-pill {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0.35rem 0.65rem;
+    padding: 0.3rem 0.55rem;
     border-radius: 999px;
     border: 1px solid rgba(124, 153, 176, 0.18);
     background: rgba(20, 28, 38, 0.72);
     color: #dce7f2;
-    font-size: 0.82rem;
+    font-size: 0.78rem;
   }
 
   .rift-card,
@@ -2220,7 +2315,7 @@
   }
 
   .rift-card {
-    padding: 0.9rem;
+    padding: 0.75rem;
     border-radius: 20px;
     border: 1px solid rgba(126, 157, 181, 0.16);
     background:
@@ -2235,7 +2330,7 @@
   .rift-title-card {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 0.8rem;
+    gap: 0.65rem;
     align-items: center;
   }
 
@@ -2244,9 +2339,17 @@
     gap: 0.2rem;
   }
 
+  .rift-title-card header strong {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+
   .rift-title-card header span {
     color: #9db2c4;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 500;
   }
 
   .rift-visual-shell {
@@ -2290,9 +2393,9 @@
   }
 
   .rift-visual-shell.inline {
-    width: 4.6rem;
-    height: 4.6rem;
-    min-height: 4.6rem;
+    width: 4.1rem;
+    height: 4.1rem;
+    min-height: 4.1rem;
     border-radius: 14px;
   }
 
@@ -2312,7 +2415,7 @@
   }
 
   .unit-tile {
-    padding: 0.55rem;
+    padding: 0.45rem;
     border: 1px solid rgba(126, 157, 181, 0.2);
     border-radius: 14px;
     background: rgba(22, 31, 42, 0.82);
@@ -2393,6 +2496,22 @@
     gap: 0.45rem;
   }
 
+  .rift-card-section,
+  .ready-troops-header {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .ready-troops-summary {
+    color: var(--ui-color-text-dim);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+  }
+
+  .ready-troops-summary strong {
+    color: var(--ui-color-text);
+  }
+
   .assignment-panel,
   .warning-panel,
   .draft-offer-block {
@@ -2430,9 +2549,8 @@
 
   .action-rail {
     grid-column: 1 / -1;
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
+    display: grid;
+    justify-items: center;
     gap: 0.75rem;
     padding-bottom: 0.4rem;
   }
@@ -2628,6 +2746,55 @@
 
   .assignment-panel .assignment-list {
     gap: var(--ui-space-xs);
+  }
+
+  .enemy-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .enemy-strip .unit-tile {
+    gap: 0.4rem;
+    justify-content: center;
+    padding: 0.4rem 0.3rem;
+  }
+
+  .enemy-strip .unit-tile-art {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .enemy-strip strong {
+    font-size: 0.88rem;
+  }
+
+  .rift-mutator-chip {
+    flex: 1 1 8.5rem;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .ready-troops-panel {
+    gap: 0.55rem;
+    padding-block: 0.9rem;
+  }
+
+  .footer-ready-troops-panel {
+    width: min(620px, 100%);
+    justify-self: center;
+  }
+
+  .ready-troops-grid {
+    display: grid;
+    gap: 0.55rem;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(180px, 220px);
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+  }
+
+  .ready-troop-tile {
+    padding: 0.55rem 0.7rem;
   }
 
   .faction-grid {

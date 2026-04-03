@@ -149,7 +149,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     'combined-arms-20',
     'Power of Friendship',
     20,
-    'Start of battle: gain 20% health, damage, and speed for each other friendly troop type.',
+    'Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop type in this battle.',
     { repeatPerDistinctFriendlyTroopType: true },
   ),
   'forsaken-80': makeTripleStatAbility(
@@ -255,7 +255,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
       { kind: 'rangeset', value: 0 },
       roleset('frontline'),
     ],
-    shortText: 'After 5 turns, transform once: gain health, speed, and damage, then become a frontline melee unit.',
+    shortText: 'After 5 turns, once: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.',
   }),
   bonded: makeAbility({
     id: 'bonded',
@@ -289,7 +289,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [summonEffect('wolf', 2, false, ['onkill-summon-wolf-1'])],
-    shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes. Summoned wolves can summon more wolves on kill.',
+    shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes. Those wolves summon 1 more wolf on each kill, and new wolves inherit that effect.',
   }),
   'onkill-summon-wolf-1': makeAbility({
     id: 'onkill-summon-wolf-1',
@@ -316,7 +316,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [summonEffect('elemental', 1, false, ['charge-4-uses-1-summon-elemental'])],
-    shortText: 'Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Summoned elementals can split once.',
+    shortText: 'Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Each summoned elemental can do the same once.',
   }),
   'charge-4-uses-1-summon-elemental': makeAbility({
     id: 'charge-4-uses-1-summon-elemental',
@@ -376,7 +376,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: { mode: 'default' },
     effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
-    shortText: 'When this unit applies a heal effect, the same target also gains Enhance 1.',
+    shortText: 'When this unit heals a target, that same target also gains +1 speed and +1 damage for the battle.',
   }),
   'serve-once-more': makeAbility({
     id: 'serve-once-more',
@@ -385,7 +385,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: { mode: 'default' },
     effects: [grantAbilityEffect('fading', 'harmful'), grantAbilityEffect('death-summon-skeleton', 'neutral')],
-    shortText: 'When this unit applies a beneficial effect, the same target gains Fading and On Death Summon Skeleton.',
+    shortText: 'When this unit applies a beneficial effect, the same target leaves no corpse on death and summons 1 skeleton on death.',
   }),
   executioner: makeAbility({
     id: 'executioner',
@@ -699,7 +699,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'human',
     label: 'Humans United',
     tier: 1,
-    description: 'All human troops become United.',
+    description: 'Overworld: human troops may enter the same Rift together.',
     effects: [{ kind: 'addAbility', abilityId: 'united' }],
   },
   'human-combined-arms': {
@@ -707,7 +707,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'human',
     label: 'Human Combined Arms',
     tier: 2,
-    description: 'All human troops gain Combined Arms 20.',
+    description: 'Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle.',
     effects: [{ kind: 'addAbility', abilityId: 'combined-arms-20' }],
   },
   'elven-eyes': {
@@ -723,7 +723,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'elf',
     label: 'Elven Forsaken',
     tier: 3,
-    description: 'All elven troops gain Forsaken 80.',
+    description: 'Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed.',
     effects: [{ kind: 'addAbility', abilityId: 'forsaken-80' }],
   },
   'goblin-farewell-upgrade': {
@@ -731,7 +731,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Goblin Farewell',
     tier: 1,
-    description: 'All goblin units gain Goblin Farewell.',
+    description: 'On death: each goblin unit makes 1 extra strike against a random enemy on its hex.',
     effects: [{ kind: 'addAbility', abilityId: 'goblin-farewell' }],
   },
   'goblin-pack': {
@@ -739,7 +739,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Goblin Pack',
     tier: 2,
-    description: 'All goblin units gain Pack 1.',
+    description: 'Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.',
     effects: [{ kind: 'addAbility', abilityId: 'pack-1' }],
   },
   'troll-momentum': {
@@ -747,7 +747,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'troll',
     label: 'Troll Momentum',
     tier: 1,
-    description: 'All troll units gain Ramp 1.',
+    description: 'End of turn: each troll unit gains +1 damage for the rest of the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'ramp-1' }],
   },
   'troll-frenzy': {
@@ -755,7 +755,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'troll',
     label: 'Troll Frenzy',
     tier: 3,
-    description: 'All troll units gain Frenzy: Ramp 1.',
+    description: 'After taking damage: each troll unit gains +1 damage for the rest of the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'frenzy-ramp-1' }],
   },
 };
@@ -766,7 +766,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'archer',
     label: 'Shredding Arrows',
     tier: 2,
-    description: 'All Archers remove 1 armor from their target after attacking.',
+    description: 'On attack: each Archer reduces its target armor by 1 for the rest of the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'shredding-arrows' }],
   },
   'avenger-sevenfold': {
@@ -774,7 +774,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'avenger',
     label: 'Sevenfold',
     tier: 2,
-    description: 'All Avengers gain Uses 7 Corpse Summon Skeleton.',
+    description: 'Whenever a nearby unit leaves a corpse, each Avenger may consume it to summon a skeleton there, up to 7 times per battle.',
     effects: [{ kind: 'addAbility', abilityId: 'uses-7-corpse-summon-skeleton' }],
   },
   'beastmaster-blood-in-the-water': {
@@ -782,7 +782,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'beastmaster',
     label: 'Blood in the Water',
     tier: 2,
-    description: 'Beastmaster wolves gain On Kill Summon Wolf 1 recursively.',
+    description: 'Start-of-battle wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }],
   },
   'champion-executioner': {
@@ -790,7 +790,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'champion',
     label: 'Executioner',
     tier: 2,
-    description: 'All Champions prioritize the lowest-health legal attack target.',
+    description: 'Champions target the lowest-health enemy they are allowed to attack.',
     effects: [{ kind: 'addAbility', abilityId: 'executioner' }],
   },
   'druid-wild-growth': {
@@ -798,7 +798,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'druid',
     label: 'Wild Growth',
     tier: 2,
-    description: 'All Druids gain Regen 60.',
+    description: 'End of turn: each Druid heals itself for 60.',
     effects: [{ kind: 'addAbility', abilityId: 'regen-60' }],
   },
   'elementalist-mitosis': {
@@ -806,7 +806,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'elementalist',
     label: 'Mitosis',
     tier: 3,
-    description: 'Elementalist elementals gain Charge 4 Uses 1 Summon Elemental recursively.',
+    description: 'Every 4 turns, each Elementalist summons 1 elemental. Each summoned elemental can repeat that summon once after 4 turns.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'charge-4-summon-elemental', addAbilityId: 'charge-4-summon-elemental-mitosis' }],
   },
   'knight-retaliate': {
@@ -814,7 +814,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'knight',
     label: 'Retaliate',
     tier: 2,
-    description: 'All Knights counter normal attacks with a normal attack of their own.',
+    description: 'Whenever a Knight is hit by a normal attack, it makes 1 normal attack back.',
     effects: [{ kind: 'addAbility', abilityId: 'retaliate' }],
   },
   'militia-scurry': {
@@ -822,7 +822,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'militia',
     label: 'Scurry',
     tier: 3,
-    description: 'All Militia ignore allied saturation limits.',
+    description: 'Militia do not count toward allied saturation limits.',
     effects: [{ kind: 'addAbility', abilityId: 'scurry' }],
   },
   'necromancer-alternate-fuel': {
@@ -830,7 +830,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'necromancer',
     label: 'Alternate Fuel',
     tier: 2,
-    description: 'All Necromancers may spend 10 health instead of a corpse for corpse-consuming abilities.',
+    description: 'Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them.',
     effects: [{ kind: 'addAbility', abilityId: 'alternate-fuel-10' }],
   },
   'necromancer-rising-tide': {
@@ -838,7 +838,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'necromancer',
     label: 'Rising Tide',
     tier: 3,
-    description: 'Necromancer skeletons gain AoE Ally 0 Heal 7.',
+    description: 'Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'corpse-summon-skeleton', addAbilityId: 'corpse-summon-skeleton-rising' }],
   },
   'priest-zeal': {
@@ -846,7 +846,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'priest',
     label: 'Zeal',
     tier: 3,
-    description: 'All Priests also Enhance 1 whoever they heal.',
+    description: 'Whenever a Priest heals a target, that same target also gains +1 speed and +1 damage for the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'zeal-enhance-1' }],
   },
   'ranger-concussive-shots': {
@@ -854,7 +854,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'ranger',
     label: 'Concussive Shots',
     tier: 2,
-    description: 'All Rangers set attack targets initiative to 0.',
+    description: 'On attack: each Ranger sets its target initiative to 0.',
     effects: [{ kind: 'addAbility', abilityId: 'concussive-shots' }],
   },
   'shaman-serve-once-more': {
@@ -862,7 +862,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'shaman',
     label: 'Serve Once More',
     tier: 3,
-    description: 'All Shamans make beneficial effects also apply Fading and On Death Summon Skeleton.',
+    description: 'Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death.',
     effects: [{ kind: 'addAbility', abilityId: 'serve-once-more' }],
   },
   'wizard-storm': {
@@ -870,7 +870,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'wizard',
     label: 'Storm',
     tier: 2,
-    description: 'All Wizards gain Charge 4 random enemy R Strike 4.',
+    description: 'Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range.',
     effects: [{ kind: 'addAbility', abilityId: 'charge-4-random-enemy-r-strike-4' }],
   },
 };

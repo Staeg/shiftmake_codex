@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "playtest:manual": "npm run build && vite preview --host 127.0.0.1 --port 4174",
     "test": "vitest run",
     "test:watch": "vitest",
     "report:2v2": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations2v2.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations2v2.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations2v2.js @args\"",

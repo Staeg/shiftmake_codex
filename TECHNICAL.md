@@ -327,9 +327,9 @@ Base recovery is now:
 
 - generates 4 new Rifts each cycle
 - uses the schedule `2/1/1/1`, `2/2/1/1`, `3/2/1/1`, `3/2/2/1`, `3/3/2/1`, then `4/3/2/1`
-- gives each Rift `tier + 1` unique enemy combatant groups
+- gives Tier 1-3 Rifts `tier + 1` unique enemy combatant groups, then keeps Tier 4 at 4 groups
 - derives enemy troop quantity exactly the same way as player troops
-- applies `+10%` health, damage, and speed per tier above 1
+- applies `+20%` health, damage, and speed only at Tier 4
 - awards `victoryPoints = tier`
 - does not use enemy budgets, resource rewards, upgrade rewards, or blueprints
 

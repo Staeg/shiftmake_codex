@@ -1713,6 +1713,10 @@ function pickNearestUnit(actor: InternalUnit, candidates: InternalUnit[]): Inter
   return [...candidates].sort((left, right) => compareUnitsByDistance(actor, left, right))[0] ?? null;
 }
 
+function countFriendlyFrontlineUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
+  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'frontline' && equalsHex(unit.position, coord)).length;
+}
+
 function getScreenPriority(state: InternalState, actor: InternalUnit, candidate: InternalUnit): number {
   const alliedBackline = getAlliedBackline(state, actor);
   if (alliedBackline.length === 0) {
@@ -1841,7 +1845,12 @@ function moveToward(
   const minDistance = Math.min(...pool.map((entry) => entry.distance));
   const byDistance = pool.filter((entry) => entry.distance === minDistance);
   const minEnemies = Math.min(...byDistance.map((entry) => entry.nonEngagedEnemies));
-  const selected = byDistance.filter((entry) => entry.nonEngagedEnemies === minEnemies).sort((left, right) => compareHex(left.coord, right.coord))[0]!;
+  let finalists = byDistance.filter((entry) => entry.nonEngagedEnemies === minEnemies);
+  if (actor.role === 'frontline' && roleIntent === 'fallback-backline' && finalists.length > 1) {
+    const minFrontlineSupport = Math.min(...finalists.map((entry) => countFriendlyFrontlineUnitsOnHex(state, actor, entry.coord)));
+    finalists = finalists.filter((entry) => countFriendlyFrontlineUnitsOnHex(state, actor, entry.coord) === minFrontlineSupport);
+  }
+  const selected = finalists.sort((left, right) => compareHex(left.coord, right.coord))[0]!;
   if (equalsHex(selected.coord, actor.position)) {
     return false;
   }

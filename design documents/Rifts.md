@@ -40,8 +40,8 @@ There are always 4 newly generated Rifts per cycle.
 
 Tier currently affects:
 
-- enemy stat scaling: `+10%` health, damage, and speed per tier above 1
-- number of enemy combatant groups: `tier + 1`
+- enemy stat scaling: only Tier 4 gets `+20%` health, damage, and speed over base
+- number of enemy combatant groups: Tier 1-3 use `tier + 1`, Tier 4 stays at 4 groups
 - VP reward: equal to tier
 - mutator count: currently 1 mutator per Rift
 
@@ -60,7 +60,7 @@ Enemy armies are no longer budget-based.
 Current rules:
 
 - shuffle the full pool of non-summoned faction and troop-type combinations
-- select exactly `tier + 1` unique combinations
+- select exactly `min(tier, 3) + 1` unique combinations
 - create one enemy combatant group for each selected combination
 - derive quantity exactly the same way as player troops: `120 / resolved cost`
 

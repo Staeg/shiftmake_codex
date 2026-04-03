@@ -52,7 +52,8 @@ function pickMutators(tier: number, seed: number): MutatorId[] {
 
 function buildEnemyArmy(tier: number, seed: number) {
   const rng = createRng(deriveSeed(seed, 97));
-  const selections = rng.shuffle([...ALL_TROOP_UNLOCK_IDS]).slice(0, tier + 1);
+  const enemyGroupCount = Math.min(tier, 3) + 1;
+  const selections = rng.shuffle([...ALL_TROOP_UNLOCK_IDS]).slice(0, enemyGroupCount);
 
   return selections.map((troopUnlockId, index) => {
     const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);

@@ -126,6 +126,59 @@ describe('role behavior', () => {
     expect(stepTargetLabels(fallbackStep!).includes('Enemy Backline') || fallbackStep?.kind === 'move').toBe(true);
   });
 
+  it('frontline fallback spreads across equally good lanes instead of stacking onto one hex', () => {
+    const fastFrontline = {
+      ...getTroopDefinitionOrThrow('human/soldier').stats,
+      speed: 20,
+      size: 10,
+    };
+    const slowBackline = {
+      ...getTroopDefinitionOrThrow('elf/archer').stats,
+      speed: 1,
+    };
+    const replay = Array.from({ length: 200 }, (_, offset) => 106 + offset)
+      .map((seed) =>
+        resolveBattle(
+          makeBattleInput(
+            [
+              makeBattleCombatant('human/soldier', 'player', { label: 'Player Frontline A', stats: fastFrontline }),
+              makeBattleCombatant('human/soldier', 'player', { label: 'Player Frontline B', stats: fastFrontline }),
+            ],
+            [makeBattleCombatant('elf/archer', 'enemy', { label: 'Enemy Backline', stats: slowBackline })],
+            seed,
+          ),
+        ),
+      )
+      .find((candidateReplay) => {
+        const initialA = getUnitAtStart(candidateReplay, 'Player Frontline A', 'player');
+        const initialB = getUnitAtStart(candidateReplay, 'Player Frontline B', 'player');
+        const candidateFallbackA = findFirstRoleStep(candidateReplay, 'Player Frontline A', 'fallback-backline');
+        const candidateFallbackB = findFirstRoleStep(candidateReplay, 'Player Frontline B', 'fallback-backline');
+        return Boolean(
+          candidateFallbackA
+          && candidateFallbackB
+          && initialA.position.q === -2
+          && initialA.position.r === 0
+          && initialB.position.q === -2
+          && initialB.position.r === 1
+          && candidateFallbackA.metadata?.toQ === -1
+          && candidateFallbackA.metadata?.toR === 0
+          && candidateReplay.steps.indexOf(candidateFallbackA) < candidateReplay.steps.indexOf(candidateFallbackB),
+        );
+      });
+
+    expect(replay).toBeDefined();
+    const fallbackA = replay && findFirstRoleStep(replay, 'Player Frontline A', 'fallback-backline');
+    const fallbackB = replay && findFirstRoleStep(replay, 'Player Frontline B', 'fallback-backline');
+
+    expect(fallbackA).toBeDefined();
+    expect(fallbackB).toBeDefined();
+    expect(fallbackA?.metadata?.toQ).toBe(-1);
+    expect(fallbackA?.metadata?.toR).toBe(0);
+    expect(fallbackB?.metadata?.toQ).toBe(-1);
+    expect(fallbackB?.metadata?.toR).toBe(1);
+  });
+
   it('chaff breaches enemy backline and stays committed', () => {
     const replay = resolveBattle(
       makeBattleInput(
