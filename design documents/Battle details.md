@@ -87,19 +87,21 @@ Engagements are explicit and symmetric.
 
 ### Frontline
 
-- If any unengaged enemies share the hex, engage them and fight.
-- Otherwise pursue enemy frontline or chaff.
+- Frontline units try to hold the line first.
+- They prefer to intercept enemy frontline or chaff before those enemies can reach allied backline units.
+- If no meaningful frontline target remains, they push into reachable enemy backline instead of idling.
 
 ### Chaff
 
-- If no unengaged enemies share the hex, pursue enemy backline.
-- Otherwise pile on a same-hex target, preferring enemies already engaged by allies on that hex.
+- Chaff units are the breakthrough role.
+- They look for openings past the frontline, prefer to spill into enemy backline targets, and keep pressuring that backline once they get there.
+- If they are already in the scrum, they pile onto same-hex enemies to keep pressure high.
 
 ### Backline
 
-- If enemies share the hex, retreat to a random adjacent enemy-free hex if possible; otherwise attack a same-hex enemy.
-- Else if enemies are in range, make a ranged attack.
-- Else carefully advance toward the nearest enemy while avoiding stepping onto a hex occupied by a shorter-range ally.
+- Backline units try to keep space.
+- If threatened up close, they prefer to reposition into safer hexes that preserve or increase distance from enemies.
+- Otherwise they attack from range, or advance carefully only when they can do so without giving up their spacing advantage.
 
 ## Replay output
 

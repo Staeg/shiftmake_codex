@@ -9,7 +9,7 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 ## Current flow
 
 1. Start a campaign from one of three save slots.
-2. Pick one free opening faction-and-troop combination.
+2. Pick one free opening faction-and-troop combination from that faction's native roster.
 3. Enter the planning screen for the current cycle.
 4. Inspect visible Rifts, their mutators, enemy troops, saturation limit, and VP reward.
 5. Spend carried Essence on troop and upgrade draft claims.
@@ -29,10 +29,11 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 
 ## Current progression actions
 
-- Claim one free opening troop from any non-summoned faction and troop-type combination.
+- Claim one free opening troop from any faction's native troop roster.
 - Reveal troop choices and claim one for 1 Essence.
 - Reveal upgrade choices and claim one for 1 Essence.
 - Use owned factions and owned unit types to bias future draft buckets.
+- Winning a Rift can unlock unusual faction-and-troop combinations from that Rift's enemy army.
 - Build synergies through faction-wide and troop-type-wide upgrades.
 
 Removed from the current game:
@@ -48,7 +49,7 @@ Removed from the current game:
 
 - The score is `victoryPoints`.
 - Winning a Rift grants VP equal to that Rift's tier.
-- Rift victories grant nothing else.
+- Rift victories can also unlock unusual troop combinations that appeared in the defeated Rift.
 - The scored run officially ends after cycle 10.
 
 ## Currently implemented factions

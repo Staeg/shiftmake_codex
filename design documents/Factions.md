@@ -2,7 +2,16 @@
 
 This document lists the currently implemented factions and faction-wide upgrades.
 
-Any non-summoned unit type can now be paired with any faction. Faction identity is defined by stat adjustments, added attributes, abilities, and faction upgrades rather than by a restricted troop roster.
+Faction identity is defined by stat adjustments, added attributes, abilities, faction upgrades, and a native troop roster. Rifts can still unlock unusual cross-faction troop combinations outside those native rosters.
+
+## Native troop rosters
+
+These are the currently implemented default recruit pools for each faction.
+
+- Humans: `soldier`, `militia`, `archer`, `knight`, `priest`, `wizard`
+- Elves: `archer`, `ranger`, `druid`, `beastmaster`, `champion`
+- Goblins: `militia`, `soldier`, `shaman`, `necromancer`, `wizard`
+- Trolls: `soldier`, `champion`, `avenger`, `beastmaster`, `shaman`, `elementalist`
 
 ## Humans
 

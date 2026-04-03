@@ -1031,6 +1031,21 @@ export const UNLOCKABLE_UNIT_TYPE_IDS = Object.values(UNIT_TYPES)
 export const ALL_TROOP_UNLOCK_IDS = Object.keys(FACTIONS).flatMap((factionId) =>
   UNLOCKABLE_UNIT_TYPE_IDS.map((unitTypeId) => getTroopUnlockId(factionId as FactionId, unitTypeId)),
 );
+export const NATIVE_TROOP_UNIT_TYPE_IDS_BY_FACTION: Record<FactionId, UnitTypeId[]> = {
+  human: ['soldier', 'militia', 'archer', 'knight', 'priest', 'wizard'],
+  elf: ['archer', 'ranger', 'druid', 'beastmaster', 'champion'],
+  goblin: ['militia', 'soldier', 'shaman', 'necromancer', 'wizard'],
+  troll: ['soldier', 'champion', 'avenger', 'beastmaster', 'shaman', 'elementalist'],
+};
+export const NATIVE_TROOP_UNLOCK_IDS_BY_FACTION: Record<FactionId, string[]> = Object.fromEntries(
+  (Object.keys(NATIVE_TROOP_UNIT_TYPE_IDS_BY_FACTION) as FactionId[]).map((factionId) => [
+    factionId,
+    NATIVE_TROOP_UNIT_TYPE_IDS_BY_FACTION[factionId].map((unitTypeId) => getTroopUnlockId(factionId, unitTypeId)),
+  ]),
+) as Record<FactionId, string[]>;
+export const NATIVE_TROOP_UNLOCK_IDS = (Object.values(NATIVE_TROOP_UNLOCK_IDS_BY_FACTION).flat() as string[]).sort((left, right) =>
+  left.localeCompare(right),
+);
 
 export function getTroopDefinitionOrThrow(id: string): TroopDefinition {
   const troop = TROOP_CATALOG[id];
@@ -1075,6 +1090,14 @@ export function getBaseTroopCost(factionId: FactionId, unitTypeId: UnitTypeId): 
 
 export function getTroopUnlockId(factionId: FactionId, unitTypeId: UnitTypeId): string {
   return `${factionId}/${unitTypeId}`;
+}
+
+export function getFactionNativeTroopUnlockIds(factionId: FactionId): string[] {
+  return [...NATIVE_TROOP_UNLOCK_IDS_BY_FACTION[factionId]];
+}
+
+export function isNativeTroopUnlockId(troopUnlockId: string): boolean {
+  return NATIVE_TROOP_UNLOCK_IDS.includes(troopUnlockId);
 }
 
 export function applyStatModifier(

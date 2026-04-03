@@ -423,18 +423,18 @@ export interface RiftInstance {
   enemyArmy: ResolvedCombatantDefinition[];
   victoryPoints: number;
   saturation: number;
-  expiresInCycles: number;
   state: RiftState;
 }
 
 export interface GameState {
-  version: 2;
+  version: 3;
   campaignSeed: number;
   cycleNumber: number;
   phase: CampaignPhase;
   essence: number;
   victoryPoints: number;
   unlockedFactionIds: FactionId[];
+  unlockedTroopUnlockIds: TroopUnlockId[];
   troops: TroopInstance[];
   factionUpgradeIds: UpgradeId[];
   troopTypeUpgradeIds: UpgradeId[];
@@ -487,6 +487,7 @@ export interface ApplyCycleOutcomeResult {
   nextState: GameState;
   replayPayloadWrites: ReplayPayloadWrite[];
   replayPayloadDeletes: ReplayPayloadDelete[];
+  newlyUnlockedTroopUnlockIds: TroopUnlockId[];
 }
 
 export interface LoadGameResult {

@@ -14,7 +14,6 @@ Each generated Rift currently contains:
 - `enemyArmy`
 - `victoryPoints`
 - `saturation`
-- `expiresInCycles`
 - `state`
 
 Current states:
@@ -75,9 +74,10 @@ This value is passed into the battle resolver and directly changes movement and 
 
 ## Rewards
 
-The only Rift reward is VP.
+Rifts award VP and can unlock enemy troop combinations for future troop drafts.
 
 - `victoryPoints = tier`
+- winning can add off-roster enemy `faction/unitType` combinations to the player's future troop-offer pool
 - no gold
 - no Essence payout
 - no upgrade batches
@@ -93,4 +93,4 @@ The reward preview in the UI should therefore show:
 
 ## Lifecycle note
 
-Rifts still store `expiresInCycles: 2`, but the current campaign flow expires all unplayed discovered Rifts as soon as the cycle advances. In practice, a generated Rift is only playable during its own planning cycle.
+Generated Rifts are one-cycle opportunities. Any discovered Rift that is not played before the cycle advances expires immediately.

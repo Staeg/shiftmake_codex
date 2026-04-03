@@ -21,12 +21,12 @@ interface SlotMetaRecord {
 type SlotMetaIndex = Partial<Record<SaveSlotId, SlotMetaRecord>>;
 
 const SLOT_IDS: SaveSlotId[] = [1, 2, 3];
-const SLOT_META_KEY = 'shiftmake:slots:v2';
+const SLOT_META_KEY = 'shiftmake:slots:v3';
 const LEGACY_SAVE_KEY = 'shiftmake:save:v1';
 const LEGACY_REPLAY_PREFIX = 'shiftmake:replay:';
 
 function getSlotSaveKey(slotId: SaveSlotId): string {
-  return `shiftmake:slot:${slotId}:save:v2`;
+  return `shiftmake:slot:${slotId}:save:v3`;
 }
 
 function getSlotReplayPrefix(slotId: SaveSlotId): string {
@@ -37,8 +37,12 @@ function getLegacyV2ReplayPrefix(slotId: SaveSlotId): string {
   return `shiftmake:slot:${slotId}:replay:v2:`;
 }
 
+function getLegacyV3ReplayPrefix(slotId: SaveSlotId): string {
+  return `shiftmake:slot:${slotId}:replay:v3:`;
+}
+
 function getSlotReplayKeys(slotId: SaveSlotId, replayId: string): string[] {
-  return [`${getSlotReplayPrefix(slotId)}${replayId}`, `${getLegacyV2ReplayPrefix(slotId)}${replayId}`];
+  return [`${getSlotReplayPrefix(slotId)}${replayId}`, `${getLegacyV3ReplayPrefix(slotId)}${replayId}`, `${getLegacyV2ReplayPrefix(slotId)}${replayId}`];
 }
 
 function readMeta(storage: Storage): SlotMetaIndex {
@@ -107,7 +111,7 @@ function loadGameFromStorage(storage: Storage, slotId: SaveSlotId): GameState | 
 }
 
 function clearSlotReplays(storage: Storage, slotId: SaveSlotId): void {
-  const prefixes = [getSlotReplayPrefix(slotId), getLegacyV2ReplayPrefix(slotId)];
+  const prefixes = [getSlotReplayPrefix(slotId), getLegacyV2ReplayPrefix(slotId), getLegacyV3ReplayPrefix(slotId)];
   const keysToDelete: string[] = [];
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index);

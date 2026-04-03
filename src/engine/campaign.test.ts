@@ -11,7 +11,7 @@ import {
   serializeGameState,
   startNewGame,
 } from './game';
-import { FACTION_UPGRADES, TROOP_TYPE_UPGRADES } from './unitCatalog';
+import { FACTION_UPGRADES, isNativeTroopUnlockId, TROOP_TYPE_UPGRADES } from './unitCatalog';
 import type { BattleReplay, GameState, RiftResolutionRecord, UpgradeId } from './types';
 
 function makeReplay(recordId: string, riftId: string, outcome: 'victory' | 'defeat'): BattleReplay {
@@ -69,8 +69,17 @@ describe('campaign progression', () => {
     expect(opened.phase).toBe('planning');
     expect(opened.essence).toBe(2);
     expect(opened.unlockedFactionIds).toEqual(['human']);
+    expect(opened.unlockedTroopUnlockIds).toEqual([]);
     expect(opened.troops.map((troop) => troop.id)).toEqual(['human/soldier']);
     expect(opened.openRifts).toHaveLength(4);
+  });
+
+  it('rejects non-native opening troop choices', () => {
+    const state = startNewGame(77);
+    const attempted = claimOpeningTroop(state, 'human/druid');
+
+    expect(attempted.phase).toBe('opening_unlock');
+    expect(attempted.troops).toEqual([]);
   });
 
   it('builds troop draft offers from owned faction, owned troop type, and new faction buckets', () => {
@@ -80,6 +89,7 @@ describe('campaign progression', () => {
     expect(offer).not.toBeNull();
     expect(offer?.optionTroopUnlockIds).toHaveLength(3);
     expect(new Set(offer?.optionTroopUnlockIds).size).toBe(3);
+    expect(offer?.optionTroopUnlockIds.every((troopUnlockId) => isNativeTroopUnlockId(troopUnlockId))).toBe(true);
     expect(offer?.optionTroopUnlockIds[0]?.startsWith('human/')).toBe(true);
     expect(offer?.optionTroopUnlockIds[1]?.endsWith('/soldier')).toBe(true);
     expect(offer?.optionTroopUnlockIds[2]?.startsWith('human/')).toBe(false);
@@ -146,6 +156,45 @@ describe('campaign progression', () => {
     expect(result.nextState.victoryPoints).toBe(0);
     expect(result.nextState.troops[0]?.recoveryCyclesRemaining).toBe(0);
     expect(result.nextState.replayIndex[0]?.outcome).toBe('defeat');
+  });
+
+  it('unlocks off-roster enemy troop combinations after Rift victories', () => {
+    const state = claimOpeningTroop(startNewGame(88), 'human/soldier');
+    const result = applyCycleOutcomes(state, {
+      records: [
+        {
+          ...makeResolutionRecord(state, 'victory'),
+          battleInput: {
+            seed: 12,
+            riftId: state.openRifts[0]!.id,
+            tier: state.openRifts[0]!.tier,
+            mutatorIds: state.openRifts[0]!.mutatorIds,
+            saturation: state.openRifts[0]!.saturation,
+            playerCombatants: [],
+            enemyCombatants: [
+              {
+                combatantId: 'enemy-off-roster',
+                troopInstanceId: null,
+                factionId: 'troll',
+                unitTypeId: 'wizard',
+                label: 'Troll Wizard',
+                role: 'backline',
+                type: 'wizard',
+                attributes: ['caster', 'troll'],
+                stats: { health: 1, damage: 1, speed: 1, range: 1, armor: 0, size: 1, capacity: 0 },
+                abilities: [],
+                quantity: 1,
+                cost: 1,
+                side: 'enemy',
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(result.newlyUnlockedTroopUnlockIds).toEqual(['troll/wizard']);
+    expect(result.nextState.unlockedTroopUnlockIds).toContain('troll/wizard');
   });
 
   it('transitions to game over after resolving cycle ten and continue playing resumes planning', () => {

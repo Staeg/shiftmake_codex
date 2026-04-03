@@ -1,4 +1,4 @@
-import { composeBaseTroopDefinition, FACTION_UPGRADES, TROOP_TYPE_UPGRADES } from './unitCatalog';
+import { composeBaseTroopDefinition, FACTION_UPGRADES, NATIVE_TROOP_UNLOCK_IDS, TROOP_TYPE_UPGRADES } from './unitCatalog';
 import type { FactionId, GameState, TroopUnlockId, UpgradeId } from './types';
 
 export function getAllUpgradeIds(): UpgradeId[] {
@@ -9,6 +9,10 @@ export function getUnownedUpgradeIds(state: Pick<GameState, 'factionUpgradeIds' 
   return getAllUpgradeIds().filter(
     (upgradeId) => !state.factionUpgradeIds.includes(upgradeId) && !state.troopTypeUpgradeIds.includes(upgradeId),
   );
+}
+
+export function getClaimableTroopUnlockIds(state: Pick<GameState, 'unlockedTroopUnlockIds'>): TroopUnlockId[] {
+  return [...new Set([...NATIVE_TROOP_UNLOCK_IDS, ...state.unlockedTroopUnlockIds])];
 }
 
 export function describeTroopUnlock(troopUnlockId: TroopUnlockId): string {

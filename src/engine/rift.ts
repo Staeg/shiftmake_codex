@@ -80,7 +80,6 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
       enemyArmy: buildEnemyArmy(tier, riftSeed),
       victoryPoints: tier,
       saturation: pickRiftSaturation(riftSeed),
-      expiresInCycles: 2,
       state: 'discovered',
     };
   });

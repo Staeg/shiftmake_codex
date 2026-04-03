@@ -25,15 +25,17 @@ Removed from the progression model:
 
 ## Unlocking troops
 
-All non-summoned faction-and-troop combinations are valid player unlocks.
+Each faction has a native troop roster that can appear in normal troop offers.
 
-There is no longer a separation between:
-
-- starting troops
-- default unlocks
-- blueprint-only unlocks
+Off-roster faction-and-troop combinations are not part of the normal pool by default. They are unlocked by winning Rifts that contain those combinations.
 
 Owning any troop from a faction marks that faction as owned for draft bucketing.
+
+Current roster rule:
+
+- the campaign keeps at most one troop per `faction/unitType` combination
+- claiming a troop unlock immediately adds that troop to the player's roster if it is not already owned
+- Rift-earned off-roster unlocks do not immediately add a troop; they add that combination to the future troop-offer pool
 
 ## Troop offer generation
 
@@ -48,6 +50,15 @@ Buckets are filled in this order:
 If any bucket cannot be satisfied, that slot falls back to a random unowned troop unlock from the remaining pool.
 
 Generated offers persist in save data until they are claimed or the cycle advances.
+
+Offer candidate pool:
+
+- all native troop combinations across the current factions
+- any off-roster troop combinations previously unlocked through Rift victories
+
+Opening pick rule:
+
+- the opening pick only shows native faction rosters
 
 ## Unlocking upgrades
 

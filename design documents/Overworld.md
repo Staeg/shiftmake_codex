@@ -12,7 +12,7 @@ The app has:
 
 The campaign phases inside the overworld are:
 
-- `opening_unlock`: choose the free opening faction-and-troop combination
+- `opening_unlock`: choose the free opening faction-and-troop combination from a faction's native roster
 - `planning`: inspect Rifts, draft unlocks, assign troops, end cycle
 - `game_over`: shown immediately after cycle 10 resolves
 

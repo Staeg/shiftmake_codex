@@ -62,7 +62,7 @@ The app has three UI screens:
 
 Campaign phases are:
 
-- `opening_unlock`: free opening pick of any non-summoned faction + troop combination
+- `opening_unlock`: free opening pick of any native faction + troop combination
 - `planning`: normal overworld play
 - `game_over`: shown immediately after cycle 10 resolves unless already dismissed for that run
 
@@ -100,7 +100,8 @@ Important current catalog rules:
 
 - troop quantity is derived as `120 / resolved cost`
 - only Goblins modify cost, at `cost x 0.5`
-- all non-summoned `faction/unitType` combinations are unlockable for players and enemies
+- each faction has a native recruit pool, while off-roster `faction/unitType` combinations are primarily unlocked by winning Rifts that contain them
+- enemies can still roll any non-summoned `faction/unitType` combination
 - stat upgrades, blueprints, and faction-unlock purchases no longer exist
 - the Soldier upgrade `Just a bunch of guys` is removed
 - only `momentum`, `heavy-air`, and `quagmire` remain as Rift mutators
@@ -116,6 +117,7 @@ Important current catalog rules:
 - `essence`
 - `victoryPoints`
 - `unlockedFactionIds`
+- `unlockedTroopUnlockIds`
 - `troops`
 - `factionUpgradeIds`
 - `troopTypeUpgradeIds`
@@ -146,6 +148,10 @@ Troop offer buckets:
 1. a troop from an owned faction
 2. a troop of an owned unit type
 3. a troop from a not-yet-owned faction
+
+Native faction troops are always valid offer candidates.
+
+Off-roster troop combinations only join the candidate pool after the player unlocks them through Rift victories.
 
 Upgrade offer buckets:
 
@@ -220,6 +226,47 @@ Each acting unit:
 2. performs role and engagement behavior
 3. resolves `endOfTurn` abilities
 4. expires temporary turn-based effects on itself
+
+### Role decision tree
+
+Role behavior is implemented inside `src/engine/battle.ts` and stays fully engine-owned.
+
+Shared first check for every acting unit:
+
+1. If the unit is already engaged, it attacks an engaged enemy in melee.
+2. Only units with no active engagement continue into role-specific logic.
+
+Frontline decision tree:
+
+1. If any unengaged enemy shares the current hex, engage and fight immediately.
+2. Otherwise choose a role objective that prefers:
+   - screening enemy `frontline` or `chaff` that threatens allied backline access
+   - moving into contested positions that block those paths
+   - falling through to reachable enemy `backline` only when no frontline or chaff objective remains
+3. Move toward that objective.
+4. If the move ends on an enemy hex, engage and fight.
+
+Chaff decision tree:
+
+1. If unengaged enemies already share the current hex, pile onto that fight.
+2. Otherwise choose a role objective that prefers:
+   - breaching into enemy `backline`
+   - preserving an existing backline commitment tracked in transient battle-only runtime state
+   - only dropping that commitment when combat legality or board state makes it impossible
+3. Move toward that objective.
+4. If the move ends on an enemy hex, engage and fight.
+
+Backline decision tree:
+
+1. If enemies share the current hex, score legal adjacent retreat hexes and choose one that best preserves or increases distance from threats.
+2. If no legal retreat improves safety, attack a same-hex enemy instead.
+3. If no enemy shares the hex but one is in range, make a ranged attack.
+4. Otherwise score careful advance hexes that move closer without unnecessarily collapsing spacing, then move if a legal improvement exists.
+
+Replay visibility rule:
+
+- Important role decisions emit typed replay metadata such as `roleIntent`, `reasonCode`, `targetRole`, and target hex coordinates.
+- UI surfaces such as the event log and battle recap consume that metadata directly and do not reconstruct combat reasoning on their own.
 
 Battles stop on elimination or at `MAX_BEATS = 1000`, then resolve to `victory`, `defeat`, or `draw`.
 
@@ -312,8 +359,8 @@ Save data uses `localStorage`:
 
 Current keys are versioned for the rewrite:
 
-- slot index: `shiftmake:slots:v2`
-- save payload: `shiftmake:slot:<id>:save:v2`
+- slot index: `shiftmake:slots:v3`
+- save payload: `shiftmake:slot:<id>:save:v3`
 - replay payloads: `shiftmake:slot:<id>:replay:v2:<replayId>`
 
 Replay payloads are stored as serialized `BattleInput`, not full replay output. Archived battles are reconstructed by re-running the deterministic resolver when opened.

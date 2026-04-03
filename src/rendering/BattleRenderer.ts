@@ -20,6 +20,7 @@ const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const BASE_PLAYBACK_STEP_MS = 500;
 const VIEWPORT_PADDING = 18;
+const DEFAULT_FIT_SCALE = 1.2;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 3;
 const ZOOM_STEP_FACTOR = 1.18;
@@ -120,6 +121,8 @@ function densityScaleForHexUnitCount(unitCount: number): number {
 export class BattleRenderer {
   private app: Application;
 
+  private container: HTMLElement;
+
   private worldLayer = new Container();
 
   private boardLayer = new Container();
@@ -176,9 +179,18 @@ export class BattleRenderer {
 
   private didDragDuringPointer = false;
 
+  private resizeObserver: ResizeObserver | null = null;
+
+  private pendingViewportRefreshFrame: number | null = null;
+
   constructor(container: HTMLElement) {
+    this.container = container;
     this.app = new Application({ background: '#111117', antialias: true, resizeTo: container });
-    container.appendChild(this.app.view as HTMLCanvasElement);
+    const canvas = this.app.view as HTMLCanvasElement;
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.appendChild(canvas);
     this.worldLayer.addChild(this.boardLayer, this.unitLayer, this.effectLayer);
     this.app.stage.addChild(this.worldLayer);
     this.app.stage.eventMode = 'static';
@@ -188,6 +200,17 @@ export class BattleRenderer {
     this.app.stage.on('pointerup', this.handlePointerUp);
     this.app.stage.on('pointerupoutside', this.handlePointerUp);
     this.setCanvasCursor('grab');
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.pendingViewportRefreshFrame !== null) {
+        cancelAnimationFrame(this.pendingViewportRefreshFrame);
+      }
+
+      this.pendingViewportRefreshFrame = requestAnimationFrame(() => {
+        this.pendingViewportRefreshFrame = null;
+        this.refreshViewport();
+      });
+    });
+    this.resizeObserver.observe(this.container);
   }
 
   async init(): Promise<void> {
@@ -206,6 +229,12 @@ export class BattleRenderer {
 
   destroy(): void {
     this.clearEffects();
+    if (this.pendingViewportRefreshFrame !== null) {
+      cancelAnimationFrame(this.pendingViewportRefreshFrame);
+      this.pendingViewportRefreshFrame = null;
+    }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.app.stage.off('pointerdown', this.handlePointerDown);
     this.app.stage.off('pointermove', this.handlePointerMove);
     this.app.stage.off('pointerup', this.handlePointerUp);
@@ -805,7 +834,7 @@ export class BattleRenderer {
     const boardWidth = Math.max(1, this.boardBounds.maxX - this.boardBounds.minX);
     const boardHeight = Math.max(1, this.boardBounds.maxY - this.boardBounds.minY);
 
-    this.baseFitZoom = Math.min(availableWidth / boardWidth, availableHeight / boardHeight);
+    this.baseFitZoom = Math.min(availableWidth / boardWidth, availableHeight / boardHeight) * DEFAULT_FIT_SCALE;
     this.minZoom = this.baseFitZoom * MIN_ZOOM_FACTOR;
     this.maxZoom = this.baseFitZoom * MAX_ZOOM_FACTOR;
   }

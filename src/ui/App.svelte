@@ -7,10 +7,10 @@
   import { getFactionTroops, getTroopEffectiveDefinition, getTroopStatusCounts, getTroopsAssignedToRift } from '../engine/army';
   import { formatFixed } from '../engine/fixed';
   import {
-    ALL_TROOP_UNLOCK_IDS,
     FACTIONS,
     FACTION_UPGRADES,
     TROOP_CATALOG,
+    getFactionNativeTroopUnlockIds,
     getAbility,
     getFaction,
     getMutator,
@@ -30,8 +30,8 @@
     UnitTypeId,
     UpgradeId,
   } from '../engine/types';
-  import { describeTroopUnlock, getUnownedUpgradeIds } from '../engine/upgrades';
-  import { BattleRenderer, type UnitPointerInfo } from '../rendering/BattleRenderer';
+  import { describeTroopUnlock, getClaimableTroopUnlockIds, getUnownedUpgradeIds } from '../engine/upgrades';
+  import type { BattleRenderer as BattleRendererType, UnitPointerInfo } from '../rendering/BattleRenderer';
   import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisuals';
   import { gameStore } from '../store/gameStore';
   import type { SaveSlotSummary } from '../store/saveSlots';
@@ -80,7 +80,7 @@
   let pinnedDetail: DetailCard | null = null;
   let hoveredAbilityTooltip: { label: string; description: string } | null = null;
   let battleHost: HTMLDivElement | null = null;
-  let renderer: BattleRenderer | null = null;
+  let renderer: BattleRendererType | null = null;
   let rendererInitPromise: Promise<void> | null = null;
   let renderedReplayId: string | null = null;
   let renderedStep = Number.NaN;
@@ -110,6 +110,7 @@
       if (nextProfileKey) {
         selectedReplayProfileKey = nextProfileKey;
       }
+      syncRenderer();
       return;
     }
 
@@ -118,6 +119,7 @@
     if (nextProfileKey) {
       selectedReplayProfileKey = nextProfileKey;
     }
+    syncRenderer();
   }
 
   function previewReplayProfile(side: SideId, troopLabel: string): void {
@@ -139,6 +141,7 @@
       if (options?.toggle) {
         lockedUnitId = null;
         hoverInfo = null;
+        syncRenderer();
       }
       return;
     }
@@ -339,6 +342,12 @@
     hoveredAbilityTooltip = null;
   }
 
+  function resetOverworldInspect(): void {
+    hoveredDetail = null;
+    pinnedDetail = null;
+    hoveredAbilityTooltip = null;
+  }
+
   function clearAutoTimer(): void {
     if (autoTimer !== null) {
       window.clearInterval(autoTimer);
@@ -356,6 +365,7 @@
       return;
     }
 
+    const { BattleRenderer } = await import('../rendering/BattleRenderer');
     const nextRenderer = new BattleRenderer(battleHost);
     nextRenderer.setInteractionHandlers({
       onUnitHover: (info) => {
@@ -406,10 +416,25 @@
       renderedStep = $gameStore.currentStep;
     }
 
-    const highlightedStep =
-      $gameStore.selectedEvent !== null ? $gameStore.loadedReplay.steps[$gameStore.selectedEvent] ?? null : null;
-    const strongIds = highlightedStep?.actorIds ?? [];
-    const faintIds = highlightedStep?.targetIds ?? [];
+    const highlightStepIndex = $gameStore.selectedEvent ?? ($gameStore.currentStep >= 0 ? $gameStore.currentStep : null);
+    const highlightedStep = highlightStepIndex !== null ? $gameStore.loadedReplay.steps[highlightStepIndex] ?? null : null;
+
+    let strongIds = highlightedStep?.actorIds ?? [];
+    let faintIds = highlightedStep?.targetIds ?? [];
+
+    if (lockedUnitId) {
+      if (highlightedStep?.actorIds.includes(lockedUnitId)) {
+        strongIds = [lockedUnitId];
+        faintIds = highlightedStep.targetIds.filter((id) => id !== lockedUnitId);
+      } else if (highlightedStep?.targetIds.includes(lockedUnitId)) {
+        strongIds = [lockedUnitId];
+        faintIds = highlightedStep.actorIds.filter((id) => id !== lockedUnitId);
+      } else {
+        strongIds = [lockedUnitId];
+        faintIds = [];
+      }
+    }
+
     const highlightKey = `${strongIds.join('|')}::${faintIds.join('|')}`;
     if (highlightKey !== renderedHighlightKey) {
       renderer.setHighlights(strongIds, faintIds);
@@ -450,10 +475,12 @@
   }
 
   function setRiftCenterMode(): void {
+    resetOverworldInspect();
     gameStore.setCenterMode('rifts');
   }
 
   function setTroopCenterMode(): void {
+    resetOverworldInspect();
     selectedRiftId = null;
     selectedReplayId = null;
     gameStore.setCenterMode('troops');
@@ -554,7 +581,8 @@
   $: factionRosterIds = FACTION_IDS.filter((factionId) => $gameStore.game.unlockedFactionIds.includes(factionId));
   $: activeDetail = pinnedDetail ?? hoveredDetail;
   $: statusCounts = getTroopStatusCounts($gameStore.game);
-  $: unownedTroopUnlockIds = ALL_TROOP_UNLOCK_IDS.filter(
+  $: claimableTroopUnlockIds = getClaimableTroopUnlockIds($gameStore.game);
+  $: unownedTroopUnlockIds = claimableTroopUnlockIds.filter(
     (troopUnlockId) => !$gameStore.game.troops.some((troop) => troop.id === troopUnlockId),
   );
   $: unownedUpgradeIds = getUnownedUpgradeIds($gameStore.game);
@@ -562,7 +590,7 @@
   $: starterGroups = FACTION_IDS.map((factionId) => ({
     factionId,
     label: FACTIONS[factionId].label,
-    options: ALL_TROOP_UNLOCK_IDS.filter((troopUnlockId) => troopUnlockId.startsWith(`${factionId}/`)),
+    options: getFactionNativeTroopUnlockIds(factionId),
   }));
 
   $: if (selectedRiftId && !discoveredRifts.some((rift) => rift.id === selectedRiftId)) {
@@ -646,6 +674,25 @@
   function selectReplayProfile(side: SideId, troopLabel: string): void {
     focusReplayProfileUnit(side, troopLabel, {
       toggle: true,
+    });
+  }
+
+  function selectReplayEvent(index: number): void {
+    const step = replay?.steps[index] ?? null;
+    const snapshotUnits = step?.snapshot.units ?? replay?.initial.units ?? [];
+    const focusUnitId = step?.actorIds[0] ?? step?.targetIds[0] ?? null;
+
+    gameStore.selectEvent(index);
+
+    if (!focusUnitId) {
+      lockedUnitId = null;
+      hoverInfo = null;
+      return;
+    }
+
+    const focusUnit = snapshotUnits.find((unit) => unit.id === focusUnitId) ?? null;
+    setReplayUnitLock(focusUnitId, {
+      profileKey: focusUnit ? replayProfileKey(focusUnit.side, focusUnit.troopLabel) : null,
     });
   }
 
@@ -835,7 +882,7 @@
                       unitTypeId,
                       troopDef.stats,
                       troopDef.quantity,
-                      `Opening unlock for ${getFaction(factionId).label}.`,
+                      `Opening unlock for ${getFaction(factionId).label}. Native recruits are available here; unusual faction and troop pairings come from Rift victories.`,
                       troopDef.abilities,
                     )}
                     <button
@@ -885,7 +932,55 @@
 
     <section class="left-column">
       <div class="panel overworld-detail-panel">
-        {#if $gameStore.centerMode === 'rifts' && selectedRift}
+        {#if $gameStore.centerMode === 'troops' && activeDetail}
+          <div class="detail-panel overworld-detail-panel" role="presentation" on:mouseleave={clearDetail}>
+            <p class="eyebrow">
+              {activeDetail.kind === 'mutator'
+                ? 'Mutator Effect'
+                : activeDetail.kind === 'faction'
+                  ? 'Faction Modifiers'
+                  : activeDetail.kind === 'upgrade'
+                    ? 'Upgrade Preview'
+                    : 'Unit Inspect'}
+            </p>
+            <h2>{activeDetail.label}</h2>
+            {#if activeDetail.kind === 'unit'}
+              <div class="hover-unit-detail">
+                <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
+                <p>{activeDetail.description}</p>
+              </div>
+              <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+              <div class="ability-row detail-ability-row">
+                <span>Abilities</span>
+                <div class="ability-list">
+                  {#if activeDetail.abilities.length === 0}
+                    <span class="mutator-chip empty">None</span>
+                  {:else}
+                    {#each activeDetail.abilities as ability}
+                      <button
+                        class="mutator-chip ability-chip"
+                        on:mouseenter={() => showAbilityTooltip(ability)}
+                        on:focus={() => showAbilityTooltip(ability)}
+                        on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                        on:blur={() => (hoveredAbilityTooltip = null)}
+                      >
+                        {ability.label}
+                      </button>
+                    {/each}
+                  {/if}
+                </div>
+                {#if hoveredAbilityTooltip}
+                  <div class="ability-hover-tooltip">
+                    <strong>{hoveredAbilityTooltip.label}</strong>
+                    <p>{hoveredAbilityTooltip.description}</p>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <p>{activeDetail.description}</p>
+            {/if}
+          </div>
+        {:else if $gameStore.centerMode === 'rifts' && selectedRift}
           {@const selectedRiftVisual = getRiftVisual(selectedRift)}
           <p class="eyebrow">Selected Rift</p>
           <div
@@ -1278,7 +1373,7 @@
         <div class="panel">
           <p class="eyebrow">Essence Draft</p>
           <h2>Unlocks</h2>
-          <p>Spend one Essence to reveal a troop or upgrade pack, then claim one option from it.</p>
+          <p>Spend one Essence to reveal a troop or upgrade pack, then claim one option from it. Native faction troops can appear normally; unusual pairings are added to the draft pool when you win Rifts that contain them.</p>
 
           <div class="actions-grid">
             <button class="primary" disabled={$gameStore.game.essence < 1 || !!$gameStore.game.activeTroopOffer || unownedTroopUnlockIds.length === 0} on:click={() => gameStore.revealTroopOffer()}>
@@ -1374,7 +1469,7 @@
         </div>
       {/if}
 
-      {#if activeDetail}
+      {#if activeDetail && $gameStore.centerMode !== 'troops'}
         <div class="panel detail-panel" role="presentation" on:mouseleave={clearDetail}>
           <p class="eyebrow">
             {activeDetail.kind === 'mutator'
@@ -1686,7 +1781,7 @@
               selected={$gameStore.selectedEvent}
               currentStep={$gameStore.currentStep}
               showTitle={false}
-              onSelect={(index) => gameStore.selectEvent(index)}
+              onSelect={selectReplayEvent}
             />
           </div>
         {/if}
@@ -1839,8 +1934,8 @@
   }
 
   .overworld-shell {
-    width: min(1320px, 100%);
-    grid-template-columns: minmax(278px, 294px) minmax(0, 1.38fr) minmax(278px, 294px);
+    width: min(1240px, 100%);
+    grid-template-columns: minmax(264px, 282px) minmax(0, 1.18fr) minmax(264px, 282px);
     gap: 0.75rem;
     padding-block: 0.75rem;
   }
@@ -2486,6 +2581,7 @@
 
   .center-column {
     min-width: 0;
+    grid-auto-rows: min-content;
     align-content: start;
   }
 
@@ -2539,8 +2635,8 @@
   }
 
   .troop-faction-grid {
-    grid-template-columns: repeat(auto-fit, minmax(208px, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
   }
 
   .rift-grid {
@@ -2573,6 +2669,15 @@
   .troops-mode .unlock-row,
   .troops-mode .assignment-list {
     gap: 0.45rem;
+  }
+
+  .troops-mode .troop-list {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .troops-mode .faction-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
   }
 
   .troops-mode .troop-chip,
@@ -2672,6 +2777,7 @@
 
   .replay-center {
     display: grid;
+    grid-template-rows: minmax(0, 1fr);
     min-height: 0;
     overflow: hidden;
   }
@@ -2679,12 +2785,13 @@
   .viewport-shell,
   .viewport {
     min-height: 0;
+    width: 100%;
     height: 100%;
   }
 
   .viewport-shell {
+    display: grid;
     position: relative;
-    height: 100%;
     min-height: clamp(340px, 50vh, 560px);
     border-radius: var(--ui-panel-radius);
     overflow: hidden;
@@ -2694,6 +2801,7 @@
   }
 
   .viewport {
+    display: block;
     width: 100%;
     height: 100%;
     min-height: clamp(340px, 50vh, 560px);
@@ -2774,30 +2882,6 @@
   .event-log-wrap :global(.log) {
     max-height: none;
     min-height: 0;
-  }
-
-  .replay-zoom-controls {
-    position: absolute;
-    right: var(--ui-space-md);
-    bottom: var(--ui-space-md);
-    display: grid;
-    gap: var(--ui-space-xs);
-    z-index: 1;
-  }
-
-  .replay-zoom-button {
-    width: var(--ui-space-hit);
-    height: var(--ui-space-hit);
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(196, 214, 227, 0.22);
-    border-radius: var(--ui-panel-radius-pill);
-    background: rgba(12, 18, 28, 0.48);
-    color: rgba(238, 245, 250, 0.9);
-    font-size: 1rem;
-    line-height: 1;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
   }
 
   .count-grid {
@@ -3089,22 +3173,26 @@
 
   .replay-zoom-controls {
     position: absolute;
-    top: var(--ui-space-sm);
-    right: var(--ui-space-sm);
+    top: 0.45rem;
+    right: 0.45rem;
+    bottom: auto;
+    left: auto;
     z-index: 2;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.35rem;
+    gap: 0.22rem;
+    padding: 0.22rem;
+    width: max-content;
+    max-width: calc(100% - 0.9rem);
     border-radius: 999px;
     border: 1px solid rgba(126, 157, 181, 0.18);
-    background: rgba(7, 11, 18, 0.74);
+    background: rgba(7, 11, 18, 0.6);
     backdrop-filter: blur(10px);
   }
 
   .replay-zoom-button,
   .replay-reset-button {
-    min-height: 2rem;
+    min-height: 1.75rem;
     border: 1px solid rgba(124, 153, 176, 0.22);
     background: rgba(15, 23, 35, 0.96);
     color: #f4f7fb;
@@ -3112,7 +3200,7 @@
   }
 
   .replay-zoom-button {
-    width: 2rem;
+    width: 1.75rem;
     padding: 0;
     border-radius: 999px;
     display: grid;
@@ -3120,9 +3208,9 @@
   }
 
   .replay-reset-button {
-    padding: 0 0.7rem;
+    padding: 0 0.55rem;
     border-radius: 999px;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     letter-spacing: 0.04em;
   }
 
