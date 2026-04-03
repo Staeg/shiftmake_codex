@@ -128,6 +128,10 @@ export type AbilityEffectDefinition =
       value: number;
     }>
   | EffectWithDisposition<{
+      kind: 'initiativeDelta';
+      amount: number;
+    }>
+  | EffectWithDisposition<{
       kind: 'grantAbility';
       abilityId: AbilityId;
     }>
@@ -141,9 +145,11 @@ export type AbilityEffectDefinition =
       count: number;
       consumeFallenUnitCorpse?: boolean;
       grantedAbilityIds?: AbilityId[];
+      initialInitiative?: number;
     }>
   | EffectWithDisposition<{
       kind: 'redirect';
+      allowAlreadyEngaged?: boolean;
     }>;
 
 export interface AbilityDefinition {
@@ -311,7 +317,7 @@ export interface BattleStepMetadata {
   targetHexQ?: number;
   targetHexR?: number;
   damage?: number;
-  mode?: 'melee' | 'ranged';
+  mode?: 'melee' | 'ranged' | 'blast';
   category?: 'normal' | 'retaliation' | 'strike';
   beat?: number;
   initiativeBonus?: number;

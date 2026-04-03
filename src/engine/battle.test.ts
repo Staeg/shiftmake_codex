@@ -473,21 +473,38 @@ describe('ability mechanics', () => {
 
   it('resolves troop-type upgrades across matching unit types and rewires replacement upgrades', () => {
     const upgradedState = {
-      factionUpgradeIds: [],
+      factionUpgradeIds: ['human-tubthumping', 'elf-fade-into-shadow', 'elf-long-shot-doctrine', 'goblin-snatch-the-moment', 'troll-stoneblood', 'troll-crushing-sweep'],
       troopTypeUpgradeIds: [
+        'soldier-shield-drill',
+        'archer-pinning-volley',
         'archer-shredding-arrows',
+        'avenger-blood-oath',
         'avenger-sevenfold',
         'beastmaster-blood-in-the-water',
+        'beastmaster-packmasters-whistle',
         'druid-wild-growth',
+        'druid-true-form',
+        'druid-thornhide',
+        'elementalist-arc-conductor',
         'elementalist-mitosis',
+        'knight-challenge-accepted',
+        'militia-rabble-rush',
         'necromancer-rising-tide',
+        'necromancer-early-riser',
+        'necromancer-carrion-choir',
         'priest-zeal',
+        'priest-mercy-before-dawn',
         'ranger-concussive-shots',
+        'ranger-skirmishers-step',
+        'ranger-heartseeker',
         'shaman-serve-once-more',
+        'shaman-war-drums',
         'wizard-storm',
+        'wizard-spell-echo',
       ],
     };
 
+    const humanSoldier = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'soldier'), 'player');
     const humanArcher = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'archer'), 'player');
     const elfArcher = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'archer'), 'player');
     const trollAvenger = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'avenger'), 'player');
@@ -499,21 +516,43 @@ describe('ability mechanics', () => {
     const elfRanger = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'ranger'), 'player');
     const trollShaman = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'shaman'), 'player');
     const goblinWizard = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'wizard'), 'player');
+    const humanKnight = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'knight'), 'player');
+    const humanMilitia = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'militia'), 'player');
 
+    expect(humanSoldier.abilities.map((ability) => ability.id)).toContain('shield-drill');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
+    expect(humanArcher.abilities.map((ability) => ability.id)).toContain('pinning-volley');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
+    expect(elfArcher.abilities.map((ability) => ability.id)).toContain('long-shot-doctrine');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('blood-oath');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('uses-7-corpse-summon-skeleton');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('summon-wolf-2-blood');
+    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('packmasters-whistle');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).not.toContain('summon-wolf-2');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('regen-60');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('shapeshift-bear-2');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('thornhide');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('fade-into-shadow');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('charge-4-summon-elemental-mitosis');
+    expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('arc-conductor');
     expect(elfElementalist.abilities.map((ability) => ability.id)).not.toContain('charge-4-summon-elemental');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('corpse-summon-skeleton-rising');
+    expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('early-riser');
+    expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('carrion-choir');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).not.toContain('corpse-summon-skeleton');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('zeal-enhance-1');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('mercy-before-dawn');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('tubthumping');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('concussive-shots');
+    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('skirmishers-step');
+    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('heartseeker');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('serve-once-more');
+    expect(trollShaman.abilities.map((ability) => ability.id)).toContain('war-drums');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('charge-4-random-enemy-r-strike-4');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('spell-echo');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('snatch-the-moment');
+    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('challenge-accepted');
+    expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('rabble-rush');
   });
 
   it('executioner prioritizes the lowest-current-hp legal attack target', () => {
@@ -565,6 +604,87 @@ describe('ability mechanics', () => {
     expect(initiativeStep).toBeDefined();
     expect(initiativeStep?.message).toContain('Human Soldier');
     expect(initiativeStep?.metadata?.value).toBe(0);
+  });
+
+  it('pinning volley applies a battle-long speed reduction', () => {
+    const archer = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-pinning-volley'] },
+      createTroopInstance('human', 'archer'),
+      'player',
+    );
+    const replay = resolveBattle(makeBattleInput([archer], [makeBattleCombatant('human/soldier', 'enemy')], 24));
+
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier loses 1 speed.'))).toBe(true);
+  });
+
+  it('rabble rush grants militia initiative based on same-hex militia allies', () => {
+    const militia = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-rabble-rush'] },
+      createTroopInstance('human', 'militia'),
+      'player',
+    );
+    const replay = resolveBattle(makeBattleInput([militia, militia], [makeBattleCombatant('human/knight', 'enemy')], 25));
+
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Militia gains 1 initiative.'))).toBe(true);
+  });
+
+  it('early riser gives necromancer skeleton summons immediate initiative', () => {
+    const necromancer = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['necromancer-early-riser'] },
+      createTroopInstance('troll', 'necromancer'),
+      'player',
+    );
+    const corpseSource = makeBattleCombatant('human/soldier', 'enemy');
+    corpseSource.stats = { ...corpseSource.stats, health: 1 };
+    const replay = resolveBattle(makeBattleInput([necromancer], [corpseSource], 45));
+    const summonStep = replay.steps.find((step) => step.message.includes('summons Skeleton'));
+    const summonedSkeleton = summonStep?.snapshot.units.find((unit) => unit.side === 'player' && unit.troopLabel.includes('Skeleton'));
+
+    expect(summonedSkeleton?.initiative).toBe(100);
+  });
+
+  it('mercy before dawn saves an allied unit at 1 hp the first time it would die', () => {
+    const priest = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-mercy-before-dawn'] },
+      createTroopInstance('human', 'priest'),
+      'player',
+    );
+    const ally = makeBattleCombatant('human/militia', 'player');
+    ally.stats = { ...ally.stats, health: 1 };
+    const replay = resolveBattle(makeBattleInput([priest, ally], [makeBattleCombatant('human/knight', 'enemy')], 46));
+
+    expect(replay.steps.some((step) => step.message.includes('preserves Human Militia at 1 HP'))).toBe(true);
+  });
+
+  it('tubthumping flips harmful speed reductions into +1 speed for humans', () => {
+    const archer = resolveTroopCombatant(
+      { factionUpgradeIds: ['human-tubthumping'], troopTypeUpgradeIds: [] },
+      createTroopInstance('human', 'archer'),
+      'player',
+    );
+    const enemyArcher = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-pinning-volley'] },
+      createTroopInstance('human', 'archer'),
+      'enemy',
+    );
+    const replay = resolveBattle(makeBattleInput([archer], [enemyArcher], 48));
+
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Archer gains +1 speed.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Archer loses 1 speed.'))).toBe(false);
+  });
+
+  it('stoneblood saves trolls at 25 hp and removes regen for the rest of the battle', () => {
+    const soldier = resolveTroopCombatant(
+      { factionUpgradeIds: ['troll-stoneblood'], troopTypeUpgradeIds: [] },
+      createTroopInstance('troll', 'soldier'),
+      'player',
+    );
+    soldier.stats = { ...soldier.stats, health: 20 };
+    const replay = resolveBattle(makeBattleInput([soldier], [makeBattleCombatant('human/knight', 'enemy')], 49));
+    const stonebloodStepIndex = replay.steps.findIndex((step) => step.message.includes('refuses to fall and stays at 25 HP'));
+
+    expect(stonebloodStepIndex).toBeGreaterThan(-1);
+    expect(replay.steps[stonebloodStepIndex]?.message).toContain('25 HP');
   });
 
   it('zeal reacts to applied heal effects even when the heal restores 0 HP', () => {

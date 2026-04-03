@@ -71,12 +71,26 @@ function redirectEffect(): AbilityEffectDefinition {
   return { kind: 'redirect' };
 }
 
-function summonEffect(unitTypeId: UnitTypeId, count: number, consumeFallenUnitCorpse = false, grantedAbilityIds: AbilityId[] = []): AbilityEffectDefinition {
-  return { kind: 'summon', unitTypeId, count, consumeFallenUnitCorpse, grantedAbilityIds, disposition: 'neutral' };
+function redirectEffectAllowEngaged(): AbilityEffectDefinition {
+  return { kind: 'redirect', allowAlreadyEngaged: true };
+}
+
+function summonEffect(
+  unitTypeId: UnitTypeId,
+  count: number,
+  consumeFallenUnitCorpse = false,
+  grantedAbilityIds: AbilityId[] = [],
+  initialInitiative?: number,
+): AbilityEffectDefinition {
+  return { kind: 'summon', unitTypeId, count, consumeFallenUnitCorpse, grantedAbilityIds, initialInitiative, disposition: 'neutral' };
 }
 
 function initiativeSetEffect(value: number): AbilityEffectDefinition {
   return { kind: 'initiativeSet', value, disposition: 'harmful' };
+}
+
+function initiativeDeltaEffect(amount: number): AbilityEffectDefinition {
+  return { kind: 'initiativeDelta', amount, disposition: amount >= 0 ? 'beneficial' : 'harmful' };
 }
 
 function grantAbilityEffect(abilityId: AbilityId, disposition: 'beneficial' | 'harmful' | 'neutral' = 'neutral'): AbilityEffectDefinition {
@@ -437,6 +451,200 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [{ kind: 'strike', amount: 4, disposition: 'harmful' }],
     shortText: 'Every 4 turns: a random enemy within this unit range is struck 4 extra times.',
   }),
+  'shield-drill': makeAbility({
+    id: 'shield-drill',
+    label: 'Shield Drill',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: "Passive: allies on this unit's hex take 1 less damage from ranged attacks and strikes.",
+  }),
+  'pinning-volley': makeAbility({
+    id: 'pinning-volley',
+    label: 'Pinning Volley',
+    trigger: { timing: 'onAttack' },
+    duration: battleDuration(),
+    target: { mode: 'default' },
+    effects: [statDeltaEffect('speed', -1, 'flat')],
+    shortText: 'On attack: reduce the target speed by 1 for the battle.',
+  }),
+  'blood-oath': makeAbility({
+    id: 'blood-oath',
+    label: 'Blood Oath',
+    trigger: { timing: 'onFallen', fallen: { allegiance: 'ally', radius: 0 } },
+    duration: instantDuration(),
+    target: selfTarget(),
+    effects: [initiativeSetEffect(100)],
+    shortText: 'When an ally dies on this hex: set initiative to 100.',
+  }),
+  'packmasters-whistle': makeAbility({
+    id: 'packmasters-whistle',
+    label: "Packmaster's Whistle",
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'End of turn: if engaged, a wolf on this unit hex redirects an engaged enemy and heals 10.',
+  }),
+  'shapeshift-bear-2': makeAbility({
+    id: 'shapeshift-bear-2',
+    label: 'Shapeshift - Bear',
+    trigger: { timing: 'endOfTurn', chargeEvery: 5, maxUses: 2 },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [
+      statEffect('bolster', 100, 'flat'),
+      statEffect('haste', 5, 'flat'),
+      statEffect('ramp', 20, 'flat'),
+      { kind: 'rangeset', value: 0 },
+      roleset('frontline'),
+    ],
+    shortText: 'After every 5 turns, twice: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.',
+  }),
+  'thornhide': makeAbility({
+    id: 'thornhide',
+    label: 'Thornhide',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: after shapeshifting, normal attackers take 6 damage when they hit this unit.',
+  }),
+  'arc-conductor': makeAbility({
+    id: 'arc-conductor',
+    label: 'Arc Conductor',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when an allied elemental dies, blast its hex for 8.',
+  }),
+  'arc-conductor-blast-8': makeAbility({
+    id: 'arc-conductor-blast-8',
+    label: 'Arc Conductor',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [{ kind: 'blast', amount: 8 }],
+    shortText: 'Passive helper.',
+  }),
+  'challenge-accepted': makeAbility({
+    id: 'challenge-accepted',
+    label: 'Challenge Accepted',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: enemies redirected by this unit deal 4 less damage while engaged with it.',
+  }),
+  'rabble-rush': makeAbility({
+    id: 'rabble-rush',
+    label: 'Rabble Rush',
+    trigger: { timing: 'startOfTurn', repeatPerOtherFriendlyUnitOnHex: true },
+    duration: instantDuration(),
+    target: selfTarget(),
+    effects: [initiativeDeltaEffect(1)],
+    shortText: 'Start of turn: gain +1 initiative per other Militia on this hex.',
+  }),
+  'early-riser': makeAbility({
+    id: 'early-riser',
+    label: 'Early Riser',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: skeletons this unit summons spawn with +100 initiative.',
+  }),
+  'carrion-choir': makeAbility({
+    id: 'carrion-choir',
+    label: 'Carrion Choir',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when this unit consumes a corpse, nearby enemies lose 1 armor and 1 damage for the battle.',
+  }),
+  'mercy-before-dawn': makeAbility({
+    id: 'mercy-before-dawn',
+    label: 'Mercy Before Dawn',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP.",
+  }),
+  'skirmishers-step': makeAbility({
+    id: 'skirmishers-step',
+    label: "Skirmisher's Step",
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: after attacking unengaged, move to the safest hex that still keeps an enemy in range.',
+  }),
+  'heartseeker': makeAbility({
+    id: 'heartseeker',
+    label: 'Heartseeker',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: attacks against unengaged targets deal double damage.',
+  }),
+  'war-drums': makeAbility({
+    id: 'war-drums',
+    label: 'War Drums',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'End of turn: enhance all allies on a chosen allied hex instead of one target.',
+  }),
+  'spell-echo': makeAbility({
+    id: 'spell-echo',
+    label: 'Spell Echo',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: "Passive: Blast chains to adjacent hexes that have not been hit in this chain.",
+  }),
+  'tubthumping': makeAbility({
+    id: 'tubthumping',
+    label: 'Tubthumping',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: effects that would reduce this unit damage or speed instead increase it by 1.',
+  }),
+  'fade-into-shadow': makeAbility({
+    id: 'fade-into-shadow',
+    label: 'Fade Into Shadow',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: the first time this backline unit is engaged, it retreats 1 hex for free.',
+  }),
+  'long-shot-doctrine': makeAbility({
+    id: 'long-shot-doctrine',
+    label: 'Long Shot Doctrine',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: ranged and caster attacks gain +1 damage and +2 initiative per hex of distance.',
+  }),
+  'snatch-the-moment': makeAbility({
+    id: 'snatch-the-moment',
+    label: 'Snatch the Moment',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: on kill, enemies on that hex lose 20 initiative.',
+  }),
+  'stoneblood': makeAbility({
+    id: 'stoneblood',
+    label: 'Stoneblood',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: the first time this unit would die, it survives at 25 HP and loses Regen.',
+  }),
+  'crushing-sweep': makeAbility({
+    id: 'crushing-sweep',
+    label: 'Crushing Sweep',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: melee kills deal splash damage equal to 5 times this unit size to other enemies on that hex.',
+  }),
 };
 
 export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
@@ -710,6 +918,14 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     description: 'Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle.',
     effects: [{ kind: 'addAbility', abilityId: 'combined-arms-20' }],
   },
+  'human-tubthumping': {
+    id: 'human-tubthumping',
+    factionId: 'human',
+    label: 'Tubthumping',
+    tier: 3,
+    description: 'Effects that would reduce a Human unit speed or damage instead increase it by 1.',
+    effects: [{ kind: 'addAbility', abilityId: 'tubthumping' }],
+  },
   'elven-eyes': {
     id: 'elven-eyes',
     factionId: 'elf',
@@ -725,6 +941,22 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     tier: 3,
     description: 'Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed.',
     effects: [{ kind: 'addAbility', abilityId: 'forsaken-80' }],
+  },
+  'elf-fade-into-shadow': {
+    id: 'elf-fade-into-shadow',
+    factionId: 'elf',
+    label: 'Fade Into Shadow',
+    tier: 2,
+    description: 'The first time each battle an engaged elven backline unit retreats 1 hex for free.',
+    effects: [{ kind: 'addAbility', abilityId: 'fade-into-shadow' }],
+  },
+  'elf-long-shot-doctrine': {
+    id: 'elf-long-shot-doctrine',
+    factionId: 'elf',
+    label: 'Long Shot Doctrine',
+    tier: 3,
+    description: 'Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target.',
+    effects: [{ kind: 'addAbility', abilityId: 'long-shot-doctrine' }],
   },
   'goblin-farewell-upgrade': {
     id: 'goblin-farewell-upgrade',
@@ -742,6 +974,14 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     description: 'Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.',
     effects: [{ kind: 'addAbility', abilityId: 'pack-1' }],
   },
+  'goblin-snatch-the-moment': {
+    id: 'goblin-snatch-the-moment',
+    factionId: 'goblin',
+    label: 'Snatch the Moment',
+    tier: 3,
+    description: 'When a goblin gets a kill, all enemies on that hex lose 20 initiative.',
+    effects: [{ kind: 'addAbility', abilityId: 'snatch-the-moment' }],
+  },
   'troll-momentum': {
     id: 'troll-momentum',
     factionId: 'troll',
@@ -758,9 +998,33 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     description: 'After taking damage: each troll unit gains +1 damage for the rest of the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'frenzy-ramp-1' }],
   },
+  'troll-stoneblood': {
+    id: 'troll-stoneblood',
+    factionId: 'troll',
+    label: 'Stoneblood',
+    tier: 2,
+    description: 'The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.',
+    effects: [{ kind: 'addAbility', abilityId: 'stoneblood' }],
+  },
+  'troll-crushing-sweep': {
+    id: 'troll-crushing-sweep',
+    factionId: 'troll',
+    label: 'Crushing Sweep',
+    tier: 3,
+    description: "When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.",
+    effects: [{ kind: 'addAbility', abilityId: 'crushing-sweep' }],
+  },
 };
 
 export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
+  'soldier-shield-drill': {
+    id: 'soldier-shield-drill',
+    unitTypeId: 'soldier',
+    label: 'Shield Drill',
+    tier: 2,
+    description: "Allies on a Soldier's hex take 1 less damage from ranged attacks and strikes.",
+    effects: [{ kind: 'addAbility', abilityId: 'shield-drill' }],
+  },
   'archer-shredding-arrows': {
     id: 'archer-shredding-arrows',
     unitTypeId: 'archer',
@@ -768,6 +1032,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     tier: 2,
     description: 'On attack: each Archer reduces its target armor by 1 for the rest of the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'shredding-arrows' }],
+  },
+  'archer-pinning-volley': {
+    id: 'archer-pinning-volley',
+    unitTypeId: 'archer',
+    label: 'Pinning Volley',
+    tier: 2,
+    description: 'Archer attacks reduce their target speed by 1 for the rest of the battle.',
+    effects: [{ kind: 'addAbility', abilityId: 'pinning-volley' }],
   },
   'avenger-sevenfold': {
     id: 'avenger-sevenfold',
@@ -777,6 +1049,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'Whenever a nearby unit leaves a corpse, each Avenger may consume it to summon a skeleton there, up to 7 times per battle.',
     effects: [{ kind: 'addAbility', abilityId: 'uses-7-corpse-summon-skeleton' }],
   },
+  'avenger-blood-oath': {
+    id: 'avenger-blood-oath',
+    unitTypeId: 'avenger',
+    label: 'Blood Oath',
+    tier: 2,
+    description: 'When a nearby ally falls, set this Avenger initiative to 100.',
+    effects: [{ kind: 'addAbility', abilityId: 'blood-oath' }],
+  },
   'beastmaster-blood-in-the-water': {
     id: 'beastmaster-blood-in-the-water',
     unitTypeId: 'beastmaster',
@@ -784,6 +1064,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     tier: 2,
     description: 'Start-of-battle wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }],
+  },
+  'beastmaster-packmasters-whistle': {
+    id: 'beastmaster-packmasters-whistle',
+    unitTypeId: 'beastmaster',
+    label: "Packmaster's Whistle",
+    tier: 3,
+    description: 'End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.',
+    effects: [{ kind: 'addAbility', abilityId: 'packmasters-whistle' }],
   },
   'champion-executioner': {
     id: 'champion-executioner',
@@ -793,6 +1081,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'Champions target the lowest-health enemy they are allowed to attack.',
     effects: [{ kind: 'addAbility', abilityId: 'executioner' }],
   },
+  'knight-challenge-accepted': {
+    id: 'knight-challenge-accepted',
+    unitTypeId: 'knight',
+    label: 'Challenge Accepted',
+    tier: 3,
+    description: 'Enemies redirected by this unit deal 4 less damage while engaged with it.',
+    effects: [{ kind: 'addAbility', abilityId: 'challenge-accepted' }],
+  },
   'druid-wild-growth': {
     id: 'druid-wild-growth',
     unitTypeId: 'druid',
@@ -801,6 +1097,22 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'End of turn: each Druid heals itself for 60.',
     effects: [{ kind: 'addAbility', abilityId: 'regen-60' }],
   },
+  'druid-true-form': {
+    id: 'druid-true-form',
+    unitTypeId: 'druid',
+    label: 'True Form',
+    tier: 2,
+    description: "Druid's Shapeshift can now trigger an additional time.",
+    effects: [{ kind: 'replaceAbility', removeAbilityId: 'shapeshift-bear', addAbilityId: 'shapeshift-bear-2' }],
+  },
+  'druid-thornhide': {
+    id: 'druid-thornhide',
+    unitTypeId: 'druid',
+    label: 'Thornhide',
+    tier: 3,
+    description: 'After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack.',
+    effects: [{ kind: 'addAbility', abilityId: 'thornhide' }],
+  },
   'elementalist-mitosis': {
     id: 'elementalist-mitosis',
     unitTypeId: 'elementalist',
@@ -808,6 +1120,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     tier: 3,
     description: 'Every 4 turns, each Elementalist summons 1 elemental. Each summoned elemental can repeat that summon once after 4 turns.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'charge-4-summon-elemental', addAbilityId: 'charge-4-summon-elemental-mitosis' }],
+  },
+  'elementalist-arc-conductor': {
+    id: 'elementalist-arc-conductor',
+    unitTypeId: 'elementalist',
+    label: 'Arc Conductor',
+    tier: 2,
+    description: 'When an allied elemental dies, blast its hex for 8.',
+    effects: [{ kind: 'addAbility', abilityId: 'arc-conductor' }],
   },
   'knight-retaliate': {
     id: 'knight-retaliate',
@@ -825,6 +1145,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'Militia do not count toward allied saturation limits.',
     effects: [{ kind: 'addAbility', abilityId: 'scurry' }],
   },
+  'militia-rabble-rush': {
+    id: 'militia-rabble-rush',
+    unitTypeId: 'militia',
+    label: 'Rabble Rush',
+    tier: 2,
+    description: 'Start of turn: Militia gain +1 initiative for each other Militia on their hex.',
+    effects: [{ kind: 'addAbility', abilityId: 'rabble-rush' }],
+  },
   'necromancer-alternate-fuel': {
     id: 'necromancer-alternate-fuel',
     unitTypeId: 'necromancer',
@@ -841,6 +1169,22 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'corpse-summon-skeleton', addAbilityId: 'corpse-summon-skeleton-rising' }],
   },
+  'necromancer-early-riser': {
+    id: 'necromancer-early-riser',
+    unitTypeId: 'necromancer',
+    label: 'Early Riser',
+    tier: 2,
+    description: 'Skeletons summoned by Necromancers spawn with +100 initiative.',
+    effects: [{ kind: 'addAbility', abilityId: 'early-riser' }],
+  },
+  'necromancer-carrion-choir': {
+    id: 'necromancer-carrion-choir',
+    unitTypeId: 'necromancer',
+    label: 'Carrion Choir',
+    tier: 3,
+    description: 'Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.',
+    effects: [{ kind: 'addAbility', abilityId: 'carrion-choir' }],
+  },
   'priest-zeal': {
     id: 'priest-zeal',
     unitTypeId: 'priest',
@@ -848,6 +1192,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     tier: 3,
     description: 'Whenever a Priest heals a target, that same target also gains +1 speed and +1 damage for the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'zeal-enhance-1' }],
+  },
+  'priest-mercy-before-dawn': {
+    id: 'priest-mercy-before-dawn',
+    unitTypeId: 'priest',
+    label: 'Mercy Before Dawn',
+    tier: 3,
+    description: "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.",
+    effects: [{ kind: 'addAbility', abilityId: 'mercy-before-dawn' }],
   },
   'ranger-concussive-shots': {
     id: 'ranger-concussive-shots',
@@ -857,6 +1209,22 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'On attack: each Ranger sets its target initiative to 0.',
     effects: [{ kind: 'addAbility', abilityId: 'concussive-shots' }],
   },
+  'ranger-skirmishers-step': {
+    id: 'ranger-skirmishers-step',
+    unitTypeId: 'ranger',
+    label: "Skirmisher's Step",
+    tier: 2,
+    description: 'After attacking, Rangers move to the safest hex that still keeps an enemy in range.',
+    effects: [{ kind: 'addAbility', abilityId: 'skirmishers-step' }],
+  },
+  'ranger-heartseeker': {
+    id: 'ranger-heartseeker',
+    unitTypeId: 'ranger',
+    label: 'Heartseeker',
+    tier: 3,
+    description: 'Ranger attacks against unengaged targets deal double damage.',
+    effects: [{ kind: 'addAbility', abilityId: 'heartseeker' }],
+  },
   'shaman-serve-once-more': {
     id: 'shaman-serve-once-more',
     unitTypeId: 'shaman',
@@ -865,6 +1233,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     description: 'Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death.',
     effects: [{ kind: 'addAbility', abilityId: 'serve-once-more' }],
   },
+  'shaman-war-drums': {
+    id: 'shaman-war-drums',
+    unitTypeId: 'shaman',
+    label: 'War Drums',
+    tier: 2,
+    description: 'Enhance 1 affects all allies on the chosen ally hex instead of one random ally.',
+    effects: [{ kind: 'replaceAbility', removeAbilityId: 'enhance-1', addAbilityId: 'war-drums' }],
+  },
   'wizard-storm': {
     id: 'wizard-storm',
     unitTypeId: 'wizard',
@@ -872,6 +1248,14 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     tier: 2,
     description: 'Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range.',
     effects: [{ kind: 'addAbility', abilityId: 'charge-4-random-enemy-r-strike-4' }],
+  },
+  'wizard-spell-echo': {
+    id: 'wizard-spell-echo',
+    unitTypeId: 'wizard',
+    label: 'Spell Echo',
+    tier: 2,
+    description: "Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain.",
+    effects: [{ kind: 'addAbility', abilityId: 'spell-echo' }],
   },
 };
 
