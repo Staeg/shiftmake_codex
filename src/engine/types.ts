@@ -310,6 +310,54 @@ export interface BattleStateSnapshot {
 
 export type BattleStepKind = 'beat' | 'move' | 'engage' | 'attack' | 'death' | 'heal' | 'buff';
 
+export interface BattleBeatExplanation {
+  beat: number;
+  initiativeBonus: number;
+  initiativePurposeHint?: string;
+}
+
+export interface BattleMovementExplanation {
+  stepKind: 'move' | 'engage';
+  movementKind: 'objective' | 'retreat' | 'ability' | 'generic';
+  movementPhase?: 'approach' | 'commit' | 'withdraw' | 'ability' | 'generic';
+  unitRole?: RoleId;
+  roleIntent?: RoleIntentId;
+  reasonCode?: string;
+  targetRole?: RoleId;
+  targetHex?: HexCoord;
+  destination?: HexCoord;
+  keepEnemyInRange?: boolean;
+}
+
+export interface BattleAbilityExplanation {
+  abilityId: string;
+  abilityLabel?: string;
+  effect?: string;
+}
+
+export interface BattleDamageExplanation {
+  mode: 'melee' | 'ranged' | 'blast';
+  category: 'normal' | 'retaliation' | 'strike';
+  baseDamage: number;
+  attackDamageBeforeArmor: number;
+  finalDamage: number;
+  heartseekerMultiplier?: number;
+  distanceBonus?: number;
+  challengePenalty?: number;
+  armorBefore?: number;
+  armorReduction?: number;
+  armorApplied?: number;
+  armorInteraction: 'normal' | 'ignored';
+  rangedMultiplier?: number;
+}
+
+export interface BattleStepExplanation {
+  beat?: BattleBeatExplanation;
+  movement?: BattleMovementExplanation;
+  ability?: BattleAbilityExplanation;
+  damage?: BattleDamageExplanation;
+}
+
 export interface BattleStepMetadata {
   roleIntent?: RoleIntentId;
   reasonCode?: string;
@@ -327,7 +375,8 @@ export interface BattleStepMetadata {
   value?: number;
   toQ?: number;
   toR?: number;
-  [key: string]: number | string | boolean | undefined;
+  explanation?: BattleStepExplanation;
+  [key: string]: number | string | boolean | BattleStepExplanation | undefined;
 }
 
 export interface BattleStep {

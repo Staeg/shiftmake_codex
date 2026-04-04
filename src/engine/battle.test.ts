@@ -132,6 +132,37 @@ describe('selection cost helpers', () => {
 });
 
 describe('resolveDebugBattle', () => {
+  function makeBattleCombatant(
+    troopId: string,
+    side: 'player' | 'enemy',
+    extraAbilities: AbilityDefinition[] = [],
+  ): ResolvedCombatantDefinition {
+    const troop = getTroopDefinitionOrThrow(troopId);
+    return {
+      combatantId: `test-${side}-${troopId}`,
+      troopInstanceId: null,
+      factionId: troop.factionId,
+      unitTypeId: troop.unitTypeId,
+      label: troop.label,
+      role: troop.role,
+      type: troop.type,
+      attributes: troop.attributes,
+      stats: troop.stats,
+      abilities: [...troop.abilities, ...extraAbilities],
+      quantity: 1,
+      cost: troop.cost,
+      side,
+    };
+  }
+
+  function makeBattleInput(
+    playerCombatants: ResolvedCombatantDefinition[],
+    enemyCombatants: ResolvedCombatantDefinition[],
+    seed = 1,
+  ): BattleInput {
+    return { seed, riftId: null, tier: null, mutatorIds: [], playerCombatants, enemyCombatants };
+  }
+
   it('is deterministic for the same seed and armies', () => {
     const input = {
       seed: 1337,
@@ -170,6 +201,57 @@ describe('resolveDebugBattle', () => {
     expect(replay.steps.length).toBeGreaterThan(0);
     expect(replay.steps[0]?.kind).toBe('beat');
     expect(replay.steps.some((step) => step.kind === 'beat')).toBe(true);
+    expect(replay.steps[0]?.metadata?.explanation?.beat?.initiativePurposeHint).toContain('100');
+  });
+
+  it('includes source ability metadata on ordinary heal steps', () => {
+    const priest = makeBattleCombatant('human/priest', 'player');
+    const ally = makeBattleCombatant('human/soldier', 'player');
+    ally.stats = { ...ally.stats, health: 1 };
+
+    const replay = resolveBattle(makeBattleInput([priest, ally], [makeBattleCombatant('human/knight', 'enemy')], 46));
+
+    const healStep = replay.steps.find((step) => step.kind === 'heal' && step.metadata?.sourceAbilityId);
+
+    expect(healStep?.metadata?.sourceAbilityId).toBeDefined();
+    expect(healStep?.metadata?.sourceAbilityLabel).toBeDefined();
+    expect(healStep?.metadata?.explanation?.ability?.abilityId).toBe(healStep?.metadata?.sourceAbilityId);
+    expect(healStep?.metadata?.explanation?.ability?.abilityLabel).toBe(healStep?.metadata?.sourceAbilityLabel);
+  });
+
+  it('gives generic death steps a non-fallback explanation payload', () => {
+    const replay = resolveDebugBattle({
+      seed: 22,
+      player: { 'goblin/beastmaster': 1 },
+      enemy: { 'human/knight': 2 },
+    });
+
+    const deathStep = replay.steps.find((step) => step.kind === 'death');
+
+    expect(deathStep).toBeDefined();
+    expect(deathStep?.metadata?.sourceAbilityId).toBe('battle-resolution');
+    expect(deathStep?.metadata?.sourceAbilityLabel).toBe('Battle resolution');
+    expect(deathStep?.metadata?.explanation?.ability).toMatchObject({
+      abilityId: 'battle-resolution',
+      abilityLabel: 'Battle resolution',
+      effect: 'death',
+    });
+  });
+
+  it('distinguishes move and engage explanation payloads', () => {
+    const replay = resolveDebugBattle({
+      seed: 7,
+      player: { 'human/knight': 1 },
+      enemy: { 'human/soldier': 1 },
+    });
+
+    const moveStep = replay.steps.find((step) => step.kind === 'move');
+    const engageStep = replay.steps.find((step) => step.kind === 'engage');
+
+    expect(moveStep?.metadata?.explanation?.movement?.stepKind).toBe('move');
+    expect(engageStep?.metadata?.explanation?.movement?.stepKind).toBe('engage');
+    expect(moveStep?.metadata?.explanation?.movement?.movementPhase).toBe('approach');
+    expect(engageStep?.metadata?.explanation?.movement?.movementPhase).toBe('commit');
   });
 
   it('formats attack damage without floating point noise', () => {

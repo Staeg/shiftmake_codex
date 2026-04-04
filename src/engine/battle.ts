@@ -5,13 +5,17 @@ import { clampStat, composeBaseTroopDefinition, composeSummonedTroopDefinition, 
 import { createTroopInstance, resolveTroopCombatant } from './army';
 import type {
   AbilityAllegiance,
+  BattleAbilityExplanation,
+  BattleDamageExplanation,
   AbilityDefinition,
   AbilityEffectDefinition,
   AbilityTargetDefinition,
   AbilityTiming,
+  BattleMovementExplanation,
   BattleInput,
   BattleReplay,
   BattleStepMetadata,
+  BattleStepExplanation,
   EffectDisposition,
   RoleIntentId,
   ReplayTroopProfile,
@@ -294,15 +298,138 @@ function buildStep(
   message: string,
   metadata?: BattleStepMetadata,
 ): void {
+  const enrichedMetadata = enrichStepMetadata(state, kind, actorIds, metadata);
   state.steps.push({
     index: state.steps.length,
     kind,
     actorIds,
     targetIds,
     message,
-    metadata,
+    metadata: enrichedMetadata,
     snapshot: cloneSnapshot(state.units),
   });
+}
+
+function buildAbilityExplanation(metadata: BattleStepMetadata): BattleAbilityExplanation | undefined {
+  if (!metadata.sourceAbilityId && !metadata.sourceAbilityLabel) {
+    return undefined;
+  }
+
+  return {
+    abilityId: metadata.sourceAbilityId ?? 'battle-resolution',
+    abilityLabel: metadata.sourceAbilityLabel,
+    effect: typeof metadata.effect === 'string' ? metadata.effect : undefined,
+  };
+}
+
+function buildMovementExplanation(kind: 'move' | 'engage', actor: InternalUnit | null, metadata: BattleStepMetadata): BattleMovementExplanation | undefined {
+  const hasDestination = typeof metadata.toQ === 'number' && typeof metadata.toR === 'number';
+  const hasRoleDecision = typeof metadata.roleIntent === 'string' && typeof metadata.reasonCode === 'string';
+  const effect = typeof metadata.effect === 'string' ? metadata.effect : undefined;
+
+  if (!hasDestination && !hasRoleDecision && !effect && kind !== 'engage') {
+    return undefined;
+  }
+
+  const movementKind =
+    hasRoleDecision ? 'objective' : effect === 'fadeIntoShadow' || effect === 'skirmishersStep' ? 'ability' : effect ? 'retreat' : 'generic';
+  const movementPhase =
+    effect === 'fadeIntoShadow' || effect === 'skirmishersStep'
+      ? 'ability'
+      : effect
+        ? 'withdraw'
+        : kind === 'engage'
+          ? 'commit'
+          : hasDestination || hasRoleDecision
+            ? 'approach'
+            : 'generic';
+
+  return {
+    stepKind: kind,
+    movementKind,
+    movementPhase,
+    unitRole: actor?.role,
+    roleIntent: metadata.roleIntent,
+    reasonCode: metadata.reasonCode,
+    targetRole: metadata.targetRole,
+    targetHex:
+      typeof metadata.targetHexQ === 'number' && typeof metadata.targetHexR === 'number'
+        ? { q: metadata.targetHexQ, r: metadata.targetHexR }
+        : undefined,
+    destination: hasDestination ? { q: metadata.toQ as number, r: metadata.toR as number } : undefined,
+    keepEnemyInRange: effect === 'skirmishersStep' ? true : undefined,
+  };
+}
+
+function buildDamageExplanation(metadata: BattleStepMetadata): BattleDamageExplanation | undefined {
+  if (typeof metadata.damage !== 'number' || typeof metadata.mode !== 'string' || typeof metadata.category !== 'string') {
+    return undefined;
+  }
+
+  return {
+    mode: metadata.mode,
+    category: metadata.category,
+    baseDamage: typeof metadata.baseDamage === 'number' ? metadata.baseDamage : metadata.damage,
+    attackDamageBeforeArmor: typeof metadata.attackDamageBeforeArmor === 'number' ? metadata.attackDamageBeforeArmor : metadata.damage,
+    finalDamage: metadata.damage,
+    heartseekerMultiplier: typeof metadata.heartseekerMultiplier === 'number' ? metadata.heartseekerMultiplier : undefined,
+    distanceBonus: typeof metadata.distanceBonus === 'number' ? metadata.distanceBonus : undefined,
+    challengePenalty: typeof metadata.challengePenalty === 'number' ? metadata.challengePenalty : undefined,
+    armorBefore: typeof metadata.armorBefore === 'number' ? metadata.armorBefore : undefined,
+    armorReduction: typeof metadata.armorReduction === 'number' ? metadata.armorReduction : undefined,
+    armorApplied: typeof metadata.armorApplied === 'number' ? metadata.armorApplied : undefined,
+    armorInteraction: metadata.armorIgnored ? 'ignored' : 'normal',
+    rangedMultiplier: typeof metadata.rangedMultiplier === 'number' ? metadata.rangedMultiplier : undefined,
+  };
+}
+
+function enrichStepMetadata(
+  state: InternalState,
+  kind: BattleStepKind,
+  actorIds: string[],
+  metadata?: BattleStepMetadata,
+): BattleStepMetadata | undefined {
+  if (!metadata) {
+    return undefined;
+  }
+
+  if (metadata.explanation) {
+    return metadata;
+  }
+
+  const actor = actorIds.length === 1 ? state.units.get(actorIds[0]!) ?? null : null;
+  const explanation: BattleStepExplanation = {};
+
+  if (kind === 'beat' && typeof metadata.beat === 'number') {
+    explanation.beat = {
+      beat: metadata.beat,
+      initiativeBonus: typeof metadata.initiativeBonus === 'number' ? metadata.initiativeBonus : 0,
+      initiativePurposeHint: 'Initiative fills until a unit reaches 100 and takes a turn.',
+    };
+  }
+
+  if (kind === 'move' || kind === 'engage') {
+    const movement = buildMovementExplanation(kind, actor, metadata);
+    if (movement) {
+      explanation.movement = movement;
+    }
+  }
+
+  if (kind === 'attack') {
+    const damage = buildDamageExplanation(metadata);
+    if (damage) {
+      explanation.damage = damage;
+    }
+  }
+
+  if (kind === 'buff' || kind === 'heal' || kind === 'death' || kind === 'engage' || kind === 'move' || kind === 'attack') {
+    const ability = buildAbilityExplanation(metadata);
+    if (ability) {
+      explanation.ability = ability;
+    }
+  }
+
+  return Object.keys(explanation).length > 0 ? { ...metadata, explanation } : metadata;
 }
 
 function emitRoleIntentStep(
@@ -662,12 +789,21 @@ function findProtectingPriest(state: InternalState, target: InternalUnit): Inter
   return priests.sort((left, right) => compareUnitsByDistance(target, left, right))[0] ?? null;
 }
 
-function saveUnitFromDeath(state: InternalState, source: InternalUnit, target: InternalUnit, hp: number, effect: string, message: string): boolean {
+function saveUnitFromDeath(
+  state: InternalState,
+  source: InternalUnit,
+  target: InternalUnit,
+  hp: number,
+  effect: string,
+  message: string,
+  sourceAbilityId: string,
+): boolean {
   target.hp = hp;
   buildStep(state, 'buff', [source.id], [target.id], message, {
     effect,
     amount: hp,
-    sourceAbilityId: effect,
+    sourceAbilityId,
+    sourceAbilityLabel: getAbility(sourceAbilityId).label,
   });
   return true;
 }
@@ -683,13 +819,14 @@ function preventDeath(state: InternalState, actor: InternalUnit, target: Interna
       1,
       'mercyBeforeDawn',
       `${protectingPriest.troopLabel} preserves ${target.troopLabel} at 1 HP.`,
+      'mercy-before-dawn',
     );
   }
 
   if (!target.stonebloodUsed && hasAbility(target, 'stoneblood')) {
     target.stonebloodUsed = true;
     target.resolvedAbilities = target.resolvedAbilities.filter((runtime) => runtime.definition.id !== 'regen-5');
-    return saveUnitFromDeath(state, target, target, 25, 'stoneblood', `${target.troopLabel} refuses to fall and stays at 25 HP.`);
+    return saveUnitFromDeath(state, target, target, 25, 'stoneblood', `${target.troopLabel} refuses to fall and stays at 25 HP.`, 'stoneblood');
   }
 
   return false;
@@ -797,6 +934,7 @@ function healUnit(
   state: InternalState,
   actor: InternalUnit,
   target: InternalUnit,
+  runtime: RuntimeAbilityState,
   effect: Extract<AbilityEffectDefinition, { kind: 'heal' }>,
 ): boolean {
   if (!target.alive) {
@@ -810,6 +948,8 @@ function healUnit(
   buildStep(state, 'heal', [actor.id], [target.id], `${actor.troopLabel} heals ${target.troopLabel} for ${formatFixed(actual)}.`, {
     amount: actual,
     effect: 'heal',
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
   });
   return true;
 }
@@ -1432,6 +1572,8 @@ function applyCarrionChoir(state: InternalState, actor: InternalUnit, corpsePosi
       buildStep(state, 'buff', [actor.id], [unit.id], `${unit.troopLabel} loses 1 armor and 1 damage.`, {
         effect: 'carrionChoir',
         amount: -1,
+        sourceAbilityId: 'carrion-choir',
+        sourceAbilityLabel: getAbility('carrion-choir').label,
       });
     });
 }
@@ -1519,6 +1661,10 @@ function applyBlastSequence(
     buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} splashes ${formatFixed(damage)} blast damage.`, {
       damage,
       mode: 'blast',
+      category: 'strike',
+      baseDamage: damage,
+      attackDamageBeforeArmor: damage,
+      armorIgnored: true,
       sourceAbilityId: runtime.definition.id,
       sourceAbilityLabel: runtime.definition.label,
     });
@@ -1557,7 +1703,7 @@ type PerTargetEffectHandler = (
 const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind'], PerTargetEffectHandler>> = {
   bolster: (state, actor, runtime, target, effect) => applyBolster(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'bolster' }>),
   haste: (state, actor, runtime, target, effect) => applyHaste(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'haste' }>),
-  heal: (state, actor, _runtime, target, effect) => healUnit(state, actor, target, effect as Extract<AbilityEffectDefinition, { kind: 'heal' }>),
+  heal: (state, actor, runtime, target, effect) => healUnit(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'heal' }>),
   ramp: (state, actor, runtime, target, effect) => applyRamp(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'ramp' }>),
   statDelta: (state, actor, runtime, target, effect) =>
     applyStatDelta(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'statDelta' }>),
@@ -1762,6 +1908,8 @@ function performPackmastersWhistle(state: InternalState, actor: InternalUnit): v
   buildStep(state, 'engage', [wolf.id], [engagedTarget.id], `${wolf.troopLabel} answers ${actor.troopLabel}'s whistle.`, {
     effect: 'packmastersWhistle',
     amount: 10,
+    sourceAbilityId: 'packmasters-whistle',
+    sourceAbilityLabel: getAbility('packmasters-whistle').label,
   });
 }
 
@@ -1809,7 +1957,11 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   if (!hasAbility(target, 'fading')) {
     state.corpses.set(target.id, { ...target.position });
   }
-  buildStep(state, 'death', [actor.id], [target.id], `${target.troopLabel} is killed.`);
+  buildStep(state, 'death', [actor.id], [target.id], `${target.troopLabel} is killed.`, {
+    effect: 'death',
+    sourceAbilityId: 'battle-resolution',
+    sourceAbilityLabel: 'Battle resolution',
+  });
 
   const bondedDependents = getAliveUnits(state, target.side).filter(
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
@@ -1824,6 +1976,8 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
         buildStep(state, 'buff', [actor.id], [unit.id], `${unit.troopLabel} loses 20 initiative.`, {
           effect: 'snatchTheMoment',
           amount: -20,
+          sourceAbilityId: 'snatch-the-moment',
+          sourceAbilityLabel: getAbility('snatch-the-moment').label,
         });
       });
   }
@@ -1837,6 +1991,11 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
           damage: splash,
           mode: 'melee',
           category: context.category,
+          baseDamage: splash,
+          attackDamageBeforeArmor: splash,
+          armorIgnored: true,
+          sourceAbilityId: 'crushing-sweep',
+          sourceAbilityLabel: getAbility('crushing-sweep').label,
         });
         if (unit.hp <= 0 && unit.alive) {
           handleDeath(state, actor, unit, context);
@@ -1877,17 +2036,18 @@ function attack(
 ): void {
   const attackContext: AttackContext = { mode, category };
   let attackDamage = actor.resolvedStats.damage;
-  if (hasAbility(actor, 'heartseeker') && target.engagedWith.size === 0) {
+  const heartseekerActive = hasAbility(actor, 'heartseeker') && target.engagedWith.size === 0;
+  if (heartseekerActive) {
     attackDamage = fixedMul(attackDamage, 2);
   }
   const distanceBonus = getDistanceDamageBonus(actor, target, attackContext);
   attackDamage = fixedAdd(attackDamage, distanceBonus.damage);
-  const armorAfterMods = fixedMax(fixedSub(target.resolvedStats.armor, getIncomingDamageReduction(state, target, attackContext)), 0);
-  if (actor.challengedBy.size > 0) {
-    const engagedChallengers = [...actor.challengedBy].filter((unitId) => actor.engagedWith.has(unitId));
-    if (engagedChallengers.length > 0) {
-      attackDamage = fixedMax(fixedSub(attackDamage, 4), 0);
-    }
+  const armorReduction = getIncomingDamageReduction(state, target, attackContext);
+  const armorAfterMods = fixedMax(fixedSub(target.resolvedStats.armor, armorReduction), 0);
+  const challengePenalty =
+    actor.challengedBy.size > 0 && [...actor.challengedBy].some((unitId) => actor.engagedWith.has(unitId)) ? 4 : 0;
+  if (challengePenalty > 0) {
+    attackDamage = fixedMax(fixedSub(attackDamage, challengePenalty), 0);
   }
   const baseDamage = fixedSub(attackDamage, armorAfterMods);
   const modifiedDamage = mode === 'ranged' ? fixedMul(baseDamage, state.effects.rangedDamageMultiplier) : baseDamage;
@@ -1901,6 +2061,15 @@ function attack(
     damage,
     mode,
     category,
+    baseDamage: actor.resolvedStats.damage,
+    attackDamageBeforeArmor: attackDamage,
+    heartseekerMultiplier: heartseekerActive ? 2 : undefined,
+    distanceBonus: distanceBonus.damage || undefined,
+    challengePenalty: challengePenalty || undefined,
+    armorBefore: target.resolvedStats.armor,
+    armorReduction: armorReduction || undefined,
+    armorApplied: armorAfterMods,
+    rangedMultiplier: mode === 'ranged' ? state.effects.rangedDamageMultiplier : undefined,
   });
 
   if (allowOnAttackAbilities) {
@@ -1917,6 +2086,11 @@ function attack(
         damage: 6,
         mode: 'blast',
         category: 'strike',
+        baseDamage: 6,
+        attackDamageBeforeArmor: 6,
+        armorIgnored: true,
+        sourceAbilityId: 'thornhide',
+        sourceAbilityLabel: getAbility('thornhide').label,
       });
       if (actor.hp <= 0 && actor.alive) {
         handleDeath(state, target, actor, { mode: 'blast', category: 'strike' });
@@ -1970,7 +2144,11 @@ function drawAttention(state: InternalState, actor: InternalUnit, roles: RoleId[
   const engagedTargets = engageEnemiesOnHex(state, actor, roles);
 
   if (engagedTargets.length > 0) {
-    buildStep(state, 'engage', [actor.id], engagedTargets.map((target) => target.id), `${actor.troopLabel} engages enemies.`);
+    buildStep(state, 'engage', [actor.id], engagedTargets.map((target) => target.id), `${actor.troopLabel} engages enemies.`, {
+      targetRole: engagedTargets[0]?.role,
+      targetHexQ: engagedTargets[0]?.position.q,
+      targetHexR: engagedTargets[0]?.position.r,
+    });
   }
 
   return fight(state, actor) || engagedTargets.length > 0;
@@ -2271,6 +2449,14 @@ function retreatFromEngagement(
     effect,
     toQ: actor.position.q,
     toR: actor.position.r,
+    sourceAbilityId:
+      effect === 'skirmishersStep' ? 'skirmishers-step' : effect === 'fadeIntoShadow' ? 'fade-into-shadow' : undefined,
+    sourceAbilityLabel:
+      effect === 'skirmishersStep'
+        ? getAbility('skirmishers-step').label
+        : effect === 'fadeIntoShadow'
+          ? getAbility('fade-into-shadow').label
+          : undefined,
   });
   return true;
 }

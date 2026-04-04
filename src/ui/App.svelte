@@ -96,10 +96,39 @@
   let replayEventLogCollapsed = false;
   let replayRecapOpen = false;
   let expandedReplayRecapTroopKey: string | null = null;
+  let pinnedReplayExplanationIndex: number | null = null;
+  let lastReplayExplanationReplayId: string | null = null;
 
   function getReplayProfileKeyForUnit(unitId: string): string | null {
     const unit = replaySnapshot.find((entry) => entry.id === unitId);
     return unit ? replayProfileKey(unit.side, unit.troopLabel) : null;
+  }
+
+  function getReplayUnitPortraitUrl(unit: BattleUnit): string {
+    return getFactionUnitPortrait(unit.factionId, unit.unitTypeId);
+  }
+
+  function findLockedUnitActorStep(unitId: string, fromStep: number, direction: 'prev' | 'next'): number | null {
+    if (!replay) {
+      return null;
+    }
+
+    if (direction === 'prev') {
+      for (let index = Math.min(fromStep - 1, replay.steps.length - 1); index >= 0; index -= 1) {
+        if (replay.steps[index]?.actorIds.includes(unitId)) {
+          return index;
+        }
+      }
+      return null;
+    }
+
+    for (let index = Math.max(fromStep + 1, 0); index < replay.steps.length; index += 1) {
+      if (replay.steps[index]?.actorIds.includes(unitId)) {
+        return index;
+      }
+    }
+
+    return null;
   }
 
   function setReplayUnitLock(unitId: string, options?: { toggle?: boolean; pointer?: UnitPointerInfo | null; profileKey?: string | null }): void {
@@ -673,9 +702,20 @@
     inspectedUnit && replaySnapshot.length > 0
       ? inspectedUnit.engagedWithIds.map((unitId) => replaySnapshot.find((unit) => unit.id === unitId)).filter(Boolean) as BattleUnit[]
       : [];
+  $: lockedUnitLastActionStep =
+    lockedUnitId && replay ? findLockedUnitActorStep(lockedUnitId, $gameStore.currentStep, 'prev') : null;
+  $: lockedUnitNextActionStep =
+    lockedUnitId && replay ? findLockedUnitActorStep(lockedUnitId, $gameStore.currentStep, 'next') : null;
   $: replayRecap = replay ? buildBattleRecap(replay) : [];
   $: replayRecapPlayerTroops = replayRecap.filter((entry) => entry.side === 'player');
   $: replayRecapEnemyTroops = replayRecap.filter((entry) => entry.side === 'enemy');
+  $: if ((replay?.id ?? null) !== lastReplayExplanationReplayId) {
+    lastReplayExplanationReplayId = replay?.id ?? null;
+    pinnedReplayExplanationIndex = null;
+  }
+  $: if (!replay || (pinnedReplayExplanationIndex !== null && !replay.steps[pinnedReplayExplanationIndex])) {
+    pinnedReplayExplanationIndex = null;
+  }
   $: replayRecapSides = [
     { side: 'player' as const, label: 'Player', troops: replayRecapPlayerTroops },
     { side: 'enemy' as const, label: 'Enemy', troops: replayRecapEnemyTroops },
@@ -692,6 +732,7 @@
     const snapshotUnits = step?.snapshot.units ?? replay?.initial.units ?? [];
     const focusUnitId = step?.actorIds[0] ?? step?.targetIds[0] ?? null;
 
+    pinnedReplayExplanationIndex = null;
     gameStore.selectEvent(index);
 
     if (!focusUnitId) {
@@ -704,6 +745,19 @@
     setReplayUnitLock(focusUnitId, {
       profileKey: focusUnit ? replayProfileKey(focusUnit.side, focusUnit.troopLabel) : null,
     });
+  }
+
+  function goToReplayUnitActionStep(stepIndex: number | null): void {
+    if (stepIndex === null) {
+      return;
+    }
+
+    gameStore.setAutoPlay(false);
+    selectReplayEvent(stepIndex);
+  }
+
+  function pinReplayExplanation(index: number | null): void {
+    pinnedReplayExplanationIndex = index;
   }
 
   function getReplayRecapTroopProfile(side: SideId, troopLabel: string) {
@@ -1762,9 +1816,14 @@
             unit={inspectedUnit}
             profile={replayFocusProfile}
             engagedUnits={engagedUnits}
+            getUnitPortraitUrl={getReplayUnitPortraitUrl}
             x={hoverInfo?.x ?? 0}
             y={hoverInfo?.y ?? 0}
             locked={!!lockedUnitId}
+            lastActionStep={lockedUnitLastActionStep}
+            nextActionStep={lockedUnitNextActionStep}
+            onGoToLastAction={() => goToReplayUnitActionStep(lockedUnitLastActionStep)}
+            onGoToNextAction={() => goToReplayUnitActionStep(lockedUnitNextActionStep)}
             docked={true}
           />
         {:else}
@@ -1876,8 +1935,10 @@
               steps={replay?.steps ?? []}
               selected={$gameStore.selectedEvent}
               currentStep={$gameStore.currentStep}
+              pinnedExplanationIndex={pinnedReplayExplanationIndex}
               showTitle={false}
               onSelect={selectReplayEvent}
+              onPinExplanation={pinReplayExplanation}
             />
           </div>
         {/if}

@@ -7,9 +7,14 @@
   export let unit: BattleUnit | null = null;
   export let profile: ReplayTroopProfile | null = null;
   export let engagedUnits: BattleUnit[] = [];
+  export let getUnitPortraitUrl: ((unit: BattleUnit) => string) | null = null;
   export let x = 0;
   export let y = 0;
   export let locked = false;
+  export let lastActionStep: number | null = null;
+  export let nextActionStep: number | null = null;
+  export let onGoToLastAction: (() => void) | null = null;
+  export let onGoToNextAction: (() => void) | null = null;
   export let docked = false;
   export let liveBuffLines: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> = {};
   let hoveredRoleText: { label: string; description: string } | null = null;
@@ -75,6 +80,10 @@
         { key: 'capacity' as const, label: statIcon('capacity'), value: formatFixed(display.stats.capacity), breakdown: mergedBreakdown('capacity') },
       ]
     : [];
+
+  function resolveUnitPortrait(unit: BattleUnit): string {
+    return getUnitPortraitUrl?.(unit) ?? '';
+  }
 </script>
 
 {#if display}
@@ -158,16 +167,39 @@
         {#if engagedUnits.length === 0}
           <small>None</small>
         {:else}
-          <ul>
+          <div class="engaged-sprites">
             {#each engagedUnits as other}
-              <li>{other.troopLabel}</li>
+              <div class="engaged-sprite" title={other.troopLabel}>
+                <img src={resolveUnitPortrait(other)} alt={other.troopLabel} />
+              </div>
             {/each}
-          </ul>
+          </div>
         {/if}
       </div>
     {/if}
 
     {#if locked}
+      <div class="action-nav">
+        <span>Locked Actions</span>
+        <div class="action-buttons">
+          <button
+            type="button"
+            class="action-button"
+            disabled={lastActionStep === null}
+            on:click={() => onGoToLastAction?.()}
+          >
+            Last action
+          </button>
+          <button
+            type="button"
+            class="action-button"
+            disabled={nextActionStep === null}
+            on:click={() => onGoToNextAction?.()}
+          >
+            Next action
+          </button>
+        </div>
+      </div>
       <footer>Locked selection (click unit again to unlock)</footer>
     {/if}
   </aside>
@@ -265,11 +297,62 @@
     padding-top: 0.24rem;
   }
 
-  .engaged ul {
-    margin: 0;
-    padding-left: 1rem;
+  .engaged-sprites {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.22rem;
+    align-items: center;
+  }
+
+  .engaged-sprite {
+    width: 1.25rem;
+    height: 1.25rem;
     display: grid;
-    gap: 0.35rem;
+    place-items: center;
+    border-radius: 4px;
+    border: 1px solid rgba(146, 170, 192, 0.16);
+    background: rgba(14, 20, 29, 0.72);
+    overflow: hidden;
+  }
+
+  .engaged-sprite img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+
+  .action-nav {
+    display: grid;
+    gap: 0.18rem;
+    margin-top: 0.08rem;
+    padding-top: 0.24rem;
+    border-top: 1px solid #28384a;
+    color: #bfccd8;
+    font-size: 0.68rem;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 0.24rem;
+    flex-wrap: wrap;
+  }
+
+  .action-button {
+    flex: 1 1 0;
+    padding: 0.18rem 0.35rem;
+    border: 1px solid rgba(212, 173, 115, 0.24);
+    border-radius: 999px;
+    background: rgba(31, 24, 16, 0.82);
+    color: #f1d7ae;
+    font: inherit;
+    font-size: 0.66rem;
+    cursor: pointer;
+  }
+
+  .action-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .ability-chips {
