@@ -6,4 +6,8 @@ export interface BattleDebugInput {
   seed?: number;
   player: ArmyDebugSelection;
   enemy: ArmyDebugSelection;
+  playerFactionUpgradeIds?: string[];
+  playerTroopTypeUpgradeIds?: string[];
+  enemyFactionUpgradeIds?: string[];
+  enemyTroopTypeUpgradeIds?: string[];
 }

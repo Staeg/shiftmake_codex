@@ -9,6 +9,10 @@ interface DebugState {
   player: ArmyDebugSelection;
   enemy: ArmyDebugSelection;
   seedInput: string;
+  playerFactionUpgradeIds: string[];
+  playerTroopTypeUpgradeIds: string[];
+  enemyFactionUpgradeIds: string[];
+  enemyTroopTypeUpgradeIds: string[];
   replay: BattleReplay | null;
   currentStep: number;
   selectedEvent: number | null;
@@ -38,6 +42,10 @@ const initialState: DebugState = {
   player: { ...DEFAULT_ARMY },
   enemy: { ...DEFAULT_ARMY },
   seedInput: '',
+  playerFactionUpgradeIds: [],
+  playerTroopTypeUpgradeIds: [],
+  enemyFactionUpgradeIds: [],
+  enemyTroopTypeUpgradeIds: [],
   replay: null,
   currentStep: -1,
   selectedEvent: null,
@@ -61,6 +69,10 @@ function makeReplay(state: DebugState): BattleReplay {
     seed: parseSeed(state.seedInput),
     player: state.player,
     enemy: state.enemy,
+    playerFactionUpgradeIds: state.playerFactionUpgradeIds,
+    playerTroopTypeUpgradeIds: state.playerTroopTypeUpgradeIds,
+    enemyFactionUpgradeIds: state.enemyFactionUpgradeIds,
+    enemyTroopTypeUpgradeIds: state.enemyTroopTypeUpgradeIds,
   });
 }
 
@@ -85,6 +97,30 @@ export const debugBattleStore = (() => {
     setSeed(value: string) {
       update((state) => ({ ...state, seedInput: value }));
     },
+    loadSetup(setup: {
+      player: ArmyDebugSelection;
+      enemy: ArmyDebugSelection;
+      seedInput: string;
+      playerFactionUpgradeIds?: string[];
+      playerTroopTypeUpgradeIds?: string[];
+      enemyFactionUpgradeIds?: string[];
+      enemyTroopTypeUpgradeIds?: string[];
+    }) {
+      update((state) => ({
+        ...state,
+        player: { ...setup.player },
+        enemy: { ...setup.enemy },
+        seedInput: setup.seedInput,
+        playerFactionUpgradeIds: [...(setup.playerFactionUpgradeIds ?? [])],
+        playerTroopTypeUpgradeIds: [...(setup.playerTroopTypeUpgradeIds ?? [])],
+        enemyFactionUpgradeIds: [...(setup.enemyFactionUpgradeIds ?? [])],
+        enemyTroopTypeUpgradeIds: [...(setup.enemyTroopTypeUpgradeIds ?? [])],
+        replay: null,
+        currentStep: -1,
+        selectedEvent: null,
+        autoPlay: false,
+      }));
+    },
     runBattle() {
       update((state) => {
         const replay = makeReplay(state);
@@ -106,6 +142,10 @@ export const debugBattleStore = (() => {
           seed: state.replay.seed,
           player: state.player,
           enemy: state.enemy,
+          playerFactionUpgradeIds: state.playerFactionUpgradeIds,
+          playerTroopTypeUpgradeIds: state.playerTroopTypeUpgradeIds,
+          enemyFactionUpgradeIds: state.enemyFactionUpgradeIds,
+          enemyTroopTypeUpgradeIds: state.enemyTroopTypeUpgradeIds,
         });
         return {
           ...state,

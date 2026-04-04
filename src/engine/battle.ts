@@ -2,6 +2,7 @@ import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
 import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, formatFixed } from './fixed';
 import { createRng, type Rng } from './rng';
 import { clampStat, composeBaseTroopDefinition, composeSummonedTroopDefinition, getAbility, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
+import { createTroopInstance, resolveTroopCombatant } from './army';
 import type {
   AbilityAllegiance,
   AbilityDefinition,
@@ -2495,44 +2496,42 @@ export function resolveBattle(input: BattleInput): BattleReplay {
 }
 
 export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
+  const playerFactionUpgradeIds = input.playerFactionUpgradeIds ?? [];
+  const playerTroopTypeUpgradeIds = input.playerTroopTypeUpgradeIds ?? [];
+  const enemyFactionUpgradeIds = input.enemyFactionUpgradeIds ?? [];
+  const enemyTroopTypeUpgradeIds = input.enemyTroopTypeUpgradeIds ?? [];
   const playerCombatants = Object.entries(input.player)
     .filter(([, quantity]) => quantity > 0)
     .map(([troopId, quantity]) => {
       const troop = getTroopDefinitionOrThrow(troopId);
+      const resolved = resolveTroopCombatant(
+        { factionUpgradeIds: playerFactionUpgradeIds, troopTypeUpgradeIds: playerTroopTypeUpgradeIds },
+        createTroopInstance(troop.factionId, troop.unitTypeId),
+        'player',
+        null,
+        `debug-player-${troopId}`,
+      );
       return {
-        combatantId: `debug-player-${troopId}`,
+        ...resolved,
         troopInstanceId: null,
-        factionId: troop.factionId,
-        unitTypeId: troop.unitTypeId,
-        label: troop.label,
-        role: troop.role,
-        type: troop.type,
-        attributes: troop.attributes,
-        stats: troop.stats,
-        abilities: troop.abilities,
         quantity,
-        cost: troop.cost,
-        side: 'player' as const,
       };
     });
   const enemyCombatants = Object.entries(input.enemy)
     .filter(([, quantity]) => quantity > 0)
     .map(([troopId, quantity]) => {
       const troop = getTroopDefinitionOrThrow(troopId);
+      const resolved = resolveTroopCombatant(
+        { factionUpgradeIds: enemyFactionUpgradeIds, troopTypeUpgradeIds: enemyTroopTypeUpgradeIds },
+        createTroopInstance(troop.factionId, troop.unitTypeId),
+        'enemy',
+        null,
+        `debug-enemy-${troopId}`,
+      );
       return {
-        combatantId: `debug-enemy-${troopId}`,
+        ...resolved,
         troopInstanceId: null,
-        factionId: troop.factionId,
-        unitTypeId: troop.unitTypeId,
-        label: troop.label,
-        role: troop.role,
-        type: troop.type,
-        attributes: troop.attributes,
-        stats: troop.stats,
-        abilities: troop.abilities,
         quantity,
-        cost: troop.cost,
-        side: 'enemy' as const,
       };
     });
 

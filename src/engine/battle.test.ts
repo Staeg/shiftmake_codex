@@ -145,6 +145,21 @@ describe('resolveDebugBattle', () => {
     expect(a).toEqual(b);
   });
 
+  it('can apply troop and faction upgrades in debug battles', () => {
+    const replay = resolveDebugBattle({
+      seed: 42,
+      player: { 'human/archer': 5 },
+      enemy: { 'human/archer': 5 },
+      playerFactionUpgradeIds: ['human-tubthumping'],
+      playerTroopTypeUpgradeIds: ['archer-pinning-volley'],
+      enemyTroopTypeUpgradeIds: ['archer-pinning-volley'],
+    });
+
+    const playerProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitTypeId === 'archer');
+    expect(playerProfile?.abilities.map((ability) => ability.id)).toContain('pinning-volley');
+    expect(playerProfile?.abilities.map((ability) => ability.id)).toContain('tubthumping');
+  });
+
   it('always includes beat steps so initiative changes are visible', () => {
     const replay = resolveDebugBattle({
       seed: 7,

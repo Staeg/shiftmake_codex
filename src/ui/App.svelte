@@ -36,6 +36,7 @@
   import { gameStore } from '../store/gameStore';
   import type { SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
+  import AbilityVerificationLab from './AbilityVerificationLab.svelte';
   import EventLog from './EventLog.svelte';
   import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
   import { getRiftVisual } from './riftVisuals';
@@ -70,6 +71,7 @@
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
   const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
+  const verificationLabMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lab') === 'ability-verification';
 
   let portraits: Record<string, string> = {};
   let selectedRiftId: string | null = null;
@@ -542,6 +544,9 @@
   }
 
   onMount(() => {
+    if (verificationLabMode) {
+      return;
+    }
     gameStore.initialize();
     void loadFactionUnitPortraitUrls().then((loaded) => {
       portraits = loaded;
@@ -761,7 +766,9 @@
   }
 </script>
 
-{#if $gameStore.screen === 'main_menu'}
+{#if verificationLabMode}
+  <AbilityVerificationLab />
+{:else if $gameStore.screen === 'main_menu'}
   <main class="menu-screen">
     <section class="menu-panel">
       <div class="menu-copy">
