@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload } from '../engine/types';
+import { decodeBattleReport } from '../engine/battleReport';
+import { decodeCampaignReport } from '../engine/campaignReport';
+import type { CampaignReportUiContext, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites } from './gameStore';
 
 class MemoryStorage implements Storage {
@@ -150,9 +152,12 @@ describe('persistReplayPayloadWrites', () => {
 });
 
 describe('gameStore progression flow', () => {
+  let storage: MemoryStorage;
+
   beforeEach(() => {
+    storage = new MemoryStorage();
     Object.defineProperty(globalThis, 'localStorage', {
-      value: new MemoryStorage(),
+      value: storage,
       configurable: true,
     });
     gameStore.initialize();
@@ -186,16 +191,17 @@ describe('gameStore progression flow', () => {
   it('keeps active draft offers stable through save and reload', () => {
     gameStore.startNewCampaign(1);
     gameStore.claimOpeningTroop('human/soldier');
-    gameStore.revealTroopOffer();
+    gameStore.revealEssenceDraft();
 
-    const beforeReload = currentStoreState<{ game: { activeTroopOffer: unknown } }>().game.activeTroopOffer;
+    const beforeReload = currentStoreState<{ game: { activeTroopOffer: unknown; activeUpgradeOffer: unknown } }>().game;
 
     gameStore.returnToMainMenu();
     expect(gameStore.loadSlot(1)).toBe(true);
 
-    const afterReload = currentStoreState<{ game: { activeTroopOffer: unknown } }>().game.activeTroopOffer;
+    const afterReload = currentStoreState<{ game: { activeTroopOffer: unknown; activeUpgradeOffer: unknown } }>().game;
 
-    expect(afterReload).toEqual(beforeReload);
+    expect(afterReload.activeTroopOffer).toEqual(beforeReload.activeTroopOffer);
+    expect(afterReload.activeUpgradeOffer).toEqual(beforeReload.activeUpgradeOffer);
   });
 
   it('adds resolved battles to the archive index when a cycle ends', () => {
@@ -228,5 +234,121 @@ describe('gameStore progression flow', () => {
     expect(ended.game.replayIndex).toHaveLength(1);
     expect(ended.game.replayIndex[0]?.cycleNumber).toBe(1);
     expect(ended.game.replayIndex[0]?.riftId).toBe(riftId);
+  });
+
+  it('creates and imports exact battle reports for archived replays', () => {
+    gameStore.startNewCampaign(1);
+    gameStore.claimOpeningTroop('human/soldier');
+
+    const started = currentStoreState<{
+      game: {
+        troops: Array<{ id: string }>;
+        openRifts: Array<{ id: string }>;
+      };
+    }>();
+    const troopId = started.game.troops[0]?.id;
+    const riftId = started.game.openRifts[0]?.id;
+
+    gameStore.assignTroopToRift(troopId!, riftId!);
+    gameStore.endCycle(true);
+
+    const archived = currentStoreState<{ game: { replayIndex: ReplayIndexEntry[] } }>();
+    const replayId = archived.game.replayIndex[0]?.replayId;
+    expect(replayId).toBeTruthy();
+
+    const report = gameStore.createBattleReport(replayId!, 2, [
+      {
+        source: 'renderer',
+        severity: 'warning',
+        code: 'unit_texture_fallback_used',
+        message: 'No texture was loaded for human/soldier; using renderer fallback texture.',
+        textureKey: 'human/soldier',
+      },
+    ]);
+    expect(report).toBeTruthy();
+    const decoded = decodeBattleReport(report!);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      return;
+    }
+    expect(decoded.payload.summary.riftId).toBe(riftId);
+    expect(decoded.payload.diagnostics[0]?.code).toBe('unit_texture_fallback_used');
+
+    const result = gameStore.importBattleReport(report!);
+    expect(result.ok).toBe(true);
+
+    const imported = currentStoreState<{
+      screen: string;
+      loadedReplay: { id: string; steps: unknown[] } | null;
+      loadedReplayPayload: StoredReplayPayload | null;
+      loadedBattleReport: { reportId: string } | null;
+      currentStep: number;
+    }>();
+    expect(imported.screen).toBe('replay');
+    expect(imported.loadedReplay?.id).toBe(replayId);
+    expect(imported.loadedReplayPayload?.input.seed).toBe(decoded.payload.replay.input.seed);
+    expect(imported.loadedBattleReport?.reportId).toBe(decoded.payload.reportId);
+    expect(imported.currentStep).toBe(2);
+  });
+
+  it('exports and imports campaign reports into a chosen save slot', () => {
+    gameStore.startNewCampaign(1);
+    gameStore.claimOpeningTroop('human/soldier');
+
+    const started = currentStoreState<{
+      game: {
+        troops: Array<{ id: string }>;
+        openRifts: Array<{ id: string }>;
+      };
+    }>();
+    const troopId = started.game.troops[0]?.id;
+    const riftId = started.game.openRifts[0]?.id;
+    gameStore.assignTroopToRift(troopId!, riftId!);
+    gameStore.endCycle(true);
+
+    const uiContext: CampaignReportUiContext = {
+      screen: 'overworld',
+      centerMode: 'rifts',
+      selectedRiftId: riftId!,
+      selectedTroopId: troopId!,
+      selectedReplayId: null,
+      currentReplayStep: null,
+      systemMessage: 'Investigating campaign state.',
+      validationMessages: ['Example warning'],
+    };
+
+    const report = gameStore.createCampaignReport(uiContext);
+    expect(report).toBeTruthy();
+    const decoded = decodeCampaignReport(report!);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      return;
+    }
+    expect(decoded.payload.summary.replayPayloadCount).toBe(1);
+    expect(decoded.payload.uiContext.selectedRiftId).toBe(riftId);
+
+    gameStore.startNewCampaign(2);
+    storage.setItem('shiftmake:slot:2:replay:stale', JSON.stringify(makeReplayPayload(999)));
+    const result = gameStore.importCampaignReport(report!, 2);
+    expect(result.ok).toBe(true);
+
+    const imported = currentStoreState<{
+      activeSlotId: number | null;
+      screen: string;
+      centerMode: string;
+      validationMessages: string[];
+      game: {
+        campaignSeed: number;
+        replayIndex: ReplayIndexEntry[];
+      };
+    }>();
+    expect(imported.activeSlotId).toBe(2);
+    expect(imported.screen).toBe('overworld');
+    expect(imported.centerMode).toBe('rifts');
+    expect(imported.validationMessages).toEqual(['Example warning']);
+    expect(imported.game.campaignSeed).toBe(decoded.payload.game.campaignSeed);
+    expect(storage.getItem('shiftmake:slot:2:replay:stale')).toBeNull();
+    expect(storage.getItem(`shiftmake:slot:2:replay:${imported.game.replayIndex[0]?.replayId}`)).not.toBeNull();
+    expect(storage.getItem('shiftmake:slot:1:save:v3')).not.toBeNull();
   });
 });

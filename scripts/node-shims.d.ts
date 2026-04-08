@@ -38,7 +38,7 @@ declare module 'node:worker_threads' {
 
 declare const console: {
   error(value: unknown): void;
-  log(value: unknown): void;
+  log(...value: unknown[]): void;
   warn(...value: unknown[]): void;
 };
 
@@ -46,4 +46,11 @@ declare const process: {
   argv: string[];
   cwd(): string;
   exitCode?: number;
+  stdin: AsyncIterable<Buffer>;
+};
+
+declare const Buffer: {
+  from(value: string | Uint8Array, encoding?: string): {
+    toString(encoding?: string): string;
+  };
 };

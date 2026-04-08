@@ -118,6 +118,7 @@ Important current catalog rules:
 - `victoryPoints`
 - `unlockedFactionIds`
 - `unlockedTroopUnlockIds`
+- `recentTroopUnlockIds`
 - `troops`
 - `factionUpgradeIds`
 - `troopTypeUpgradeIds`
@@ -143,21 +144,25 @@ Troop size is not persisted on the instance. It is derived from the current reso
 
 Draft offers are persisted in `GameState` so save/load does not reroll them.
 
+Troop and upgrade offers are revealed together as one Essence draft in normal play. The draft costs `2` Essence when both sides still have options; if one side is fully exhausted, a one-sided fallback costs `1` Essence. Claiming an option from a revealed pack does not cost additional Essence.
+
 Troop offer buckets:
 
 1. a troop from an owned faction
 2. a troop of an owned unit type
-3. a troop from a not-yet-owned faction
+3. a troop newly enabled by the previous cycle's victorious Rifts
 
 Native faction troops are always valid offer candidates.
 
 Off-roster troop combinations only join the candidate pool after the player unlocks them through Rift victories.
 
+If the third troop bucket is empty, it falls back to a troop from a not-yet-owned faction, then any remaining claimable troop.
+
 Upgrade offer buckets:
 
 1. a troop-type upgrade for an owned unit type
 2. a faction upgrade for an owned faction
-3. an upgrade matching neither of the previous buckets
+3. an upgrade matching the third troop offer's faction or troop type
 
 If a bucket is empty, the picker falls back to any remaining unowned option.
 
@@ -302,8 +307,8 @@ The replay UI always reads resolved replay data and never reconstructs combat st
 1. Start a new run in `opening_unlock`
 2. Claim one free opening troop from any non-summoned faction + troop combination
 3. Enter `planning` with `2` Essence and generated cycle-1 Rifts
-4. Reveal troop and upgrade offer packs as needed
-5. Claim troop or upgrade choices for `1` Essence each
+4. Spend Essence to reveal combined troop and upgrade offer packs as needed
+5. Claim one troop and one upgrade choice from each revealed combined draft
 6. Assign any ready troops to discovered Rifts
 7. Resolve every discovered Rift that has assigned troops
 8. Apply recovery, archive replay inputs, award VP only on victories, and grant `+2` Essence for the next cycle

@@ -1,5 +1,5 @@
 import { Texture } from 'pixi.js';
-import type { FactionId, UnitTypeId } from '../engine/types';
+import type { BattleReportDiagnostic, FactionId, UnitTypeId } from '../engine/types';
 
 import archerUrl from '../../assets/unit sprites/archer.png';
 import avengerUrl from '../../assets/unit sprites/avenger.png';
@@ -268,17 +268,41 @@ function recolorImageToCanvas(image: HTMLImageElement, colorMap: Map<string, [nu
   return canvas;
 }
 
-export async function loadFactionUnitTextures(): Promise<Record<string, Texture>> {
+type DiagnosticSink = (diagnostic: BattleReportDiagnostic) => void;
+
+export async function loadFactionUnitTextures(onDiagnostic?: DiagnosticSink): Promise<Record<string, Texture>> {
   const images = await Promise.all(
-    (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).map(async (unitTypeId) => [unitTypeId, await loadImage(UNIT_SPRITE_URLS[unitTypeId])] as const),
+    (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).map(async (unitTypeId) => {
+      try {
+        return [unitTypeId, await loadImage(UNIT_SPRITE_URLS[unitTypeId])] as const;
+      } catch (error) {
+        onDiagnostic?.({
+          source: 'assets',
+          severity: 'error',
+          code: 'unit_sprite_load_failed',
+          message: error instanceof Error ? error.message : `Failed to load unit sprite: ${unitTypeId}`,
+          textureKey: unitTypeId,
+          assetUrl: UNIT_SPRITE_URLS[unitTypeId],
+        });
+        return [unitTypeId, null] as const;
+      }
+    }),
   );
 
-  const byUnitType = new Map<UnitTypeId, HTMLImageElement>(images);
+  const byUnitType = new Map<UnitTypeId, HTMLImageElement | null>(images);
   const textures: Record<string, Texture> = {};
 
   (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).forEach((unitTypeId) => {
     const image = byUnitType.get(unitTypeId);
     if (!image) {
+      onDiagnostic?.({
+        source: 'assets',
+        severity: 'warning',
+        code: 'unit_sprite_texture_unavailable',
+        message: `No base sprite was available for ${unitTypeId}; affected units will use renderer fallback textures.`,
+        textureKey: unitTypeId,
+        assetUrl: UNIT_SPRITE_URLS[unitTypeId],
+      });
       return;
     }
 

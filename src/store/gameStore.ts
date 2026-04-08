@@ -8,18 +8,45 @@ import {
   clearTroopAssignment,
   continuePlaying,
   resolveAssignedRifts,
-  revealTroopOffer,
-  revealUpgradeOffer,
+  revealEssenceDraft,
   startNewGame,
   validateAssignments,
 } from '../engine/game';
-import type { BattleReplay, GameState, ReplayIndexEntry, ReplayPayloadWrite, TroopId, TroopUnlockId, UpgradeId } from '../engine/types';
+import {
+  battleReportDecodeErrorMessage,
+  buildBattleReportPayload,
+  decodeBattleReport,
+  encodeBattleReport,
+  replayFromBattleReport,
+} from '../engine/battleReport';
+import {
+  buildCampaignReportPayload,
+  campaignReportDecodeErrorMessage,
+  decodeCampaignReport,
+  encodeCampaignReport,
+} from '../engine/campaignReport';
+import type {
+  BattleReportDiagnostic,
+  BattleReportPayload,
+  BattleReplay,
+  CampaignReportPayload,
+  CampaignReportUiContext,
+  GameState,
+  ReplayIndexEntry,
+  ReplayPayloadWrite,
+  StoredReplayPayload,
+  TroopId,
+  TroopUnlockId,
+  UpgradeId,
+} from '../engine/types';
 import {
   createNewSlotCampaign,
+  importCampaignReportToSlot,
   listSaveSlots,
   loadSaveSlot,
   migrateLegacySave,
   readSlotReplay,
+  readSlotReplayPayload,
   removeSlotReplay,
   type SaveSlotId,
   type SaveSlotSummary,
@@ -38,6 +65,8 @@ interface StoreState {
   slots: SaveSlotSummary[];
   centerMode: CenterMode;
   loadedReplay: BattleReplay | null;
+  loadedReplayPayload: StoredReplayPayload | null;
+  loadedBattleReport: BattleReportPayload | null;
   currentStep: number;
   selectedEvent: number | null;
   autoPlay: boolean;
@@ -70,6 +99,8 @@ function makeInitialState(): StoreState {
     slots: [],
     centerMode: 'rifts',
     loadedReplay: null,
+    loadedReplayPayload: null,
+    loadedBattleReport: null,
     currentStep: -1,
     selectedEvent: null,
     autoPlay: false,
@@ -158,6 +189,27 @@ function buildUnlockedTroopMessage(troopUnlockIds: string[]): string | null {
   }
 
   return `New troop unlocks available: ${troopUnlockIds.map((troopUnlockId) => describeTroopUnlock(troopUnlockId)).join(', ')}.`;
+}
+
+function collectReplayPayloadsForCampaign(state: Pick<StoreState, 'activeSlotId' | 'game'>): {
+  replayPayloads: Record<string, StoredReplayPayload>;
+  missingReplayIds: string[];
+} {
+  if (!state.activeSlotId) {
+    return { replayPayloads: {}, missingReplayIds: state.game.replayIndex.map((entry) => entry.replayId) };
+  }
+
+  const replayPayloads: Record<string, StoredReplayPayload> = {};
+  const missingReplayIds: string[] = [];
+  state.game.replayIndex.forEach((entry) => {
+    const payload = entry.summaryOnly ? null : readSlotReplayPayload(localStorage, state.activeSlotId as SaveSlotId, entry.replayId);
+    if (payload) {
+      replayPayloads[entry.replayId] = payload;
+    } else {
+      missingReplayIds.push(entry.replayId);
+    }
+  });
+  return { replayPayloads, missingReplayIds };
 }
 
 export function persistReplayPayloadWrites(
@@ -257,6 +309,8 @@ export const gameStore = (() => {
         screen: 'main_menu',
         slots: listSaveSlots(localStorage),
         loadedReplay: null,
+        loadedReplayPayload: null,
+        loadedBattleReport: null,
         currentStep: -1,
         selectedEvent: null,
         autoPlay: false,
@@ -275,19 +329,11 @@ export const gameStore = (() => {
     setCenterMode(mode: CenterMode) {
       update((state) => ({ ...state, centerMode: mode }));
     },
-    revealTroopOffer() {
+    revealEssenceDraft() {
       update((state) =>
         saveActiveCampaign({
           ...clearCycleEndConfirmation(state),
-          game: revealTroopOffer(state.game),
-        }),
-      );
-    },
-    revealUpgradeOffer() {
-      update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: revealUpgradeOffer(state.game),
+          game: revealEssenceDraft(state.game),
         }),
       );
     },
@@ -423,11 +469,14 @@ export const gameStore = (() => {
         }
 
         const loadedReplay = readSlotReplay(localStorage, state.activeSlotId, replayId);
+        const loadedReplayPayload = readSlotReplayPayload(localStorage, state.activeSlotId, replayId);
         if (!loadedReplay) {
           return {
             ...state,
             screen: 'overworld',
             loadedReplay: null,
+            loadedReplayPayload: null,
+            loadedBattleReport: null,
             currentStep: -1,
             selectedEvent: null,
             autoPlay: false,
@@ -438,6 +487,8 @@ export const gameStore = (() => {
           ...state,
           screen: 'replay',
           loadedReplay,
+          loadedReplayPayload,
+          loadedBattleReport: null,
           currentStep: -1,
           selectedEvent: null,
           autoPlay: false,
@@ -448,11 +499,119 @@ export const gameStore = (() => {
     hasReplay(replayId: string) {
       return snapshot.activeSlotId ? readSlotReplay(localStorage, snapshot.activeSlotId, replayId) !== null : false;
     },
+    createBattleReport(replayId: string, currentStep: number | null, diagnostics: BattleReportDiagnostic[] = []): string | null {
+      if (!snapshot.activeSlotId) {
+        return null;
+      }
+
+      const replay = readSlotReplay(localStorage, snapshot.activeSlotId, replayId);
+      const replayPayload = readSlotReplayPayload(localStorage, snapshot.activeSlotId, replayId);
+      if (!replay || !replayPayload) {
+        return null;
+      }
+
+      const replayIndexEntry = snapshot.game.replayIndex.find((entry) => entry.replayId === replayId) ?? null;
+      return encodeBattleReport(
+        buildBattleReportPayload({
+          replay,
+          replayPayload,
+          replayIndexEntry,
+          currentStep,
+          diagnostics,
+          ...(import.meta.env.MODE ? { buildMode: import.meta.env.MODE } : {}),
+        }),
+      );
+    },
+    createLoadedBattleReport(currentStep: number | null, diagnostics: BattleReportDiagnostic[] = []): string | null {
+      if (!snapshot.loadedReplay || !snapshot.loadedReplayPayload) {
+        return null;
+      }
+
+      const replayIndexEntry = snapshot.game.replayIndex.find((entry) => entry.replayId === snapshot.loadedReplay?.id) ?? null;
+      return encodeBattleReport(
+        buildBattleReportPayload({
+          replay: snapshot.loadedReplay,
+          replayPayload: snapshot.loadedReplayPayload,
+          replayIndexEntry,
+          currentStep,
+          diagnostics,
+          ...(import.meta.env.MODE ? { buildMode: import.meta.env.MODE } : {}),
+        }),
+      );
+    },
+    importBattleReport(encodedReport: string): { ok: true; reportId: string } | { ok: false; message: string } {
+      const decoded = decodeBattleReport(encodedReport);
+      if (!decoded.ok) {
+        return { ok: false, message: battleReportDecodeErrorMessage(decoded.error) };
+      }
+
+      const replay = replayFromBattleReport(decoded.payload);
+      const currentStep =
+        typeof decoded.payload.summary.currentStep === 'number'
+          ? Math.max(-1, Math.min(decoded.payload.summary.currentStep, replay.steps.length - 1))
+          : -1;
+      update((state) => ({
+        ...state,
+        screen: 'replay',
+        loadedReplay: replay,
+        loadedReplayPayload: decoded.payload.replay,
+        loadedBattleReport: decoded.payload,
+        currentStep,
+        selectedEvent: null,
+        autoPlay: false,
+        systemMessage: `Imported battle report ${decoded.payload.reportId}.`,
+      }));
+      return { ok: true, reportId: decoded.payload.reportId };
+    },
+    createCampaignReport(uiContext: CampaignReportUiContext): string | null {
+      if (!snapshot.activeSlotId) {
+        return null;
+      }
+
+      const { replayPayloads, missingReplayIds } = collectReplayPayloadsForCampaign(snapshot);
+      return encodeCampaignReport(
+        buildCampaignReportPayload({
+          game: snapshot.game,
+          replayPayloads,
+          missingReplayIds,
+          uiContext,
+          ...(import.meta.env.MODE ? { buildMode: import.meta.env.MODE } : {}),
+        }),
+      );
+    },
+    previewCampaignReport(encodedReport: string): { ok: true; payload: CampaignReportPayload } | { ok: false; message: string } {
+      const decoded = decodeCampaignReport(encodedReport);
+      if (!decoded.ok) {
+        return { ok: false, message: campaignReportDecodeErrorMessage(decoded.error) };
+      }
+      return { ok: true, payload: decoded.payload };
+    },
+    importCampaignReport(encodedReport: string, slotId: SaveSlotId): { ok: true; reportId: string } | { ok: false; message: string } {
+      const decoded = decodeCampaignReport(encodedReport);
+      if (!decoded.ok) {
+        return { ok: false, message: campaignReportDecodeErrorMessage(decoded.error) };
+      }
+
+      const game = importCampaignReportToSlot(localStorage, slotId, decoded.payload);
+      set({
+        ...makeInitialState(),
+        screen: 'overworld',
+        activeSlotId: slotId,
+        slots: listSaveSlots(localStorage),
+        centerMode: decoded.payload.uiContext.centerMode,
+        game,
+        systemMessage: `Imported campaign report ${decoded.payload.reportId} into Slot ${slotId}.`,
+        validationMessages: [...decoded.payload.uiContext.validationMessages],
+      });
+      return { ok: true, reportId: decoded.payload.reportId };
+    },
     closeReplay() {
       update((state) => ({
         ...state,
         screen: 'overworld',
         loadedReplay: null,
+        loadedReplayPayload: null,
+        loadedBattleReport: null,
         currentStep: -1,
         selectedEvent: null,
         autoPlay: false,

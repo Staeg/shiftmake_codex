@@ -19,8 +19,11 @@
   } from '../engine/unitCatalog';
   import type {
     AbilityDefinition,
+    BattleReportDiagnostic,
     BattleReplay,
     BattleUnit,
+    CampaignReportPayload,
+    CampaignReportUiContext,
     ExplainedStatKey,
     FactionId,
     SideId,
@@ -30,11 +33,11 @@
     UnitTypeId,
     UpgradeId,
   } from '../engine/types';
-  import { describeTroopUnlock, getClaimableTroopUnlockIds, getUnownedUpgradeIds } from '../engine/upgrades';
+  import { describeTroopUnlock } from '../engine/upgrades';
   import type { BattleRenderer as BattleRendererType, UnitPointerInfo } from '../rendering/BattleRenderer';
   import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisuals';
   import { gameStore } from '../store/gameStore';
-  import type { SaveSlotSummary } from '../store/saveSlots';
+  import type { SaveSlotId, SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
   import AbilityVerificationLab from './AbilityVerificationLab.svelte';
   import EventLog from './EventLog.svelte';
@@ -43,6 +46,7 @@
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
+  import { getEssenceDraftCost } from '../engine/game';
 
   type StatEntry = {
     key: string;
@@ -67,6 +71,22 @@
         stats: StatEntry[];
         abilities: Array<{ label: string; description: string }>;
       };
+
+  type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
+
+  type TroopDragState = {
+    troopId: TroopId;
+    sourceRiftId: string | null;
+    pointerId: number | null;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    active: boolean;
+    label: string;
+    portraitUrl: string;
+    dropTarget: TroopDropTarget | null;
+  };
 
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
   const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
@@ -98,6 +118,159 @@
   let expandedReplayRecapTroopKey: string | null = null;
   let pinnedReplayExplanationIndex: number | null = null;
   let lastReplayExplanationReplayId: string | null = null;
+  let troopDrag: TroopDragState | null = null;
+  let suppressTroopClickId: TroopId | null = null;
+  let rendererDiagnostics: BattleReportDiagnostic[] = [];
+  let battleReportImportText = '';
+  let battleReportMessage: string | null = null;
+  let campaignReportImportText = '';
+  let campaignReportMessage: string | null = null;
+  let campaignReportPreview: CampaignReportPayload | null = null;
+  let campaignReportImportSlotId: SaveSlotId = 1;
+  let campaignReportOverwriteConfirmed = false;
+
+  function rememberRendererDiagnostic(diagnostic: BattleReportDiagnostic): void {
+    const normalized: BattleReportDiagnostic = {
+      ...diagnostic,
+      replayId: diagnostic.replayId ?? replay?.id ?? null,
+      step: typeof diagnostic.step === 'number' ? diagnostic.step : $gameStore.currentStep,
+    };
+    const key = [
+      normalized.source,
+      normalized.severity,
+      normalized.code,
+      normalized.replayId ?? '',
+      normalized.step ?? '',
+      normalized.textureKey ?? '',
+      normalized.assetUrl ?? '',
+      normalized.message,
+    ].join('|');
+    const existing = new Set(
+      rendererDiagnostics.map((entry) =>
+        [entry.source, entry.severity, entry.code, entry.replayId ?? '', entry.step ?? '', entry.textureKey ?? '', entry.assetUrl ?? '', entry.message].join('|'),
+      ),
+    );
+    if (existing.has(key)) {
+      return;
+    }
+    rendererDiagnostics = [...rendererDiagnostics, normalized].slice(-80);
+  }
+
+  function diagnosticsForReplay(replayId: string | null | undefined): BattleReportDiagnostic[] {
+    return rendererDiagnostics.filter((diagnostic) => !diagnostic.replayId || diagnostic.replayId === replayId);
+  }
+
+  async function copyReportString(report: string | null): Promise<void> {
+    if (!report) {
+      battleReportMessage = 'Exact battle report is unavailable for this archived battle.';
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(report);
+      battleReportMessage = 'Battle report copied. Paste it into an issue or share it with another agent.';
+    } catch (error) {
+      battleReportMessage = error instanceof Error ? `Unable to copy battle report: ${error.message}` : 'Unable to copy battle report.';
+    }
+  }
+
+  async function copyLoadedReplayReport(): Promise<void> {
+    const report = gameStore.createLoadedBattleReport($gameStore.currentStep, diagnosticsForReplay(replay?.id));
+    await copyReportString(report);
+  }
+
+  function importBattleReport(): void {
+    const result = gameStore.importBattleReport(battleReportImportText);
+    if (!result.ok) {
+      battleReportMessage = result.message;
+      return;
+    }
+    battleReportMessage = `Imported battle report ${result.reportId}.`;
+    battleReportImportText = '';
+  }
+
+  function currentCampaignReportUiContext(): CampaignReportUiContext {
+    return {
+      screen: $gameStore.screen,
+      centerMode: $gameStore.centerMode,
+      selectedRiftId,
+      selectedTroopId,
+      selectedReplayId,
+      currentReplayStep: $gameStore.screen === 'replay' ? $gameStore.currentStep : null,
+      systemMessage: $gameStore.systemMessage,
+      validationMessages: [...$gameStore.validationMessages],
+    };
+  }
+
+  function createCampaignReportString(): string | null {
+    return gameStore.createCampaignReport(currentCampaignReportUiContext());
+  }
+
+  async function copyCampaignReport(): Promise<void> {
+    const report = createCampaignReportString();
+    if (!report) {
+      campaignReportMessage = 'No active campaign is loaded to report.';
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(report);
+      campaignReportMessage = 'Campaign report copied. Paste it into an issue or share it with another agent.';
+    } catch (error) {
+      campaignReportMessage = error instanceof Error ? `Unable to copy campaign report: ${error.message}` : 'Unable to copy campaign report.';
+    }
+  }
+
+  function previewCampaignReportImport(): void {
+    const result = gameStore.previewCampaignReport(campaignReportImportText);
+    if (!result.ok) {
+      campaignReportPreview = null;
+      campaignReportOverwriteConfirmed = false;
+      campaignReportMessage = result.message;
+      return;
+    }
+
+    campaignReportPreview = result.payload;
+    campaignReportOverwriteConfirmed = false;
+    campaignReportMessage = `Ready to import campaign report ${result.payload.reportId}.`;
+  }
+
+  function importCampaignReport(): void {
+    if (!campaignReportPreview || !campaignReportOverwriteConfirmed) {
+      campaignReportMessage = 'Preview the campaign report and confirm overwrite before importing.';
+      return;
+    }
+
+    const result = gameStore.importCampaignReport(campaignReportImportText, campaignReportImportSlotId);
+    if (!result.ok) {
+      campaignReportMessage = result.message;
+      return;
+    }
+
+    selectedRiftId = campaignReportPreview.uiContext.selectedRiftId;
+    selectedTroopId = campaignReportPreview.uiContext.selectedTroopId;
+    selectedReplayId = campaignReportPreview.uiContext.selectedReplayId;
+    campaignReportMessage = `Imported campaign report ${result.reportId} into Slot ${campaignReportImportSlotId}.`;
+    campaignReportImportText = '';
+    campaignReportPreview = null;
+    campaignReportOverwriteConfirmed = false;
+  }
+
+  function setCampaignReportImportSlot(event: Event): void {
+    campaignReportImportSlotId = Number((event.currentTarget as HTMLSelectElement).value) as SaveSlotId;
+    campaignReportOverwriteConfirmed = false;
+  }
+
+  async function uploadCampaignReport(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    campaignReportImportText = await file.text();
+    previewCampaignReportImport();
+    input.value = '';
+  }
 
   function getReplayProfileKeyForUnit(unitId: string): string | null {
     const unit = replaySnapshot.find((entry) => entry.id === unitId);
@@ -397,7 +570,13 @@
     }
 
     const { BattleRenderer } = await import('../rendering/BattleRenderer');
-    const nextRenderer = new BattleRenderer(battleHost);
+    const host = battleHost;
+    if (!host || !host.isConnected || renderer) {
+      return;
+    }
+
+    const nextRenderer = new BattleRenderer(host);
+    nextRenderer.setDiagnosticHandler(rememberRendererDiagnostic);
     nextRenderer.setInteractionHandlers({
       onUnitHover: (info) => {
         if (!lockedUnitId) {
@@ -413,10 +592,20 @@
     });
 
     rendererInitPromise = (async () => {
-      await nextRenderer.init();
-      renderer = nextRenderer;
-      renderer.refreshViewport();
-      syncRenderer();
+      try {
+        await nextRenderer.init();
+        renderer = nextRenderer;
+        renderer.refreshViewport();
+        syncRenderer();
+      } catch (error) {
+        rememberRendererDiagnostic({
+          source: 'ui',
+          severity: 'error',
+          code: 'renderer_init_failed',
+          message: error instanceof Error ? error.message : 'Renderer failed to initialize.',
+        });
+        nextRenderer.destroy();
+      }
     })();
 
     try {
@@ -541,6 +730,255 @@
     selectedReplayId = null;
   }
 
+  function getTroopDropTarget(clientX: number, clientY: number): TroopDropTarget | null {
+    const element = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-rift-drop-target], [data-ready-drop-target]');
+
+    if (!element) {
+      return null;
+    }
+
+    if (element.dataset.readyDropTarget === 'true') {
+      return { kind: 'ready' };
+    }
+
+    return element.dataset.riftDropTarget ? { kind: 'rift', riftId: element.dataset.riftDropTarget } : null;
+  }
+
+  function isCurrentDropTarget(target: TroopDropTarget | null, kind: 'ready' | 'rift', riftId?: string): boolean {
+    if (!target || target.kind !== kind) {
+      return false;
+    }
+
+    return kind === 'ready' || target.riftId === riftId;
+  }
+
+  function clearTroopDragListeners(): void {
+    window.removeEventListener('pointermove', handleTroopDragMove);
+    window.removeEventListener('pointerup', handleTroopDragEnd);
+    window.removeEventListener('pointercancel', handleTroopDragCancel);
+    window.removeEventListener('mousemove', handleMouseTroopDragMove);
+    window.removeEventListener('mouseup', handleMouseTroopDragEnd);
+    document.removeEventListener('pointermove', handleTroopDragMove);
+    document.removeEventListener('pointerup', handleTroopDragEnd);
+    document.removeEventListener('pointercancel', handleTroopDragCancel);
+    document.removeEventListener('mousemove', handleMouseTroopDragMove);
+    document.removeEventListener('mouseup', handleMouseTroopDragEnd);
+  }
+
+  function beginTroopDrag(
+    pointerId: number | null,
+    clientX: number,
+    clientY: number,
+    troopId: TroopId,
+    sourceRiftId: string | null,
+    label: string,
+    portraitUrl: string,
+  ): void {
+    troopDrag = {
+      troopId,
+      sourceRiftId,
+      pointerId,
+      startX: clientX,
+      startY: clientY,
+      x: clientX,
+      y: clientY,
+      active: false,
+      label,
+      portraitUrl,
+      dropTarget: null,
+    };
+  }
+
+  function startTroopDrag(event: PointerEvent, troopId: TroopId, sourceRiftId: string | null, label: string, portraitUrl: string): void {
+    if (troopDrag || (event.pointerType === 'mouse' && event.button !== 0)) {
+      return;
+    }
+
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    beginTroopDrag(event.pointerId, event.clientX, event.clientY, troopId, sourceRiftId, label, portraitUrl);
+    window.addEventListener('pointermove', handleTroopDragMove, { passive: false });
+    window.addEventListener('pointerup', handleTroopDragEnd);
+    window.addEventListener('pointercancel', handleTroopDragCancel);
+    document.addEventListener('pointermove', handleTroopDragMove, { passive: false });
+    document.addEventListener('pointerup', handleTroopDragEnd);
+    document.addEventListener('pointercancel', handleTroopDragCancel);
+    if (event.pointerType === 'mouse') {
+      window.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
+      window.addEventListener('mouseup', handleMouseTroopDragEnd);
+      document.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
+      document.addEventListener('mouseup', handleMouseTroopDragEnd);
+    }
+  }
+
+  function startMouseTroopDrag(event: MouseEvent, troopId: TroopId, sourceRiftId: string | null, label: string, portraitUrl: string): void {
+    if (troopDrag || event.button !== 0) {
+      return;
+    }
+
+    beginTroopDrag(null, event.clientX, event.clientY, troopId, sourceRiftId, label, portraitUrl);
+    window.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
+    window.addEventListener('mouseup', handleMouseTroopDragEnd);
+    document.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
+    document.addEventListener('mouseup', handleMouseTroopDragEnd);
+  }
+
+  function updateTroopDragPosition(clientX: number, clientY: number): void {
+    if (!troopDrag) {
+      return;
+    }
+
+    const movedDistance = Math.hypot(clientX - troopDrag.startX, clientY - troopDrag.startY);
+    const active = troopDrag.active || movedDistance > 6;
+
+    troopDrag = {
+      ...troopDrag,
+      x: clientX,
+      y: clientY,
+      active,
+      dropTarget: active ? getTroopDropTarget(clientX, clientY) : null,
+    };
+  }
+
+  function handleTroopDragMove(event: PointerEvent): void {
+    if (!troopDrag || event.pointerId !== troopDrag.pointerId) {
+      return;
+    }
+
+    updateTroopDragPosition(event.clientX, event.clientY);
+    if (troopDrag.active) {
+      event.preventDefault();
+    }
+  }
+
+  function finishTroopDrag(clientX?: number, clientY?: number): void {
+    if (!troopDrag) {
+      return;
+    }
+
+    const completedDrag = troopDrag.active;
+    const finalDropTarget = typeof clientX === 'number' && typeof clientY === 'number' ? getTroopDropTarget(clientX, clientY) : null;
+    const { troopId, sourceRiftId } = troopDrag;
+    const dropTarget = finalDropTarget ?? troopDrag.dropTarget;
+
+    clearTroopDragListeners();
+    troopDrag = null;
+
+    if (completedDrag) {
+      suppressTroopClickId = troopId;
+      selectedTroopId = troopId;
+    }
+
+    if (!completedDrag) {
+      return;
+    }
+
+    completeTroopDrop(troopId, sourceRiftId, dropTarget);
+  }
+
+  function handleTroopDragEnd(event: PointerEvent): void {
+    if (!troopDrag || event.pointerId !== troopDrag.pointerId) {
+      return;
+    }
+
+    finishTroopDrag(event.clientX, event.clientY);
+  }
+
+  function handleMouseTroopDragMove(event: MouseEvent): void {
+    if (!troopDrag) {
+      return;
+    }
+
+    updateTroopDragPosition(event.clientX, event.clientY);
+    if (troopDrag.active) {
+      event.preventDefault();
+    }
+  }
+
+  function handleMouseTroopDragEnd(event: MouseEvent): void {
+    if (!troopDrag) {
+      return;
+    }
+
+    finishTroopDrag(event.clientX, event.clientY);
+  }
+
+  function handleTroopDragCancel(event: PointerEvent): void {
+    if (!troopDrag || event.pointerId !== troopDrag.pointerId) {
+      return;
+    }
+
+    clearTroopDragListeners();
+    troopDrag = null;
+  }
+
+  function handleRiftTroopClick(troopId: TroopId, detail: DetailCard): void {
+    if (suppressTroopClickId === troopId) {
+      suppressTroopClickId = null;
+      return;
+    }
+
+    selectTroopForRift(troopId);
+    togglePinnedDetail(detail);
+  }
+
+  function completeTroopDrop(troopId: TroopId, sourceRiftId: string | null, dropTarget: TroopDropTarget | null): void {
+    if (!dropTarget) {
+      return;
+    }
+
+    selectedTroopId = troopId;
+
+    if (dropTarget.kind === 'ready') {
+      if (sourceRiftId) {
+        gameStore.clearTroopAssignment(troopId);
+      }
+      return;
+    }
+
+    if (dropTarget.riftId !== sourceRiftId) {
+      gameStore.assignTroopToRift(troopId, dropTarget.riftId);
+    }
+  }
+
+  function startNativeTroopDrag(event: DragEvent, troopId: TroopId, sourceRiftId: string | null): void {
+    if (!event.dataTransfer) {
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-shiftmake-troop', JSON.stringify({ troopId, sourceRiftId }));
+  }
+
+  function allowNativeTroopDrop(event: DragEvent): void {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  function endNativeTroopDrag(): void {
+    clearTroopDragListeners();
+    troopDrag = null;
+  }
+
+  function finishNativeTroopDrop(event: DragEvent, dropTarget: TroopDropTarget): void {
+    event.preventDefault();
+    const payload = event.dataTransfer?.getData('application/x-shiftmake-troop');
+
+    if (!payload) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(payload) as { troopId?: TroopId; sourceRiftId?: string | null };
+      if (parsed.troopId) {
+        completeTroopDrop(parsed.troopId, parsed.sourceRiftId ?? null, dropTarget);
+      }
+    } catch {
+      // Ignore malformed external drops; only Shiftmake troop payloads are valid.
+    }
+  }
+
   function selectReplay(replayId: string): void {
     selectedReplayId = selectedReplayId === replayId ? null : replayId;
     hoveredDetail = null;
@@ -577,9 +1015,18 @@
       return;
     }
     gameStore.initialize();
-    void loadFactionUnitPortraitUrls().then((loaded) => {
-      portraits = loaded;
-    });
+    void loadFactionUnitPortraitUrls()
+      .then((loaded) => {
+        portraits = loaded;
+      })
+      .catch((error) => {
+        rememberRendererDiagnostic({
+          source: 'assets',
+          severity: 'error',
+          code: 'portrait_generation_failed',
+          message: error instanceof Error ? error.message : 'Failed to generate unit portraits.',
+        });
+      });
 
     window.addEventListener('resize', handleResize);
     return () => {
@@ -619,12 +1066,10 @@
   $: factionRosterIds = FACTION_IDS.filter((factionId) => $gameStore.game.unlockedFactionIds.includes(factionId));
   $: activeDetail = pinnedDetail ?? hoveredDetail;
   $: statusCounts = getTroopStatusCounts($gameStore.game);
-  $: claimableTroopUnlockIds = getClaimableTroopUnlockIds($gameStore.game);
-  $: unownedTroopUnlockIds = claimableTroopUnlockIds.filter(
-    (troopUnlockId) => !$gameStore.game.troops.some((troop) => troop.id === troopUnlockId),
-  );
-  $: unownedUpgradeIds = getUnownedUpgradeIds($gameStore.game);
   $: ownedUpgradeIds = [...$gameStore.game.factionUpgradeIds, ...$gameStore.game.troopTypeUpgradeIds];
+  $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
+  $: essenceDraftButtonLabel =
+    essenceDraftCost === 1 ? 'Reveal One Unlock (1 Essence)' : essenceDraftCost === 2 ? 'Reveal Unlock Draft (2 Essence)' : 'Draft Unavailable';
   $: starterGroups = FACTION_IDS.map((factionId) => ({
     factionId,
     label: FACTIONS[factionId].label,
@@ -825,10 +1270,97 @@
 {:else if $gameStore.screen === 'main_menu'}
   <main class="menu-screen">
     <section class="menu-panel">
-      <div class="menu-copy">
-        <p class="eyebrow">Shiftmake</p>
-        <h1>Choose A Save Slot</h1>
-        <p class="intro">Each slot keeps its own campaign and battle archive. Load one or start fresh.</p>
+      <div class="menu-topline">
+        <div class="menu-copy">
+          <p class="eyebrow">Shiftmake</p>
+          <h1>Choose A Save Slot</h1>
+          <p class="intro">Each slot keeps its own campaign and battle archive. Load one or start fresh.</p>
+        </div>
+
+        <details class="debug-dropdown">
+          <summary>Debug</summary>
+          <div class="debug-dropdown-panel panel">
+            <section class="debug-report-section">
+              <p class="eyebrow">Campaign Report Import</p>
+              <h2>Import Campaign</h2>
+              <p>Paste or upload an SMCR1 campaign report, preview it, then choose which save slot to overwrite.</p>
+              <textarea
+                bind:value={campaignReportImportText}
+                rows="4"
+                placeholder="Paste an SMCR1 campaign report string here."
+                on:input={() => {
+                  campaignReportPreview = null;
+                  campaignReportOverwriteConfirmed = false;
+                }}
+              ></textarea>
+              <div class="actions-grid compact-actions">
+                <button on:click={previewCampaignReportImport} disabled={campaignReportImportText.trim().length === 0}>Preview Campaign Report</button>
+                <label class="file-button">
+                  Upload Report File
+                  <input type="file" accept=".txt,text/plain" on:change={(event) => void uploadCampaignReport(event)} />
+                </label>
+              </div>
+              {#if campaignReportPreview}
+                <div class="compact-list">
+                  <div>
+                    <span>Report</span>
+                    <strong>{campaignReportPreview.reportId}</strong>
+                  </div>
+                  <div>
+                    <span>Created</span>
+                    <strong>{new Date(campaignReportPreview.createdAt).toLocaleString()}</strong>
+                  </div>
+                  <div>
+                    <span>Campaign</span>
+                    <strong>Seed {campaignReportPreview.summary.campaignSeed} / Cycle {campaignReportPreview.summary.cycleNumber}</strong>
+                  </div>
+                  <div>
+                    <span>State</span>
+                    <strong>{slotPhaseLabel(campaignReportPreview.summary.phase)} / {campaignReportPreview.summary.victoryPoints} VP</strong>
+                  </div>
+                  <div>
+                    <span>Replays</span>
+                    <strong>{campaignReportPreview.summary.replayPayloadCount} bundled / {campaignReportPreview.summary.missingReplayCount} missing</strong>
+                  </div>
+                </div>
+                <div class="actions-grid compact-actions">
+                  <label>
+                    Import Into Slot
+                    <select value={campaignReportImportSlotId} on:change={setCampaignReportImportSlot}>
+                      <option value={1}>Slot 1</option>
+                      <option value={2}>Slot 2</option>
+                      <option value={3}>Slot 3</option>
+                    </select>
+                  </label>
+                  <label class="confirm-row">
+                    <input type="checkbox" bind:checked={campaignReportOverwriteConfirmed} />
+                    Overwrite Slot {campaignReportImportSlotId}
+                  </label>
+                  <button class="primary" on:click={importCampaignReport} disabled={!campaignReportOverwriteConfirmed}>
+                    Import Campaign Report
+                  </button>
+                </div>
+              {/if}
+              {#if campaignReportMessage}
+                <p class="system-message">{campaignReportMessage}</p>
+              {/if}
+            </section>
+
+            <section class="debug-report-section">
+              <p class="eyebrow">Battle Report Import</p>
+              <h2>Inspect Battle</h2>
+              <textarea
+                bind:value={battleReportImportText}
+                rows="3"
+                placeholder="Paste an SMBR1 battle report string here to inspect an exact external battle."
+              ></textarea>
+              <button on:click={importBattleReport} disabled={battleReportImportText.trim().length === 0}>Import Battle Report</button>
+              {#if battleReportMessage}
+                <p class="system-message">{battleReportMessage}</p>
+              {/if}
+            </section>
+          </div>
+        </details>
       </div>
 
       <div class="slot-grid">
@@ -993,6 +1525,15 @@
         <button class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
         <button class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
         <button on:click={() => gameStore.returnToMainMenu()}>Main Menu</button>
+        <button
+          class="debug-icon-button"
+          on:click={() => void copyCampaignReport()}
+          disabled={!$gameStore.activeSlotId}
+          title="Copy current campaign state to report"
+          aria-label="Copy current campaign state to report"
+        >
+          🐞
+        </button>
       </div>
     </header>
 
@@ -1151,10 +1692,30 @@
                     troopDef.statBreakdowns,
                   )}
                   <button
-                    class="unit-tile"
+                    class="unit-tile draggable-troop-tile"
                     class:assigned={troop.assignmentRiftId === selectedRift.id}
                     class:selected={activeDetail?.detailKey === troopDetail.detailKey}
-                    on:click={() => gameStore.assignTroopToRift(troop.id, selectedRift.id)}
+                    draggable="true"
+                    aria-label={`Drag ${troopDef.label} to assign or move it`}
+                    on:dragstart={(event) => startNativeTroopDrag(event, troop.id, troop.assignmentRiftId)}
+                    on:dragend={endNativeTroopDrag}
+                    on:pointerdown={(event) =>
+                      startTroopDrag(
+                        event,
+                        troop.id,
+                        troop.assignmentRiftId,
+                        troopDef.label,
+                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                      )}
+                    on:mousedown={(event) =>
+                      startMouseTroopDrag(
+                        event,
+                        troop.id,
+                        troop.assignmentRiftId,
+                        troopDef.label,
+                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                      )}
+                    on:click={() => handleRiftTroopClick(troop.id, troopDetail)}
                     on:mouseenter={() => previewDetail(troopDetail)}
                     on:focus={() => previewDetail(troopDetail)}
                     on:mouseleave={clearDetail}
@@ -1244,7 +1805,14 @@
         <div class="rift-grid">
           {#each discoveredRifts as rift}
             {@const riftVisual = getRiftVisual(rift)}
-            <article class="rift-card" class:selected={selectedRiftId === rift.id}>
+            <article
+              class="rift-card"
+              class:selected={selectedRiftId === rift.id}
+              class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
+              data-rift-drop-target={rift.id}
+              on:dragover={allowNativeTroopDrop}
+              on:drop={(event) => finishNativeTroopDrop(event, { kind: 'rift', riftId: rift.id })}
+            >
               <button
                 class="title-button rift-title-card"
                 on:click={() => selectRift(rift.id)}
@@ -1332,28 +1900,39 @@
                     troopDef.statBreakdowns,
                   )}
                   <button
-                    class="unit-tile assigned-summary-tile"
+                    class="unit-tile assigned-summary-tile draggable-troop-tile"
                     class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === assignedDetail.detailKey}
+                    draggable="true"
+                    aria-label={`Drag ${troopDef.label} to another Rift or Ready Troops`}
+                    on:dragstart={(event) => startNativeTroopDrag(event, troop.id, troop.assignmentRiftId)}
+                    on:dragend={endNativeTroopDrag}
+                    on:pointerdown={(event) =>
+                      startTroopDrag(
+                        event,
+                        troop.id,
+                        troop.assignmentRiftId,
+                        troopDef.label,
+                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                      )}
+                    on:mousedown={(event) =>
+                      startMouseTroopDrag(
+                        event,
+                        troop.id,
+                        troop.assignmentRiftId,
+                        troopDef.label,
+                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                      )}
                     on:mouseenter={() => previewDetail(assignedDetail)}
                     on:focus={() => previewDetail(assignedDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click={() => {
-                      selectTroopForRift(troop.id);
-                      togglePinnedDetail(assignedDetail);
-                    }}
+                    on:click={() => handleRiftTroopClick(troop.id, assignedDetail)}
                   >
                     <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
-                    <small>Assigned</small>
                   </button>
                 {/each}
               </div>
 
-              {#if selectedTroop}
-                <button class="primary" on:click|stopPropagation={() => gameStore.assignTroopToRift(selectedTroop.id, rift.id)}>
-                  {selectedTroop.assignmentRiftId === rift.id ? 'Unassign Selected Troop' : 'Assign Selected Troop'}
-                </button>
-              {/if}
             </article>
           {/each}
         </div>
@@ -1472,14 +2051,11 @@
         <div class="panel">
           <p class="eyebrow">Essence Draft</p>
           <h2>Unlocks</h2>
-          <p>Spend one Essence to reveal a troop or upgrade pack, then claim one option from it. Native faction troops can appear normally; unusual pairings are added to the draft pool when you win Rifts that contain them.</p>
+          <p>Spend two Essence to reveal troop and upgrade packs together, then claim one option from each. If one side is fully exhausted, a one-Essence fallback reveals the remaining unlock type.</p>
 
           <div class="actions-grid">
-            <button class="primary" disabled={$gameStore.game.essence < 1 || !!$gameStore.game.activeTroopOffer || unownedTroopUnlockIds.length === 0} on:click={() => gameStore.revealTroopOffer()}>
-              Unlock Troop
-            </button>
-            <button class="primary" disabled={$gameStore.game.essence < 1 || !!$gameStore.game.activeUpgradeOffer || unownedUpgradeIds.length === 0} on:click={() => gameStore.revealUpgradeOffer()}>
-              Unlock Upgrade
+            <button class="primary" disabled={essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost} on:click={() => gameStore.revealEssenceDraft()}>
+              {essenceDraftButtonLabel}
             </button>
           </div>
 
@@ -1679,20 +2255,25 @@
 
     <footer class="action-rail">
       {#if $gameStore.centerMode === 'rifts' && selectedReplayEntry}
-        <button class="large" on:click={() => (selectedReplayId = null)}>Back to Archive</button>
-        <button class="primary large" on:click={openSelectedReplay} disabled={!selectedReplayAvailable}>
-          {selectedReplayAvailable ? 'Watch Battle' : selectedReplayEntry.summaryOnly ? 'Summary Only' : 'Replay Missing'}
-        </button>
+        <div class="archive-actions-stack">
+          <button class="large" on:click={() => (selectedReplayId = null)}>Back to Archive</button>
+          <button class="primary large" on:click={openSelectedReplay} disabled={!selectedReplayAvailable}>
+            {selectedReplayAvailable ? 'Watch Battle' : selectedReplayEntry.summaryOnly ? 'Summary Only' : 'Replay Missing'}
+          </button>
+        </div>
       {:else}
         {#if $gameStore.centerMode === 'rifts'}
-          <div class="panel ready-troops-panel footer-ready-troops-panel">
+          <div
+            class="panel ready-troops-panel footer-ready-troops-panel"
+            class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'ready')}
+            role="region"
+            aria-label="Ready Troops drop zone"
+            data-ready-drop-target="true"
+            on:dragover={allowNativeTroopDrop}
+            on:drop={(event) => finishNativeTroopDrop(event, { kind: 'ready' })}
+          >
             <div class="ready-troops-header">
               <h2>Ready Troops</h2>
-              {#if selectedTroop && selectedTroopDefinition}
-                <p class="ready-troops-summary">
-                  Selected: <strong>{selectedTroopDefinition.label}</strong>
-                </p>
-              {/if}
             </div>
 
             {#if readyTroops.length === 0}
@@ -1713,33 +2294,56 @@
                     troopDef.statBreakdowns,
                   )}
                   <button
-                    class="unit-tile ready-troop-tile"
+                    class="unit-tile ready-troop-tile draggable-troop-tile"
                     class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
+                    draggable="true"
+                    aria-label={`Drag ${troopDef.label} to a Rift`}
+                    on:dragstart={(event) => startNativeTroopDrag(event, troop.id, troop.assignmentRiftId)}
+                    on:dragend={endNativeTroopDrag}
+                    on:pointerdown={(event) =>
+                      startTroopDrag(
+                        event,
+                        troop.id,
+                        troop.assignmentRiftId,
+                        troopDef.label,
+                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                      )}
+                    on:mousedown={(event) =>
+                      startMouseTroopDrag(
+                        event,
+                        troop.id,
+                        troop.assignmentRiftId,
+                        troopDef.label,
+                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                      )}
                     on:mouseenter={() => previewDetail(troopDetail)}
                     on:focus={() => previewDetail(troopDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click={() => {
-                      selectTroopForRift(troop.id);
-                      togglePinnedDetail(troopDetail);
-                    }}
+                    on:click={() => handleRiftTroopClick(troop.id, troopDetail)}
                   >
-                    <span class="unit-button-copy">
-                      <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
-                      <span>{troopDef.label}</span>
-                    </span>
-                    <small>Qty {troopDef.quantity}</small>
+                    <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
                   </button>
                 {/each}
               </div>
             {/if}
           </div>
         {/if}
-        <button class="primary large" on:click={handleEndCycle}>
+        <button class="primary large end-cycle-button" on:click={handleEndCycle}>
           {$gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
         </button>
       {/if}
     </footer>
+
+    {#if campaignReportMessage}
+      <p class="system-message campaign-report-message">{campaignReportMessage}</p>
+    {/if}
+
+    {#if troopDrag?.active}
+      <div class="troop-drag-ghost" style={`left:${troopDrag.x}px; top:${troopDrag.y}px;`} aria-hidden="true">
+        <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" />
+      </div>
+    {/if}
 
     {#if $gameStore.game.phase === 'game_over'}
       <div class="unlock-faction-overlay" role="presentation">
@@ -1765,7 +2369,18 @@
   <main class="replay-shell">
     <section class="left replay-left">
       <div class="replay-header">
-        <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
+        <div class="replay-title-row">
+          <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
+          <button
+            class="debug-icon-button"
+            on:click={() => void copyLoadedReplayReport()}
+            disabled={!$gameStore.loadedReplayPayload}
+            title="Copy current battle state to report"
+            aria-label="Copy current battle state to report"
+          >
+            🐞
+          </button>
+        </div>
         <div class="replay-mutators">
           {#if (replay?.mutatorIds.length ?? 0) === 0}
             <span class="mutator-chip empty">No mutators</span>
@@ -1790,7 +2405,35 @@
             {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
           </button>
         </div>
+        {#if !$gameStore.loadedBattleReport && battleReportMessage}
+          <p class="system-message replay-report-message">{battleReportMessage}</p>
+        {/if}
       </div>
+      {#if $gameStore.loadedBattleReport}
+        <div class="panel battle-report-panel">
+          <p class="eyebrow">Imported Battle Report</p>
+          <h2>{$gameStore.loadedBattleReport.reportId}</h2>
+          <p>
+            Created {$gameStore.loadedBattleReport.createdAt}. Original replay {$gameStore.loadedBattleReport.summary.replayId}
+            with {$gameStore.loadedBattleReport.summary.stepCount} steps.
+          </p>
+          {#if $gameStore.loadedBattleReport.diagnostics.length > 0}
+            <div class="compact-list">
+              {#each $gameStore.loadedBattleReport.diagnostics as diagnostic}
+                <div>
+                  <span>{diagnostic.source} / {diagnostic.code}</span>
+                  <strong>{diagnostic.message}</strong>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p>No renderer diagnostics were captured with this report.</p>
+          {/if}
+        </div>
+      {/if}
+      {#if campaignReportMessage}
+        <p class="system-message campaign-report-message">{campaignReportMessage}</p>
+      {/if}
 
       <BattleControls
         replayLength={replay?.steps.length ?? 0}
@@ -2180,11 +2823,13 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--ui-space-sm);
+    align-items: center;
   }
 
   .mode-toggle button,
   .primary,
   .actions-grid button,
+  .file-button,
   .unlock-row button,
   .archive-card,
   .troop-chip,
@@ -2207,6 +2852,39 @@
     background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
     color: #111;
     border-color: rgba(213, 178, 116, 0.6);
+  }
+
+  .debug-icon-button {
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(213, 178, 116, 0.38);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 25%, rgba(213, 178, 116, 0.28), transparent 44%),
+      rgba(13, 19, 28, 0.88);
+    color: #f4f7fb;
+    font: inherit;
+    font-size: 0.95rem;
+    line-height: 1;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  }
+
+  .debug-icon-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(236, 196, 123, 0.72);
+    box-shadow:
+      0 10px 18px rgba(0, 0, 0, 0.24),
+      0 0 18px rgba(213, 178, 116, 0.12);
+  }
+
+  .debug-icon-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
   }
 
   .left-column,
@@ -2308,7 +2986,8 @@
     transition:
       transform 120ms ease,
       border-color 120ms ease,
-      box-shadow 120ms ease;
+      box-shadow 120ms ease,
+      background 120ms ease;
   }
 
   .archive-card:hover,
@@ -2345,6 +3024,34 @@
     background: rgba(20, 28, 38, 0.76);
     color: inherit;
     font: inherit;
+  }
+
+  textarea,
+  select {
+    width: 100%;
+    border: 1px solid rgba(126, 157, 181, 0.25);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(6, 10, 18, 0.72);
+    color: var(--ui-color-text);
+    padding: var(--ui-space-sm);
+    font: inherit;
+  }
+
+  textarea {
+    min-height: 5rem;
+    resize: vertical;
+  }
+
+  .file-button,
+  .confirm-row {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-xs);
+    cursor: pointer;
+  }
+
+  .file-button input[type='file'] {
+    display: none;
   }
 
   .mutator-chip.empty {
@@ -2490,9 +3197,74 @@
     color: inherit;
   }
 
+  .draggable-troop-tile {
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .draggable-troop-tile:active {
+    cursor: grabbing;
+  }
+
   .unit-tile.assigned {
-    border-color: rgba(96, 190, 114, 0.6);
-    box-shadow: inset 0 0 0 1px rgba(96, 190, 114, 0.24);
+    border-color: rgba(185, 195, 203, 0.54);
+    background:
+      linear-gradient(145deg, rgba(82, 88, 96, 0.92), rgba(37, 42, 49, 0.96)),
+      radial-gradient(circle at 30% 15%, rgba(234, 239, 242, 0.2), transparent 52%);
+    box-shadow:
+      inset 0 0 0 1px rgba(238, 243, 246, 0.18),
+      0 10px 20px rgba(0, 0, 0, 0.22);
+  }
+
+  .assigned-summary-tile {
+    border-color: rgba(185, 195, 203, 0.54);
+    background:
+      linear-gradient(145deg, rgba(78, 84, 92, 0.9), rgba(32, 37, 44, 0.96)),
+      radial-gradient(circle at 30% 15%, rgba(234, 239, 242, 0.18), transparent 52%);
+    box-shadow: inset 0 0 0 1px rgba(238, 243, 246, 0.16);
+  }
+
+  .unit-tile.assigned.selected,
+  .unit-tile.assigned-summary-tile.selected {
+    border-color: rgba(218, 190, 140, 0.72);
+    background:
+      linear-gradient(145deg, rgba(86, 93, 102, 0.94), rgba(35, 40, 47, 0.98)),
+      radial-gradient(circle at 28% 12%, rgba(246, 249, 250, 0.22), transparent 54%);
+    box-shadow:
+      inset 0 0 0 2px rgba(218, 190, 140, 0.45),
+      0 10px 22px rgba(0, 0, 0, 0.24);
+  }
+
+  .assignment-panel .unit-tile small {
+    display: none;
+  }
+
+  .drop-target-active {
+    border-color: rgba(218, 190, 140, 0.78);
+    box-shadow:
+      inset 0 0 0 2px rgba(218, 190, 140, 0.42),
+      0 0 28px rgba(218, 190, 140, 0.18);
+  }
+
+  .troop-drag-ghost {
+    position: fixed;
+    z-index: 80;
+    display: grid;
+    width: 4rem;
+    height: 4rem;
+    place-items: center;
+    pointer-events: none;
+    transform: translate(-50%, -50%) rotate(-3deg);
+    border: 1px solid rgba(234, 239, 242, 0.64);
+    border-radius: 18px;
+    background:
+      linear-gradient(145deg, rgba(91, 98, 107, 0.94), rgba(35, 40, 47, 0.98)),
+      radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.24), transparent 54%);
+    box-shadow:
+      0 18px 44px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   }
 
   .enemy-tile {
@@ -2570,16 +3342,6 @@
     gap: 0.35rem;
   }
 
-  .ready-troops-summary {
-    color: var(--ui-color-text-dim);
-    font-size: var(--ui-text-label);
-    line-height: var(--ui-line-label);
-  }
-
-  .ready-troops-summary strong {
-    color: var(--ui-color-text);
-  }
-
   .assignment-panel,
   .warning-panel,
   .draft-offer-block {
@@ -2618,9 +3380,30 @@
   .action-rail {
     grid-column: 1 / -1;
     display: grid;
-    justify-items: center;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    justify-items: start;
     gap: 0.75rem;
     padding-bottom: 0.4rem;
+  }
+
+  .action-rail > button:only-child {
+    grid-column: 2;
+  }
+
+  .archive-actions-stack {
+    grid-column: 2;
+    display: grid;
+    gap: 0.75rem;
+    justify-items: end;
+  }
+
+  .end-cycle-button {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    align-self: end;
+    z-index: 1;
   }
 
   .large {
@@ -2660,6 +3443,14 @@
     max-width: 980px;
   }
 
+  .menu-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--ui-space-md);
+    position: relative;
+  }
+
   .menu-copy {
     grid-template-columns: minmax(0, 1fr);
     max-width: 36rem;
@@ -2672,6 +3463,71 @@
 
   .intro {
     max-width: 28rem;
+  }
+
+  .debug-dropdown {
+    position: relative;
+    z-index: 20;
+  }
+
+  .debug-dropdown summary {
+    list-style: none;
+    min-height: 2.35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.52rem 0.8rem;
+    border: 1px solid rgba(213, 178, 116, 0.32);
+    border-radius: var(--ui-panel-radius-pill);
+    background:
+      linear-gradient(135deg, rgba(20, 27, 38, 0.92), rgba(9, 13, 21, 0.94)),
+      radial-gradient(circle at top right, rgba(213, 178, 116, 0.18), transparent 44%);
+    color: var(--ui-color-text);
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: var(--ui-text-label);
+  }
+
+  .debug-dropdown summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .debug-dropdown summary::before {
+    content: '🐞';
+    letter-spacing: 0;
+  }
+
+  .debug-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    right: 0;
+    width: min(620px, calc(100vw - 2rem));
+    max-height: min(78vh, 760px);
+    overflow: auto;
+  }
+
+  .debug-report-section {
+    display: grid;
+    gap: var(--ui-space-sm);
+  }
+
+  .debug-report-section + .debug-report-section {
+    margin-top: var(--ui-space-xs);
+    padding-top: var(--ui-space-md);
+    border-top: 1px solid rgba(124, 153, 176, 0.18);
+  }
+
+  .debug-report-section h2 {
+    font-size: 1.05rem;
+  }
+
+  .debug-report-section p {
+    color: #a7b8c8;
+  }
+
+  .compact-actions {
+    gap: var(--ui-space-xs);
   }
 
   .slot-card {
@@ -2849,6 +3705,8 @@
 
   .footer-ready-troops-panel {
     width: min(620px, 100%);
+    grid-column: 1 / -1;
+    grid-row: 1;
     justify-self: center;
   }
 
@@ -2856,13 +3714,15 @@
     display: grid;
     gap: 0.55rem;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(180px, 220px);
+    grid-auto-columns: 4.35rem;
     overflow-x: auto;
     padding-bottom: 0.15rem;
   }
 
   .ready-troop-tile {
-    padding: 0.55rem 0.7rem;
+    width: 4.35rem;
+    min-height: 3.7rem;
+    padding: 0.55rem;
   }
 
   .faction-grid {
@@ -2997,6 +3857,13 @@
     padding: 0.1rem 0;
   }
 
+  .replay-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
   .replay-name {
     font-size: 0.82rem;
     letter-spacing: 0.14em;
@@ -3059,6 +3926,13 @@
     display: grid;
     gap: 0.55rem;
     align-content: start;
+  }
+
+  .replay-report-message {
+    padding: 0.5rem 0.65rem;
+    border: 1px solid rgba(213, 178, 116, 0.22);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(17, 25, 34, 0.72);
   }
 
   .panel-toggle {
@@ -3503,6 +4377,40 @@
     .assignment-list,
     .draft-icon-row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .menu-topline {
+      flex-direction: column;
+    }
+
+    .debug-dropdown,
+    .debug-dropdown-panel {
+      width: 100%;
+    }
+
+    .debug-dropdown-panel {
+      position: static;
+      margin-top: var(--ui-space-sm);
+    }
+
+    .action-rail {
+      grid-template-columns: 1fr;
+    }
+
+    .action-rail > button:only-child,
+    .end-cycle-button,
+    .archive-actions-stack,
+    .footer-ready-troops-panel {
+      grid-column: 1;
+    }
+
+    .archive-actions-stack,
+    .end-cycle-button {
+      justify-self: end;
+    }
+
+    .footer-ready-troops-panel {
+      justify-self: stretch;
     }
 
     .menu-screen,

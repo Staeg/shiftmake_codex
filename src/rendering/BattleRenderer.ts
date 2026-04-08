@@ -13,6 +13,7 @@ import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/t
 
 import projectileUrl from '../assets/sprites/projectile.svg';
 import { loadFactionUnitTextures } from './unitVisuals';
+import type { BattleReportDiagnostic } from '../engine/types';
 
 const HEX_SIZE = 42;
 const UNIT_PIXEL_SIZE = 32;
@@ -43,6 +44,8 @@ export type RendererInteractionHandlers = {
   onUnitHover?: (info: UnitPointerInfo | null) => void;
   onUnitClick?: (info: UnitPointerInfo) => void;
 };
+
+export type RendererDiagnosticHandler = (diagnostic: BattleReportDiagnostic) => void;
 
 function axialToPixel(coord: HexCoord): PixelPoint {
   const x = HEX_SIZE * (Math.sqrt(3) * coord.q + (Math.sqrt(3) / 2) * coord.r);
@@ -153,6 +156,8 @@ export class BattleRenderer {
 
   private interactionHandlers: RendererInteractionHandlers = {};
 
+  private onDiagnostic: RendererDiagnosticHandler | null = null;
+
   private isAutoPlayback = false;
 
   private playbackStepMs = 500;
@@ -214,12 +219,27 @@ export class BattleRenderer {
   }
 
   async init(): Promise<void> {
-    this.textures = await loadFactionUnitTextures();
-    this.textures.projectile = await Assets.load(projectileUrl);
+    this.textures = await loadFactionUnitTextures((diagnostic) => this.reportDiagnostic(diagnostic));
+    try {
+      this.textures.projectile = await Assets.load(projectileUrl);
+    } catch (error) {
+      this.textures.projectile = Texture.WHITE;
+      this.reportDiagnostic({
+        source: 'assets',
+        severity: 'error',
+        code: 'projectile_asset_load_failed',
+        message: error instanceof Error ? error.message : 'Failed to load projectile asset.',
+        assetUrl: projectileUrl,
+      });
+    }
   }
 
   setInteractionHandlers(handlers: RendererInteractionHandlers): void {
     this.interactionHandlers = handlers;
+  }
+
+  setDiagnosticHandler(handler: RendererDiagnosticHandler | null): void {
+    this.onDiagnostic = handler;
   }
 
   setPlaybackTiming(autoPlay: boolean, speedMs: number): void {
@@ -345,6 +365,14 @@ export class BattleRenderer {
     this.selectionRings.clear();
   }
 
+  private reportDiagnostic(diagnostic: BattleReportDiagnostic): void {
+    this.onDiagnostic?.({
+      replayId: this.replay?.id ?? null,
+      step: this.currentStep,
+      ...diagnostic,
+    });
+  }
+
   private drawBoard(radius: number): void {
     const root = new Container();
     this.boardBounds = this.computeBoardBounds(radius);
@@ -382,7 +410,17 @@ export class BattleRenderer {
       if (this.unitSprites.has(unit.id)) {
         return;
       }
-      const texture = this.textures[`${unit.factionId}/${unit.unitTypeId}`] ?? Texture.WHITE;
+      const textureKey = `${unit.factionId}/${unit.unitTypeId}`;
+      const texture = this.textures[textureKey] ?? Texture.WHITE;
+      if (!this.textures[textureKey]) {
+        this.reportDiagnostic({
+          source: 'renderer',
+          severity: 'warning',
+          code: 'unit_texture_fallback_used',
+          message: `No texture was loaded for ${textureKey}; using renderer fallback texture.`,
+          textureKey,
+        });
+      }
       const sprite = new Sprite(texture);
       sprite.anchor.set(0.5, 0.5);
       sprite.eventMode = 'static';

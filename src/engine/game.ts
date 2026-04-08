@@ -43,6 +43,7 @@ function buildInitialState(seed: number): GameState {
     victoryPoints: 0,
     unlockedFactionIds: [],
     unlockedTroopUnlockIds: [],
+    recentTroopUnlockIds: [],
     troops: [],
     factionUpgradeIds: [],
     troopTypeUpgradeIds: [],
@@ -141,14 +142,37 @@ function addUpgradeUnlock(state: GameState, upgradeId: UpgradeId): GameState {
   return state;
 }
 
-function pickOfferOptions(seed: number, bucketOptions: string[][], allOptions: string[]): string[] {
+function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeId] {
+  return troopUnlockId.split('/') as [FactionId, UnitTypeId];
+}
+
+function getAvailableTroopUnlockIds(state: GameState): TroopUnlockId[] {
+  const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
+  return getClaimableTroopUnlockIds(state).filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
+}
+
+function getAvailableUpgradeIds(state: GameState): UpgradeId[] {
+  return [
+    ...Object.values(FACTION_UPGRADES).map((upgrade) => upgrade.id),
+    ...Object.values(TROOP_TYPE_UPGRADES).map((upgrade) => upgrade.id),
+  ].filter((upgradeId) => !state.factionUpgradeIds.includes(upgradeId) && !state.troopTypeUpgradeIds.includes(upgradeId));
+}
+
+function upgradeAffectsTroop(upgradeId: UpgradeId, troopUnlockId: TroopUnlockId): boolean {
+  const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
+  return (
+    (upgradeId in FACTION_UPGRADES && FACTION_UPGRADES[upgradeId]!.factionId === factionId) ||
+    (upgradeId in TROOP_TYPE_UPGRADES && TROOP_TYPE_UPGRADES[upgradeId]!.unitTypeId === unitTypeId)
+  );
+}
+
+function pickOfferOptions(seed: number, bucketOptions: string[][][], allOptions: string[]): string[] {
   const rng = createRng(seed);
   const selected = new Set<string>();
 
-  bucketOptions.forEach((bucket) => {
-    const primary = bucket.filter((optionId) => !selected.has(optionId));
-    const fallback = allOptions.filter((optionId) => !selected.has(optionId));
-    const source = primary.length > 0 ? primary : fallback;
+  bucketOptions.forEach((buckets) => {
+    const prioritizedSources = [...buckets, allOptions];
+    const source = prioritizedSources.map((bucket) => bucket.filter((optionId) => !selected.has(optionId))).find((bucket) => bucket.length > 0) ?? [];
     if (source.length === 0) {
       return;
     }
@@ -159,20 +183,20 @@ function pickOfferOptions(seed: number, bucketOptions: string[][], allOptions: s
 }
 
 function buildTroopOffer(state: GameState): TroopDraftOffer | null {
-  const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
-  const availableTroopUnlockIds = getClaimableTroopUnlockIds(state).filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
+  const availableTroopUnlockIds = getAvailableTroopUnlockIds(state);
   if (availableTroopUnlockIds.length === 0) {
     return null;
   }
 
   const ownedUnitTypeIds = new Set(getOwnedUnitTypeIds(state));
   const ownedFactionIds = new Set(state.unlockedFactionIds);
+  const recentTroopUnlockIds = (state.recentTroopUnlockIds ?? []).filter((troopUnlockId) => availableTroopUnlockIds.includes(troopUnlockId));
   const options = pickOfferOptions(
     deriveSeed(state.campaignSeed, state.cycleNumber * 10_001 + state.troopOfferRolls + 1),
     [
-      availableTroopUnlockIds.filter((troopUnlockId) => ownedFactionIds.has(troopUnlockId.split('/')[0] as FactionId)),
-      availableTroopUnlockIds.filter((troopUnlockId) => ownedUnitTypeIds.has(troopUnlockId.split('/')[1] as UnitTypeId)),
-      availableTroopUnlockIds.filter((troopUnlockId) => !ownedFactionIds.has(troopUnlockId.split('/')[0] as FactionId)),
+      [availableTroopUnlockIds.filter((troopUnlockId) => ownedFactionIds.has(splitTroopUnlockId(troopUnlockId)[0]))],
+      [availableTroopUnlockIds.filter((troopUnlockId) => ownedUnitTypeIds.has(splitTroopUnlockId(troopUnlockId)[1]))],
+      [recentTroopUnlockIds, availableTroopUnlockIds.filter((troopUnlockId) => !ownedFactionIds.has(splitTroopUnlockId(troopUnlockId)[0]))],
     ],
     availableTroopUnlockIds,
   );
@@ -180,13 +204,10 @@ function buildTroopOffer(state: GameState): TroopDraftOffer | null {
   return options.length > 0 ? { kind: 'troop', optionTroopUnlockIds: options } : null;
 }
 
-function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
+function buildUpgradeOffer(state: GameState, linkedTroopUnlockId: TroopUnlockId | null = null): UpgradeDraftOffer | null {
   const ownedFactionIds = new Set(state.unlockedFactionIds);
   const ownedUnitTypeIds = new Set(getOwnedUnitTypeIds(state));
-  const availableUpgradeIds = [
-    ...Object.values(FACTION_UPGRADES).map((upgrade) => upgrade.id),
-    ...Object.values(TROOP_TYPE_UPGRADES).map((upgrade) => upgrade.id),
-  ].filter((upgradeId) => !state.factionUpgradeIds.includes(upgradeId) && !state.troopTypeUpgradeIds.includes(upgradeId));
+  const availableUpgradeIds = getAvailableUpgradeIds(state);
 
   if (availableUpgradeIds.length === 0) {
     return null;
@@ -199,13 +220,32 @@ function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
     (upgradeId) => upgradeId in FACTION_UPGRADES && ownedFactionIds.has(FACTION_UPGRADES[upgradeId]!.factionId),
   );
   const offBucket = availableUpgradeIds.filter((upgradeId) => !troopUpgradeBucket.includes(upgradeId) && !factionUpgradeBucket.includes(upgradeId));
+  const linkedUpgradeBucket = linkedTroopUnlockId
+    ? availableUpgradeIds.filter((upgradeId) => upgradeAffectsTroop(upgradeId, linkedTroopUnlockId))
+    : [];
   const options = pickOfferOptions(
     deriveSeed(state.campaignSeed, state.cycleNumber * 20_003 + state.upgradeOfferRolls + 1),
-    [troopUpgradeBucket, factionUpgradeBucket, offBucket],
+    [[troopUpgradeBucket], [factionUpgradeBucket], [linkedUpgradeBucket, offBucket]],
     availableUpgradeIds,
   );
 
   return options.length > 0 ? { kind: 'upgrade', optionUpgradeIds: options } : null;
+}
+
+export function getEssenceDraftCost(state: GameState): number | null {
+  if (state.phase !== 'planning' || state.activeTroopOffer || state.activeUpgradeOffer) {
+    return null;
+  }
+
+  const hasTroopOptions = getAvailableTroopUnlockIds(state).length > 0;
+  const hasUpgradeOptions = getAvailableUpgradeIds(state).length > 0;
+  if (hasTroopOptions && hasUpgradeOptions) {
+    return 2;
+  }
+  if (hasTroopOptions || hasUpgradeOptions) {
+    return 1;
+  }
+  return null;
 }
 
 export function startNewGame(seed = Date.now() >>> 0): GameState {
@@ -227,7 +267,7 @@ export function claimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId
 }
 
 export function revealTroopOffer(state: GameState): GameState {
-  if (state.phase !== 'planning' || state.essence < 1 || state.activeTroopOffer) {
+  if (state.phase !== 'planning' || state.essence < 1 || state.activeTroopOffer || state.activeUpgradeOffer) {
     return state;
   }
 
@@ -238,13 +278,14 @@ export function revealTroopOffer(state: GameState): GameState {
 
   return {
     ...state,
+    essence: state.essence - 1,
     activeTroopOffer: offer,
     troopOfferRolls: state.troopOfferRolls + 1,
   };
 }
 
 export function revealUpgradeOffer(state: GameState): GameState {
-  if (state.phase !== 'planning' || state.essence < 1 || state.activeUpgradeOffer) {
+  if (state.phase !== 'planning' || state.essence < 1 || state.activeTroopOffer || state.activeUpgradeOffer) {
     return state;
   }
 
@@ -255,33 +296,54 @@ export function revealUpgradeOffer(state: GameState): GameState {
 
   return {
     ...state,
+    essence: state.essence - 1,
     activeUpgradeOffer: offer,
     upgradeOfferRolls: state.upgradeOfferRolls + 1,
   };
 }
 
+export function revealEssenceDraft(state: GameState): GameState {
+  const cost = getEssenceDraftCost(state);
+  if (cost === null || state.essence < cost) {
+    return state;
+  }
+
+  const troopOffer = buildTroopOffer(state);
+  const upgradeOffer = buildUpgradeOffer(state, troopOffer?.optionTroopUnlockIds[2] ?? null);
+  if (!troopOffer && !upgradeOffer) {
+    return state;
+  }
+
+  return {
+    ...state,
+    essence: state.essence - cost,
+    activeTroopOffer: troopOffer,
+    activeUpgradeOffer: upgradeOffer,
+    troopOfferRolls: troopOffer ? state.troopOfferRolls + 1 : state.troopOfferRolls,
+    upgradeOfferRolls: upgradeOffer ? state.upgradeOfferRolls + 1 : state.upgradeOfferRolls,
+  };
+}
+
 export function claimTroopOffer(state: GameState, troopUnlockId: TroopUnlockId): GameState {
-  if (!state.activeTroopOffer || state.essence < 1 || !state.activeTroopOffer.optionTroopUnlockIds.includes(troopUnlockId)) {
+  if (!state.activeTroopOffer || !state.activeTroopOffer.optionTroopUnlockIds.includes(troopUnlockId)) {
     return state;
   }
 
   const unlocked = addTroopToRoster(grantTroopUnlock(state, troopUnlockId), troopUnlockId);
   return {
     ...unlocked,
-    essence: unlocked.essence - 1,
     activeTroopOffer: null,
   };
 }
 
 export function claimUpgradeOffer(state: GameState, upgradeId: UpgradeId): GameState {
-  if (!state.activeUpgradeOffer || state.essence < 1 || !state.activeUpgradeOffer.optionUpgradeIds.includes(upgradeId)) {
+  if (!state.activeUpgradeOffer || !state.activeUpgradeOffer.optionUpgradeIds.includes(upgradeId)) {
     return state;
   }
 
   const unlocked = addUpgradeUnlock(state, upgradeId);
   return {
     ...unlocked,
-    essence: unlocked.essence - 1,
     activeUpgradeOffer: null,
   };
 }
@@ -413,6 +475,7 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
     ...unlockedState,
     cycleNumber: unlockedState.cycleNumber + 1,
     essence: unlockedState.essence + 2,
+    recentTroopUnlockIds: newlyUnlockedTroopUnlockIds,
     troops: tickRecovery(
       unlockedState.troops.map((troop) => {
         const record = resolution.records.find((entry) => entry.assignedTroopIds.includes(troop.id));

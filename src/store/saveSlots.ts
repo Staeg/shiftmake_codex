@@ -1,7 +1,7 @@
 import { getFaction } from '../engine/unitCatalog';
 import { deserializeGameState, serializeGameState, startNewGame } from '../engine/game';
 import { resolveBattle } from '../engine/battle';
-import type { BattleReplay, CampaignPhase, GameState, StoredReplayPayload } from '../engine/types';
+import type { BattleReplay, CampaignPhase, CampaignReportPayload, GameState, StoredReplayPayload } from '../engine/types';
 
 export type SaveSlotId = 1 | 2 | 3;
 
@@ -186,12 +186,48 @@ export function readSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: s
   }
 }
 
+export function readSlotReplayPayload(storage: Storage, slotId: SaveSlotId, replayId: string): StoredReplayPayload | null {
+  const json = getSlotReplayKeys(slotId, replayId)
+    .map((key) => storage.getItem(key))
+    .find((payload): payload is string => payload !== null);
+  if (!json) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(json) as BattleReplay | StoredReplayPayload;
+    if ('input' in parsed && parsed.input) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function writeSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: string, payload: string): void {
   storage.setItem(`${getSlotReplayPrefix(slotId)}${replayId}`, payload);
 }
 
 export function removeSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: string): void {
   getSlotReplayKeys(slotId, replayId).forEach((key) => storage.removeItem(key));
+}
+
+export function importCampaignReportToSlot(storage: Storage, slotId: SaveSlotId, report: CampaignReportPayload): GameState {
+  const missingReplayIds = new Set(report.missingReplayIds);
+  const game = {
+    ...report.game,
+    replayIndex: report.game.replayIndex.map((entry) =>
+      missingReplayIds.has(entry.replayId) && !(entry.replayId in report.replayPayloads) ? { ...entry, summaryOnly: true } : entry,
+    ),
+  };
+  storage.setItem(getSlotSaveKey(slotId), serializeGameState(game));
+  clearSlotReplays(storage, slotId);
+  Object.entries(report.replayPayloads).forEach(([replayId, payload]) => {
+    writeSlotReplay(storage, slotId, replayId, JSON.stringify(payload));
+  });
+  updateSlotTimestamp(storage, slotId);
+  return game;
 }
 
 export function migrateLegacySave(storage: Storage = localStorage): SaveSlotSummary[] {

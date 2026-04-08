@@ -445,6 +445,85 @@ export interface StoredReplayPayload {
   input: BattleInput;
 }
 
+export type BattleReportDiagnosticSeverity = 'info' | 'warning' | 'error';
+
+export type BattleReportDiagnosticSource = 'renderer' | 'assets' | 'ui';
+
+export interface BattleReportDiagnostic {
+  source: BattleReportDiagnosticSource;
+  severity: BattleReportDiagnosticSeverity;
+  code: string;
+  message: string;
+  replayId?: string | null;
+  step?: number | null;
+  textureKey?: string;
+  assetUrl?: string;
+  details?: Record<string, string | number | boolean | null>;
+}
+
+export interface BattleReportPayload {
+  version: 1;
+  reportId: string;
+  createdAt: string;
+  app: {
+    name: 'shiftmake';
+    version: string;
+    buildMode?: string;
+  };
+  replay: StoredReplayPayload;
+  summary: {
+    replayId: string;
+    riftId: string | null;
+    seed: number;
+    tier: number | null;
+    cycleNumber: number | null;
+    outcome: BattleOutcome;
+    playerTroopLabels: string[];
+    enemyTroopLabels: string[];
+    mutatorIds: MutatorId[];
+    stepCount: number;
+    currentStep?: number;
+  };
+  diagnostics: BattleReportDiagnostic[];
+}
+
+export interface CampaignReportUiContext {
+  screen: 'main_menu' | 'overworld' | 'replay';
+  centerMode: 'rifts' | 'troops';
+  selectedRiftId: string | null;
+  selectedTroopId: TroopId | null;
+  selectedReplayId: string | null;
+  currentReplayStep: number | null;
+  systemMessage: string | null;
+  validationMessages: string[];
+}
+
+export interface CampaignReportPayload {
+  version: 1;
+  reportId: string;
+  createdAt: string;
+  app: {
+    name: 'shiftmake';
+    version: string;
+    buildMode?: string;
+  };
+  game: GameState;
+  replayPayloads: Record<string, StoredReplayPayload>;
+  missingReplayIds: string[];
+  uiContext: CampaignReportUiContext;
+  summary: {
+    campaignSeed: number;
+    cycleNumber: number;
+    phase: CampaignPhase;
+    victoryPoints: number;
+    troopCount: number;
+    riftCount: number;
+    replayIndexCount: number;
+    replayPayloadCount: number;
+    missingReplayCount: number;
+  };
+}
+
 export interface ReplayIndexEntry {
   id: string;
   riftId: string | null;
@@ -490,6 +569,7 @@ export interface GameState {
   victoryPoints: number;
   unlockedFactionIds: FactionId[];
   unlockedTroopUnlockIds: TroopUnlockId[];
+  recentTroopUnlockIds: TroopUnlockId[];
   troops: TroopInstance[];
   factionUpgradeIds: UpgradeId[];
   troopTypeUpgradeIds: UpgradeId[];
