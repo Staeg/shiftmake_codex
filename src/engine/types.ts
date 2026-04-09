@@ -280,6 +280,10 @@ export interface BattleInput {
   tier: number | null;
   mutatorIds: MutatorId[];
   saturation?: number;
+  playerFactionUpgradeIds?: UpgradeId[];
+  playerTroopTypeUpgradeIds?: UpgradeId[];
+  enemyFactionUpgradeIds?: UpgradeId[];
+  enemyTroopTypeUpgradeIds?: UpgradeId[];
   playerCombatants: ResolvedCombatantDefinition[];
   enemyCombatants: ResolvedCombatantDefinition[];
 }
@@ -637,5 +641,8 @@ export interface MutatorDefinition {
   description: string;
   initiativeBonusPerBeat?: number;
   rangedDamageMultiplier?: number;
-  recoveryMultiplier?: number;
+  removeFading?: boolean;
+  armorCap?: number;
+  randomMoveEveryBeats?: number;
+  decayDamagePerBeat?: number;
 }

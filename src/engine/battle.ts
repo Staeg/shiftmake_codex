@@ -52,6 +52,14 @@ type ActiveTimedEffect =
       amountApplied: number;
     }
   | {
+      effectKind: 'statDelta';
+      sourceAbilityId: string;
+      sourceUnitId: string;
+      remainingTurns: number;
+      stat: 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
+      amountApplied: number;
+    }
+  | {
       effectKind: 'rangeset';
       sourceAbilityId: string;
       sourceUnitId: string;
@@ -99,6 +107,10 @@ type InternalUnit = {
   mercyBeforeDawnUsed: boolean;
   stonebloodUsed: boolean;
   fadeIntoShadowUsed: boolean;
+  brambleSnareStacks: number;
+  bonusStrikeCharges: number;
+  scavengersHungerKills: number;
+  sentinelRunesTriggered: boolean;
 };
 
 type AbilityTriggerEvent = {
@@ -131,6 +143,10 @@ interface InternalState {
   effects: {
     initiativeBonusPerBeat: number;
     rangedDamageMultiplier: number;
+    removeFading: boolean;
+    armorCap: number | null;
+    randomMoveEveryBeats: number | null;
+    decayDamagePerBeat: number;
   };
   replayId: string;
   input: BattleInput;
@@ -161,10 +177,62 @@ function buildEffects(mutatorIds: string[]): InternalState['effects'] {
       return {
         initiativeBonusPerBeat: effects.initiativeBonusPerBeat + (definition.initiativeBonusPerBeat ?? 0),
         rangedDamageMultiplier: effects.rangedDamageMultiplier * (definition.rangedDamageMultiplier ?? 1),
+        removeFading: effects.removeFading || Boolean(definition.removeFading),
+        armorCap:
+          typeof definition.armorCap === 'number'
+            ? effects.armorCap === null
+              ? definition.armorCap
+              : Math.min(effects.armorCap, definition.armorCap)
+            : effects.armorCap,
+        randomMoveEveryBeats:
+          typeof definition.randomMoveEveryBeats === 'number'
+            ? effects.randomMoveEveryBeats === null
+              ? definition.randomMoveEveryBeats
+              : Math.min(effects.randomMoveEveryBeats, definition.randomMoveEveryBeats)
+            : effects.randomMoveEveryBeats,
+        decayDamagePerBeat: effects.decayDamagePerBeat + (definition.decayDamagePerBeat ?? 0),
       };
     },
-    { initiativeBonusPerBeat: 0, rangedDamageMultiplier: 1 },
+    { initiativeBonusPerBeat: 0, rangedDamageMultiplier: 1, removeFading: false, armorCap: null, randomMoveEveryBeats: null, decayDamagePerBeat: 0 },
   );
+}
+
+function filterMutatorBlockedAbilities<T extends AbilityDefinition | RuntimeAbilityState>(
+  abilities: T[],
+  effects: InternalState['effects'],
+): T[] {
+  if (!effects.removeFading) {
+    return abilities;
+  }
+  return abilities.filter((entry) => ('definition' in entry ? entry.definition.id : entry.id) !== 'fading');
+}
+
+function applyArmorCap(value: number, effects: InternalState['effects']): number {
+  if (effects.armorCap === null) {
+    return value;
+  }
+  return Math.min(value, effects.armorCap);
+}
+
+function applyMutatorAdjustmentsToUnit(unit: InternalUnit, effects: InternalState['effects']): void {
+  unit.resolvedAbilities = filterMutatorBlockedAbilities(unit.resolvedAbilities, effects);
+  unit.resolvedStats.armor = applyArmorCap(unit.resolvedStats.armor, effects);
+}
+
+function getSideFactionUpgradeIds(state: InternalState, side: SideId): string[] {
+  return side === 'player' ? (state.input.playerFactionUpgradeIds ?? []) : (state.input.enemyFactionUpgradeIds ?? []);
+}
+
+function getSideTroopTypeUpgradeIds(state: InternalState, side: SideId): string[] {
+  return side === 'player' ? (state.input.playerTroopTypeUpgradeIds ?? []) : (state.input.enemyTroopTypeUpgradeIds ?? []);
+}
+
+function sideHasFactionUpgrade(state: InternalState, side: SideId, upgradeId: string): boolean {
+  return getSideFactionUpgradeIds(state, side).includes(upgradeId);
+}
+
+function sideHasTroopTypeUpgrade(state: InternalState, side: SideId, upgradeId: string): boolean {
+  return getSideTroopTypeUpgradeIds(state, side).includes(upgradeId);
 }
 
 function cloneSnapshot(units: Map<string, InternalUnit>): BattleStateSnapshot {
@@ -245,7 +313,11 @@ function countsTowardAllySaturationFromAbilities(abilities: AbilityDefinition[] 
   return !abilities.some((entry) => ('definition' in entry ? entry.definition.id : entry.id) === 'scurry');
 }
 
-function buildTroopProfiles(input: BattleInput, summonedProfiles: Map<string, ReplayTroopProfile>): ReplayTroopProfile[] {
+function buildTroopProfiles(
+  input: BattleInput,
+  summonedProfiles: Map<string, ReplayTroopProfile>,
+  effects: InternalState['effects'],
+): ReplayTroopProfile[] {
   const seen = new Set<string>();
   const profiles: ReplayTroopProfile[] = [];
 
@@ -255,6 +327,25 @@ function buildTroopProfiles(input: BattleInput, summonedProfiles: Map<string, Re
       return;
     }
     seen.add(key);
+    const stats = { ...combatant.stats, armor: applyArmorCap(combatant.stats.armor, effects) };
+    const abilities = filterMutatorBlockedAbilities(combatant.abilities, effects).map(cloneAbilityDefinition);
+    const statBreakdowns =
+      combatant.statBreakdowns
+        ? {
+            ...combatant.statBreakdowns,
+            armor:
+              stats.armor === combatant.stats.armor
+                ? combatant.statBreakdowns.armor
+                : {
+                    ...combatant.statBreakdowns.armor,
+                    finalValue: stats.armor,
+                    lines: [
+                      ...combatant.statBreakdowns.armor.lines,
+                      { label: 'Corrosion', value: fixedSub(stats.armor, combatant.stats.armor), kind: 'delta' as const },
+                    ],
+                  },
+          }
+        : undefined;
     profiles.push({
       side: combatant.side,
       troopLabel: combatant.label,
@@ -263,18 +354,18 @@ function buildTroopProfiles(input: BattleInput, summonedProfiles: Map<string, Re
       role: combatant.role,
       type: combatant.type,
       attributes: [...combatant.attributes],
-      stats: { ...combatant.stats },
-      abilities: combatant.abilities.map(cloneAbilityDefinition),
+      stats,
+      abilities,
       statBreakdowns:
-        combatant.statBreakdowns ??
+        statBreakdowns ??
         {
-          health: { stat: 'health', finalValue: combatant.stats.health, lines: [{ label: 'Resolved', value: combatant.stats.health, kind: 'base' }] },
-          damage: { stat: 'damage', finalValue: combatant.stats.damage, lines: [{ label: 'Resolved', value: combatant.stats.damage, kind: 'base' }] },
-          speed: { stat: 'speed', finalValue: combatant.stats.speed, lines: [{ label: 'Resolved', value: combatant.stats.speed, kind: 'base' }] },
-          armor: { stat: 'armor', finalValue: combatant.stats.armor, lines: [{ label: 'Resolved', value: combatant.stats.armor, kind: 'base' }] },
-          range: { stat: 'range', finalValue: combatant.stats.range, lines: [{ label: 'Resolved', value: combatant.stats.range, kind: 'base' }] },
-          capacity: { stat: 'capacity', finalValue: combatant.stats.capacity, lines: [{ label: 'Resolved', value: combatant.stats.capacity, kind: 'base' }] },
-          size: { stat: 'size', finalValue: combatant.stats.size, lines: [{ label: 'Resolved', value: combatant.stats.size, kind: 'base' }] },
+          health: { stat: 'health', finalValue: stats.health, lines: [{ label: 'Resolved', value: stats.health, kind: 'base' }] },
+          damage: { stat: 'damage', finalValue: stats.damage, lines: [{ label: 'Resolved', value: stats.damage, kind: 'base' }] },
+          speed: { stat: 'speed', finalValue: stats.speed, lines: [{ label: 'Resolved', value: stats.speed, kind: 'base' }] },
+          armor: { stat: 'armor', finalValue: stats.armor, lines: [{ label: 'Resolved', value: stats.armor, kind: 'base' }] },
+          range: { stat: 'range', finalValue: stats.range, lines: [{ label: 'Resolved', value: stats.range, kind: 'base' }] },
+          capacity: { stat: 'capacity', finalValue: stats.capacity, lines: [{ label: 'Resolved', value: stats.capacity, kind: 'base' }] },
+          size: { stat: 'size', finalValue: stats.size, lines: [{ label: 'Resolved', value: stats.size, kind: 'base' }] },
         },
     });
   });
@@ -597,6 +688,10 @@ function spawnGroup(
       mercyBeforeDawnUsed: false,
       stonebloodUsed: false,
       fadeIntoShadowUsed: false,
+      brambleSnareStacks: 0,
+      bonusStrikeCharges: 0,
+      scavengersHungerKills: 0,
+      sentinelRunesTriggered: false,
     });
   });
 
@@ -854,6 +949,54 @@ function evaluateScaledAmount(base: number, amount: number, mode: 'flat' | 'perc
   return mode === 'percent' ? fixedMul(base, amount / 100) : amount;
 }
 
+function amplifyPositiveAmount(target: InternalUnit, amount: number): number {
+  if (amount <= 0 || !hasAbility(target, 'anointed')) {
+    return amount;
+  }
+  return fixedMul(amount, 2);
+}
+
+function maybeApplyRowdyRegrowth(state: InternalState, target: InternalUnit): void {
+  if (!hasAbility(target, 'rowdy-regrowth')) {
+    return;
+  }
+  target.initiative = fixedAdd(target.initiative, 15);
+  buildStep(state, 'buff', [target.id], [target.id], `${target.troopLabel} gains 15 initiative from Rowdy Regrowth.`, {
+    effect: 'rowdyRegrowth',
+    amount: 15,
+    value: target.initiative,
+    sourceAbilityId: 'rowdy-regrowth',
+    sourceAbilityLabel: getAbility('rowdy-regrowth').label,
+  });
+}
+
+function maybeApplyOverflowingGrace(state: InternalState, actor: InternalUnit, target: InternalUnit, actualHeal: number): void {
+  if (!hasAbility(actor, 'overflowing-grace') || actualHeal <= 0 || target.hp < target.maxHp) {
+    return;
+  }
+  target.initiative = fixedAdd(target.initiative, 40);
+  buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains 40 initiative from Overflowing Grace.`, {
+    effect: 'overflowingGrace',
+    amount: 40,
+    value: target.initiative,
+    sourceAbilityId: 'overflowing-grace',
+    sourceAbilityLabel: getAbility('overflowing-grace').label,
+  });
+}
+
+function maybeGrantStaticCharge(state: InternalState, actor: InternalUnit, runtime: RuntimeAbilityState, target: InternalUnit, effect: AbilityEffectDefinition): void {
+  if (!hasAbility(actor, 'static-charge') || effect.kind !== 'haste' || (runtime.definition.id !== 'enhance-1' && runtime.definition.id !== 'war-drums')) {
+    return;
+  }
+  target.bonusStrikeCharges += 1;
+  buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} is charged for 1 extra strike on its next normal attack.`, {
+    effect: 'staticCharge',
+    amount: 1,
+    sourceAbilityId: 'static-charge',
+    sourceAbilityLabel: getAbility('static-charge').label,
+  });
+}
+
 function effectDisposition(effect: AbilityEffectDefinition): EffectDisposition {
   return effect.disposition ?? 'neutral';
 }
@@ -865,8 +1008,8 @@ function applyBolster(
   runtime: RuntimeAbilityState,
   effect: Extract<AbilityEffectDefinition, { kind: 'bolster' }>,
 ): boolean {
-  const maxIncrease = evaluateScaledAmount(target.maxHp, effect.amount, effect.mode);
-  const currentIncrease = evaluateScaledAmount(target.hp, effect.amount, effect.mode);
+  const maxIncrease = amplifyPositiveAmount(target, evaluateScaledAmount(target.maxHp, effect.amount, effect.mode));
+  const currentIncrease = amplifyPositiveAmount(target, evaluateScaledAmount(target.hp, effect.amount, effect.mode));
   if (maxIncrease <= 0 && currentIncrease <= 0) {
     return false;
   }
@@ -893,6 +1036,7 @@ function applyRamp(
   if (shouldTubthump(target, 'damage', increase)) {
     increase = 1;
   }
+  increase = amplifyPositiveAmount(target, increase);
   if (increase === 0) {
     return false;
   }
@@ -917,6 +1061,7 @@ function applyHaste(
   if (shouldTubthump(target, 'speed', increase)) {
     increase = 1;
   }
+  increase = amplifyPositiveAmount(target, increase);
   if (increase === 0) {
     return false;
   }
@@ -941,7 +1086,7 @@ function healUnit(
     return false;
   }
   const missing = fixedSub(target.maxHp, target.hp);
-  const amount = effect.mode === 'percent' ? fixedMul(missing, effect.amount / 100) : effect.amount;
+  const amount = amplifyPositiveAmount(target, effect.mode === 'percent' ? fixedMul(missing, effect.amount / 100) : effect.amount);
   const nextHp = fixedClamp(fixedAdd(target.hp, amount), 0, target.maxHp);
   const actual = fixedSub(nextHp, target.hp);
   target.hp = nextHp;
@@ -951,6 +1096,10 @@ function healUnit(
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label,
   });
+  if (actual > 0) {
+    maybeApplyRowdyRegrowth(state, target);
+  }
+  maybeApplyOverflowingGrace(state, actor, target, actual);
   return true;
 }
 
@@ -966,7 +1115,7 @@ function applyStatDelta(
   }
 
   if (effect.stat === 'health') {
-    const delta = evaluateScaledAmount(target.maxHp, effect.amount, effect.mode);
+    const delta = amplifyPositiveAmount(target, evaluateScaledAmount(target.maxHp, effect.amount, effect.mode));
     if (delta === 0) {
       return false;
     }
@@ -988,10 +1137,14 @@ function applyStatDelta(
   if ((effect.stat === 'speed' || effect.stat === 'damage') && shouldTubthump(target, effect.stat, delta)) {
     delta = 1;
   }
+  delta = amplifyPositiveAmount(target, delta);
   if (delta === 0) {
     return false;
   }
-  const nextValue = clampStat(effect.stat, fixedAdd(currentValue, delta));
+  const nextValue =
+    effect.stat === 'armor'
+      ? applyArmorCap(clampStat(effect.stat, fixedAdd(currentValue, delta)), state.effects)
+      : clampStat(effect.stat, fixedAdd(currentValue, delta));
   const actual = fixedSub(nextValue, currentValue);
   if (actual === 0) {
     return false;
@@ -1055,6 +1208,9 @@ function applyGrantAbility(
   runtime: RuntimeAbilityState,
   effect: Extract<AbilityEffectDefinition, { kind: 'grantAbility' }>,
 ): boolean {
+  if (state.effects.removeFading && effect.abilityId === 'fading') {
+    return false;
+  }
   if (target.resolvedAbilities.some((entry) => entry.definition.id === effect.abilityId)) {
     return false;
   }
@@ -1113,7 +1269,7 @@ function applyTemporaryEffect(
   actor: InternalUnit,
   target: InternalUnit,
   runtime: RuntimeAbilityState,
-  effect: Extract<AbilityEffectDefinition, { kind: 'bolster' | 'haste' | 'ramp' | 'rangeset' | 'roleset' }>,
+  effect: Extract<AbilityEffectDefinition, { kind: 'bolster' | 'haste' | 'ramp' | 'statDelta' | 'rangeset' | 'roleset' }>,
 ): boolean {
   const turns = runtime.definition.duration.kind === 'turns' ? runtime.definition.duration.turns : 0;
   if (turns <= 0) {
@@ -1121,8 +1277,8 @@ function applyTemporaryEffect(
   }
 
   if (effect.kind === 'bolster') {
-    const maxApplied = evaluateScaledAmount(target.maxHp, effect.amount, effect.mode);
-    const hpApplied = evaluateScaledAmount(target.hp, effect.amount, effect.mode);
+    const maxApplied = amplifyPositiveAmount(target, evaluateScaledAmount(target.maxHp, effect.amount, effect.mode));
+    const hpApplied = amplifyPositiveAmount(target, evaluateScaledAmount(target.hp, effect.amount, effect.mode));
     if (maxApplied <= 0 && hpApplied <= 0) {
       return false;
     }
@@ -1148,7 +1304,7 @@ function applyTemporaryEffect(
   }
 
   if (effect.kind === 'haste') {
-    const amountApplied = evaluateScaledAmount(target.resolvedStats.speed, effect.amount, effect.mode);
+    const amountApplied = amplifyPositiveAmount(target, evaluateScaledAmount(target.resolvedStats.speed, effect.amount, effect.mode));
     if (amountApplied <= 0) {
       return false;
     }
@@ -1171,7 +1327,7 @@ function applyTemporaryEffect(
   }
 
   if (effect.kind === 'ramp') {
-    const amountApplied = evaluateScaledAmount(target.resolvedStats.damage, effect.amount, effect.mode);
+    const amountApplied = amplifyPositiveAmount(target, evaluateScaledAmount(target.resolvedStats.damage, effect.amount, effect.mode));
     if (amountApplied <= 0) {
       return false;
     }
@@ -1186,6 +1342,43 @@ function applyTemporaryEffect(
     buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(amountApplied)} damage until end of turn.`, {
       amount: amountApplied,
       effect: 'ramp',
+      sourceAbilityId: runtime.definition.id,
+      sourceAbilityLabel: runtime.definition.label,
+      temporary: true,
+    });
+    return true;
+  }
+
+  if (effect.kind === 'statDelta') {
+    if (effect.stat === 'health' || effect.stat === 'size') {
+      return false;
+    }
+    const currentValue = target.resolvedStats[effect.stat];
+    const amountApplied = amplifyPositiveAmount(target, evaluateScaledAmount(currentValue, effect.amount, effect.mode));
+    if (amountApplied === 0) {
+      return false;
+    }
+    const nextValue =
+      effect.stat === 'armor'
+        ? applyArmorCap(clampStat(effect.stat, fixedAdd(currentValue, amountApplied)), state.effects)
+        : clampStat(effect.stat, fixedAdd(currentValue, amountApplied));
+    const actual = fixedSub(nextValue, currentValue);
+    if (actual === 0) {
+      return false;
+    }
+    target.resolvedStats[effect.stat] = nextValue;
+    target.activeTimedEffects.push({
+      effectKind: 'statDelta',
+      sourceAbilityId: runtime.definition.id,
+      sourceUnitId: actor.id,
+      remainingTurns: turns,
+      stat: effect.stat,
+      amountApplied: actual,
+    });
+    buildStep(state, 'buff', [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(actual)} ${effect.stat} until end of turn.`, {
+      amount: actual,
+      effect: 'statDelta',
+      stat: effect.stat,
       sourceAbilityId: runtime.definition.id,
       sourceAbilityLabel: runtime.definition.label,
       temporary: true,
@@ -1276,6 +1469,18 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
       buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.amountApplied)} damage.`, {
         amount: effect.amountApplied,
         effect: 'ramp',
+        sourceAbilityId: effect.sourceAbilityId,
+        expired: true,
+      });
+      return;
+    }
+
+    if (effect.effectKind === 'statDelta') {
+      unit.resolvedStats[effect.stat] = clampStat(effect.stat, fixedSub(unit.resolvedStats[effect.stat], effect.amountApplied));
+      buildStep(state, 'buff', [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.amountApplied)} ${effect.stat}.`, {
+        amount: effect.amountApplied,
+        effect: 'statDelta',
+        stat: effect.stat,
         sourceAbilityId: effect.sourceAbilityId,
         expired: true,
       });
@@ -1624,7 +1829,12 @@ function summonUnit(
     mercyBeforeDawnUsed: false,
     stonebloodUsed: false,
     fadeIntoShadowUsed: false,
+    brambleSnareStacks: 0,
+    bonusStrikeCharges: 0,
+    scavengersHungerKills: 0,
+    sentinelRunesTriggered: false,
   };
+  applyMutatorAdjustmentsToUnit(summonedUnit, state.effects);
   state.units.set(unitId, summonedUnit);
   recordSummonedProfile(state, summonedUnit);
   buildStep(state, 'buff', [actor.id], [unitId], `${actor.troopLabel} summons ${troop.label}.`, {
@@ -1634,6 +1844,62 @@ function summonUnit(
     sourceAbilityLabel: runtime.definition.label,
   });
   return true;
+}
+
+function summonUnitsAtHex(
+  state: InternalState,
+  actor: InternalUnit,
+  sourceAbilityId: string,
+  unitTypeId: string,
+  count: number,
+  origin: HexCoord,
+  grantedAbilityIds: string[] = [],
+  initialInitiative?: number,
+): boolean {
+  const runtime = createRuntimeAbilityState(getAbility(sourceAbilityId));
+  const effect: Extract<AbilityEffectDefinition, { kind: 'summon' }> = {
+    kind: 'summon',
+    unitTypeId,
+    count: 1,
+    grantedAbilityIds,
+    initialInitiative,
+  };
+  let summonedAny = false;
+  for (let index = 0; index < count; index += 1) {
+    summonedAny = summonUnit(state, actor, runtime, effect, origin) || summonedAny;
+  }
+  return summonedAny;
+}
+
+function triggerSentinelRunes(state: InternalState, knight: InternalUnit, origin: HexCoord, message: string): void {
+  if (knight.sentinelRunesTriggered || !hasAbility(knight, 'sentinel-runes')) {
+    return;
+  }
+  if (summonUnitsAtHex(state, knight, 'sentinel-runes', 'elemental', 2, origin)) {
+    knight.sentinelRunesTriggered = true;
+    buildStep(state, 'buff', [knight.id], [], message, {
+      effect: 'sentinelRunes',
+      sourceAbilityId: 'sentinel-runes',
+      sourceAbilityLabel: getAbility('sentinel-runes').label,
+    });
+  }
+}
+
+function handleMoveOffKnightHex(state: InternalState, mover: InternalUnit, from: HexCoord, to: HexCoord): void {
+  getAliveUnits(state)
+    .filter((unit) => unit.side !== mover.side && equalsHex(unit.position, from) && hasAbility(unit, 'sentinel-runes'))
+    .forEach((knight) => {
+      triggerSentinelRunes(state, knight, to, `${knight.troopLabel} triggers Sentinel Runes.`);
+    });
+}
+
+function relocateUnit(state: InternalState, actor: InternalUnit, destination: HexCoord): void {
+  const previousPosition = { ...actor.position };
+  removeAllEngagements(state, actor);
+  actor.position = { ...destination };
+  if (!equalsHex(previousPosition, destination)) {
+    handleMoveOffKnightHex(state, actor, previousPosition, destination);
+  }
 }
 
 function applyBlastSequence(
@@ -1654,16 +1920,24 @@ function applyBlastSequence(
     return false;
   }
 
+  const totalAmount =
+    hasAbility(actor, 'lightning-rods') ?
+      fixedAdd(
+        amount,
+        getAliveUnits(state).filter((unit) => unit.type === 'elemental' && equalsHex(unit.position, origin)).length,
+      )
+    : amount;
+
   let applied = false;
   targets.forEach((target) => {
-    const damage = fixedMax(amount, 0);
+    const damage = fixedMax(totalAmount, 0);
     target.hp = fixedSub(target.hp, damage);
     buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} splashes ${formatFixed(damage)} blast damage.`, {
       damage,
       mode: 'blast',
       category: 'strike',
-      baseDamage: damage,
-      attackDamageBeforeArmor: damage,
+      baseDamage: totalAmount,
+      attackDamageBeforeArmor: totalAmount,
       armorIgnored: true,
       sourceAbilityId: runtime.definition.id,
       sourceAbilityLabel: runtime.definition.label,
@@ -1811,7 +2085,12 @@ function executeAbilityEffect(
     let appliedToTarget = false;
     if (
       runtime.definition.duration.kind === 'turns' &&
-      (effect.kind === 'bolster' || effect.kind === 'haste' || effect.kind === 'ramp' || effect.kind === 'rangeset' || effect.kind === 'roleset')
+      (effect.kind === 'bolster' ||
+        effect.kind === 'haste' ||
+        effect.kind === 'ramp' ||
+        effect.kind === 'statDelta' ||
+        effect.kind === 'rangeset' ||
+        effect.kind === 'roleset')
     ) {
       appliedToTarget = applyTemporaryEffect(state, actor, target, runtime, effect);
       applied = appliedToTarget || applied;
@@ -1830,6 +2109,7 @@ function executeAbilityEffect(
     appliedToTarget = handler(state, actor, runtime, target, effect, event);
     applied = appliedToTarget || applied;
     if (appliedToTarget) {
+      maybeGrantStaticCharge(state, actor, runtime, target, effect);
       triggerUnitAbilities(state, actor, {
         timing: 'onEffectApplied',
         appliedEffect: {
@@ -1874,6 +2154,9 @@ function triggerUnitAbilities(
     if (applied && runtime.usesRemaining !== null) {
       runtime.usesRemaining -= 1;
     }
+    if (applied) {
+      handleShapeshiftTriggers(state, actor, runtime);
+    }
   });
 }
 
@@ -1892,6 +2175,90 @@ function executeStartOfBattleAbilities(state: InternalState): void {
   initialUnits.forEach((unit) => {
     triggerUnitAbilities(state, unit, { timing: 'startOfBattle' }, (r) => !isArmyCompositionAbility(r));
   });
+}
+
+function performBrace(state: InternalState, actor: InternalUnit): void {
+  if (!hasAbility(actor, 'brace') || actor.engagedWith.size === 0 || availableCapacity(state, actor) !== 0) {
+    return;
+  }
+  applyTemporaryEffect(state, actor, actor, createRuntimeAbilityState(getAbility('brace')), {
+    kind: 'statDelta',
+    stat: 'armor',
+    amount: 5,
+    mode: 'flat',
+    disposition: 'beneficial',
+  });
+}
+
+function performLeylineFocus(state: InternalState, actor: InternalUnit): void {
+  if (!hasAbility(actor, 'leyline-focus')) {
+    return;
+  }
+  if (getEnemyUnits(state, actor).some((enemy) => hexDistance(actor.position, enemy.position) <= 1)) {
+    return;
+  }
+  applyInitiativeDelta(state, actor, actor, createRuntimeAbilityState(getAbility('leyline-focus')), {
+    kind: 'initiativeDelta',
+    amount: 25,
+    disposition: 'beneficial',
+  });
+}
+
+function performLivingCircuit(state: InternalState, actor: InternalUnit): void {
+  if (!hasAbility(actor, 'living-circuit')) {
+    return;
+  }
+  const elementals = getAliveUnits(state, actor.side).filter(
+    (unit) => unit.type === 'elemental' && hexDistance(actor.position, unit.position) <= actor.resolvedStats.range,
+  );
+  if (elementals.length === 0) {
+    return;
+  }
+  applyInitiativeDelta(state, actor, actor, createRuntimeAbilityState(getAbility('living-circuit')), {
+    kind: 'initiativeDelta',
+    amount: 15,
+    disposition: 'beneficial',
+  });
+  elementals.forEach((elemental) => {
+    applyInitiativeDelta(state, actor, elemental, createRuntimeAbilityState(getAbility('living-circuit')), {
+      kind: 'initiativeDelta',
+      amount: 15,
+      disposition: 'beneficial',
+    });
+  });
+}
+
+function performThrillOfTheHunt(state: InternalState, actor: InternalUnit): void {
+  if (!hasAbility(actor, 'thrill-of-the-hunt')) {
+    return;
+  }
+  getAliveUnits(state, actor.side)
+    .filter((unit) => unit.type === 'wolf' && equalsHex(unit.position, actor.position))
+    .forEach((wolf) => {
+      applyInitiativeDelta(state, actor, wolf, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
+        kind: 'initiativeDelta',
+        amount: 10,
+        disposition: 'beneficial',
+      });
+    });
+}
+
+function handleShapeshiftTriggers(state: InternalState, actor: InternalUnit, runtime: RuntimeAbilityState): void {
+  if (runtime.definition.id !== 'shapeshift-bear' && runtime.definition.id !== 'shapeshift-bear-2') {
+    return;
+  }
+  if (hasAbility(actor, 'bramble-snare')) {
+    actor.brambleSnareStacks += 1;
+    buildStep(state, 'buff', [actor.id], [actor.id], `${actor.troopLabel} empowers Bramble Snare.`, {
+      effect: 'brambleSnare',
+      amount: actor.brambleSnareStacks,
+      sourceAbilityId: 'bramble-snare',
+      sourceAbilityLabel: getAbility('bramble-snare').label,
+    });
+  }
+  if (hasAbility(actor, 'wild-call')) {
+    summonUnitsAtHex(state, actor, 'wild-call', 'wolf', 2, actor.position);
+  }
 }
 
 function performPackmastersWhistle(state: InternalState, actor: InternalUnit): void {
@@ -1937,11 +2304,82 @@ function performWarDrums(state: InternalState, actor: InternalUnit): void {
 function executeEndOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
   performPackmastersWhistle(state, actor);
   performWarDrums(state, actor);
+  performLivingCircuit(state, actor);
+  performThrillOfTheHunt(state, actor);
   triggerUnitAbilities(state, actor, { timing: 'endOfTurn' });
 }
 
 function executeStartOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
+  performBrace(state, actor);
+  performLeylineFocus(state, actor);
   triggerUnitAbilities(state, actor, { timing: 'startOfTurn' });
+}
+
+function performHoldTheStandard(state: InternalState, fallen: InternalUnit): void {
+  if (hasAbility(fallen, 'fading')) {
+    return;
+  }
+  getAliveUnits(state, fallen.side)
+    .filter((unit) => hasAbility(unit, 'hold-the-standard') && equalsHex(unit.position, fallen.position))
+    .forEach((unit) => {
+      healUnit(state, unit, unit, createRuntimeAbilityState(getAbility('hold-the-standard')), {
+        kind: 'heal',
+        amount: 15,
+        mode: 'flat',
+        disposition: 'beneficial',
+      });
+    });
+}
+
+function performLootFrenzy(state: InternalState, actor: InternalUnit, position: HexCoord): void {
+  getAliveUnits(state, actor.side)
+    .filter((unit) => unit.attributes.includes('goblin') && equalsHex(unit.position, position))
+    .forEach((unit) => {
+      healUnit(state, actor, unit, createRuntimeAbilityState(getAbility('loot-frenzy')), {
+        kind: 'heal',
+        amount: 5,
+        mode: 'flat',
+        disposition: 'beneficial',
+      });
+      applyInitiativeDelta(state, actor, unit, createRuntimeAbilityState(getAbility('loot-frenzy')), {
+        kind: 'initiativeDelta',
+        amount: 35,
+        disposition: 'beneficial',
+      });
+    });
+}
+
+function performThrillKillBuff(state: InternalState, actor: InternalUnit, position: HexCoord): void {
+  getAliveUnits(state, actor.side)
+    .filter((unit) => equalsHex(unit.position, position))
+    .forEach((unit) => {
+      applyRamp(state, actor, unit, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
+        kind: 'ramp',
+        amount: 2,
+        mode: 'flat',
+        disposition: 'beneficial',
+      });
+    });
+}
+
+function performLastWitness(state: InternalState, killer: InternalUnit, fallen: InternalUnit): void {
+  getAliveUnits(state, fallen.side)
+    .filter((unit) => unit.id !== fallen.id && hasAbility(unit, 'last-witness') && equalsHex(unit.position, fallen.position))
+    .forEach((unit) => {
+      if (!killer.alive || !equalsHex(killer.position, fallen.position)) {
+        return;
+      }
+      attack(state, unit, killer, 'melee', false, 2, 'strike');
+    });
+}
+
+function performScavengersHunger(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
+  if (!hasAbility(actor, 'scavengers-hunger') || hasAbility(target, 'fading') || actor.scavengersHungerKills >= 3) {
+    return;
+  }
+  actor.scavengersHungerKills += 1;
+  state.corpses.delete(target.id);
+  summonUnitsAtHex(state, actor, 'scavengers-hunger', 'wolf', 1, target.position);
 }
 
 function handleDeath(state: InternalState, actor: InternalUnit, target: InternalUnit, context: AttackContext = { mode: 'melee', category: 'normal' }): void {
@@ -1963,11 +2401,16 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     sourceAbilityLabel: 'Battle resolution',
   });
 
+  if (hasAbility(target, 'sentinel-runes') && !target.sentinelRunesTriggered) {
+    triggerSentinelRunes(state, target, target.position, `${target.troopLabel} releases Sentinel Runes in death.`);
+  }
+
   const bondedDependents = getAliveUnits(state, target.side).filter(
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
   );
 
   triggerUnitAbilities(state, actor, { timing: 'onKill', fallenUnit: target });
+  performScavengersHunger(state, actor, target);
   if (hasAbility(actor, 'snatch-the-moment')) {
     getAliveUnits(state)
       .filter((unit) => unit.side !== actor.side && equalsHex(unit.position, target.position))
@@ -1980,6 +2423,12 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
           sourceAbilityLabel: getAbility('snatch-the-moment').label,
         });
       });
+  }
+  if (hasAbility(actor, 'loot-frenzy')) {
+    performLootFrenzy(state, actor, target.position);
+  }
+  if (actor.type === 'wolf' && sideHasTroopTypeUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
+    performThrillKillBuff(state, actor, target.position);
   }
   if (hasAbility(actor, 'crushing-sweep') && context.mode === 'melee') {
     const splash = actor.resolvedStats.size * 5;
@@ -2004,6 +2453,8 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
         }
       });
   }
+  performLastWitness(state, actor, target);
+  performHoldTheStandard(state, target);
   triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
   getAliveUnits(state).forEach((unit) => {
     if (unit.id !== target.id) {
@@ -2014,6 +2465,54 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     }
   });
   bondedDependents.forEach((unit) => handleDeath(state, target, unit, { mode: 'melee', category: 'strike' }));
+}
+
+function handleEnvironmentalDeath(
+  state: InternalState,
+  target: InternalUnit,
+  effectId: string,
+  effectLabel: string,
+  message: string,
+): void {
+  if (!target.alive) {
+    return;
+  }
+  if (preventDeath(state, target, target)) {
+    return;
+  }
+  target.alive = false;
+  target.hp = 0;
+  removeAllEngagements(state, target);
+  if (!hasAbility(target, 'fading')) {
+    state.corpses.set(target.id, { ...target.position });
+  }
+  buildStep(state, 'death', [], [target.id], message, {
+    effect: effectId,
+    sourceAbilityId: effectId,
+    sourceAbilityLabel: effectLabel,
+  });
+
+  if (hasAbility(target, 'sentinel-runes') && !target.sentinelRunesTriggered) {
+    triggerSentinelRunes(state, target, target.position, `${target.troopLabel} releases Sentinel Runes in death.`);
+  }
+
+  const bondedDependents = getAliveUnits(state, target.side).filter(
+    (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
+  );
+
+  performHoldTheStandard(state, target);
+  triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
+  getAliveUnits(state).forEach((unit) => {
+    if (unit.id !== target.id) {
+      triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
+      if (target.type === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === target.side) {
+        applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.position, new Set<string>());
+      }
+    }
+  });
+  bondedDependents.forEach((unit) =>
+    handleEnvironmentalDeath(state, unit, effectId, effectLabel, `${unit.troopLabel} is destroyed when its summoner falls.`),
+  );
 }
 
 function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit {
@@ -2036,6 +2535,7 @@ function attack(
 ): void {
   const attackContext: AttackContext = { mode, category };
   let attackDamage = actor.resolvedStats.damage;
+  const distanceToTarget = hexDistance(actor.position, target.position);
   const heartseekerActive = hasAbility(actor, 'heartseeker') && target.engagedWith.size === 0;
   if (heartseekerActive) {
     attackDamage = fixedMul(attackDamage, 2);
@@ -2043,7 +2543,7 @@ function attack(
   const distanceBonus = getDistanceDamageBonus(actor, target, attackContext);
   attackDamage = fixedAdd(attackDamage, distanceBonus.damage);
   const armorReduction = getIncomingDamageReduction(state, target, attackContext);
-  const armorAfterMods = fixedMax(fixedSub(target.resolvedStats.armor, armorReduction), 0);
+  const armorAfterMods = fixedSub(target.resolvedStats.armor, armorReduction);
   const challengePenalty =
     actor.challengedBy.size > 0 && [...actor.challengedBy].some((unitId) => actor.engagedWith.has(unitId)) ? 4 : 0;
   if (challengePenalty > 0) {
@@ -2076,6 +2576,24 @@ function attack(
     triggerUnitAbilities(state, actor, { timing: 'onAttack', attackTarget: target });
   }
 
+  if (mode === 'melee' && hasAbility(actor, 'bramble-snare') && actor.brambleSnareStacks > 0 && target.alive) {
+    applyStatDelta(state, actor, target, createRuntimeAbilityState(getAbility('bramble-snare')), {
+      kind: 'statDelta',
+      stat: 'speed',
+      amount: actor.brambleSnareStacks * -2,
+      mode: 'flat',
+      disposition: 'harmful',
+    });
+  }
+
+  if (mode === 'ranged' && hasAbility(actor, 'silver-distance') && distanceToTarget === actor.resolvedStats.range && target.alive) {
+    applyInitiativeDelta(state, actor, target, createRuntimeAbilityState(getAbility('silver-distance')), {
+      kind: 'initiativeDelta',
+      amount: -30,
+      disposition: 'harmful',
+    });
+  }
+
   if (target.hp <= 0 && target.alive) {
     handleDeath(state, actor, target, attackContext);
   } else {
@@ -2103,6 +2621,16 @@ function attack(
 
   if (mode === 'ranged' && allowOnAttackAbilities && actor.alive && hasAbility(actor, 'skirmishers-step') && actor.engagedWith.size === 0) {
     skirmisherRetreat(state, actor);
+  }
+
+  const bonusStrikeCount =
+    (category === 'normal' && actor.bonusStrikeCharges > 0 ? 1 : 0) +
+    (category === 'normal' && mode === 'melee' && hasAbility(actor, 'dogpile') && target.engagedWith.size >= 3 ? 1 : 0);
+  if (category === 'normal' && actor.bonusStrikeCharges > 0) {
+    actor.bonusStrikeCharges -= 1;
+  }
+  if (bonusStrikeCount > 0 && target.alive) {
+    strikeCount += bonusStrikeCount;
   }
 
   if (strikeCount > 0 && target.alive) {
@@ -2203,6 +2731,38 @@ function pickNearestUnit(actor: InternalUnit, candidates: InternalUnit[]): Inter
 
 function countFriendlyFrontlineUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
   return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'frontline' && equalsHex(unit.position, coord)).length;
+}
+
+function countFriendlyUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
+  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && equalsHex(unit.position, coord)).length;
+}
+
+function pickRandomHex(state: InternalState, candidates: HexCoord[]): HexCoord {
+  return candidates.length === 1 ? candidates[0]! : state.rng.pick(candidates);
+}
+
+function pickBestMovementHex(
+  state: InternalState,
+  actor: InternalUnit,
+  candidates: HexCoord[],
+  scoreHex: (coord: HexCoord) => number,
+): HexCoord | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const scored = candidates.map((coord) => ({
+    coord,
+    score: scoreHex(coord),
+    friendlyOccupancy: countFriendlyUnitsOnHex(state, actor, coord),
+  }));
+  const bestScore = Math.max(...scored.map((entry) => entry.score));
+  const bestScoreCandidates = scored.filter((entry) => entry.score === bestScore);
+  const lowestOccupancy = Math.min(...bestScoreCandidates.map((entry) => entry.friendlyOccupancy));
+  const finalists = bestScoreCandidates
+    .filter((entry) => entry.friendlyOccupancy === lowestOccupancy)
+    .map((entry) => entry.coord);
+  return pickRandomHex(state, finalists);
 }
 
 function getScreenPriority(state: InternalState, actor: InternalUnit, candidate: InternalUnit): number {
@@ -2342,8 +2902,7 @@ function moveToward(
   if (equalsHex(selected.coord, actor.position)) {
     return false;
   }
-  removeAllEngagements(state, actor);
-  actor.position = { ...selected.coord };
+  relocateUnit(state, actor, selected.coord);
   if (roleIntent && reasonCode && targetRole) {
     emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} ${formatRoleIntentMessage(roleIntent)}.`, {
       roleIntent,
@@ -2435,16 +2994,11 @@ function retreatFromEngagement(
   if (options.length === 0) {
     return false;
   }
-  const selected = [...options]
-    .sort((left, right) => {
-      const scoreDelta = scoreRetreatHex(state, actor, right) - scoreRetreatHex(state, actor, left);
-      if (scoreDelta !== 0) {
-        return scoreDelta;
-      }
-      return compareHex(left, right);
-    })[0]!;
-  removeAllEngagements(state, actor);
-  actor.position = { ...selected };
+  const selected = pickBestMovementHex(state, actor, options, (coord) => scoreRetreatHex(state, actor, coord));
+  if (!selected) {
+    return false;
+  }
+  relocateUnit(state, actor, selected);
   buildStep(state, 'move', [actor.id], threat ? [threat.id] : [], message, {
     effect,
     toQ: actor.position.q,
@@ -2479,16 +3033,11 @@ function retreat(state: InternalState, actor: InternalUnit): boolean {
     (coord) => getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord)).length === 0,
   );
   if (options.length > 0) {
-    const selected = [...options]
-      .sort((left, right) => {
-        const scoreDelta = scoreRetreatHex(state, actor, right) - scoreRetreatHex(state, actor, left);
-        if (scoreDelta !== 0) {
-          return scoreDelta;
-        }
-        return compareHex(left, right);
-      })[0]!;
-    removeAllEngagements(state, actor);
-    actor.position = { ...selected };
+    const selected = pickBestMovementHex(state, actor, options, (coord) => scoreRetreatHex(state, actor, coord));
+    if (!selected) {
+      return false;
+    }
+    relocateUnit(state, actor, selected);
     if (target) {
       emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} retreats to preserve range.`, {
         roleIntent: 'retreat-range',
@@ -2528,8 +3077,17 @@ function carefulAdvance(state: InternalState, actor: InternalUnit): boolean {
   if (options.length === 0) {
     return false;
   }
-  removeAllEngagements(state, actor);
-  actor.position = { ...[...options].sort(compareHex)[0]! };
+  const currentDistance = hexDistance(actor.position, target.position);
+  const selected = pickBestMovementHex(
+    state,
+    actor,
+    options,
+    (coord) => currentDistance - hexDistance(coord, target.position),
+  );
+  if (!selected) {
+    return false;
+  }
+  relocateUnit(state, actor, selected);
   emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} advances to keep range.`, {
     roleIntent: 'advance-range',
     reasonCode: 'maintain-firing-lane',
@@ -2540,6 +3098,62 @@ function carefulAdvance(state: InternalState, actor: InternalUnit): boolean {
     toR: actor.position.r,
   });
   return true;
+}
+
+function applyQuakes(state: InternalState): void {
+  if (!state.effects.randomMoveEveryBeats || state.effects.randomMoveEveryBeats <= 0) {
+    return;
+  }
+  if (state.beatCount % state.effects.randomMoveEveryBeats !== 0) {
+    return;
+  }
+
+  state.rng.shuffle(getAliveUnits(state)).forEach((unit) => {
+    const options = validMovementHexes(state, unit);
+    if (options.length === 0) {
+      return;
+    }
+    const destination = pickRandomHex(state, options);
+    relocateUnit(state, unit, destination);
+    buildStep(state, 'move', [unit.id], [], `${unit.troopLabel} is displaced by quakes.`, {
+      effect: 'quakes',
+      sourceAbilityId: 'quakes',
+      sourceAbilityLabel: getMutator('quakes').label,
+      toQ: unit.position.q,
+      toR: unit.position.r,
+    });
+  });
+}
+
+function applyDecay(state: InternalState): void {
+  if (state.effects.decayDamagePerBeat <= 0) {
+    return;
+  }
+
+  getAliveUnits(state).forEach((unit) => {
+    unit.hp = fixedSub(unit.hp, state.effects.decayDamagePerBeat);
+    buildStep(state, 'attack', [], [unit.id], `${unit.troopLabel} loses ${formatFixed(state.effects.decayDamagePerBeat)} HP to Decay.`, {
+      damage: state.effects.decayDamagePerBeat,
+      mode: 'blast',
+      category: 'strike',
+      baseDamage: state.effects.decayDamagePerBeat,
+      attackDamageBeforeArmor: state.effects.decayDamagePerBeat,
+      armorIgnored: true,
+      effect: 'decay',
+      sourceAbilityId: 'decay',
+      sourceAbilityLabel: getMutator('decay').label,
+    });
+    if (unit.hp <= 0 && unit.alive) {
+      handleEnvironmentalDeath(state, unit, 'decay', getMutator('decay').label, `${unit.troopLabel} is consumed by Decay.`);
+    } else if (unit.alive) {
+      triggerUnitAbilities(state, unit, { timing: 'onDamaged' });
+    }
+  });
+}
+
+function applyBeatMutators(state: InternalState): void {
+  applyQuakes(state);
+  applyDecay(state);
 }
 
 function executeTurnActions(state: InternalState, actor: InternalUnit): void {
@@ -2628,6 +3242,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     replayId: makeReplayId(seed, input.riftId),
     input,
   };
+  state.units.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
 
   const troopLabels = Object.fromEntries(
     [...input.playerCombatants, ...input.enemyCombatants].map((combatant) => [combatant.combatantId, combatant.label]),
@@ -2644,6 +3259,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
       beat: state.beatCount,
       initiativeBonus: state.effects.initiativeBonusPerBeat,
     });
+    applyBeatMutators(state);
     const ready = getAliveUnits(state).filter((unit) => unit.initiative >= 100).map((unit) => unit.id);
     state.rng.shuffle(ready).forEach((unitId) => {
       const unit = state.units.get(unitId);
@@ -2670,7 +3286,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     steps: state.steps,
     outcome: resolveBattleOutcome(state),
     troopLabels,
-    troopProfiles: buildTroopProfiles(input, state.summonedProfiles),
+    troopProfiles: buildTroopProfiles(input, state.summonedProfiles, state.effects),
     aliveCounts: snapshots.map(createAliveCount),
     summary: {
       playerTroops: input.playerCombatants.map((combatant) => combatant.label),
@@ -2726,6 +3342,10 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
     riftId: null,
     tier: null,
     mutatorIds: [],
+    playerFactionUpgradeIds,
+    playerTroopTypeUpgradeIds,
+    enemyFactionUpgradeIds,
+    enemyTroopTypeUpgradeIds,
     playerCombatants,
     enemyCombatants,
   });
@@ -2737,8 +3357,24 @@ export function buildBattleInputFromResolvedCombatants(
   tier: number | null,
   mutatorIds: string[],
   saturation: number | undefined,
+  playerFactionUpgradeIds: string[],
+  playerTroopTypeUpgradeIds: string[],
+  enemyFactionUpgradeIds: string[],
+  enemyTroopTypeUpgradeIds: string[],
   playerCombatants: ResolvedCombatantDefinition[],
   enemyCombatants: ResolvedCombatantDefinition[],
 ): BattleInput {
-  return { seed, riftId, tier, mutatorIds, saturation, playerCombatants, enemyCombatants };
+  return {
+    seed,
+    riftId,
+    tier,
+    mutatorIds,
+    saturation,
+    playerFactionUpgradeIds,
+    playerTroopTypeUpgradeIds,
+    enemyFactionUpgradeIds,
+    enemyTroopTypeUpgradeIds,
+    playerCombatants,
+    enemyCombatants,
+  };
 }

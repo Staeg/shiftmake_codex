@@ -37,8 +37,9 @@ On each beat:
 
 1. Every alive unit gains initiative equal to `speed + mutator bonus`.
 2. A replay `beat` step is logged.
-3. Units with initiative `>= 100` act in shuffled order.
-4. Each acting unit spends `100` initiative.
+3. Beat-timed mutators then resolve.
+4. Units with initiative `>= 100` act in shuffled order.
+5. Each acting unit spends `100` initiative.
 
 Initial initiative is random from `0` to `10` inclusive.
 
@@ -53,19 +54,39 @@ For each acting unit:
 3. Trigger `endOfTurn` abilities.
 4. Expire that unit's temporary timed effects.
 
+The battle engine also supports passive runtime hooks that are still replay-visible:
+
+- receive-side modifiers such as doubled healing or stat gains
+- move-off-hex triggers such as `Sentinel Runes`
+- per-shapeshift triggers such as `Wild Call` and `Bramble Snare`
+- side-wide summon synergies that can affect future wolves or elementals even if the original source troop type is absent from that specific battle
+
 ## Combat rules
 
 Normal attack damage is:
 
-`max(attacker damage - target armor, 0)`
+`max(attacker damage - effective armor, 0)`
+
+If armor is negative, it increases incoming normal damage instead of reducing it.
 
 Ranged attacks are further multiplied by any active mutator effect, currently only `Heavy Air`.
+
+Current mutator-specific battle rules include:
+
+- `Momentum`: all units gain +10 initiative each beat
+- `Haze`: all units lose 5 initiative each beat
+- `Animated`: `Fading` is removed from all units, including summons and future granted effects
+- `Corrosion`: all units start at 0 armor and cannot have positive armor during that battle
+- `Quakes`: every 10 beats, each unit is displaced to a random adjacent hex if one fits the saturation rules
+- `Decay`: every beat, each unit loses 1 HP ignoring armor
 
 If a target reaches `0` HP:
 
 - it is killed
 - all its engagements are removed
 - `onKill`, `onDeath`, and `onFallen` triggers fire as appropriate
+- non-`Fading` units leave corpses that corpse-consuming abilities can use
+- some upgrades can replace corpse use with health payment, consume corpses on kills, or trigger additional summon or heal reactions off the death event
 
 ## Engagements
 
@@ -114,3 +135,5 @@ Every battle produces a deterministic replay containing:
 - end summary
 
 The renderer is only a replay consumer.
+
+Because replay steps carry source ability ids and labels, upgrade moments such as `Overflowing Grace`, `Living Circuit`, `Loot Frenzy`, `Sentinel Runes`, and `Thrill of the Hunt` can be audited directly from the log.

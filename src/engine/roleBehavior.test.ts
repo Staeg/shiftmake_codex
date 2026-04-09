@@ -229,6 +229,26 @@ describe('role behavior', () => {
     );
   });
 
+  it('backline movement no longer locks equal retreat choices to one hex', () => {
+    const retreatDestinations = new Set(
+      Array.from({ length: 120 }, (_, offset) => 500 + offset)
+        .map((seed) =>
+          resolveBattle(
+            makeBattleInput(
+              [makeBattleCombatant('elf/archer', 'player', { label: 'Player Backline' })],
+              [makeBattleCombatant('human/knight', 'enemy', { label: 'Enemy Pursuer' })],
+              seed,
+            ),
+          ),
+        )
+        .map((replay) => findFirstRoleStep(replay, 'Player Backline', 'retreat-range'))
+        .filter((step): step is BattleStep => Boolean(step))
+        .map((step) => `${step.metadata?.toQ},${step.metadata?.toR}`),
+    );
+
+    expect(retreatDestinations.size).toBeGreaterThan(1);
+  });
+
   it('replay metadata exposes role intent and reason codes', () => {
     const replay = resolveBattle(
       makeBattleInput(

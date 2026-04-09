@@ -193,7 +193,7 @@
     return {
       screen: $gameStore.screen,
       centerMode: $gameStore.centerMode,
-      selectedRiftId,
+      selectedRiftId: null,
       selectedTroopId,
       selectedReplayId,
       currentReplayStep: $gameStore.screen === 'replay' ? $gameStore.currentStep : null,
@@ -247,7 +247,7 @@
       return;
     }
 
-    selectedRiftId = campaignReportPreview.uiContext.selectedRiftId;
+    selectedRiftId = null;
     selectedTroopId = campaignReportPreview.uiContext.selectedTroopId;
     selectedReplayId = campaignReportPreview.uiContext.selectedReplayId;
     campaignReportMessage = `Imported campaign report ${result.reportId} into Slot ${campaignReportImportSlotId}.`;
@@ -372,6 +372,20 @@
 
   function slotPhaseLabel(phase?: string | null): string {
     return phase ? phase.replace(/_/g, ' ') : 'planning';
+  }
+
+  function formatRiftTierLabel(tier: number): string {
+    return `T${tier}`;
+  }
+
+  function formatRiftDisplayId(riftId: string): string {
+    const match = /^cycle-(\d+)-rift-(\d+)$/i.exec(riftId);
+    if (!match) {
+      return riftId;
+    }
+
+    const [, cycleNumber, riftNumber] = match;
+    return `C${cycleNumber}R${riftNumber}`;
   }
 
   function getFactionUnitPortrait(factionId: FactionId, unitTypeId: UnitTypeId): string {
@@ -559,6 +573,17 @@
     }
   }
 
+  function teardownRenderer(): void {
+    renderer?.destroy();
+    renderer = null;
+    rendererInitPromise = null;
+    renderedReplayId = null;
+    renderedStep = Number.NaN;
+    renderedHighlightKey = '';
+    hoverInfo = null;
+    lockedUnitId = null;
+  }
+
   async function ensureRenderer(): Promise<void> {
     if (!battleHost || renderer) {
       return;
@@ -594,6 +619,10 @@
     rendererInitPromise = (async () => {
       try {
         await nextRenderer.init();
+        if (!battleHost || battleHost !== host || !host.isConnected || $gameStore.screen !== 'replay') {
+          nextRenderer.destroy();
+          return;
+        }
         renderer = nextRenderer;
         renderer.refreshViewport();
         syncRenderer();
@@ -696,6 +725,7 @@
 
   function setRiftCenterMode(): void {
     resetOverworldInspect();
+    selectedRiftId = null;
     gameStore.setCenterMode('rifts');
   }
 
@@ -704,13 +734,6 @@
     selectedRiftId = null;
     selectedReplayId = null;
     gameStore.setCenterMode('troops');
-  }
-
-  function selectRift(riftId: string): void {
-    selectedRiftId = riftId;
-    selectedFactionId = null;
-    selectedReplayId = null;
-    setRiftCenterMode();
   }
 
   function selectTroop(troopId: TroopId): void {
@@ -1032,10 +1055,13 @@
     return () => {
       clearAutoTimer();
       window.removeEventListener('resize', handleResize);
-      renderer?.destroy();
-      renderer = null;
+      teardownRenderer();
     };
   });
+
+  $: if ((!battleHost || $gameStore.screen !== 'replay') && renderer) {
+    teardownRenderer();
+  }
 
   $: if (battleHost) {
     void ensureRenderer();
@@ -1078,9 +1104,6 @@
 
   $: if (selectedRiftId && !discoveredRifts.some((rift) => rift.id === selectedRiftId)) {
     selectedRiftId = null;
-  }
-  $: if (!selectedRiftId && discoveredRifts.length > 0 && $gameStore.centerMode === 'rifts') {
-    selectedRiftId = discoveredRifts[0]!.id;
   }
 
   $: if (selectedTroopId && !$gameStore.game.troops.some((troop) => troop.id === selectedTroopId)) {
@@ -1778,8 +1801,8 @@
             <div class="assignment-list">
               {#each discoveredRifts as rift}
                 <button class="list-button" class:selected={selectedTroop.assignmentRiftId === rift.id} on:click={() => gameStore.assignTroopToRift(selectedTroop.id, rift.id)}>
-                  <strong>{rift.id}</strong>
-                  <small>Tier {rift.tier} | VP {rift.victoryPoints}</small>
+                  <strong>{formatRiftDisplayId(rift.id)}</strong>
+                  <small>{formatRiftTierLabel(rift.tier)} | Fit {rift.saturation}</small>
                 </button>
               {/each}
             </div>
@@ -1807,19 +1830,35 @@
             {@const riftVisual = getRiftVisual(rift)}
             <article
               class="rift-card"
-              class:selected={selectedRiftId === rift.id}
               class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
               data-rift-drop-target={rift.id}
               on:dragover={allowNativeTroopDrop}
               on:drop={(event) => finishNativeTroopDrop(event, { kind: 'rift', riftId: rift.id })}
             >
-              <button
+              <div
                 class="title-button rift-title-card"
-                on:click={() => selectRift(rift.id)}
                 style={`--rift-tint:${riftVisual.tint}; --rift-glow:${riftVisual.glow}; --rift-rotation:${riftVisual.rotationDeg}deg;`}
               >
-                <header>
-                  <strong>Tier {rift.tier} <span>{rift.id}</span></strong>
+                <header class="rift-title-line">
+                  <strong class="rift-tier-pill">{formatRiftTierLabel(rift.tier)}</strong>
+                  <span class="rift-name-text">{formatRiftDisplayId(rift.id)}</span>
+                  <span class="reward-pill rift-fit-pill">Fit {rift.saturation}</span>
+                  {#if rift.mutatorIds.length === 0}
+                    <span class="mutator-chip empty rift-mutator-chip">None</span>
+                  {:else}
+                    {#each rift.mutatorIds as mutatorId}
+                      <button
+                        class="mutator-chip rift-mutator-chip"
+                        on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
+                        on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
+                        on:mouseleave={clearDetail}
+                        on:blur={clearDetail}
+                        on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
+                      >
+                        {getMutator(mutatorId).label}
+                      </button>
+                    {/each}
+                  {/if}
                 </header>
                 <div class="rift-visual-shell inline">
                   <div class="rift-visual-frame">
@@ -1832,27 +1871,6 @@
                     />
                   </div>
                 </div>
-              </button>
-
-              <div class="rift-meta-row">
-                <span class="reward-pill">VP {rift.victoryPoints}</span>
-                <span class="reward-pill">Fit {rift.saturation}</span>
-                {#if rift.mutatorIds.length === 0}
-                  <span class="mutator-chip empty">No mutators</span>
-                {:else}
-                  {#each rift.mutatorIds as mutatorId}
-                    <button
-                      class="mutator-chip rift-mutator-chip"
-                      on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
-                      on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
-                    >
-                      {getMutator(mutatorId).label}
-                    </button>
-                  {/each}
-                {/if}
               </div>
 
               <div class="rift-card-section">
@@ -3007,8 +3025,7 @@
   .troop-chip.selected,
   .list-button.selected,
   .sprite-inspect-button.selected,
-  .unit-tile.selected,
-  .rift-card.selected {
+  .unit-tile.selected {
     background:
       linear-gradient(145deg, rgba(44, 31, 15, 0.96), rgba(17, 22, 30, 0.96)),
       radial-gradient(circle at top left, rgba(212, 173, 115, 0.18), transparent 42%);
@@ -3058,26 +3075,16 @@
     color: #95a9ba;
   }
 
-  .rift-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .rift-meta-row {
-    align-items: center;
-  }
-
   .reward-pill {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0.3rem 0.55rem;
+    padding: 0.24rem 0.5rem;
     border-radius: 999px;
     border: 1px solid rgba(124, 153, 176, 0.18);
     background: rgba(20, 28, 38, 0.72);
     color: #dce7f2;
-    font-size: 0.78rem;
+    font-size: 0.74rem;
   }
 
   .rift-card,
@@ -3105,26 +3112,55 @@
   .rift-title-card {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 0.65rem;
+    gap: 0.5rem;
     align-items: center;
   }
 
-  .rift-title-card header {
-    display: grid;
-    gap: 0.2rem;
-  }
-
-  .rift-title-card header strong {
+  .rift-title-line {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.45rem;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
   }
 
-  .rift-title-card header span {
+  .rift-tier-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.9rem;
+    padding: 0.16rem 0.56rem;
+    border-radius: 999px;
+    border: 1px solid rgba(213, 178, 116, 0.3);
+    background: rgba(31, 24, 16, 0.8);
+    color: #f5f0de;
+    font-size: 0.88rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .rift-name-text {
+    min-width: 0;
     color: #9db2c4;
-    font-size: 0.8rem;
+    font-size: 0.74rem;
     font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .rift-fit-pill {
+    flex: 0 0 auto;
+  }
+
+  .rift-mutator-chip {
+    flex: 0 1 auto;
+    justify-content: center;
+    text-align: center;
+    min-height: 1.9rem;
+    min-width: 0;
+    max-width: 8.5rem;
+    padding-inline: 0.5rem;
+    font-size: 0.76rem;
   }
 
   .rift-visual-shell {
@@ -3168,9 +3204,9 @@
   }
 
   .rift-visual-shell.inline {
-    width: 4.1rem;
-    height: 4.1rem;
-    min-height: 4.1rem;
+    width: 3.8rem;
+    height: 3.8rem;
+    min-height: 3.8rem;
     border-radius: 14px;
   }
 
@@ -3692,12 +3728,6 @@
     font-size: 0.88rem;
   }
 
-  .rift-mutator-chip {
-    flex: 1 1 8.5rem;
-    justify-content: center;
-    text-align: center;
-  }
-
   .ready-troops-panel {
     gap: 0.55rem;
     padding-block: 0.9rem;
@@ -3735,11 +3765,26 @@
   }
 
   .rift-grid {
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 
   .rift-card {
     padding: var(--ui-space-sm);
+  }
+
+  @media (max-width: 560px) {
+    .rift-title-card {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .rift-title-line {
+      order: 2;
+    }
+
+    .rift-title-card .rift-visual-shell.inline {
+      order: 1;
+      justify-self: end;
+    }
   }
 
   .faction-card {

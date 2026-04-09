@@ -204,6 +204,82 @@ describe('resolveDebugBattle', () => {
     expect(replay.steps[0]?.metadata?.explanation?.beat?.initiativePurposeHint).toContain('100');
   });
 
+  it('applies haze as a negative initiative bonus each beat', () => {
+    const input = makeBattleInput([makeBattleCombatant('human/soldier', 'player')], [makeBattleCombatant('human/soldier', 'enemy')], 17);
+    input.mutatorIds = ['haze'];
+
+    const replay = resolveBattle(input);
+
+    expect(replay.steps[0]?.kind).toBe('beat');
+    expect(replay.steps[0]?.metadata?.initiativeBonus).toBe(-5);
+  });
+
+  it('animated removes fading from summoned units and suppresses new fading grants', () => {
+    const input = makeBattleInput(
+      [makeBattleCombatant('goblin/beastmaster', 'player'), makeBattleCombatant('troll/shaman', 'player')],
+      [makeBattleCombatant('human/soldier', 'enemy')],
+      18,
+    );
+    input.mutatorIds = ['animated'];
+
+    const replay = resolveBattle(input);
+    const wolfProfile = replay.troopProfiles.find((profile) => profile.troopLabel === 'Wolf');
+
+    expect(wolfProfile).toBeDefined();
+    expect(wolfProfile?.abilities.map((ability) => ability.id)).not.toContain('fading');
+    expect(replay.steps.some((step) => step.message.includes('gains Fading'))).toBe(false);
+  });
+
+  it('corrosion zeroes starting armor and still allows armor to go negative', () => {
+    const input = makeBattleInput(
+      [makeBattleCombatant('elf/archer', 'player', [getAbility('shredding-arrows')])],
+      [makeBattleCombatant('human/knight', 'enemy')],
+      19,
+    );
+    input.mutatorIds = ['corrosion'];
+
+    const replay = resolveBattle(input);
+    const knightAtStart = replay.initial.units.find((unit) => unit.side === 'enemy' && unit.troopLabel === 'Human Knight');
+    const enemyArmorHistory = replay.steps
+      .map((step) => step.snapshot.units.find((unit) => unit.side === 'enemy' && unit.troopLabel === 'Human Knight')?.stats.armor)
+      .filter((armor): armor is number => typeof armor === 'number');
+
+    expect(knightAtStart?.stats.armor).toBe(0);
+    expect(Math.min(...enemyArmorHistory)).toBeLessThan(0);
+  });
+
+  it('quakes displaces units to random adjacent hexes that still fit', () => {
+    const player = makeBattleCombatant('human/soldier', 'player');
+    player.stats = { ...player.stats, health: 12, damage: 0, speed: 1, size: 1, capacity: 0 };
+    const enemy = makeBattleCombatant('human/soldier', 'enemy');
+    enemy.stats = { ...enemy.stats, health: 12, damage: 0, speed: 1, size: 1, capacity: 0 };
+    const input = makeBattleInput([player], [enemy], 20);
+    input.mutatorIds = ['quakes', 'decay'];
+
+    const replay = resolveBattle(input);
+    const quakeStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'quakes');
+
+    expect(quakeStep).toBeDefined();
+    expect(quakeStep?.kind).toBe('move');
+  });
+
+  it('decay damages and can kill units without using armor', () => {
+    const player = makeBattleCombatant('human/knight', 'player');
+    player.stats = { ...player.stats, health: 1, armor: 50 };
+    const enemy = makeBattleCombatant('human/knight', 'enemy');
+    enemy.stats = { ...enemy.stats, health: 1, armor: 50 };
+    const input = makeBattleInput([player], [enemy], 21);
+    input.mutatorIds = ['decay'];
+
+    const replay = resolveBattle(input);
+    const decayHit = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'decay' && step.kind === 'attack');
+    const decayDeaths = replay.steps.filter((step) => step.metadata?.sourceAbilityId === 'decay' && step.kind === 'death');
+
+    expect(decayHit?.metadata?.armorIgnored).toBe(true);
+    expect(decayDeaths).toHaveLength(2);
+    expect(replay.outcome).toBe('draw');
+  });
+
   it('includes source ability metadata on ordinary heal steps', () => {
     const priest = makeBattleCombatant('human/priest', 'player');
     const ally = makeBattleCombatant('human/soldier', 'player');
@@ -570,32 +646,57 @@ describe('ability mechanics', () => {
 
   it('resolves troop-type upgrades across matching unit types and rewires replacement upgrades', () => {
     const upgradedState = {
-      factionUpgradeIds: ['human-tubthumping', 'elf-fade-into-shadow', 'elf-long-shot-doctrine', 'goblin-snatch-the-moment', 'troll-stoneblood', 'troll-crushing-sweep'],
+      factionUpgradeIds: [
+        'human-tubthumping',
+        'human-hold-the-standard',
+        'elf-fade-into-shadow',
+        'elf-long-shot-doctrine',
+        'elf-silver-distance',
+        'goblin-snatch-the-moment',
+        'goblin-loot-frenzy',
+        'troll-stoneblood',
+        'troll-crushing-sweep',
+        'troll-rowdy-regrowth',
+      ],
       troopTypeUpgradeIds: [
         'soldier-shield-drill',
         'archer-pinning-volley',
         'archer-shredding-arrows',
         'avenger-blood-oath',
         'avenger-sevenfold',
+        'avenger-last-witness',
         'beastmaster-blood-in-the-water',
         'beastmaster-packmasters-whistle',
+        'beastmaster-thrill-of-the-hunt',
+        'champion-anointed',
         'druid-wild-growth',
         'druid-true-form',
         'druid-thornhide',
+        'druid-bramble-snare',
+        'druid-wild-call',
         'elementalist-arc-conductor',
         'elementalist-mitosis',
+        'elementalist-living-circuit',
+        'knight-brace',
         'knight-challenge-accepted',
+        'knight-sentinel-runes',
+        'militia-dogpile',
         'militia-rabble-rush',
         'necromancer-rising-tide',
         'necromancer-early-riser',
         'necromancer-carrion-choir',
+        'priest-overflowing-grace',
         'priest-zeal',
         'priest-mercy-before-dawn',
         'ranger-concussive-shots',
         'ranger-skirmishers-step',
         'ranger-heartseeker',
+        'ranger-scavengers-hunger',
         'shaman-serve-once-more',
+        'shaman-static-charge',
         'shaman-war-drums',
+        'wizard-leyline-focus',
+        'wizard-lightning-rods',
         'wizard-storm',
         'wizard-spell-echo',
       ],
@@ -621,17 +722,23 @@ describe('ability mechanics', () => {
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('pinning-volley');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('long-shot-doctrine');
+    expect(elfArcher.abilities.map((ability) => ability.id)).toContain('silver-distance');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('blood-oath');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('uses-7-corpse-summon-skeleton');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('last-witness');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('summon-wolf-2-blood');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('packmasters-whistle');
+    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('thrill-of-the-hunt');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).not.toContain('summon-wolf-2');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('regen-60');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('shapeshift-bear-2');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('thornhide');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('bramble-snare');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('wild-call');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('fade-into-shadow');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('charge-4-summon-elemental-mitosis');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('arc-conductor');
+    expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('living-circuit');
     expect(elfElementalist.abilities.map((ability) => ability.id)).not.toContain('charge-4-summon-elemental');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('corpse-summon-skeleton-rising');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('early-riser');
@@ -639,16 +746,26 @@ describe('ability mechanics', () => {
     expect(trollNecromancer.abilities.map((ability) => ability.id)).not.toContain('corpse-summon-skeleton');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('zeal-enhance-1');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('mercy-before-dawn');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('overflowing-grace');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('tubthumping');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('concussive-shots');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('skirmishers-step');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('heartseeker');
+    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('scavengers-hunger');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('serve-once-more');
+    expect(trollShaman.abilities.map((ability) => ability.id)).toContain('static-charge');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('war-drums');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('leyline-focus');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('lightning-rods');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('summon-elemental-1');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('charge-4-random-enemy-r-strike-4');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('spell-echo');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('snatch-the-moment');
+    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('brace');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('challenge-accepted');
+    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('sentinel-runes');
+    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('hold-the-standard');
+    expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('dogpile');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('rabble-rush');
   });
 
@@ -899,5 +1016,109 @@ describe('ability mechanics', () => {
 
     expect(elementalSummons.length).toBeGreaterThanOrEqual(2);
     expect(elementalProfile?.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
+  });
+
+  it('overflowing grace grants initiative when a priest heal tops an ally off', () => {
+    const priest = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-overflowing-grace'] },
+      createTroopInstance('human', 'priest'),
+      'player',
+    );
+    const ally = makeBattleCombatant('human/soldier', 'player');
+    ally.stats = { ...ally.stats, health: ally.stats.health - 4 };
+    const replay = resolveBattle(makeBattleInput([priest, ally], [makeBattleCombatant('human/knight', 'enemy')], 71));
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'overflowing-grace')).toBe(true);
+  });
+
+  it('rowdy regrowth triggers from non-regen healing', () => {
+    const trollSoldier = resolveTroopCombatant(
+      { factionUpgradeIds: ['troll-rowdy-regrowth'], troopTypeUpgradeIds: [] },
+      createTroopInstance('troll', 'soldier'),
+      'player',
+    );
+    trollSoldier.stats = { ...trollSoldier.stats, health: trollSoldier.stats.health - 4 };
+    const priest = makeBattleCombatant('human/priest', 'player');
+    const replay = resolveBattle(makeBattleInput([priest, trollSoldier], [makeBattleCombatant('human/knight', 'enemy')], 72));
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'rowdy-regrowth')).toBe(true);
+  });
+
+  it('bramble snare stacks once per shapeshift, including true form', () => {
+    const druid = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['druid-true-form', 'druid-bramble-snare'] },
+      createTroopInstance('elf', 'druid'),
+      'player',
+    );
+    druid.quantity = 1;
+    const replay = resolveBattle(makeBattleInput([druid, makeBattleCombatant('human/soldier', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 73));
+
+    expect(replay.steps.filter((step) => step.message.includes('empowers Bramble Snare')).length).toBe(2);
+  });
+
+  it('silver distance strips initiative on max-range elven attacks', () => {
+    const archer = resolveTroopCombatant(
+      { factionUpgradeIds: ['elf-silver-distance'], troopTypeUpgradeIds: [] },
+      createTroopInstance('elf', 'archer'),
+      'player',
+    );
+    const replay = resolveBattle(makeBattleInput([archer], [makeBattleCombatant('human/soldier', 'enemy')], 74));
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'silver-distance')).toBe(true);
+  });
+
+  it('sentinel runes triggers on knight death if no enemy left its hex first', () => {
+    const knight = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-sentinel-runes'] },
+      createTroopInstance('human', 'knight'),
+      'player',
+    );
+    knight.stats = { ...knight.stats, health: 1 };
+    const replay = resolveBattle(makeBattleInput([knight], [makeBattleCombatant('human/champion', 'enemy')], 75));
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'sentinel-runes')).toBe(true);
+    expect(replay.steps.filter((step) => step.message.includes('summons Elemental')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("scavenger's hunger consumes early ranger kills into wolf summons", () => {
+    const ranger = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['ranger-scavengers-hunger'] },
+      createTroopInstance('elf', 'ranger'),
+      'player',
+    );
+    const enemy = makeBattleCombatant('human/militia', 'enemy');
+    enemy.stats = { ...enemy.stats, health: 1 };
+    const replay = resolveBattle(makeBattleInput([ranger], [enemy], 76));
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'scavengers-hunger')).toBe(true);
+    expect(replay.steps.some((step) => step.message.includes('summons Wolf'))).toBe(true);
+  });
+
+  it('lightning rods adds a start-of-battle elemental summon to wizards', () => {
+    const wizard = resolveTroopCombatant(
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['wizard-lightning-rods'] },
+      createTroopInstance('goblin', 'wizard'),
+      'player',
+    );
+    const replay = resolveBattle(makeBattleInput([wizard], [makeBattleCombatant('human/soldier', 'enemy')], 77));
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'summon-elemental-1')).toBe(true);
+  });
+
+  it('thrill of the hunt still buffs wolves even when no beastmaster is present', () => {
+    const wolf = makeBattleCombatant('human/wolf', 'player');
+    const enemy = makeBattleCombatant('human/militia', 'enemy');
+    enemy.stats = { ...enemy.stats, health: 1 };
+    const replay = resolveBattle({
+      seed: 78,
+      riftId: null,
+      tier: null,
+      mutatorIds: [],
+      playerTroopTypeUpgradeIds: ['beastmaster-thrill-of-the-hunt'],
+      playerCombatants: [wolf],
+      enemyCombatants: [enemy],
+    });
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'thrill-of-the-hunt')).toBe(true);
   });
 });

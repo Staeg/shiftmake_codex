@@ -44,14 +44,19 @@ Tier currently affects:
 - number of enemy combatant groups: Tier 1-3 use `tier + 1`, Tier 4 stays at 4 groups
 - VP reward: equal to tier
 - mutator count: currently 1 mutator per Rift
+- mutator distribution: generation deals mutators from a cycle-level shuffled bag, so the 4 visible Rifts are spread as evenly as possible before any mutator repeats
 
 ## Mutators
 
 Implemented mutators:
 
 - `Momentum`: all units gain +10 initiative each beat
+- `Haze`: all units lose 5 initiative each beat
 - `Heavy Air`: ranged attacks deal 50% damage
-- `Quagmire`: recovery x2 for troops assigned to that Rift
+- `Animated`: all units lose `Fading`
+- `Corrosion`: all units start with 0 armor and cannot have positive armor during that battle
+- `Quakes`: every 10 beats, each unit is moved to a random adjacent hex if one fits
+- `Decay`: every beat, each unit loses 1 HP ignoring armor
 
 ## Enemy generation
 

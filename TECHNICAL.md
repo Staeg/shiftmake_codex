@@ -104,7 +104,7 @@ Important current catalog rules:
 - enemies can still roll any non-summoned `faction/unitType` combination
 - stat upgrades, blueprints, and faction-unlock purchases no longer exist
 - the Soldier upgrade `Just a bunch of guys` is removed
-- only `momentum`, `heavy-air`, and `quagmire` remain as Rift mutators
+- Rift mutators are currently `momentum`, `haze`, `heavy-air`, `animated`, `corrosion`, `quakes`, and `decay`
 
 ### Campaign state
 
@@ -199,7 +199,11 @@ If a bucket is empty, the picker falls back to any remaining unowned option.
 
 - `momentum`
 - `heavy-air`
-- `quagmire`
+- `haze`
+- `animated`
+- `corrosion`
+- `quakes`
+- `decay`
 
 ## Battle Engine
 
@@ -215,6 +219,7 @@ Important properties:
 - replay-first architecture
 - auto-expanding hex map if spawn space is insufficient
 - configurable per-rift saturation limit
+- mutator side effects are resolved inside the engine, including battle-wide ability suppression, armor caps, random displacement, and environmental damage
 
 ### Turn flow
 
@@ -222,8 +227,9 @@ Each beat:
 
 1. All alive units gain initiative equal to speed plus mutator bonus.
 2. A `beat` replay step is recorded.
-3. Units with initiative `>= 100` act in shuffled order.
-4. Each acting unit spends `100` initiative.
+3. Beat-timed mutators then resolve, such as `Quakes` displacement and `Decay` HP loss.
+4. Units with initiative `>= 100` act in shuffled order.
+5. Each acting unit spends `100` initiative.
 
 Each acting unit:
 
@@ -300,6 +306,12 @@ Rule: any future ability that reads army composition at battle start must use `c
 
 The replay UI always reads resolved replay data and never reconstructs combat state from catalog assumptions.
 
+### Battle input context
+
+`BattleInput` may also carry each side's owned faction and troop-type upgrade ids alongside the resolved combatants.
+
+The battle engine uses this for side-wide rules that must keep working for future summons even when the troop that normally grants the synergy is not present in that fight. Example: wolves summoned by Druids or Rangers can still benefit from owned wolf-synergy upgrades such as `Thrill of the Hunt`.
+
 ## Campaign Loop
 
 `src/engine/game.ts` currently implements:
@@ -324,14 +336,13 @@ Base recovery is now:
 - victory: ready next cycle
 - defeat: ready next cycle
 
-`Quagmire` is the only remaining mutator that modifies recovery and doubles the assigned troops' recovery before the normal cycle tick reduces it.
-
 ### Rift generation
 
 `src/engine/rift.ts` now:
 
 - generates 4 new Rifts each cycle
 - uses the schedule `2/1/1/1`, `2/2/1/1`, `3/2/1/1`, `3/2/2/1`, `3/3/2/1`, then `4/3/2/1`
+- assigns 1 mutator per Rift from a cycle-level shuffled bag that spreads mutators as evenly as possible across the 4 visible Rifts
 - gives Tier 1-3 Rifts `tier + 1` unique enemy combatant groups, then keeps Tier 4 at 4 groups
 - derives enemy troop quantity exactly the same way as player troops
 - applies `+20%` health, damage, and speed only at Tier 4

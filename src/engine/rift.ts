@@ -1,5 +1,5 @@
 import { createRng } from './rng';
-import { ALL_TROOP_UNLOCK_IDS, getMutator } from './unitCatalog';
+import { ALL_TROOP_UNLOCK_IDS, MUTATORS, getMutator } from './unitCatalog';
 import { resolveEnemyCombatant } from './army';
 import type { FactionId, GameState, MutatorId, RiftInstance, TroopUnlockId, UnitTypeId } from './types';
 
@@ -11,7 +11,7 @@ const CYCLE_RIFT_TIERS: number[][] = [
   [3, 3, 2, 1],
 ];
 
-const MUTATOR_POOL: MutatorId[] = ['momentum', 'heavy-air', 'quagmire'];
+const MUTATOR_POOL: MutatorId[] = Object.keys(MUTATORS) as MutatorId[];
 
 export function deriveSeed(seed: number, salt: number): number {
   return (seed * 1664525 + 1013904223 + salt * 2654435761) >>> 0;
@@ -27,6 +27,10 @@ function mixSeed(seed: number): number {
   return value >>> 0;
 }
 
+function createDerivedRng(seed: number, salt: number) {
+  return createRng(mixSeed(deriveSeed(seed, salt)));
+}
+
 function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeId] {
   return troopUnlockId.split('/') as [FactionId, UnitTypeId];
 }
@@ -35,23 +39,32 @@ export function getCycleTierSchedule(cycleNumber: number): number[] {
   return cycleNumber <= CYCLE_RIFT_TIERS.length ? [...CYCLE_RIFT_TIERS[cycleNumber - 1]] : [4, 3, 2, 1];
 }
 
-function pickMutators(tier: number, seed: number): MutatorId[] {
-  const rng = createRng(mixSeed(seed));
-  const count = tier > 0 ? 1 : 0;
-  const selected: MutatorId[] = [];
-  let pool = [...MUTATOR_POOL];
-
-  for (let index = 0; index < count && pool.length > 0; index += 1) {
-    const mutatorId = rng.pick(pool);
-    selected.push(mutatorId);
-    pool = pool.filter((entry) => entry !== mutatorId);
+function buildCycleMutatorAssignments(tiers: number[], cycleSeed: number): MutatorId[][] {
+  const eligibleRiftCount = tiers.filter((tier) => tier > 0).length;
+  if (eligibleRiftCount === 0) {
+    return tiers.map(() => []);
   }
 
-  return selected;
+  const rng = createDerivedRng(cycleSeed, 41);
+  const bag: MutatorId[] = [];
+  while (bag.length < eligibleRiftCount) {
+    bag.push(...rng.shuffle([...MUTATOR_POOL]));
+  }
+  const assignments = rng.shuffle(bag.slice(0, eligibleRiftCount));
+  let bagIndex = 0;
+
+  return tiers.map((tier) => {
+    if (tier <= 0) {
+      return [];
+    }
+    const mutatorId = assignments[bagIndex] ?? assignments[assignments.length - 1];
+    bagIndex += 1;
+    return mutatorId ? [mutatorId] : [];
+  });
 }
 
 function buildEnemyArmy(tier: number, seed: number) {
-  const rng = createRng(deriveSeed(seed, 97));
+  const rng = createDerivedRng(seed, 97);
   const enemyGroupCount = Math.min(tier, 3) + 1;
   const selections = rng.shuffle([...ALL_TROOP_UNLOCK_IDS]).slice(0, enemyGroupCount);
 
@@ -62,13 +75,14 @@ function buildEnemyArmy(tier: number, seed: number) {
 }
 
 function pickRiftSaturation(seed: number): number {
-  const rng = createRng(deriveSeed(seed, 809));
+  const rng = createDerivedRng(seed, 809);
   return 3 + rng.int(13);
 }
 
 export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycleNumber'>): RiftInstance[] {
   const tiers = getCycleTierSchedule(state.cycleNumber);
   const cycleSeed = deriveSeed(state.campaignSeed, state.cycleNumber);
+  const cycleMutatorAssignments = buildCycleMutatorAssignments(tiers, cycleSeed);
 
   return tiers.map((tier, index) => {
     const riftSeed = deriveSeed(cycleSeed, index + 1);
@@ -77,7 +91,7 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
       cycleNumber: state.cycleNumber,
       seed: riftSeed,
       tier,
-      mutatorIds: pickMutators(tier, riftSeed),
+      mutatorIds: cycleMutatorAssignments[index] ?? [],
       enemyArmy: buildEnemyArmy(tier, riftSeed),
       victoryPoints: tier,
       saturation: pickRiftSaturation(riftSeed),

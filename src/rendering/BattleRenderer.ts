@@ -569,6 +569,28 @@ export class BattleRenderer {
     const prevLayout = this.computeDisplayLayout(prevUnits);
     const nextLayout = this.computeDisplayLayout(nextUnits);
 
+    if (step.kind === 'buff') {
+      const effect = typeof step.metadata?.effect === 'string' ? step.metadata.effect : null;
+      const actorId = step.actorIds[0] ?? null;
+
+      if (actorId) {
+        this.stopEffects.push(this.jumpUnit(actorId, Math.round(this.effectDurationMs() * 0.6)));
+      }
+
+      if (effect === 'summon') {
+        step.targetIds.forEach((targetId) => {
+          this.stopEffects.push(this.showSummonBurst(targetId));
+        });
+        return;
+      }
+
+      const label = this.buffEffectLabel(effect);
+      step.targetIds.forEach((targetId) => {
+        this.stopEffects.push(this.showBuffPopup(targetId, label));
+      });
+      return;
+    }
+
     if (step.kind === 'attack') {
       const actorId = step.actorIds[0] ?? '';
       const actor = getUnitById(nextUnits, actorId);
@@ -627,14 +649,81 @@ export class BattleRenderer {
     }
   }
 
+  private buffEffectLabel(effect: string | null): string {
+    switch (effect) {
+      case 'summon':
+        return 'Summon';
+      case 'heal':
+        return 'Heal';
+      case 'bolster':
+        return 'Bolster';
+      case 'haste':
+        return 'Haste';
+      case 'ramp':
+        return 'Damage Up';
+      case 'grantAbility':
+        return 'New Ability';
+      case 'rangeset':
+        return 'Range Shift';
+      case 'roleset':
+        return 'Role Shift';
+      case 'statDelta':
+        return 'Stat Shift';
+      case 'initiativeDelta':
+      case 'initiativeSet':
+        return 'Initiative';
+      default:
+        return 'Buff';
+    }
+  }
+
   private fireProjectile(from: PixelPoint, to: PixelPoint, durationMs: number): () => void {
+    const container = new Container();
+    const trailGlow = new Graphics();
+    const trail = new Graphics();
     const sprite = new Sprite(this.textures.projectile);
     sprite.anchor.set(0.5, 0.5);
     sprite.width = 14;
     sprite.height = 14;
     sprite.position.set(from.x, from.y);
     sprite.rotation = Math.atan2(to.y - from.y, to.x - from.x);
-    this.effectLayer.addChild(sprite);
+    container.addChild(trailGlow, trail, sprite);
+    this.effectLayer.addChild(container);
+
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    const projectileAngle = Math.atan2(deltaY, deltaX);
+    const trailWidth = 2;
+    const glowWidth = 5;
+    const trailHoldFraction = 0.28;
+    const travelFraction = Math.max(0.2, 1 - trailHoldFraction);
+    const trailLength = 9;
+    const trailPoints: PixelPoint[] = [{ x: from.x, y: from.y }];
+
+    const drawTrail = (alpha: number) => {
+      trailGlow.clear();
+      trail.clear();
+
+      if (trailPoints.length < 2 || alpha <= 0) {
+        return;
+      }
+
+      for (let index = 1; index < trailPoints.length; index += 1) {
+        const start = trailPoints[index - 1] as PixelPoint;
+        const end = trailPoints[index] as PixelPoint;
+        const segmentAlpha = alpha * (index / trailPoints.length);
+        const glowAlpha = Math.min(1, segmentAlpha * 0.32);
+        const trailAlpha = Math.min(1, segmentAlpha * 0.9);
+
+        trailGlow.lineStyle(glowWidth, 0xffc76b, glowAlpha);
+        trailGlow.moveTo(start.x, start.y);
+        trailGlow.lineTo(end.x, end.y);
+
+        trail.lineStyle(trailWidth, 0xffefb3, trailAlpha);
+        trail.moveTo(start.x, start.y);
+        trail.lineTo(end.x, end.y);
+      }
+    };
 
     let cleaned = false;
     const cleanup = () => {
@@ -642,18 +731,108 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      if (sprite.parent) {
-        sprite.parent.removeChild(sprite);
+      if (container.parent) {
+        container.parent.removeChild(container);
       }
+      trailGlow.destroy();
+      trail.destroy();
       sprite.destroy();
+      container.destroy();
     };
 
     const stop = animate(
       durationMs,
       (t) => {
-        sprite.x = from.x + (to.x - from.x) * t;
-        sprite.y = from.y + (to.y - from.y) * t;
-        sprite.alpha = 1 - t;
+        const travelProgress = t < travelFraction ? t / travelFraction : 1;
+        const lingerProgress = t <= travelFraction ? 0 : (t - travelFraction) / (1 - travelFraction);
+        const trailAlpha = t < travelFraction ? 1 : 1 - lingerProgress;
+        const currentX = from.x + deltaX * travelProgress;
+        const currentY = from.y + deltaY * travelProgress;
+
+        sprite.rotation = projectileAngle;
+        sprite.x = currentX;
+        sprite.y = currentY;
+        sprite.alpha = trailAlpha;
+
+        trailPoints.push({ x: currentX, y: currentY });
+        while (trailPoints.length > trailLength) {
+          trailPoints.shift();
+        }
+
+        drawTrail(trailAlpha);
+      },
+      cleanup,
+      cleanup,
+    );
+
+    return () => {
+      stop();
+    };
+  }
+
+  private showSummonBurst(unitId: string): () => void {
+    const sprite = this.unitSprites.get(unitId);
+    if (!sprite) {
+      return () => {};
+    }
+
+    const ring = new Graphics();
+    ring.lineStyle(3, 0xb7f57d, 0.95);
+    ring.drawCircle(0, 0, 10);
+    ring.position.set(sprite.x, sprite.y);
+    this.effectLayer.addChild(ring);
+
+    const glow = new Graphics();
+    glow.beginFill(0xb7f57d, 0.22);
+    glow.drawCircle(0, 0, 9);
+    glow.endFill();
+    glow.position.set(sprite.x, sprite.y);
+    this.effectLayer.addChild(glow);
+
+    const label = new Text('Summon', {
+      fontSize: 12,
+      fontWeight: 'bold',
+      fill: 0xcdfcb3,
+      stroke: 0x163018,
+      strokeThickness: 3,
+    });
+    label.anchor.set(0.5, 1);
+    label.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
+    this.effectLayer.addChild(label);
+
+    const startRadius = 10;
+    const endRadius = 28;
+    const startY = label.y;
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      [ring, glow, label].forEach((node) => {
+        if (node.parent) {
+          node.parent.removeChild(node);
+        }
+        node.destroy();
+      });
+    };
+
+    const stop = animate(
+      this.scaledDurationMs(620),
+      (t) => {
+        const radius = startRadius + (endRadius - startRadius) * t;
+        ring.clear();
+        ring.lineStyle(3, 0xb7f57d, 0.95 * (1 - t));
+        ring.drawCircle(0, 0, radius);
+
+        glow.clear();
+        glow.beginFill(0xb7f57d, 0.24 * (1 - t));
+        glow.drawCircle(0, 0, radius * 0.72);
+        glow.endFill();
+
+        label.y = startY - 14 * t;
+        label.alpha = 1 - t;
       },
       cleanup,
       cleanup,
@@ -790,6 +969,64 @@ export class BattleRenderer {
       (t) => {
         text.y = startY - floatDistance * t;
         text.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+      },
+      cleanup,
+      cleanup,
+    );
+
+    return () => {
+      stop();
+    };
+  }
+
+  private showBuffPopup(unitId: string, label: string): () => void {
+    const sprite = this.unitSprites.get(unitId);
+    if (!sprite) {
+      return () => {};
+    }
+
+    const text = new Text(label, {
+      fontSize: 12,
+      fontWeight: 'bold',
+      fill: 0x7dc5ff,
+      stroke: 0x0e2034,
+      strokeThickness: 3,
+    });
+    text.anchor.set(0.5, 1);
+    text.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
+    this.effectLayer.addChild(text);
+
+    const halo = new Graphics();
+    halo.lineStyle(2, 0x7dc5ff, 0.85);
+    halo.drawCircle(0, 0, 12);
+    halo.position.set(sprite.x, sprite.y);
+    this.effectLayer.addChild(halo);
+
+    const startY = text.y;
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      [text, halo].forEach((node) => {
+        if (node.parent) {
+          node.parent.removeChild(node);
+        }
+        node.destroy();
+      });
+    };
+
+    const stop = animate(
+      this.scaledDurationMs(540),
+      (t) => {
+        text.y = startY - 12 * t;
+        text.alpha = 1 - t;
+
+        halo.clear();
+        halo.lineStyle(2, 0x7dc5ff, 0.85 * (1 - t));
+        halo.drawCircle(0, 0, 12 + 8 * t);
       },
       cleanup,
       cleanup,

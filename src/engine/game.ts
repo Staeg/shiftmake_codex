@@ -13,7 +13,7 @@ import { fixed } from './fixed';
 import { createRng } from './rng';
 import { deserializeGameState, serializeGameState } from './save';
 import { deriveSeed, generateCycleRifts } from './rift';
-import { FACTION_UPGRADES, TROOP_TYPE_UPGRADES, ALL_TROOP_UNLOCK_IDS, NATIVE_TROOP_UNLOCK_IDS, getFaction, getMutator, isNativeTroopUnlockId } from './unitCatalog';
+import { FACTION_UPGRADES, TROOP_TYPE_UPGRADES, ALL_TROOP_UNLOCK_IDS, NATIVE_TROOP_UNLOCK_IDS, getFaction, isNativeTroopUnlockId } from './unitCatalog';
 import { getClaimableTroopUnlockIds } from './upgrades';
 import type {
   ApplyCycleOutcomeResult,
@@ -425,16 +425,19 @@ export function resolveAssignedRifts(state: GameState): CycleResolution {
         rift.tier,
         rift.mutatorIds,
         rift.saturation,
+        state.factionUpgradeIds,
+        state.troopTypeUpgradeIds,
+        [],
+        [],
         troops.map((troop) => resolveTroopCombatant(state, troop, 'player')),
         rift.enemyArmy,
       );
       const replay = resolveBattle(battleInput);
 
-      const recoveryMultiplier = rift.mutatorIds.reduce((multiplier, id) => multiplier * (getMutator(id).recoveryMultiplier ?? 1), 1);
       const recoveryMap = Object.fromEntries(
         troops.map((troop) => [
           troop.id,
-          fixed((replay.outcome === 'victory' ? VICTORY_RECOVERY : DEFEAT_RECOVERY) * recoveryMultiplier),
+          fixed(replay.outcome === 'victory' ? VICTORY_RECOVERY : DEFEAT_RECOVERY),
         ]),
       );
 

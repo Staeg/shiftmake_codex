@@ -42,7 +42,7 @@ The campaign phases inside the overworld are:
 
 ### Rift planning
 
-- Select a Rift to inspect enemies, mutators, VP reward, and assignable troops.
+- Inspect Rift enemies, mutators, VP reward, and fit directly from the board without selecting the Rift card itself.
 - Select a troop to inspect stats and assign it to a Rift.
 - Assign or unassign ready troops.
 - End the cycle to resolve all assigned Rift battles.
@@ -64,7 +64,6 @@ The campaign phases inside the overworld are:
 
 - Victory recovery: ready next cycle by default
 - Defeat recovery: ready next cycle by default
-- `Quagmire` doubles recovery time for troops sent into that Rift
 
 Recovery is reduced by 1 for everyone when the cycle advances, so base recovery of 1 means a troop is ready on the next planning phase.
 

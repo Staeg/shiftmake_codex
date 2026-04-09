@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeBaseTroopDefinition } from './unitCatalog';
+import { MUTATORS, composeBaseTroopDefinition } from './unitCatalog';
 import { generateCycleRifts } from './rift';
 
 describe('rift generation', () => {
@@ -18,7 +18,48 @@ describe('rift generation', () => {
         .flatMap((rifts) => rifts.flatMap((rift) => rift.mutatorIds)),
     );
 
-    expect([...seenMutators].sort()).toEqual(['heavy-air', 'momentum', 'quagmire']);
+    expect([...seenMutators].sort()).toEqual(Object.keys(MUTATORS).sort());
+  });
+
+  it('keeps mutator and fit rolls broadly uniform across many generated Rifts', () => {
+    const rifts = Array.from({ length: 250 }, (_, index) => generateCycleRifts({ campaignSeed: 800 + index, cycleNumber: 1 + index })).flat();
+    const mutatorCounts = new Map<string, number>();
+    const fitCounts = new Map<number, number>();
+
+    rifts.forEach((rift) => {
+      rift.mutatorIds.forEach((mutatorId) => {
+        mutatorCounts.set(mutatorId, (mutatorCounts.get(mutatorId) ?? 0) + 1);
+      });
+      fitCounts.set(rift.saturation, (fitCounts.get(rift.saturation) ?? 0) + 1);
+    });
+
+    const mutatorFrequencies = [...mutatorCounts.values()];
+    const fitFrequencies = [...fitCounts.values()];
+
+    expect(mutatorCounts.size).toBe(Object.keys(MUTATORS).length);
+    expect(fitCounts.size).toBe(13);
+    expect(Math.max(...mutatorFrequencies) - Math.min(...mutatorFrequencies)).toBeLessThan(120);
+    expect(Math.max(...fitFrequencies) - Math.min(...fitFrequencies)).toBeLessThan(80);
+  });
+
+  it('distributes mutators as evenly as possible within each cycle', () => {
+    const cycles = Array.from({ length: 40 }, (_, index) => generateCycleRifts({ campaignSeed: 1200 + index, cycleNumber: index + 1 }));
+    const mutatorPoolSize = Object.keys(MUTATORS).length;
+
+    cycles.forEach((rifts) => {
+      const counts = new Map<string, number>();
+      rifts.flatMap((rift) => rift.mutatorIds).forEach((mutatorId) => {
+        counts.set(mutatorId, (counts.get(mutatorId) ?? 0) + 1);
+      });
+
+      expect([...counts.values()].reduce((sum, count) => sum + count, 0)).toBe(rifts.length);
+      if (mutatorPoolSize >= rifts.length) {
+        expect([...counts.values()]).toEqual(Array.from({ length: rifts.length }, () => 1));
+      } else {
+        const frequencies = [...counts.values()];
+        expect(Math.max(...frequencies) - Math.min(...frequencies)).toBeLessThanOrEqual(1);
+      }
+    });
   });
 
   it('adds enemy groups through tier 3, then holds tier 4 at the same group count while keeping player-derived quantities', () => {
