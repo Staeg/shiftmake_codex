@@ -128,6 +128,23 @@
   let campaignReportPreview: CampaignReportPayload | null = null;
   let campaignReportImportSlotId: SaveSlotId = 1;
   let campaignReportOverwriteConfirmed = false;
+  let showUiDebugNames = false;
+
+  function handleUiDebugKeydown(event: KeyboardEvent): void {
+    if (event.code === 'ControlLeft') {
+      showUiDebugNames = true;
+    }
+  }
+
+  function handleUiDebugKeyup(event: KeyboardEvent): void {
+    if (event.code === 'ControlLeft') {
+      showUiDebugNames = false;
+    }
+  }
+
+  function clearUiDebugNames(): void {
+    showUiDebugNames = false;
+  }
 
   function rememberRendererDiagnostic(diagnostic: BattleReportDiagnostic): void {
     const normalized: BattleReportDiagnostic = {
@@ -1288,19 +1305,21 @@
   }
 </script>
 
+<svelte:window on:keydown={handleUiDebugKeydown} on:keyup={handleUiDebugKeyup} on:blur={clearUiDebugNames} />
+
 {#if verificationLabMode}
   <AbilityVerificationLab />
 {:else if $gameStore.screen === 'main_menu'}
-  <main class="menu-screen">
-    <section class="menu-panel">
-      <div class="menu-topline">
-        <div class="menu-copy">
+  <main class="menu-screen" class:ui-debug-visible={showUiDebugNames}>
+    <section class="menu-panel ui-debug-target" data-ui-name="Main menu panel">
+      <div class="menu-topline ui-debug-target" data-ui-name="Main menu header">
+        <div class="menu-copy ui-debug-target" data-ui-name="Main menu intro">
           <p class="eyebrow">Shiftmake</p>
           <h1>Choose A Save Slot</h1>
           <p class="intro">Each slot keeps its own campaign and battle archive. Load one or start fresh.</p>
         </div>
 
-        <details class="debug-dropdown">
+        <details class="debug-dropdown ui-debug-target" data-ui-name="Debug tools">
           <summary>Debug</summary>
           <div class="debug-dropdown-panel panel">
             <section class="debug-report-section">
@@ -1388,7 +1407,7 @@
 
       <div class="slot-grid">
         {#each $gameStore.slots as slot}
-          <article class="slot-card panel">
+          <article class="slot-card panel ui-debug-target" data-ui-name={`Save slot ${slot.slotId}`}>
             <div class="slot-card-header">
               <span class="slot-label">Slot {slot.slotId}</span>
               <strong>{slot.status === 'occupied' ? 'Occupied' : 'Empty'}</strong>
@@ -1406,9 +1425,11 @@
             {/if}
 
             <div class="actions-grid">
-              <button class="primary" on:click={() => openSlot(slot)}>{slot.status === 'occupied' ? 'Load Slot' : 'Start Campaign'}</button>
+              <button class="primary ui-debug-target" data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
+                {slot.status === 'occupied' ? 'Load Slot' : 'Start Campaign'}
+              </button>
               {#if slot.status === 'occupied'}
-                <button on:click={() => restartSlot(slot)}>Replace Save</button>
+                <button class="ui-debug-target" data-ui-name={`Replace save for slot ${slot.slotId}`} on:click={() => restartSlot(slot)}>Replace Save</button>
               {/if}
             </div>
           </article>
@@ -1417,10 +1438,10 @@
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'opening_unlock'}
-  <main class="draft-screen">
-    <section class="draft-panel opening-shell">
+  <main class="draft-screen" class:ui-debug-visible={showUiDebugNames}>
+    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Opening unlock screen">
       <div class="draft-layout">
-        <aside class="panel draft-focus-panel" role="presentation" on:mouseleave={clearDetail}>
+        <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Opening detail panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
               <p class="eyebrow">{activeDetail.kind === 'faction' ? 'Faction Modifiers' : activeDetail.kind === 'unit' ? 'Troop Preview' : 'Detail'}</p>
@@ -1469,13 +1490,14 @@
         <div class="draft-grid">
           {#each starterGroups as group}
             {@const factionDetail = buildFactionDetail(group.factionId)}
-            <article class="draft-card panel">
+            <article class="draft-card panel ui-debug-target" data-ui-name={`Opening faction card ${group.label}`}>
               <header class="draft-card-header">
                 <div class="draft-card-title">
                   <strong>{group.label}</strong>
                   <button
                     type="button"
-                    class="sprite-inspect-button"
+                    class="sprite-inspect-button ui-debug-target"
+                    data-ui-name={`Inspect faction ${group.label}`}
                     class:selected={activeDetail?.detailKey === factionDetail.detailKey}
                     aria-label={`Inspect ${group.label} faction modifiers`}
                     on:mouseenter={() => previewDetail(factionDetail)}
@@ -1508,7 +1530,8 @@
                     )}
                     <button
                       type="button"
-                      class="draft-troop-icon"
+                      class="draft-troop-icon ui-debug-target"
+                      data-ui-name={`Opening troop option ${troopDef.label}`}
                       aria-label={troopDef.label}
                       on:mouseenter={() => previewDetail(troopDetail)}
                       on:focus={() => previewDetail(troopDetail)}
@@ -1529,27 +1552,28 @@
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld'}
-  <main class="shell overworld-shell" class:troops-mode={$gameStore.centerMode === 'troops'}>
-    <header class="topbar">
-      <div>
+  <main class="shell overworld-shell" class:troops-mode={$gameStore.centerMode === 'troops'} class:ui-debug-visible={showUiDebugNames}>
+    <header class="topbar ui-debug-target" data-ui-name="Overworld top bar">
+      <div class="ui-debug-target" data-ui-name="Campaign title">
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber}</p>
         <h1>Shiftmake Command Table</h1>
       </div>
 
       <div class="resource-strip">
-        <div class="resource-essence"><span>Essence</span><strong><i class="resource-icon essence"></i>{formatFixed($gameStore.game.essence)}</strong></div>
-        <div><span>Victory Points</span><strong>{$gameStore.game.victoryPoints}</strong></div>
-        <div><span>Active</span><strong>{statusCounts.active}</strong></div>
-        <div><span>Recovering</span><strong>{statusCounts.recovering}</strong></div>
-        <div><span>Idle</span><strong>{statusCounts.idle}</strong></div>
+        <div class="resource-essence ui-debug-target" data-ui-name="Essence counter"><span>Essence</span><strong><i class="resource-icon essence"></i>{formatFixed($gameStore.game.essence)}</strong></div>
+        <div class="ui-debug-target" data-ui-name="Victory points counter"><span>Victory Points</span><strong>{$gameStore.game.victoryPoints}</strong></div>
+        <div class="ui-debug-target" data-ui-name="Active troops counter"><span>Active</span><strong>{statusCounts.active}</strong></div>
+        <div class="ui-debug-target" data-ui-name="Recovering troops counter"><span>Recovering</span><strong>{statusCounts.recovering}</strong></div>
+        <div class="ui-debug-target" data-ui-name="Idle troops counter"><span>Idle</span><strong>{statusCounts.idle}</strong></div>
       </div>
 
-      <div class="mode-toggle">
-        <button class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
-        <button class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
-        <button on:click={() => gameStore.returnToMainMenu()}>Main Menu</button>
+      <div class="mode-toggle ui-debug-target" data-ui-name="Top bar actions">
+        <button class="ui-debug-target" data-ui-name="Show rifts view" class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
+        <button class="ui-debug-target" data-ui-name="Show factions and troops view" class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
+        <button class="ui-debug-target" data-ui-name="Return to main menu" on:click={() => gameStore.returnToMainMenu()}>Main Menu</button>
         <button
-          class="debug-icon-button"
+          class="debug-icon-button ui-debug-target"
+          data-ui-name="Copy campaign report"
           on:click={() => void copyCampaignReport()}
           disabled={!$gameStore.activeSlotId}
           title="Copy current campaign state to report"
@@ -1560,8 +1584,8 @@
       </div>
     </header>
 
-    <section class="left-column">
-      <div class="panel overworld-detail-panel">
+    <section class="left-column ui-debug-target" data-ui-name="Left sidebar">
+      <div class="panel overworld-detail-panel ui-debug-target" data-ui-name="Detail panel">
         {#if activeDetail}
           <div class="detail-panel overworld-detail-panel" role="presentation" on:mouseleave={clearDetail}>
             <p class="eyebrow">
@@ -1823,13 +1847,14 @@
       </div>
     </section>
 
-    <section class="center-column">
+    <section class="center-column ui-debug-target" data-ui-name={$gameStore.centerMode === 'rifts' ? 'Rift board' : 'Factions and troops board'}>
       {#if $gameStore.centerMode === 'rifts'}
         <div class="rift-grid">
           {#each discoveredRifts as rift}
             {@const riftVisual = getRiftVisual(rift)}
             <article
-              class="rift-card"
+              class="rift-card ui-debug-target"
+              data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
               class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
               data-rift-drop-target={rift.id}
               on:dragover={allowNativeTroopDrop}
@@ -1848,7 +1873,8 @@
                   {:else}
                     {#each rift.mutatorIds as mutatorId}
                       <button
-                        class="mutator-chip rift-mutator-chip"
+                        class="mutator-chip rift-mutator-chip ui-debug-target"
+                        data-ui-name={`Mutator ${getMutator(mutatorId).label} on ${formatRiftDisplayId(rift.id)}`}
                         on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
                         on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
                         on:mouseleave={clearDetail}
@@ -1888,7 +1914,8 @@
                       enemy.statBreakdowns,
                     )}
                     <button
-                      class="unit-tile enemy-tile"
+                      class="unit-tile enemy-tile ui-debug-target"
+                      data-ui-name={`Enemy troop ${enemy.label} on ${formatRiftDisplayId(rift.id)}`}
                       class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
                       on:mouseenter={() => previewDetail(enemyDetail)}
                       on:focus={() => previewDetail(enemyDetail)}
@@ -1918,7 +1945,8 @@
                     troopDef.statBreakdowns,
                   )}
                   <button
-                    class="unit-tile assigned-summary-tile draggable-troop-tile"
+                    class="unit-tile assigned-summary-tile draggable-troop-tile ui-debug-target"
+                    data-ui-name={`Assigned troop ${troopDef.label} on ${formatRiftDisplayId(rift.id)}`}
                     class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === assignedDetail.detailKey}
                     draggable="true"
                     aria-label={`Drag ${troopDef.label} to another Rift or Ready Troops`}
@@ -1960,9 +1988,9 @@
             {@const faction = getFaction(factionId)}
             {@const factionDetail = buildFactionDetail(factionId)}
             {@const factionUpgradeIds = $gameStore.game.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === factionId)}
-            <section class="faction-card panel">
+            <section class="faction-card panel ui-debug-target" data-ui-name={`Faction card ${faction.label}`}>
               <header>
-                <button class="title-button faction-name-button" on:click={() => selectFaction(factionId)}>
+                <button class="title-button faction-name-button ui-debug-target" data-ui-name={`Faction header ${faction.label}`} on:click={() => selectFaction(factionId)}>
                   <span>{faction.label}</span>
                   <img
                     class="faction-name-art"
@@ -1997,7 +2025,8 @@
                     troopDef.statBreakdowns,
                   )}
                   <button
-                    class="troop-chip"
+                    class="troop-chip ui-debug-target"
+                    data-ui-name={`Troop chip ${troopDef.label}`}
                     class:selected={selectedTroopId === troop.id}
                     on:click={() => selectTroop(troop.id)}
                     on:mouseenter={() => previewDetail(troopDetail)}
@@ -2024,7 +2053,8 @@
                 <div class="unlock-row">
                   {#each factionUpgradeIds as upgradeId}
                     <button
-                      class="list-button"
+                      class="list-button ui-debug-target"
+                      data-ui-name={`Faction upgrade ${getUpgradeDetails(upgradeId).label}`}
                       on:mouseenter={() => previewDetail(buildUpgradeDetail(upgradeId))}
                       on:focus={() => previewDetail(buildUpgradeDetail(upgradeId))}
                       on:mouseleave={clearDetail}
@@ -2043,18 +2073,18 @@
       {/if}
     </section>
 
-    <section class="right-column">
+    <section class="right-column ui-debug-target" data-ui-name="Right sidebar">
       {#if $gameStore.systemMessage}
-        <div class="panel warning-panel">
+        <div class="panel warning-panel ui-debug-target" data-ui-name="System message panel">
           <p class="eyebrow">System Message</p>
           <h2>System Notice</h2>
           <p>{$gameStore.systemMessage}</p>
-          <button on:click={() => gameStore.clearSystemMessage()}>Dismiss</button>
+          <button class="ui-debug-target" data-ui-name="Dismiss system message" on:click={() => gameStore.clearSystemMessage()}>Dismiss</button>
         </div>
       {/if}
 
       {#if $gameStore.validationMessages.length > 0}
-        <div class="panel warning-panel">
+        <div class="panel warning-panel ui-debug-target" data-ui-name="Validation warning panel">
           <p class="eyebrow">Cycle Blocked</p>
           <h2>Can't End Cycle Yet</h2>
           <ul class="warnings">
@@ -2213,7 +2243,7 @@
       {/if}
 
       {#if $gameStore.centerMode === 'rifts' && selectedReplayEntry}
-        <div class="panel">
+        <div class="panel ui-debug-target" data-ui-name="Selected archive entry">
           <p class="eyebrow">Battle Archive</p>
           <h2>{selectedReplayEntry.summary}</h2>
           <p>Cycle {selectedReplayEntry.cycleNumber} {selectedReplayEntry.outcome}.</p>
@@ -2252,14 +2282,19 @@
       {/if}
 
       {#if $gameStore.centerMode === 'rifts' && !selectedReplayEntry}
-        <div class="panel">
+        <div class="panel ui-debug-target" data-ui-name="Battle archive panel">
           <h2>Battle Archive</h2>
           {#if $gameStore.game.replayIndex.length === 0}
             <p>No archived battles yet.</p>
           {:else}
             <div class="archive-list">
               {#each $gameStore.game.replayIndex as replayEntry}
-                <button class="archive-card" class:selected={selectedReplayId === replayEntry.replayId} on:click={() => selectReplay(replayEntry.replayId)}>
+                <button
+                  class="archive-card ui-debug-target"
+                  data-ui-name={`Archive entry ${replayEntry.summary}`}
+                  class:selected={selectedReplayId === replayEntry.replayId}
+                  on:click={() => selectReplay(replayEntry.replayId)}
+                >
                   <strong>{replayEntry.summary}</strong>
                   <small>Cycle {replayEntry.cycleNumber} | {replayEntry.mutatorIds.map((id) => getMutator(id).label).join(', ') || 'No mutators'}</small>
                   <small>{replayEntry.summaryOnly ? 'Summary only' : 'Replay available'}</small>
@@ -2274,15 +2309,16 @@
     <footer class="action-rail">
       {#if $gameStore.centerMode === 'rifts' && selectedReplayEntry}
         <div class="archive-actions-stack">
-          <button class="large" on:click={() => (selectedReplayId = null)}>Back to Archive</button>
-          <button class="primary large" on:click={openSelectedReplay} disabled={!selectedReplayAvailable}>
+          <button class="large ui-debug-target" data-ui-name="Back to archive" on:click={() => (selectedReplayId = null)}>Back to Archive</button>
+          <button class="primary large ui-debug-target" data-ui-name="Open selected replay" on:click={openSelectedReplay} disabled={!selectedReplayAvailable}>
             {selectedReplayAvailable ? 'Watch Battle' : selectedReplayEntry.summaryOnly ? 'Summary Only' : 'Replay Missing'}
           </button>
         </div>
       {:else}
         {#if $gameStore.centerMode === 'rifts'}
           <div
-            class="panel ready-troops-panel footer-ready-troops-panel"
+            class="panel ready-troops-panel footer-ready-troops-panel ui-debug-target"
+            data-ui-name="Ready troops panel"
             class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'ready')}
             role="region"
             aria-label="Ready Troops drop zone"
@@ -2312,7 +2348,8 @@
                     troopDef.statBreakdowns,
                   )}
                   <button
-                    class="unit-tile ready-troop-tile draggable-troop-tile"
+                    class="unit-tile ready-troop-tile draggable-troop-tile ui-debug-target"
+                    data-ui-name={`Ready troop ${troopDef.label}`}
                     class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
                     draggable="true"
                     aria-label={`Drag ${troopDef.label} to a Rift`}
@@ -2347,7 +2384,7 @@
             {/if}
           </div>
         {/if}
-        <button class="primary large end-cycle-button" on:click={handleEndCycle}>
+        <button class="primary large end-cycle-button ui-debug-target" data-ui-name="End cycle button" on:click={handleEndCycle}>
           {$gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
         </button>
       {/if}
@@ -2365,7 +2402,7 @@
 
     {#if $gameStore.game.phase === 'game_over'}
       <div class="unlock-faction-overlay" role="presentation">
-        <div class="unlock-faction-dialog panel" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+        <div class="unlock-faction-dialog panel ui-debug-target" data-ui-name="Game over dialog" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
           <div class="unlock-faction-dialog-header">
             <div>
               <p class="eyebrow">Cycle 10 reached</p>
@@ -2376,21 +2413,22 @@
           <p class="unlock-faction-dialog-copy">You finished the scored run with {$gameStore.game.victoryPoints} VP.</p>
 
           <div class="actions-grid">
-            <button class="primary" on:click={() => gameStore.continuePlaying()}>Continue playing</button>
-            <button on:click={() => gameStore.returnToMainMenu()}>Back to menu</button>
+            <button class="primary ui-debug-target" data-ui-name="Continue playing button" on:click={() => gameStore.continuePlaying()}>Continue playing</button>
+            <button class="ui-debug-target" data-ui-name="Back to menu button" on:click={() => gameStore.returnToMainMenu()}>Back to menu</button>
           </div>
         </div>
       </div>
     {/if}
   </main>
 {:else}
-  <main class="replay-shell">
-    <section class="left replay-left">
-      <div class="replay-header">
+  <main class="replay-shell" class:ui-debug-visible={showUiDebugNames}>
+    <section class="left replay-left ui-debug-target" data-ui-name="Replay left sidebar">
+      <div class="replay-header ui-debug-target" data-ui-name="Replay header">
         <div class="replay-title-row">
           <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
           <button
-            class="debug-icon-button"
+            class="debug-icon-button ui-debug-target"
+            data-ui-name="Copy battle report"
             on:click={() => void copyLoadedReplayReport()}
             disabled={!$gameStore.loadedReplayPayload}
             title="Copy current battle state to report"
@@ -2405,7 +2443,8 @@
           {:else}
             {#each replay?.mutatorIds ?? [] as mutatorId}
               <button
-                class="mutator-chip"
+                class="mutator-chip ui-debug-target"
+                data-ui-name={`Replay mutator ${getMutator(mutatorId).label}`}
                 on:mouseenter={() => showMutatorDetail(mutatorId)}
                 on:focus={() => showMutatorDetail(mutatorId)}
                 on:mouseleave={clearDetail}
@@ -2418,8 +2457,8 @@
         </div>
 
         <div class="replay-actions replay-header-actions">
-          <button class="replay-exit-button" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
-          <button class="replay-exit-button replay-recap-button" on:click={toggleReplayRecap}>
+          <button class="replay-exit-button ui-debug-target" data-ui-name="Return to overworld" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
+          <button class="replay-exit-button replay-recap-button ui-debug-target" data-ui-name="Toggle battle recap" on:click={toggleReplayRecap}>
             {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
           </button>
         </div>
@@ -2465,7 +2504,7 @@
         onSetSpeed={(speedMs) => gameStore.setSpeedMs(speedMs)}
       />
 
-      <section class="panel focus-panel">
+      <section class="panel focus-panel ui-debug-target" data-ui-name="Replay focus panel">
         {#if activeDetail}
           <div class="detail-panel replay-detail-panel">
             <p class="eyebrow">{activeDetail.kind === 'mutator' ? 'Mutator Effect' : activeDetail.kind === 'upgrade' ? 'Upgrade Preview' : 'Battle Detail'}</p>
@@ -2497,20 +2536,20 @@
       </section>
     </section>
 
-    <section class="center replay-center">
-      <div class="viewport-shell">
-        <div class="replay-zoom-controls" aria-label="Replay zoom controls">
-          <button class="replay-zoom-button" type="button" aria-label="Zoom In" title="Zoom In" on:click={zoomReplayIn}>+</button>
-          <button class="replay-zoom-button" type="button" aria-label="Zoom Out" title="Zoom Out" on:click={zoomReplayOut}>-</button>
-          <button class="replay-reset-button" type="button" aria-label="Reset Zoom" title="Reset Zoom" on:click={resetReplayZoom}>Reset Zoom</button>
+    <section class="center replay-center ui-debug-target" data-ui-name="Replay battlefield">
+      <div class="viewport-shell ui-debug-target" data-ui-name="Replay viewport shell">
+        <div class="replay-zoom-controls ui-debug-target" data-ui-name="Replay zoom controls" aria-label="Replay zoom controls">
+          <button class="replay-zoom-button ui-debug-target" data-ui-name="Zoom in button" type="button" aria-label="Zoom In" title="Zoom In" on:click={zoomReplayIn}>+</button>
+          <button class="replay-zoom-button ui-debug-target" data-ui-name="Zoom out button" type="button" aria-label="Zoom Out" title="Zoom Out" on:click={zoomReplayOut}>-</button>
+          <button class="replay-reset-button ui-debug-target" data-ui-name="Reset zoom button" type="button" aria-label="Reset Zoom" title="Reset Zoom" on:click={resetReplayZoom}>Reset Zoom</button>
         </div>
-        <div class="viewport" bind:this={battleHost}></div>
+        <div class="viewport ui-debug-target" data-ui-name="Battlefield canvas" bind:this={battleHost}></div>
       </div>
     </section>
 
-    <section class="right replay-right">
-      <section class="panel collapsible-panel">
-        <button class="panel-toggle" on:click={() => (replayAliveCountsExpanded = !replayAliveCountsExpanded)}>
+    <section class="right replay-right ui-debug-target" data-ui-name="Replay right sidebar">
+      <section class="panel collapsible-panel ui-debug-target" data-ui-name="Alive counts panel">
+        <button class="panel-toggle ui-debug-target" data-ui-name="Toggle alive counts panel" on:click={() => (replayAliveCountsExpanded = !replayAliveCountsExpanded)}>
           <div>
             <p class="eyebrow">Alive Counts</p>
             <strong>{replayAliveCountsExpanded ? 'Expanded Roster' : 'Side Totals'}</strong>
@@ -2527,10 +2566,11 @@
               {#if replayAliveCountsExpanded}
                 <div class="count-grid side-grid">
                   {#each alivePlayerGroups as [label, count]}
-                    <div class="alive-unit-card" class:selected={selectedReplayProfileKey === replayProfileKey('player', label)}>
+                    <div class="alive-unit-card ui-debug-target" data-ui-name={`Player alive card ${label}`} class:selected={selectedReplayProfileKey === replayProfileKey('player', label)}>
                       <button
                         type="button"
-                        class="alive-unit-main"
+                        class="alive-unit-main ui-debug-target"
+                        data-ui-name={`Player alive row ${label}`}
                         on:click={() => selectReplayProfile('player', label)}
                         on:mouseenter={() => previewReplayProfile('player', label)}
                         on:focus={() => previewReplayProfile('player', label)}
@@ -2540,7 +2580,7 @@
                         <span>{label}</span>
                         <strong>{count}</strong>
                       </button>
-                      <button type="button" class="alive-cycle-button" aria-label={`Cycle ${label} units`} on:click={() => cycleReplayProfileUnit('player', label)}>
+                      <button type="button" class="alive-cycle-button ui-debug-target" data-ui-name={`Cycle player units ${label}`} aria-label={`Cycle ${label} units`} on:click={() => cycleReplayProfileUnit('player', label)}>
                         ↻
                       </button>
                     </div>
@@ -2557,10 +2597,11 @@
               {#if replayAliveCountsExpanded}
                 <div class="count-grid side-grid">
                   {#each aliveEnemyGroups as [label, count]}
-                    <div class="alive-unit-card" class:selected={selectedReplayProfileKey === replayProfileKey('enemy', label)}>
+                    <div class="alive-unit-card ui-debug-target" data-ui-name={`Enemy alive card ${label}`} class:selected={selectedReplayProfileKey === replayProfileKey('enemy', label)}>
                       <button
                         type="button"
-                        class="alive-unit-main"
+                        class="alive-unit-main ui-debug-target"
+                        data-ui-name={`Enemy alive row ${label}`}
                         on:click={() => selectReplayProfile('enemy', label)}
                         on:mouseenter={() => previewReplayProfile('enemy', label)}
                         on:focus={() => previewReplayProfile('enemy', label)}
@@ -2570,7 +2611,7 @@
                         <span>{label}</span>
                         <strong>{count}</strong>
                       </button>
-                      <button type="button" class="alive-cycle-button" aria-label={`Cycle ${label} units`} on:click={() => cycleReplayProfileUnit('enemy', label)}>
+                      <button type="button" class="alive-cycle-button ui-debug-target" data-ui-name={`Cycle enemy units ${label}`} aria-label={`Cycle ${label} units`} on:click={() => cycleReplayProfileUnit('enemy', label)}>
                         ↻
                       </button>
                     </div>
@@ -2582,8 +2623,8 @@
         {/if}
       </section>
 
-      <section class="collapsible-stack" class:collapsed={replayEventLogCollapsed}>
-        <button class="panel panel-toggle event-log-toggle" on:click={() => (replayEventLogCollapsed = !replayEventLogCollapsed)}>
+      <section class="collapsible-stack ui-debug-target" data-ui-name="Replay event log stack" class:collapsed={replayEventLogCollapsed}>
+        <button class="panel panel-toggle event-log-toggle ui-debug-target" data-ui-name="Toggle event log" on:click={() => (replayEventLogCollapsed = !replayEventLogCollapsed)}>
           <div>
             <p class="eyebrow">Event Log</p>
             <strong>{replayEventLogCollapsed ? 'Collapsed' : 'Live Timeline'}</strong>
@@ -2903,6 +2944,31 @@
   .debug-icon-button:disabled {
     cursor: not-allowed;
     opacity: 0.42;
+  }
+
+  .ui-debug-visible .ui-debug-target {
+    position: relative;
+  }
+
+  .ui-debug-visible .ui-debug-target::after {
+    content: attr(data-ui-name);
+    position: absolute;
+    top: 0.35rem;
+    left: 0.35rem;
+    z-index: 40;
+    max-width: min(14rem, calc(100% - 0.7rem));
+    padding: 0.16rem 0.36rem;
+    border-radius: 0.45rem;
+    background: rgba(244, 196, 92, 0.94);
+    color: #1d1406;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    pointer-events: none;
+    white-space: normal;
   }
 
   .left-column,

@@ -1601,6 +1601,19 @@ export const MUTATORS: Record<string, MutatorDefinition> = {
   },
 };
 
+function formatUnknownMutatorLabel(id: string): string {
+  const normalized = id
+    .trim()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  if (!normalized) {
+    return 'Unknown Mutator';
+  }
+
+  return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 export function getAbility(id: AbilityId): AbilityDefinition {
   const ability = ABILITIES[id];
   if (!ability) {
@@ -1644,7 +1657,11 @@ export function getTroopTypeUpgrade(id: string): TroopTypeUpgradeDefinition {
 export function getMutator(id: string): MutatorDefinition {
   const mutator = MUTATORS[id];
   if (!mutator) {
-    throw new Error(`Unknown mutator ${id}`);
+    return {
+      id,
+      label: formatUnknownMutatorLabel(id),
+      description: `Legacy or missing mutator "${id}". This save references a mutator that is no longer present in the current catalog, so its gameplay effect is ignored.`,
+    };
   }
   return mutator;
 }

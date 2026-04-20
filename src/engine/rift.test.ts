@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { MUTATORS, composeBaseTroopDefinition } from './unitCatalog';
+import { MUTATORS, composeBaseTroopDefinition, getMutator } from './unitCatalog';
 import { generateCycleRifts } from './rift';
 
 describe('rift generation', () => {
+  it('returns a harmless placeholder for unknown mutator ids', () => {
+    expect(getMutator('quagmire')).toEqual({
+      id: 'quagmire',
+      label: 'Quagmire',
+      description:
+        'Legacy or missing mutator "quagmire". This save references a mutator that is no longer present in the current catalog, so its gameplay effect is ignored.',
+    });
+  });
+
   it('always creates four Rifts with saturation inside the configured range', () => {
     const rifts = Array.from({ length: 20 }, (_, index) => generateCycleRifts({ campaignSeed: 100 + index, cycleNumber: index + 1 })).flat();
 
