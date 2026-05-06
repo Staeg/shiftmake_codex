@@ -8,7 +8,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ### Core Concept
 
-The player commands a patchwork army of multiple factions/races. **Rifts** (portals to new worlds) open periodically — the player chooses which faction's troop to send through each Rift, knowing the reward and the enemy composition in advance. Only one troop per faction can enter a Rift at a time.
+The player commands a patchwork army of multiple factions/races. **Rifts** (portals to new worlds) open periodically — the player chooses which troops to send through each Rift, knowing the reward and the enemy composition in advance. By default, only one troop per faction and one troop per troop type can enter a Rift at a time.
 
 Battles are auto-resolved but fully observable (the player can replay exactly how they played out). Skill expression comes from resource efficiency and building synergies.
 

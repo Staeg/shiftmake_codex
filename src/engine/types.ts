@@ -30,7 +30,7 @@ export type AbilityTiming =
   | 'passive';
 export type AbilityAllegiance = 'ally' | 'enemy' | 'all';
 export type AbilityMagnitudeMode = 'flat' | 'percent';
-export type CampaignPhase = 'opening_unlock' | 'planning' | 'game_over';
+export type CampaignPhase = 'opening_unlock' | 'faction_unlock' | 'troop_type_unlock' | 'planning' | 'game_over';
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
 export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
@@ -552,6 +552,22 @@ export interface UpgradeDraftOffer {
   optionUpgradeIds: UpgradeId[];
 }
 
+export interface FactionUnlockOffer {
+  kind: 'faction_unlock';
+  cycleNumber: number;
+  optionFactionIds: FactionId[];
+  upgradeIdsByFactionId: Record<FactionId, UpgradeId[]>;
+  troopUnlockChoiceCount: number;
+}
+
+export interface TroopTypeUnlockOffer {
+  kind: 'troop_type_unlock';
+  cycleNumber: number;
+  factionId: FactionId;
+  remainingChoices: number;
+  optionTroopUnlockIds: TroopUnlockId[];
+}
+
 export interface RiftInstance {
   id: string;
   cycleNumber: number;
@@ -579,6 +595,8 @@ export interface GameState {
   troopTypeUpgradeIds: UpgradeId[];
   activeTroopOffer: TroopDraftOffer | null;
   activeUpgradeOffer: UpgradeDraftOffer | null;
+  activeFactionUnlockOffer: FactionUnlockOffer | null;
+  activeTroopTypeUnlockOffer: TroopTypeUnlockOffer | null;
   troopOfferRolls: number;
   upgradeOfferRolls: number;
   postgameDismissed: boolean;
@@ -587,7 +605,15 @@ export interface GameState {
 }
 
 export interface ValidationIssue {
-  kind: 'troop_recovering' | 'duplicate_assignment' | 'same_faction_conflict' | 'no_assignments';
+  kind:
+    | 'troop_recovering'
+    | 'duplicate_assignment'
+    | 'same_faction_conflict'
+    | 'same_type_conflict'
+    | 'no_assignments'
+    | 'invalid_phase'
+    | 'unknown_troop'
+    | 'unknown_rift';
   message: string;
   troopId?: TroopId;
   riftId?: string;

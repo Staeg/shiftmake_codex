@@ -22,6 +22,7 @@ type SlotMetaIndex = Partial<Record<SaveSlotId, SlotMetaRecord>>;
 
 const SLOT_IDS: SaveSlotId[] = [1, 2, 3];
 const SLOT_META_KEY = 'shiftmake:slots:v3';
+const REPLAY_STORAGE_VERSION = 'v3.19';
 const LEGACY_SAVE_KEY = 'shiftmake:save:v1';
 const LEGACY_REPLAY_PREFIX = 'shiftmake:replay:';
 
@@ -30,7 +31,19 @@ function getSlotSaveKey(slotId: SaveSlotId): string {
 }
 
 function getSlotReplayPrefix(slotId: SaveSlotId): string {
+  return `shiftmake:slot:${slotId}:replay:${REPLAY_STORAGE_VERSION}:`;
+}
+
+export function getSlotReplayStorageKey(slotId: SaveSlotId, replayId: string): string {
+  return `${getSlotReplayPrefix(slotId)}${replayId}`;
+}
+
+function getLegacyUnversionedReplayPrefix(slotId: SaveSlotId): string {
   return `shiftmake:slot:${slotId}:replay:`;
+}
+
+function getLegacyV30ReplayPrefix(slotId: SaveSlotId): string {
+  return `shiftmake:slot:${slotId}:replay:v3.0:`;
 }
 
 function getLegacyV2ReplayPrefix(slotId: SaveSlotId): string {
@@ -42,7 +55,13 @@ function getLegacyV3ReplayPrefix(slotId: SaveSlotId): string {
 }
 
 function getSlotReplayKeys(slotId: SaveSlotId, replayId: string): string[] {
-  return [`${getSlotReplayPrefix(slotId)}${replayId}`, `${getLegacyV3ReplayPrefix(slotId)}${replayId}`, `${getLegacyV2ReplayPrefix(slotId)}${replayId}`];
+  return [
+    `${getSlotReplayPrefix(slotId)}${replayId}`,
+    `${getLegacyV30ReplayPrefix(slotId)}${replayId}`,
+    `${getLegacyV3ReplayPrefix(slotId)}${replayId}`,
+    `${getLegacyV2ReplayPrefix(slotId)}${replayId}`,
+    `${getLegacyUnversionedReplayPrefix(slotId)}${replayId}`,
+  ];
 }
 
 function readMeta(storage: Storage): SlotMetaIndex {
@@ -111,7 +130,13 @@ function loadGameFromStorage(storage: Storage, slotId: SaveSlotId): GameState | 
 }
 
 function clearSlotReplays(storage: Storage, slotId: SaveSlotId): void {
-  const prefixes = [getSlotReplayPrefix(slotId), getLegacyV2ReplayPrefix(slotId), getLegacyV3ReplayPrefix(slotId)];
+  const prefixes = [
+    getSlotReplayPrefix(slotId),
+    getLegacyV30ReplayPrefix(slotId),
+    getLegacyV2ReplayPrefix(slotId),
+    getLegacyV3ReplayPrefix(slotId),
+    getLegacyUnversionedReplayPrefix(slotId),
+  ];
   const keysToDelete: string[] = [];
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index);
@@ -206,7 +231,7 @@ export function readSlotReplayPayload(storage: Storage, slotId: SaveSlotId, repl
 }
 
 export function writeSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: string, payload: string): void {
-  storage.setItem(`${getSlotReplayPrefix(slotId)}${replayId}`, payload);
+  storage.setItem(getSlotReplayStorageKey(slotId, replayId), payload);
 }
 
 export function removeSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: string): void {

@@ -112,6 +112,11 @@ function currentStoreState<T>(): T {
   return value as T;
 }
 
+function claimDefaultOpeningTroops(): void {
+  gameStore.claimOpeningTroop('human/soldier');
+  gameStore.claimOpeningTroop('elf/archer');
+}
+
 describe('persistReplayPayloadWrites', () => {
   it('evicts the oldest replay payload and retries when storage is full', () => {
     const oldestKey = 'shiftmake:replay:oldest';
@@ -165,7 +170,7 @@ describe('gameStore progression flow', () => {
 
   it('warns before ending a cycle with unspent Essence and requires confirmation', () => {
     gameStore.startNewCampaign(1);
-    gameStore.claimOpeningTroop('human/soldier');
+    claimDefaultOpeningTroops();
 
     gameStore.endCycle();
     let state = currentStoreState<{
@@ -190,7 +195,7 @@ describe('gameStore progression flow', () => {
 
   it('keeps active draft offers stable through save and reload', () => {
     gameStore.startNewCampaign(1);
-    gameStore.claimOpeningTroop('human/soldier');
+    claimDefaultOpeningTroops();
     gameStore.revealEssenceDraft();
 
     const beforeReload = currentStoreState<{ game: { activeTroopOffer: unknown; activeUpgradeOffer: unknown } }>().game;
@@ -206,7 +211,7 @@ describe('gameStore progression flow', () => {
 
   it('adds resolved battles to the archive index when a cycle ends', () => {
     gameStore.startNewCampaign(1);
-    gameStore.claimOpeningTroop('human/soldier');
+    claimDefaultOpeningTroops();
 
     const started = currentStoreState<{
       game: {
@@ -238,7 +243,7 @@ describe('gameStore progression flow', () => {
 
   it('creates and imports exact battle reports for archived replays', () => {
     gameStore.startNewCampaign(1);
-    gameStore.claimOpeningTroop('human/soldier');
+    claimDefaultOpeningTroops();
 
     const started = currentStoreState<{
       game: {
@@ -293,7 +298,7 @@ describe('gameStore progression flow', () => {
 
   it('exports and imports campaign reports into a chosen save slot', () => {
     gameStore.startNewCampaign(1);
-    gameStore.claimOpeningTroop('human/soldier');
+    claimDefaultOpeningTroops();
 
     const started = currentStoreState<{
       game: {
@@ -348,7 +353,7 @@ describe('gameStore progression flow', () => {
     expect(imported.validationMessages).toEqual(['Example warning']);
     expect(imported.game.campaignSeed).toBe(decoded.payload.game.campaignSeed);
     expect(storage.getItem('shiftmake:slot:2:replay:stale')).toBeNull();
-    expect(storage.getItem(`shiftmake:slot:2:replay:${imported.game.replayIndex[0]?.replayId}`)).not.toBeNull();
+    expect(storage.getItem(`shiftmake:slot:2:replay:v3.19:${imported.game.replayIndex[0]?.replayId}`)).not.toBeNull();
     expect(storage.getItem('shiftmake:slot:1:save:v3')).not.toBeNull();
   });
 });

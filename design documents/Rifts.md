@@ -77,6 +77,15 @@ Each Rift gets a random saturation value from `3` to `15`.
 
 This value is passed into the battle resolver and directly changes movement and spawn density.
 
+## Assignment limits
+
+Current Rift assignment restrictions:
+
+- a troop cannot be assigned while recovering
+- a troop can only be assigned to one Rift at a time
+- no more than one troop from the same faction can enter the same Rift unless that faction has the `United` overworld effect
+- no more than one troop of the same troop type can enter the same Rift
+
 ## Rewards
 
 Rifts award VP and can unlock enemy troop combinations for future troop drafts.

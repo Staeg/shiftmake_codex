@@ -2,14 +2,18 @@ import { writable } from 'svelte/store';
 import {
   applyCycleOutcomes,
   assignTroopToRift,
+  canAssignTroopToRift,
+  claimFactionUnlockOffer,
   claimOpeningTroop,
   claimTroopOffer,
+  claimTroopTypeUnlockOffer,
   claimUpgradeOffer,
   clearTroopAssignment,
   continuePlaying,
   resolveAssignedRifts,
   revealEssenceDraft,
   startNewGame,
+  unclaimOpeningTroop,
   validateAssignments,
 } from '../engine/game';
 import {
@@ -30,6 +34,7 @@ import type {
   BattleReportPayload,
   BattleReplay,
   CampaignReportPayload,
+  FactionId,
   CampaignReportUiContext,
   GameState,
   ReplayIndexEntry,
@@ -41,6 +46,7 @@ import type {
 } from '../engine/types';
 import {
   createNewSlotCampaign,
+  getSlotReplayStorageKey,
   importCampaignReportToSlot,
   listSaveSlots,
   loadSaveSlot,
@@ -132,7 +138,7 @@ function saveActiveCampaign(state: StoreState): StoreState {
 }
 
 function slotReplayStorageKey(slotId: SaveSlotId): (replayId: string) => string {
-  return (replayId) => `shiftmake:slot:${slotId}:replay:${replayId}`;
+  return (replayId) => getSlotReplayStorageKey(slotId, replayId);
 }
 
 function blockingValidationMessages(state: GameState): string[] {
@@ -326,6 +332,32 @@ export const gameStore = (() => {
         }),
       );
     },
+    unclaimOpeningTroop(troopUnlockId: TroopUnlockId) {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: unclaimOpeningTroop(state.game, troopUnlockId),
+        }),
+      );
+    },
+    claimFactionUnlockOffer(factionId: FactionId) {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: claimFactionUnlockOffer(state.game, factionId),
+          systemMessage: null,
+        }),
+      );
+    },
+    claimTroopTypeUnlockOffer(troopUnlockId: TroopUnlockId) {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: claimTroopTypeUnlockOffer(state.game, troopUnlockId),
+          systemMessage: null,
+        }),
+      );
+    },
     setCenterMode(mode: CenterMode) {
       update((state) => ({ ...state, centerMode: mode }));
     },
@@ -355,6 +387,15 @@ export const gameStore = (() => {
     },
     assignTroopToRift(troopId: TroopId, riftId: string) {
       update((state) => {
+        const assignment = canAssignTroopToRift(state.game, troopId, riftId);
+        if (!assignment.ok) {
+          return {
+            ...clearCycleEndConfirmation(state),
+            validationMessages: assignment.issues.map((issue) => issue.message),
+            systemMessage: null,
+          };
+        }
+
         const nextGame = assignTroopToRift(state.game, troopId, riftId);
         return saveActiveCampaign({
           ...clearCycleEndConfirmation(state),

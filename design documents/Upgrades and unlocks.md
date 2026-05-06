@@ -8,7 +8,7 @@ The only progression currency is `Essence`.
 
 Current rules:
 
-- the opening faction-and-troop choice is free
+- the two opening faction-and-troop choices are free
 - each cycle grants `+2` Essence after battles resolve
 - claiming a troop unlock costs `1` Essence
 - claiming an upgrade unlock costs `1` Essence
@@ -58,7 +58,27 @@ Offer candidate pool:
 
 Opening pick rule:
 
-- the opening pick only shows native faction rosters
+- the opening screen only shows native faction rosters
+- the player must choose two starting troops
+- the two starting troops must have different factions and different troop types
+
+## Scheduled faction unlocks
+
+At the start of cycle 3:
+
+- choose from up to 3 still-locked factions
+- each faction option shows its native troop roster
+- each faction option also shows defeated-enemy troop combinations already discovered for that faction, as future unlock potential
+- the chosen faction immediately receives 1 randomly selected faction upgrade
+- after choosing the faction, choose 2 troop type unlocks for that faction sequentially
+
+At the start of cycle 7:
+
+- repeat the same faction choice flow
+- the chosen faction immediately receives 2 randomly selected faction upgrades
+- after choosing the faction, choose 3 troop type unlocks for that faction sequentially
+
+With the current 4-faction content set, fewer than 3 faction options can appear if fewer than 3 factions remain locked.
 
 ## Unlocking upgrades
 

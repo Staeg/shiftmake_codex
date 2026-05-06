@@ -21,7 +21,11 @@ export function deserializeGameState(json: string): LoadGameResult {
     }
     return {
       ok: true,
-      state: parsed as GameState,
+      state: {
+        ...(parsed as GameState),
+        activeFactionUnlockOffer: parsed.activeFactionUnlockOffer ?? null,
+        activeTroopTypeUnlockOffer: parsed.activeTroopTypeUnlockOffer ?? null,
+      },
     };
   } catch {
     return { ok: false, error: 'invalid_json' };

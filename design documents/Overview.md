@@ -9,7 +9,7 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 ## Current flow
 
 1. Start a campaign from one of three save slots.
-2. Pick one free opening faction-and-troop combination from that faction's native roster.
+2. Pick two free opening faction-and-troop combinations from native rosters. The two starting troops must use different factions and different troop types.
 3. Enter the planning screen for the current cycle.
 4. Inspect visible Rifts, their mutators, enemy troops, saturation limit, and VP reward directly from the board.
 5. Spend carried Essence on troop and upgrade draft claims.
@@ -23,13 +23,16 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 
 - Troops can only act if they are not recovering.
 - By default, only one troop from a faction may enter a given Rift.
+- Only one troop of a given troop type may enter a given Rift.
 - Rifts are fully previewable before commitment.
 - Battles are not player-controlled, so skill expression is in preparation and assignment.
 - Unspent Essence carries over, but ending a cycle while holding Essence triggers a warning.
 
 ## Current progression actions
 
-- Claim one free opening troop from any faction's native troop roster.
+- Claim two free opening troops from native troop rosters, with no repeated faction or troop type.
+- At the start of cycle 3, choose a new faction from the scheduled faction unlock offer. The chosen faction arrives with 1 random faction upgrade already unlocked, then grants 2 sequential troop type choices for that faction.
+- At the start of cycle 7, choose another new faction from the scheduled faction unlock offer. The chosen faction arrives with 2 random faction upgrades already unlocked, then grants 3 sequential troop type choices for that faction.
 - Reveal troop choices and claim one for 1 Essence.
 - Reveal upgrade choices and claim one for 1 Essence.
 - Use owned factions and owned unit types to bias future draft buckets.

@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyCycleOutcomes,
+  assignTroopToRift,
+  canAssignTroopToRift,
+  claimFactionUnlockOffer,
   claimOpeningTroop,
   claimTroopOffer,
+  claimTroopTypeUnlockOffer,
   claimUpgradeOffer,
+  clearTroopAssignment,
   continuePlaying,
   deserializeGameState,
   revealEssenceDraft,
   serializeGameState,
   startNewGame,
 } from './game';
-import { FACTION_UPGRADES, isNativeTroopUnlockId, TROOP_TYPE_UPGRADES } from './unitCatalog';
+import { FACTION_UPGRADES, NATIVE_TROOP_UNLOCK_IDS, isNativeTroopUnlockId, TROOP_TYPE_UPGRADES } from './unitCatalog';
 import type { BattleReplay, GameState, RiftResolutionRecord, UpgradeId } from './types';
 
 function makeReplay(recordId: string, riftId: string, outcome: 'victory' | 'defeat'): BattleReplay {
@@ -59,18 +64,37 @@ function makeResolutionRecord(state: GameState, outcome: 'victory' | 'defeat'): 
   };
 }
 
+function finishOpening(seed: number, firstTroopUnlockId: string): GameState {
+  const first = claimOpeningTroop(startNewGame(seed), firstTroopUnlockId);
+  const [firstFactionId, firstUnitTypeId] = firstTroopUnlockId.split('/');
+  const secondTroopUnlockId = NATIVE_TROOP_UNLOCK_IDS.find((troopUnlockId) => {
+    const [factionId, unitTypeId] = troopUnlockId.split('/');
+    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+  })!;
+  return claimOpeningTroop(first, secondTroopUnlockId);
+}
+
 describe('campaign progression', () => {
-  it('starts in opening unlock and the free pick moves the run into planning with two Essence', () => {
+  it('starts in opening unlock and two legal free picks move the run into planning with two Essence', () => {
     const state = startNewGame(7);
-    const opened = claimOpeningTroop(state, 'human/soldier');
+    const firstPick = claimOpeningTroop(state, 'human/soldier');
+    const opened = claimOpeningTroop(firstPick, 'elf/archer');
 
     expect(state.phase).toBe('opening_unlock');
+    expect(firstPick.phase).toBe('opening_unlock');
     expect(opened.phase).toBe('planning');
     expect(opened.essence).toBe(2);
-    expect(opened.unlockedFactionIds).toEqual(['human']);
+    expect(opened.unlockedFactionIds).toEqual(['human', 'elf']);
     expect(opened.unlockedTroopUnlockIds).toEqual([]);
-    expect(opened.troops.map((troop) => troop.id)).toEqual(['human/soldier']);
+    expect(opened.troops.map((troop) => troop.id)).toEqual(['human/soldier', 'elf/archer']);
     expect(opened.openRifts).toHaveLength(4);
+  });
+
+  it('rejects opening choices that repeat a faction or troop type', () => {
+    const firstPick = claimOpeningTroop(startNewGame(71), 'human/soldier');
+
+    expect(claimOpeningTroop(firstPick, 'human/archer').troops).toHaveLength(1);
+    expect(claimOpeningTroop(firstPick, 'goblin/soldier').troops).toHaveLength(1);
   });
 
   it('rejects non-native opening troop choices', () => {
@@ -82,7 +106,7 @@ describe('campaign progression', () => {
   });
 
   it('spends two Essence to reveal troop and upgrade draft offers together', () => {
-    const state = revealEssenceDraft(claimOpeningTroop(startNewGame(8), 'human/soldier'));
+    const state = revealEssenceDraft(finishOpening(8, 'human/soldier'));
 
     expect(state.essence).toBe(0);
     expect(state.activeTroopOffer).not.toBeNull();
@@ -90,20 +114,20 @@ describe('campaign progression', () => {
   });
 
   it('builds troop draft offers from owned faction, owned troop type, and new faction buckets', () => {
-    const state = revealEssenceDraft(claimOpeningTroop(startNewGame(8), 'human/soldier'));
+    const state = revealEssenceDraft(finishOpening(8, 'human/soldier'));
     const offer = state.activeTroopOffer;
 
     expect(offer).not.toBeNull();
     expect(offer?.optionTroopUnlockIds).toHaveLength(3);
     expect(new Set(offer?.optionTroopUnlockIds).size).toBe(3);
     expect(offer?.optionTroopUnlockIds.every((troopUnlockId) => isNativeTroopUnlockId(troopUnlockId))).toBe(true);
-    expect(offer?.optionTroopUnlockIds[0]?.startsWith('human/')).toBe(true);
-    expect(offer?.optionTroopUnlockIds[1]?.endsWith('/soldier')).toBe(true);
-    expect(offer?.optionTroopUnlockIds[2]?.startsWith('human/')).toBe(false);
+    expect(offer?.optionTroopUnlockIds.some((troopUnlockId) => troopUnlockId.startsWith('human/') || troopUnlockId.startsWith('elf/'))).toBe(true);
+    expect(offer?.optionTroopUnlockIds.some((troopUnlockId) => troopUnlockId.endsWith('/soldier') || troopUnlockId.endsWith('/archer'))).toBe(true);
+    expect(offer?.optionTroopUnlockIds.some((troopUnlockId) => !troopUnlockId.startsWith('human/') && !troopUnlockId.startsWith('elf/'))).toBe(true);
   });
 
   it('claims troop and upgrade offers without spending more Essence', () => {
-    const offered = revealEssenceDraft(claimOpeningTroop(startNewGame(9), 'human/soldier'));
+    const offered = revealEssenceDraft(finishOpening(9, 'human/soldier'));
     const chosen = offered.activeTroopOffer!.optionTroopUnlockIds[0]!;
     const claimedUpgradeId = offered.activeUpgradeOffer!.optionUpgradeIds[0] as UpgradeId;
     const claimed = claimTroopOffer(offered, chosen);
@@ -118,7 +142,7 @@ describe('campaign progression', () => {
   });
 
   it('builds upgrade offers from owned troop type, owned faction, and off-bucket options', () => {
-    const state = revealEssenceDraft(claimOpeningTroop(startNewGame(10), 'human/archer'));
+    const state = revealEssenceDraft(finishOpening(10, 'human/archer'));
     const offer = state.activeUpgradeOffer;
     const troopUpgradeId = offer?.optionUpgradeIds[0]!;
     const factionUpgradeId = offer?.optionUpgradeIds[1]!;
@@ -127,14 +151,14 @@ describe('campaign progression', () => {
     expect(offer).not.toBeNull();
     expect(offer?.optionUpgradeIds).toHaveLength(3);
     expect(new Set(offer?.optionUpgradeIds).size).toBe(3);
-    expect(TROOP_TYPE_UPGRADES[troopUpgradeId]?.unitTypeId).toBe('archer');
-    expect(FACTION_UPGRADES[factionUpgradeId]?.factionId).toBe('human');
+    expect(['archer', 'beastmaster'].includes(TROOP_TYPE_UPGRADES[troopUpgradeId]?.unitTypeId ?? '')).toBe(true);
+    expect(['human', 'elf'].includes(FACTION_UPGRADES[factionUpgradeId]?.factionId ?? '')).toBe(true);
     expect(FACTION_UPGRADES[offBucketId]?.factionId === 'human').toBe(false);
     expect(TROOP_TYPE_UPGRADES[offBucketId]?.unitTypeId === 'archer').toBe(false);
   });
 
   it('persists active offers through save round-trips', () => {
-    const offered = revealEssenceDraft(claimOpeningTroop(startNewGame(11), 'human/soldier'));
+    const offered = revealEssenceDraft(finishOpening(11, 'human/soldier'));
     const claimedUpgradeId = offered.activeUpgradeOffer!.optionUpgradeIds[0] as UpgradeId;
     const claimed = claimUpgradeOffer(offered, claimedUpgradeId);
     const loaded = deserializeGameState(serializeGameState(claimed));
@@ -149,7 +173,7 @@ describe('campaign progression', () => {
 
   it('prioritizes newly unlocked Rift troops in the third troop slot and links the third upgrade slot to it', () => {
     const state = revealEssenceDraft({
-      ...claimOpeningTroop(startNewGame(99), 'human/soldier'),
+      ...finishOpening(99, 'human/soldier'),
       unlockedTroopUnlockIds: ['troll/wizard'],
       recentTroopUnlockIds: ['troll/wizard'],
     });
@@ -163,14 +187,14 @@ describe('campaign progression', () => {
   });
 
   it('falls back to the old third troop new-faction bucket when no recent Rift troops are available', () => {
-    const state = revealEssenceDraft(claimOpeningTroop(startNewGame(101), 'human/soldier'));
+    const state = revealEssenceDraft(finishOpening(101, 'human/soldier'));
 
     expect(state.activeTroopOffer?.optionTroopUnlockIds[2]?.startsWith('human/')).toBe(false);
   });
 
   it('falls back to old off-bucket upgrades when the linked third troop has no remaining upgrades', () => {
     const state = revealEssenceDraft({
-      ...claimOpeningTroop(startNewGame(102), 'human/soldier'),
+      ...finishOpening(102, 'human/soldier'),
       unlockedTroopUnlockIds: ['troll/wizard'],
       recentTroopUnlockIds: ['troll/wizard'],
       factionUpgradeIds: Object.values(FACTION_UPGRADES).filter((upgrade) => upgrade.factionId === 'troll').map((upgrade) => upgrade.id),
@@ -185,7 +209,7 @@ describe('campaign progression', () => {
 
   it('spends one Essence for a one-sided draft after upgrades are exhausted', () => {
     const state = revealEssenceDraft({
-      ...claimOpeningTroop(startNewGame(103), 'human/soldier'),
+      ...finishOpening(103, 'human/soldier'),
       essence: 1,
       factionUpgradeIds: Object.values(FACTION_UPGRADES).map((upgrade) => upgrade.id),
       troopTypeUpgradeIds: Object.values(TROOP_TYPE_UPGRADES).map((upgrade) => upgrade.id),
@@ -197,7 +221,7 @@ describe('campaign progression', () => {
   });
 
   it('awards VP only on Rift victories, adds two Essence, and clears recovery by next cycle', () => {
-    const state = claimOpeningTroop(startNewGame(12), 'human/soldier');
+    const state = finishOpening(12, 'human/soldier');
     const result = applyCycleOutcomes(state, { records: [makeResolutionRecord(state, 'victory')] });
 
     expect(result.nextState.cycleNumber).toBe(2);
@@ -208,8 +232,126 @@ describe('campaign progression', () => {
     expect(result.nextState.activeUpgradeOffer).toBeNull();
   });
 
+  it('enforces assignment invariants at the state mutation boundary', () => {
+    const opened = finishOpening(120, 'human/soldier');
+    const riftId = opened.openRifts[0]!.id;
+    const troopId = opened.troops[0]!.id;
+
+    const assigned = assignTroopToRift(opened, troopId, riftId);
+    expect(assigned.troops[0]?.assignmentRiftId).toBe(riftId);
+
+    const toggledOff = assignTroopToRift(assigned, troopId, riftId);
+    expect(toggledOff.troops[0]?.assignmentRiftId).toBeNull();
+
+    const blockedRecovery = assignTroopToRift(
+      {
+        ...opened,
+        troops: [{ ...opened.troops[0]!, recoveryCyclesRemaining: 1 }],
+      },
+      troopId,
+      riftId,
+    );
+    expect(blockedRecovery.troops[0]?.assignmentRiftId).toBeNull();
+    expect(canAssignTroopToRift(blockedRecovery, troopId, riftId).issues[0]?.kind).toBe('troop_recovering');
+
+    const blockedResolvedRift = assignTroopToRift(
+      {
+        ...opened,
+        openRifts: [{ ...opened.openRifts[0]!, state: 'resolved_victory' }],
+      },
+      troopId,
+      riftId,
+    );
+    expect(blockedResolvedRift.troops[0]?.assignmentRiftId).toBeNull();
+    expect(canAssignTroopToRift(blockedResolvedRift, troopId, riftId).issues[0]?.kind).toBe('unknown_rift');
+
+    const blockedPhase = clearTroopAssignment({ ...assigned, phase: 'game_over' }, troopId);
+    expect(blockedPhase.troops[0]?.assignmentRiftId).toBe(riftId);
+  });
+
+  it('prevents same-faction assignments unless the faction is united', () => {
+    const opened = finishOpening(121, 'human/soldier');
+    const withTwoHumans = claimTroopOffer(
+      {
+        ...opened,
+        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/archer'] },
+      },
+      'human/archer',
+    );
+    const riftId = withTwoHumans.openRifts[0]!.id;
+    const firstTroopId = withTwoHumans.troops[0]!.id;
+    const secondTroopId = withTwoHumans.troops.find((troop) => troop.id === 'human/archer')!.id;
+    const firstAssigned = assignTroopToRift(withTwoHumans, firstTroopId, riftId);
+    const blockedSecond = assignTroopToRift(firstAssigned, secondTroopId, riftId);
+
+    expect(blockedSecond.troops.find((troop) => troop.id === secondTroopId)?.assignmentRiftId).toBeNull();
+    expect(canAssignTroopToRift(firstAssigned, secondTroopId, riftId).issues[0]?.kind).toBe('same_faction_conflict');
+
+    const united = {
+      ...firstAssigned,
+      factionUpgradeIds: ['human-united' as UpgradeId],
+    };
+    expect(assignTroopToRift(united, secondTroopId, riftId).troops.find((troop) => troop.id === secondTroopId)?.assignmentRiftId).toBe(riftId);
+  });
+
+  it('prevents same troop-type assignments even across different factions', () => {
+    const opened = finishOpening(122, 'human/soldier');
+    const withGoblinSoldiers = claimTroopOffer(
+      {
+        ...opened,
+        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['goblin/soldier'] },
+      },
+      'goblin/soldier',
+    );
+    const riftId = withGoblinSoldiers.openRifts[0]!.id;
+    const firstAssigned = assignTroopToRift(withGoblinSoldiers, 'human/soldier', riftId);
+    const blockedSecond = assignTroopToRift(firstAssigned, 'goblin/soldier', riftId);
+
+    expect(blockedSecond.troops.find((troop) => troop.id === 'goblin/soldier')?.assignmentRiftId).toBeNull();
+    expect(canAssignTroopToRift(firstAssigned, 'goblin/soldier', riftId).issues[0]?.kind).toBe('same_type_conflict');
+  });
+
+  it('opens scheduled faction unlocks at cycles three and seven with sequential troop choices', () => {
+    const cycleThreeState: GameState = {
+      ...finishOpening(123, 'human/soldier'),
+      cycleNumber: 2,
+      phase: 'planning',
+    };
+    const cycleThree = applyCycleOutcomes(cycleThreeState, { records: [] }).nextState;
+
+    expect(cycleThree.cycleNumber).toBe(3);
+    expect(cycleThree.phase).toBe('faction_unlock');
+    expect(cycleThree.activeFactionUnlockOffer?.optionFactionIds.length).toBeGreaterThan(0);
+    expect(cycleThree.activeFactionUnlockOffer?.troopUnlockChoiceCount).toBe(2);
+
+    const factionId = cycleThree.activeFactionUnlockOffer!.optionFactionIds[0]!;
+    const withFaction = claimFactionUnlockOffer(cycleThree, factionId);
+    expect(withFaction.unlockedFactionIds).toContain(factionId);
+    expect(withFaction.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === factionId)).toHaveLength(1);
+    expect(withFaction.phase).toBe('troop_type_unlock');
+
+    const firstTroop = withFaction.activeTroopTypeUnlockOffer!.optionTroopUnlockIds[0]!;
+    const afterFirstTroop = claimTroopTypeUnlockOffer(withFaction, firstTroop);
+    expect(afterFirstTroop.phase).toBe('troop_type_unlock');
+    const secondTroop = afterFirstTroop.activeTroopTypeUnlockOffer!.optionTroopUnlockIds[0]!;
+    const afterSecondTroop = claimTroopTypeUnlockOffer(afterFirstTroop, secondTroop);
+    expect(afterSecondTroop.phase).toBe('planning');
+    expect(afterSecondTroop.troops.map((troop) => troop.id)).toEqual(expect.arrayContaining([firstTroop, secondTroop]));
+
+    const cycleSevenState: GameState = {
+      ...afterSecondTroop,
+      cycleNumber: 6,
+      phase: 'planning',
+    };
+    const cycleSeven = applyCycleOutcomes(cycleSevenState, { records: [] }).nextState;
+    const cycleSevenFactionId = cycleSeven.activeFactionUnlockOffer?.optionFactionIds[0];
+    expect(cycleSeven.phase).toBe('faction_unlock');
+    expect(cycleSeven.activeFactionUnlockOffer?.troopUnlockChoiceCount).toBe(3);
+    expect(cycleSevenFactionId ? cycleSeven.activeFactionUnlockOffer?.upgradeIdsByFactionId[cycleSevenFactionId]?.length : 0).toBe(2);
+  });
+
   it('does not award VP for defeats and still leaves troops ready next cycle by default', () => {
-    const state = claimOpeningTroop(startNewGame(13), 'human/soldier');
+    const state = finishOpening(13, 'human/soldier');
     const result = applyCycleOutcomes(state, { records: [makeResolutionRecord(state, 'defeat')] });
 
     expect(result.nextState.victoryPoints).toBe(0);
@@ -218,7 +360,7 @@ describe('campaign progression', () => {
   });
 
   it('unlocks off-roster enemy troop combinations after Rift victories', () => {
-    const state = claimOpeningTroop(startNewGame(88), 'human/soldier');
+    const state = finishOpening(88, 'human/soldier');
     const result = applyCycleOutcomes(state, {
       records: [
         {
@@ -257,7 +399,7 @@ describe('campaign progression', () => {
   });
 
   it('transitions to game over after resolving cycle ten and continue playing resumes planning', () => {
-    const seeded = claimOpeningTroop(startNewGame(14), 'human/soldier');
+    const seeded = finishOpening(14, 'human/soldier');
     const cycleTenState: GameState = {
       ...seeded,
       cycleNumber: 10,

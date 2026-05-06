@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { claimOpeningTroop, serializeGameState, startNewGame } from '../engine/game';
-import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot } from './saveSlots';
+import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, writeSlotReplay } from './saveSlots';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -53,7 +53,7 @@ describe('save slot repository', () => {
       factionLabel: null,
     });
 
-    saveToSlot(storage, 1, claimOpeningTroop(opening, 'troll/soldier'));
+    saveToSlot(storage, 1, claimOpeningTroop(claimOpeningTroop(opening, 'troll/soldier'), 'elf/archer'));
 
     expect(listSaveSlots(storage)[0]).toMatchObject({
       slotId: 1,
@@ -68,9 +68,9 @@ describe('save slot repository', () => {
     const storage = new MemoryStorage();
 
     createNewSlotCampaign(storage, 1, 11);
-    storage.setItem('shiftmake:slot:1:replay:test-battle', JSON.stringify({ version: 1, input: { seed: 1, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
+    storage.setItem('shiftmake:slot:1:replay:v3.19:test-battle', JSON.stringify({ version: 1, input: { seed: 1, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
     storage.setItem('shiftmake:slot:1:replay:v2:test-battle-v2', JSON.stringify({ version: 1, input: { seed: 1, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
-    storage.setItem('shiftmake:slot:2:replay:test-battle', JSON.stringify({ version: 1, input: { seed: 2, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
+    storage.setItem('shiftmake:slot:2:replay:v3.19:test-battle', JSON.stringify({ version: 1, input: { seed: 2, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
 
     const fresh = createNewSlotCampaign(storage, 1, 22);
 
@@ -80,10 +80,26 @@ describe('save slot repository', () => {
     expect(readSlotReplay(storage, 2, 'test-battle')).not.toBeNull();
   });
 
+  it('writes replay payloads to the explicit minor-versioned v3 key and still reads legacy keys', () => {
+    const storage = new MemoryStorage();
+    const payload = JSON.stringify({
+      version: 1,
+      input: { seed: 1, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] },
+    });
+
+    writeSlotReplay(storage, 1, 'new-battle', payload);
+    expect(storage.getItem('shiftmake:slot:1:replay:v3.19:new-battle')).toBe(payload);
+
+    storage.setItem('shiftmake:slot:1:replay:v3.0:old-v30', payload);
+    storage.setItem('shiftmake:slot:1:replay:old-unversioned', payload);
+    expect(readSlotReplay(storage, 1, 'old-v30')).not.toBeNull();
+    expect(readSlotReplay(storage, 1, 'old-unversioned')).not.toBeNull();
+  });
+
   it('migrates a legacy save into slot one and copies legacy replay payloads', () => {
     const storage = new MemoryStorage();
     const game = {
-      ...claimOpeningTroop(startNewGame(9), 'elf/archer'),
+      ...claimOpeningTroop(claimOpeningTroop(startNewGame(9), 'elf/archer'), 'human/soldier'),
       replayIndex: [
         {
           id: 'test-battle',

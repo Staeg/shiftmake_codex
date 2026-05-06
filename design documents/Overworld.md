@@ -12,7 +12,9 @@ The app has:
 
 The campaign phases inside the overworld are:
 
-- `opening_unlock`: choose the free opening faction-and-troop combination from a faction's native roster
+- `opening_unlock`: choose two free opening faction-and-troop combinations from native rosters; the two choices must differ by faction and troop type
+- `faction_unlock`: choose a scheduled new faction at the start of cycle 3 or cycle 7
+- `troop_type_unlock`: choose sequential troop type unlocks for that newly unlocked faction
 - `planning`: inspect Rifts, draft unlocks, assign troops, end cycle
 - `game_over`: shown immediately after cycle 10 resolves
 
@@ -30,14 +32,24 @@ The campaign phases inside the overworld are:
 
 ### Opening unlock
 
-- Choose any non-summoned faction and troop-type combination for free.
-- That choice immediately adds the troop, marks its faction as owned, grants 2 Essence, and generates cycle-1 Rifts.
+- Choose any native faction and troop-type combination for free.
+- Choose a second native faction and troop-type combination for free.
+- The second choice must use a different faction and a different troop type from the first.
+- After the second choice, both troops are added, both factions are marked owned, 2 Essence is granted, and cycle-1 Rifts are generated.
+
+### Scheduled faction unlocks
+
+- At the start of cycle 3, the player gets a faction unlock offer with up to 3 still-locked factions. With the currently implemented 4-faction catalog, fewer than 3 options can appear if fewer than 3 factions remain locked.
+- Each cycle-3 faction option previews its native troop roster, defeated-enemy troop combinations that could be unlocked for that faction in the future, and 1 random faction upgrade that will be granted immediately.
+- After choosing the cycle-3 faction, the player makes 2 sequential troop type choices for that faction.
+- At the start of cycle 7, the same flow repeats, but the chosen faction receives 2 random faction upgrades and 3 sequential troop type choices.
 
 ### Drafting
 
-- Reveal a troop offer if you have at least 1 Essence and no active troop offer.
-- Reveal an upgrade offer if you have at least 1 Essence and no active upgrade offer.
-- Claim one option from an offer for 1 Essence.
+- Reveal one combined Essence draft when no draft offer is active.
+- The draft costs 2 Essence when both troop and upgrade options are available.
+- If only troop options or only upgrade options remain, the one-sided draft costs 1 Essence.
+- Claim one troop option and one upgrade option from a revealed draft without spending additional Essence.
 - Unused Essence carries over between cycles.
 
 ### Rift planning
@@ -59,6 +71,7 @@ The campaign phases inside the overworld are:
 - A troop can only be assigned to one Rift at a time.
 - By default, multiple troops from the same faction cannot enter the same Rift.
 - The `United` overworld ability lifts that faction restriction for the upgraded faction.
+- Multiple troops of the same troop type cannot enter the same Rift.
 
 ## Recovery
 
@@ -79,7 +92,8 @@ When the player ends the cycle:
 6. Essence increases by 2.
 7. Active draft offers are cleared.
 8. New Rifts are generated.
-9. If the resolved cycle was cycle 10 and the postgame screen has not already been dismissed, phase changes to `game_over`.
+9. If the new cycle is 3 or 7, phase changes to the scheduled faction unlock before normal planning resumes.
+10. If the resolved cycle was cycle 10 and the postgame screen has not already been dismissed, phase changes to `game_over`.
 
 ## Current UI structure
 

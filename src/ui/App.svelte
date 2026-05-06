@@ -22,8 +22,6 @@
     BattleReportDiagnostic,
     BattleReplay,
     BattleUnit,
-    CampaignReportPayload,
-    CampaignReportUiContext,
     ExplainedStatKey,
     FactionId,
     SideId,
@@ -37,11 +35,14 @@
   import type { BattleRenderer as BattleRendererType, UnitPointerInfo } from '../rendering/BattleRenderer';
   import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisuals';
   import { gameStore } from '../store/gameStore';
-  import type { SaveSlotId, SaveSlotSummary } from '../store/saveSlots';
+  import type { SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
-  import AbilityVerificationLab from './AbilityVerificationLab.svelte';
+  import DebugToolsMenu from './DebugToolsMenu.svelte';
+  import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
   import EventLog from './EventLog.svelte';
   import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
+  import ReplayStepExplanation from './ReplayStepExplanation.svelte';
+  import { buildReplayStepExplanationView } from './replayStepExplanation';
   import { getRiftVisual } from './riftVisuals';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
@@ -91,7 +92,10 @@
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
   const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
-  const verificationLabMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lab') === 'ability-verification';
+  const debugToolsEnabled = import.meta.env.DEV;
+  const verificationLabMode =
+    debugToolsEnabled && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lab') === 'ability-verification';
+  const DESIGN_MODE_STORAGE_KEY = 'shiftmake:design-mode:v1';
 
   let portraits: Record<string, string> = {};
   let selectedRiftId: string | null = null;
@@ -121,29 +125,112 @@
   let troopDrag: TroopDragState | null = null;
   let suppressTroopClickId: TroopId | null = null;
   let rendererDiagnostics: BattleReportDiagnostic[] = [];
-  let battleReportImportText = '';
-  let battleReportMessage: string | null = null;
-  let campaignReportImportText = '';
-  let campaignReportMessage: string | null = null;
-  let campaignReportPreview: CampaignReportPayload | null = null;
-  let campaignReportImportSlotId: SaveSlotId = 1;
-  let campaignReportOverwriteConfirmed = false;
   let showUiDebugNames = false;
+  let designModeEnabled = false;
+  let selectedDesignTargetName: string | null = null;
+  let designTweaksByTarget: Record<string, DesignTweaks> = {};
+  let uiDebugVisible = false;
+  let abilityVerificationLabComponent: typeof import('./AbilityVerificationLab.svelte').default | null = null;
 
   function handleUiDebugKeydown(event: KeyboardEvent): void {
+    if (!debugToolsEnabled) {
+      return;
+    }
+
+    if (event.ctrlKey && event.shiftKey && event.code === 'KeyD') {
+      event.preventDefault();
+      designModeEnabled = !designModeEnabled;
+      if (!designModeEnabled) {
+        selectedDesignTargetName = null;
+      }
+      return;
+    }
+
     if (event.code === 'ControlLeft') {
       showUiDebugNames = true;
     }
   }
 
   function handleUiDebugKeyup(event: KeyboardEvent): void {
+    if (!debugToolsEnabled) {
+      return;
+    }
+
     if (event.code === 'ControlLeft') {
       showUiDebugNames = false;
     }
   }
 
   function clearUiDebugNames(): void {
+    if (!debugToolsEnabled) {
+      return;
+    }
+
     showUiDebugNames = false;
+  }
+
+  function handleDesignModeClick(event: MouseEvent): void {
+    if (!debugToolsEnabled || !designModeEnabled) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    if (target.closest('.design-mode-panel')) {
+      return;
+    }
+
+    const uiTarget = target.closest<HTMLElement>('.ui-debug-target[data-ui-name]');
+    if (!uiTarget) {
+      selectedDesignTargetName = null;
+      return;
+    }
+
+    selectedDesignTargetName = uiTarget.dataset.uiName ?? null;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function updateSelectedDesignTweak(field: DesignTweakField, value: string): void {
+    if (!selectedDesignTargetName) {
+      return;
+    }
+
+    const trimmed = value.trim();
+    const nextTweaks: DesignTweaks = {
+      ...(designTweaksByTarget[selectedDesignTargetName] ?? {}),
+    };
+
+    if (trimmed.length === 0) {
+      delete nextTweaks[field];
+    } else {
+      nextTweaks[field] = trimmed;
+    }
+
+    const nextMap = { ...designTweaksByTarget };
+    if (Object.keys(nextTweaks).length === 0) {
+      delete nextMap[selectedDesignTargetName];
+    } else {
+      nextMap[selectedDesignTargetName] = nextTweaks;
+    }
+    designTweaksByTarget = nextMap;
+  }
+
+  function clearSelectedDesignTweaks(): void {
+    if (!selectedDesignTargetName || !(selectedDesignTargetName in designTweaksByTarget)) {
+      return;
+    }
+
+    const nextMap = { ...designTweaksByTarget };
+    delete nextMap[selectedDesignTargetName];
+    designTweaksByTarget = nextMap;
+  }
+
+  function resetAllDesignTweaks(): void {
+    designTweaksByTarget = {};
   }
 
   function rememberRendererDiagnostic(diagnostic: BattleReportDiagnostic): void {
@@ -173,120 +260,10 @@
     rendererDiagnostics = [...rendererDiagnostics, normalized].slice(-80);
   }
 
-  function diagnosticsForReplay(replayId: string | null | undefined): BattleReportDiagnostic[] {
-    return rendererDiagnostics.filter((diagnostic) => !diagnostic.replayId || diagnostic.replayId === replayId);
-  }
-
-  async function copyReportString(report: string | null): Promise<void> {
-    if (!report) {
-      battleReportMessage = 'Exact battle report is unavailable for this archived battle.';
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(report);
-      battleReportMessage = 'Battle report copied. Paste it into an issue or share it with another agent.';
-    } catch (error) {
-      battleReportMessage = error instanceof Error ? `Unable to copy battle report: ${error.message}` : 'Unable to copy battle report.';
-    }
-  }
-
-  async function copyLoadedReplayReport(): Promise<void> {
-    const report = gameStore.createLoadedBattleReport($gameStore.currentStep, diagnosticsForReplay(replay?.id));
-    await copyReportString(report);
-  }
-
-  function importBattleReport(): void {
-    const result = gameStore.importBattleReport(battleReportImportText);
-    if (!result.ok) {
-      battleReportMessage = result.message;
-      return;
-    }
-    battleReportMessage = `Imported battle report ${result.reportId}.`;
-    battleReportImportText = '';
-  }
-
-  function currentCampaignReportUiContext(): CampaignReportUiContext {
-    return {
-      screen: $gameStore.screen,
-      centerMode: $gameStore.centerMode,
-      selectedRiftId: null,
-      selectedTroopId,
-      selectedReplayId,
-      currentReplayStep: $gameStore.screen === 'replay' ? $gameStore.currentStep : null,
-      systemMessage: $gameStore.systemMessage,
-      validationMessages: [...$gameStore.validationMessages],
-    };
-  }
-
-  function createCampaignReportString(): string | null {
-    return gameStore.createCampaignReport(currentCampaignReportUiContext());
-  }
-
-  async function copyCampaignReport(): Promise<void> {
-    const report = createCampaignReportString();
-    if (!report) {
-      campaignReportMessage = 'No active campaign is loaded to report.';
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(report);
-      campaignReportMessage = 'Campaign report copied. Paste it into an issue or share it with another agent.';
-    } catch (error) {
-      campaignReportMessage = error instanceof Error ? `Unable to copy campaign report: ${error.message}` : 'Unable to copy campaign report.';
-    }
-  }
-
-  function previewCampaignReportImport(): void {
-    const result = gameStore.previewCampaignReport(campaignReportImportText);
-    if (!result.ok) {
-      campaignReportPreview = null;
-      campaignReportOverwriteConfirmed = false;
-      campaignReportMessage = result.message;
-      return;
-    }
-
-    campaignReportPreview = result.payload;
-    campaignReportOverwriteConfirmed = false;
-    campaignReportMessage = `Ready to import campaign report ${result.payload.reportId}.`;
-  }
-
-  function importCampaignReport(): void {
-    if (!campaignReportPreview || !campaignReportOverwriteConfirmed) {
-      campaignReportMessage = 'Preview the campaign report and confirm overwrite before importing.';
-      return;
-    }
-
-    const result = gameStore.importCampaignReport(campaignReportImportText, campaignReportImportSlotId);
-    if (!result.ok) {
-      campaignReportMessage = result.message;
-      return;
-    }
-
+  function handleCampaignReportImport(importedSelectedTroopId: TroopId | null, importedSelectedReplayId: string | null): void {
     selectedRiftId = null;
-    selectedTroopId = campaignReportPreview.uiContext.selectedTroopId;
-    selectedReplayId = campaignReportPreview.uiContext.selectedReplayId;
-    campaignReportMessage = `Imported campaign report ${result.reportId} into Slot ${campaignReportImportSlotId}.`;
-    campaignReportImportText = '';
-    campaignReportPreview = null;
-    campaignReportOverwriteConfirmed = false;
-  }
-
-  function setCampaignReportImportSlot(event: Event): void {
-    campaignReportImportSlotId = Number((event.currentTarget as HTMLSelectElement).value) as SaveSlotId;
-    campaignReportOverwriteConfirmed = false;
-  }
-
-  async function uploadCampaignReport(event: Event): Promise<void> {
-    const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-    campaignReportImportText = await file.text();
-    previewCampaignReportImport();
-    input.value = '';
+    selectedTroopId = importedSelectedTroopId;
+    selectedReplayId = importedSelectedReplayId;
   }
 
   function getReplayProfileKeyForUnit(unitId: string): string | null {
@@ -754,9 +731,10 @@
   }
 
   function selectTroop(troopId: TroopId): void {
-    selectedTroopId = troopId;
+    const nextTroopId = selectedTroopId === troopId ? null : troopId;
+    selectedTroopId = nextTroopId;
     const troop = $gameStore.game.troops.find((entry) => entry.id === troopId);
-    selectedFactionId = troop?.factionId ?? null;
+    selectedFactionId = nextTroopId ? troop?.factionId ?? null : null;
     setTroopCenterMode();
   }
 
@@ -1052,8 +1030,32 @@
 
   onMount(() => {
     if (verificationLabMode) {
+      if (import.meta.env.DEV) {
+        void import('./AbilityVerificationLab.svelte').then((module) => {
+          abilityVerificationLabComponent = module.default;
+        });
+      }
       return;
     }
+
+    if (debugToolsEnabled) {
+      try {
+      const raw = window.localStorage.getItem(DESIGN_MODE_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          designTweaksByTarget = Object.fromEntries(
+            Object.entries(parsed as Record<string, unknown>).filter(
+              ([key, value]) => typeof key === 'string' && value && typeof value === 'object' && !Array.isArray(value),
+            ),
+          ) as Record<string, DesignTweaks>;
+        }
+      }
+      } catch {
+        designTweaksByTarget = {};
+      }
+    }
+
     gameStore.initialize();
     void loadFactionUnitPortraitUrls()
       .then((loaded) => {
@@ -1105,6 +1107,31 @@
     gameStore.setAutoPlay(false);
   }
 
+  $: uiDebugVisible = debugToolsEnabled && (showUiDebugNames || designModeEnabled);
+
+  $: if (debugToolsEnabled && typeof window !== 'undefined' && !verificationLabMode) {
+    window.localStorage.setItem(DESIGN_MODE_STORAGE_KEY, JSON.stringify(designTweaksByTarget));
+  }
+
+  $: if (debugToolsEnabled && typeof document !== 'undefined' && !verificationLabMode) {
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('.ui-debug-target[data-ui-name]'));
+    elements.forEach((element) => {
+      const name = element.dataset.uiName ?? '';
+      const tweaks = designTweaksByTarget[name] ?? {};
+      const isSelected = !!selectedDesignTargetName && name === selectedDesignTargetName;
+
+      element.toggleAttribute('data-design-selected', isSelected);
+      element.toggleAttribute('data-design-tweaked', Object.keys(tweaks).length > 0);
+
+      element.style.padding = tweaks.padding ?? '';
+      element.style.gap = tweaks.gap ?? '';
+      element.style.width = tweaks.width ?? '';
+      element.style.maxWidth = tweaks.maxWidth ?? '';
+      element.style.borderRadius = tweaks.borderRadius ?? '';
+      element.style.minHeight = tweaks.minHeight ?? '';
+    });
+  }
+
   $: discoveredRifts = $gameStore.game.openRifts.filter((rift) => rift.state === 'discovered');
   $: factionRosterIds = FACTION_IDS.filter((factionId) => $gameStore.game.unlockedFactionIds.includes(factionId));
   $: activeDetail = pinnedDetail ?? hoveredDetail;
@@ -1118,6 +1145,34 @@
     label: FACTIONS[factionId].label,
     options: getFactionNativeTroopUnlockIds(factionId),
   }));
+  $: selectedOpeningFactionIds = new Set($gameStore.game.troops.map((troop) => troop.factionId));
+  $: selectedOpeningUnitTypeIds = new Set($gameStore.game.troops.map((troop) => troop.unitTypeId));
+  $: selectedOpeningTroopUnlockIds = new Set($gameStore.game.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}` as TroopUnlockId));
+
+  function isOpeningTroopSelected(troopUnlockId: TroopUnlockId): boolean {
+    return selectedOpeningTroopUnlockIds.has(troopUnlockId);
+  }
+
+  function canClaimOpeningTroop(troopUnlockId: TroopUnlockId): boolean {
+    const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
+    return !selectedOpeningFactionIds.has(factionId) && !selectedOpeningUnitTypeIds.has(unitTypeId);
+  }
+
+  function isOpeningTroopIncompatible(troopUnlockId: TroopUnlockId): boolean {
+    return !isOpeningTroopSelected(troopUnlockId) && !canClaimOpeningTroop(troopUnlockId);
+  }
+
+  function toggleOpeningTroop(troopUnlockId: TroopUnlockId): void {
+    if (isOpeningTroopSelected(troopUnlockId)) {
+      gameStore.unclaimOpeningTroop(troopUnlockId);
+    } else {
+      gameStore.claimOpeningTroop(troopUnlockId);
+    }
+  }
+
+  function getDefeatedFutureTroopUnlockIds(factionId: FactionId): TroopUnlockId[] {
+    return $gameStore.game.unlockedTroopUnlockIds.filter((troopUnlockId) => parseTroopUnlockId(troopUnlockId)[0] === factionId);
+  }
 
   $: if (selectedRiftId && !discoveredRifts.some((rift) => rift.id === selectedRiftId)) {
     selectedRiftId = null;
@@ -1125,9 +1180,6 @@
 
   $: if (selectedTroopId && !$gameStore.game.troops.some((troop) => troop.id === selectedTroopId)) {
     selectedTroopId = null;
-  }
-  $: if (!selectedTroopId && $gameStore.game.troops.length > 0 && $gameStore.centerMode === 'troops') {
-    selectedTroopId = $gameStore.game.troops[0]!.id;
   }
 
   $: if (selectedFactionId && !factionRosterIds.includes(selectedFactionId)) {
@@ -1201,6 +1253,11 @@
   $: if (!replay || (pinnedReplayExplanationIndex !== null && !replay.steps[pinnedReplayExplanationIndex])) {
     pinnedReplayExplanationIndex = null;
   }
+  $: replayExplanationIndex = pinnedReplayExplanationIndex;
+  $: replayExplanationView =
+    replay && replayExplanationIndex !== null && replay.steps[replayExplanationIndex]
+      ? buildReplayStepExplanationView(replay.steps[replayExplanationIndex]!)
+      : null;
   $: replayRecapSides = [
     { side: 'player' as const, label: 'Player', troops: replayRecapPlayerTroops },
     { side: 'enemy' as const, label: 'Enemy', troops: replayRecapEnemyTroops },
@@ -1305,12 +1362,14 @@
   }
 </script>
 
-<svelte:window on:keydown={handleUiDebugKeydown} on:keyup={handleUiDebugKeyup} on:blur={clearUiDebugNames} />
+<svelte:window on:keydown={handleUiDebugKeydown} on:keyup={handleUiDebugKeyup} on:blur={clearUiDebugNames} on:click|capture={handleDesignModeClick} />
 
 {#if verificationLabMode}
-  <AbilityVerificationLab />
+  {#if abilityVerificationLabComponent}
+    <svelte:component this={abilityVerificationLabComponent} />
+  {/if}
 {:else if $gameStore.screen === 'main_menu'}
-  <main class="menu-screen" class:ui-debug-visible={showUiDebugNames}>
+  <main class="menu-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
     <section class="menu-panel ui-debug-target" data-ui-name="Main menu panel">
       <div class="menu-topline ui-debug-target" data-ui-name="Main menu header">
         <div class="menu-copy ui-debug-target" data-ui-name="Main menu intro">
@@ -1319,90 +1378,15 @@
           <p class="intro">Each slot keeps its own campaign and battle archive. Load one or start fresh.</p>
         </div>
 
-        <details class="debug-dropdown ui-debug-target" data-ui-name="Debug tools">
-          <summary>Debug</summary>
-          <div class="debug-dropdown-panel panel">
-            <section class="debug-report-section">
-              <p class="eyebrow">Campaign Report Import</p>
-              <h2>Import Campaign</h2>
-              <p>Paste or upload an SMCR1 campaign report, preview it, then choose which save slot to overwrite.</p>
-              <textarea
-                bind:value={campaignReportImportText}
-                rows="4"
-                placeholder="Paste an SMCR1 campaign report string here."
-                on:input={() => {
-                  campaignReportPreview = null;
-                  campaignReportOverwriteConfirmed = false;
-                }}
-              ></textarea>
-              <div class="actions-grid compact-actions">
-                <button on:click={previewCampaignReportImport} disabled={campaignReportImportText.trim().length === 0}>Preview Campaign Report</button>
-                <label class="file-button">
-                  Upload Report File
-                  <input type="file" accept=".txt,text/plain" on:change={(event) => void uploadCampaignReport(event)} />
-                </label>
-              </div>
-              {#if campaignReportPreview}
-                <div class="compact-list">
-                  <div>
-                    <span>Report</span>
-                    <strong>{campaignReportPreview.reportId}</strong>
-                  </div>
-                  <div>
-                    <span>Created</span>
-                    <strong>{new Date(campaignReportPreview.createdAt).toLocaleString()}</strong>
-                  </div>
-                  <div>
-                    <span>Campaign</span>
-                    <strong>Seed {campaignReportPreview.summary.campaignSeed} / Cycle {campaignReportPreview.summary.cycleNumber}</strong>
-                  </div>
-                  <div>
-                    <span>State</span>
-                    <strong>{slotPhaseLabel(campaignReportPreview.summary.phase)} / {campaignReportPreview.summary.victoryPoints} VP</strong>
-                  </div>
-                  <div>
-                    <span>Replays</span>
-                    <strong>{campaignReportPreview.summary.replayPayloadCount} bundled / {campaignReportPreview.summary.missingReplayCount} missing</strong>
-                  </div>
-                </div>
-                <div class="actions-grid compact-actions">
-                  <label>
-                    Import Into Slot
-                    <select value={campaignReportImportSlotId} on:change={setCampaignReportImportSlot}>
-                      <option value={1}>Slot 1</option>
-                      <option value={2}>Slot 2</option>
-                      <option value={3}>Slot 3</option>
-                    </select>
-                  </label>
-                  <label class="confirm-row">
-                    <input type="checkbox" bind:checked={campaignReportOverwriteConfirmed} />
-                    Overwrite Slot {campaignReportImportSlotId}
-                  </label>
-                  <button class="primary" on:click={importCampaignReport} disabled={!campaignReportOverwriteConfirmed}>
-                    Import Campaign Report
-                  </button>
-                </div>
-              {/if}
-              {#if campaignReportMessage}
-                <p class="system-message">{campaignReportMessage}</p>
-              {/if}
-            </section>
-
-            <section class="debug-report-section">
-              <p class="eyebrow">Battle Report Import</p>
-              <h2>Inspect Battle</h2>
-              <textarea
-                bind:value={battleReportImportText}
-                rows="3"
-                placeholder="Paste an SMBR1 battle report string here to inspect an exact external battle."
-              ></textarea>
-              <button on:click={importBattleReport} disabled={battleReportImportText.trim().length === 0}>Import Battle Report</button>
-              {#if battleReportMessage}
-                <p class="system-message">{battleReportMessage}</p>
-              {/if}
-            </section>
-          </div>
-        </details>
+        {#if debugToolsEnabled}
+          <DebugToolsMenu
+            selectedTroopId={selectedTroopId}
+            selectedReplayId={selectedReplayId}
+            selectedRiftId={selectedRiftId}
+            rendererDiagnostics={rendererDiagnostics}
+            onCampaignImport={handleCampaignReportImport}
+          />
+        {/if}
       </div>
 
       <div class="slot-grid">
@@ -1438,8 +1422,13 @@
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'opening_unlock'}
-  <main class="draft-screen" class:ui-debug-visible={showUiDebugNames}>
+  <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
     <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Opening unlock screen">
+      <div class="draft-screen-header">
+        <p class="eyebrow">Opening Muster</p>
+        <h1>Choose Two Starting Troops</h1>
+        <p class="opening-instructions">Pick any two native troop combinations. The two starters must use different factions and different troop types.</p>
+      </div>
       <div class="draft-layout">
         <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Opening detail panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
@@ -1482,8 +1471,6 @@
                 <p>{activeDetail.description}</p>
               {/if}
             </div>
-          {:else}
-            <div class="focus-empty draft-focus-empty"></div>
           {/if}
         </aside>
 
@@ -1528,16 +1515,22 @@
                       `Opening unlock for ${getFaction(factionId).label}. Native recruits are available here; unusual faction and troop pairings come from Rift victories.`,
                       troopDef.abilities,
                     )}
+                    {@const openingTroopSelected = selectedOpeningTroopUnlockIds.has(troopUnlockId)}
+                    {@const openingTroopIncompatible = !openingTroopSelected && !canClaimOpeningTroop(troopUnlockId)}
                     <button
                       type="button"
                       class="draft-troop-icon ui-debug-target"
+                      class:selected={openingTroopSelected}
+                      class:incompatible={openingTroopIncompatible}
                       data-ui-name={`Opening troop option ${troopDef.label}`}
                       aria-label={troopDef.label}
+                      aria-pressed={openingTroopSelected}
                       on:mouseenter={() => previewDetail(troopDetail)}
                       on:focus={() => previewDetail(troopDetail)}
                       on:mouseleave={clearDetail}
                       on:blur={clearDetail}
-                      on:click={() => gameStore.claimOpeningTroop(troopUnlockId)}
+                      on:click={() => toggleOpeningTroop(troopUnlockId)}
+                      disabled={openingTroopIncompatible}
                     >
                       <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
                       <span>{getUnitType(unitTypeId).label}</span>
@@ -1551,8 +1544,164 @@
       </div>
     </section>
   </main>
+{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'faction_unlock' && $gameStore.game.activeFactionUnlockOffer}
+  <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
+    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Scheduled faction unlock screen">
+      <div class="draft-screen-header">
+        <p class="eyebrow">Cycle {$gameStore.game.cycleNumber} Muster</p>
+        <h1>Choose a Faction</h1>
+        <p>Each candidate joins with its shown faction upgrade already unlocked. Native troops are ready for immediate mustering; discovered troops show what your victories have made possible.</p>
+      </div>
+
+      <div class="draft-grid faction-unlock-grid">
+        {#each $gameStore.game.activeFactionUnlockOffer.optionFactionIds as factionId}
+          {@const faction = getFaction(factionId)}
+          {@const factionDetail = buildFactionDetail(factionId)}
+          {@const nativeTroopUnlockIds = getFactionNativeTroopUnlockIds(factionId)}
+          {@const futureTroopUnlockIds = getDefeatedFutureTroopUnlockIds(factionId)}
+          {@const grantedUpgradeIds = $gameStore.game.activeFactionUnlockOffer.upgradeIdsByFactionId[factionId] ?? []}
+          <article class="draft-card panel faction-unlock-card ui-debug-target" data-ui-name={`Faction unlock option ${faction.label}`}>
+            <header class="draft-card-header">
+              <div class="draft-card-title">
+                <strong>{faction.label}</strong>
+                <button
+                  type="button"
+                  class="sprite-inspect-button"
+                  class:selected={activeDetail?.detailKey === factionDetail.detailKey}
+                  aria-label={`Inspect ${faction.label} faction modifiers`}
+                  on:mouseenter={() => previewDetail(factionDetail)}
+                  on:focus={() => previewDetail(factionDetail)}
+                  on:mouseleave={clearDetail}
+                  on:blur={clearDetail}
+                  on:click={() => togglePinnedDetail(factionDetail)}
+                >
+                  <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                </button>
+              </div>
+              <small>{faction.description}</small>
+            </header>
+
+            <div class="draft-section">
+              <span class="draft-section-label">Granted upgrades</span>
+              <div class="unlock-row">
+                {#each grantedUpgradeIds as upgradeId}
+                  <button
+                    class="list-button upgrade-grant"
+                    on:mouseenter={() => previewDetail(buildUpgradeDetail(upgradeId))}
+                    on:focus={() => previewDetail(buildUpgradeDetail(upgradeId))}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => togglePinnedDetail(buildUpgradeDetail(upgradeId))}
+                  >
+                    <span>{getUpgradeDetails(upgradeId).label}</span>
+                    <small>{getUpgradeDetails(upgradeId).bucket}</small>
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <div class="draft-section">
+              <span class="draft-section-label">Native troops</span>
+              <div class="draft-icon-row troop-preview-row">
+                {#each nativeTroopUnlockIds as troopUnlockId}
+                  {@const [nativeFactionId, nativeUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                  <span class="troop-preview native">
+                    <img class="unit-button-art" src={getFactionUnitPortrait(nativeFactionId, nativeUnitTypeId)} alt="" aria-hidden="true" />
+                    <span>{getUnitType(nativeUnitTypeId).label}</span>
+                  </span>
+                {/each}
+              </div>
+            </div>
+
+            <div class="draft-section">
+              <span class="draft-section-label">Defeated enemy unlocks</span>
+              <div class="draft-icon-row troop-preview-row">
+                {#if futureTroopUnlockIds.length === 0}
+                  <span class="troop-preview future empty">None discovered yet</span>
+                {:else}
+                  {#each futureTroopUnlockIds as troopUnlockId}
+                    {@const [futureFactionId, futureUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                    <span class="troop-preview future">
+                      <img class="unit-button-art" src={getFactionUnitPortrait(futureFactionId, futureUnitTypeId)} alt="" aria-hidden="true" />
+                      <span>{getUnitType(futureUnitTypeId).label}</span>
+                    </span>
+                  {/each}
+                {/if}
+              </div>
+            </div>
+
+            <button class="primary large" on:click={() => gameStore.claimFactionUnlockOffer(factionId)}>Choose {faction.label}</button>
+          </article>
+        {/each}
+      </div>
+
+      {#if activeDetail}
+        <aside class="panel floating-detail-panel">
+          <p class="eyebrow">{activeDetail.kind === 'upgrade' ? 'Upgrade Effects' : 'Faction Modifiers'}</p>
+          <h2>{activeDetail.label}</h2>
+          <p>{activeDetail.description}</p>
+        </aside>
+      {/if}
+    </section>
+  </main>
+{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'troop_type_unlock' && $gameStore.game.activeTroopTypeUnlockOffer}
+  <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
+    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Scheduled troop type unlock screen">
+      <div class="draft-screen-header">
+        <p class="eyebrow">{getFaction($gameStore.game.activeTroopTypeUnlockOffer.factionId).label} Muster</p>
+        <h1>Choose Troop Type {$gameStore.game.activeTroopTypeUnlockOffer.remainingChoices}</h1>
+        <p>Pick one troop for the new faction. Remaining picks will follow immediately.</p>
+      </div>
+
+      <div class="draft-grid troop-type-unlock-grid">
+        {#each $gameStore.game.activeTroopTypeUnlockOffer.optionTroopUnlockIds as troopUnlockId}
+          {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
+          {@const troopDef = TROOP_CATALOG[troopUnlockId]}
+          {@const troopDetail = buildResolvedUnitDetail(
+            `scheduled-troop:${troopUnlockId}`,
+            troopDef.label,
+            factionId,
+            unitTypeId,
+            troopDef.stats,
+            troopDef.quantity,
+            'Troop type unlock for the newly joined faction.',
+            troopDef.abilities,
+          )}
+          <button
+            type="button"
+            class="draft-option troop-type-choice"
+            on:mouseenter={() => previewDetail(troopDetail)}
+            on:focus={() => previewDetail(troopDetail)}
+            on:mouseleave={clearDetail}
+            on:blur={clearDetail}
+            on:click={() => gameStore.claimTroopTypeUnlockOffer(troopUnlockId)}
+          >
+            <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
+            <span>{describeTroopUnlock(troopUnlockId)}</span>
+            <small>Qty {formatFixed(troopDef.quantity)}</small>
+          </button>
+        {/each}
+      </div>
+
+      {#if activeDetail}
+        <aside class="panel floating-detail-panel">
+          <p class="eyebrow">Troop Preview</p>
+          <h2>{activeDetail.label}</h2>
+          {#if activeDetail.kind === 'unit'}
+            <div class="hover-unit-detail">
+              <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
+              <p>{activeDetail.description}</p>
+            </div>
+            <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+          {:else}
+            <p>{activeDetail.description}</p>
+          {/if}
+        </aside>
+      {/if}
+    </section>
+  </main>
 {:else if $gameStore.screen === 'overworld'}
-  <main class="shell overworld-shell" class:troops-mode={$gameStore.centerMode === 'troops'} class:ui-debug-visible={showUiDebugNames}>
+  <main class="shell overworld-shell" class:troops-mode={$gameStore.centerMode === 'troops'} class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
     <header class="topbar ui-debug-target" data-ui-name="Overworld top bar">
       <div class="ui-debug-target" data-ui-name="Campaign title">
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber}</p>
@@ -1571,16 +1720,15 @@
         <button class="ui-debug-target" data-ui-name="Show rifts view" class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
         <button class="ui-debug-target" data-ui-name="Show factions and troops view" class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
         <button class="ui-debug-target" data-ui-name="Return to main menu" on:click={() => gameStore.returnToMainMenu()}>Main Menu</button>
-        <button
-          class="debug-icon-button ui-debug-target"
-          data-ui-name="Copy campaign report"
-          on:click={() => void copyCampaignReport()}
-          disabled={!$gameStore.activeSlotId}
-          title="Copy current campaign state to report"
-          aria-label="Copy current campaign state to report"
-        >
-          🐞
-        </button>
+        {#if debugToolsEnabled}
+          <DebugToolsMenu
+            mode="campaign-button"
+            selectedTroopId={selectedTroopId}
+            selectedReplayId={selectedReplayId}
+            selectedRiftId={selectedRiftId}
+            rendererDiagnostics={rendererDiagnostics}
+          />
+        {/if}
       </div>
     </header>
 
@@ -2390,10 +2538,6 @@
       {/if}
     </footer>
 
-    {#if campaignReportMessage}
-      <p class="system-message campaign-report-message">{campaignReportMessage}</p>
-    {/if}
-
     {#if troopDrag?.active}
       <div class="troop-drag-ghost" style={`left:${troopDrag.x}px; top:${troopDrag.y}px;`} aria-hidden="true">
         <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" />
@@ -2421,21 +2565,14 @@
     {/if}
   </main>
 {:else}
-  <main class="replay-shell" class:ui-debug-visible={showUiDebugNames}>
+  <main class="replay-shell" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
     <section class="left replay-left ui-debug-target" data-ui-name="Replay left sidebar">
       <div class="replay-header ui-debug-target" data-ui-name="Replay header">
         <div class="replay-title-row">
           <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
-          <button
-            class="debug-icon-button ui-debug-target"
-            data-ui-name="Copy battle report"
-            on:click={() => void copyLoadedReplayReport()}
-            disabled={!$gameStore.loadedReplayPayload}
-            title="Copy current battle state to report"
-            aria-label="Copy current battle state to report"
-          >
-            🐞
-          </button>
+          {#if debugToolsEnabled}
+            <DebugToolsMenu mode="battle-button" rendererDiagnostics={rendererDiagnostics} />
+          {/if}
         </div>
         <div class="replay-mutators">
           {#if (replay?.mutatorIds.length ?? 0) === 0}
@@ -2462,11 +2599,8 @@
             {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
           </button>
         </div>
-        {#if !$gameStore.loadedBattleReport && battleReportMessage}
-          <p class="system-message replay-report-message">{battleReportMessage}</p>
-        {/if}
       </div>
-      {#if $gameStore.loadedBattleReport}
+      {#if debugToolsEnabled && $gameStore.loadedBattleReport}
         <div class="panel battle-report-panel">
           <p class="eyebrow">Imported Battle Report</p>
           <h2>{$gameStore.loadedBattleReport.reportId}</h2>
@@ -2488,10 +2622,6 @@
           {/if}
         </div>
       {/if}
-      {#if campaignReportMessage}
-        <p class="system-message campaign-report-message">{campaignReportMessage}</p>
-      {/if}
-
       <BattleControls
         replayLength={replay?.steps.length ?? 0}
         currentStep={$gameStore.currentStep}
@@ -2510,6 +2640,16 @@
             <p class="eyebrow">{activeDetail.kind === 'mutator' ? 'Mutator Effect' : activeDetail.kind === 'upgrade' ? 'Upgrade Preview' : 'Battle Detail'}</p>
             <h2>{activeDetail.label}</h2>
             <p>{activeDetail.description}</p>
+          </div>
+        {:else if replayExplanationView}
+          <div class="detail-panel replay-detail-panel replay-explanation-panel">
+            <div class="replay-explanation-header">
+              <p class="eyebrow">Battle Explanation</p>
+              {#if pinnedReplayExplanationIndex !== null}
+                <button type="button" class="replay-explanation-clear" on:click={() => pinReplayExplanation(null)}>Clear</button>
+              {/if}
+            </div>
+            <ReplayStepExplanation view={replayExplanationView} compact={true} />
           </div>
         {:else if replayFocusProfile}
           <UnitTooltip
@@ -2746,6 +2886,18 @@
   </main>
 {/if}
 
+{#if debugToolsEnabled && !verificationLabMode && designModeEnabled}
+  <DesignModePanel
+    selectedDesignTargetName={selectedDesignTargetName}
+    designTweaksByTarget={designTweaksByTarget}
+    onClose={() => (designModeEnabled = false)}
+    onUpdateTweak={updateSelectedDesignTweak}
+    onClearSelected={clearSelectedDesignTweaks}
+    onDeselect={() => (selectedDesignTargetName = null)}
+    onResetAll={resetAllDesignTweaks}
+  />
+{/if}
+
 <style>
   :global(body) {
     overflow: auto;
@@ -2888,7 +3040,6 @@
   .mode-toggle button,
   .primary,
   .actions-grid button,
-  .file-button,
   .unlock-row button,
   .archive-card,
   .troop-chip,
@@ -2911,39 +3062,6 @@
     background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
     color: #111;
     border-color: rgba(213, 178, 116, 0.6);
-  }
-
-  .debug-icon-button {
-    width: 2rem;
-    height: 2rem;
-    min-width: 2rem;
-    min-height: 2rem;
-    display: inline-grid;
-    place-items: center;
-    padding: 0;
-    border: 1px solid rgba(213, 178, 116, 0.38);
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 35% 25%, rgba(213, 178, 116, 0.28), transparent 44%),
-      rgba(13, 19, 28, 0.88);
-    color: #f4f7fb;
-    font: inherit;
-    font-size: 0.95rem;
-    line-height: 1;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  }
-
-  .debug-icon-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    border-color: rgba(236, 196, 123, 0.72);
-    box-shadow:
-      0 10px 18px rgba(0, 0, 0, 0.24),
-      0 0 18px rgba(213, 178, 116, 0.12);
-  }
-
-  .debug-icon-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.42;
   }
 
   .ui-debug-visible .ui-debug-target {
@@ -2969,6 +3087,21 @@
     text-transform: uppercase;
     pointer-events: none;
     white-space: normal;
+  }
+
+  .design-mode-enabled .ui-debug-target {
+    outline: 1px dashed rgba(244, 196, 92, 0.32);
+    outline-offset: 1px;
+  }
+
+  :global(.ui-debug-target[data-design-selected]) {
+    outline: 2px solid rgba(112, 219, 255, 0.92);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(6, 10, 18, 0.82);
+  }
+
+  :global(.ui-debug-target[data-design-tweaked]:not([data-design-selected])) {
+    outline-color: rgba(120, 245, 179, 0.65);
   }
 
   .left-column,
@@ -3090,6 +3223,7 @@
   .archive-card.selected,
   .troop-chip.selected,
   .list-button.selected,
+  .draft-troop-icon.selected,
   .sprite-inspect-button.selected,
   .unit-tile.selected {
     background:
@@ -3107,34 +3241,6 @@
     background: rgba(20, 28, 38, 0.76);
     color: inherit;
     font: inherit;
-  }
-
-  textarea,
-  select {
-    width: 100%;
-    border: 1px solid rgba(126, 157, 181, 0.25);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(6, 10, 18, 0.72);
-    color: var(--ui-color-text);
-    padding: var(--ui-space-sm);
-    font: inherit;
-  }
-
-  textarea {
-    min-height: 5rem;
-    resize: vertical;
-  }
-
-  .file-button,
-  .confirm-row {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--ui-space-xs);
-    cursor: pointer;
-  }
-
-  .file-button input[type='file'] {
-    display: none;
   }
 
   .mutator-chip.empty {
@@ -3430,6 +3536,100 @@
     color: #a7b8c8;
   }
 
+  .draft-screen-header {
+    display: grid;
+    gap: 0.55rem;
+    margin-bottom: var(--ui-space-md);
+    max-width: 920px;
+  }
+
+  .draft-screen-header h1 {
+    margin: 0;
+    font-size: var(--ui-text-title);
+  }
+
+  .draft-screen-header p {
+    max-width: 70ch;
+    margin: 0;
+    color: #a7b8c8;
+  }
+
+  .draft-screen-header .opening-instructions {
+    max-width: none;
+  }
+
+  .faction-unlock-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .faction-unlock-card {
+    display: grid;
+    gap: var(--ui-space-sm);
+    align-content: start;
+  }
+
+  .troop-preview-row {
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  }
+
+  .troop-preview {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    min-height: 4.6rem;
+    padding: 0.45rem;
+    border: 1px solid rgba(124, 153, 176, 0.18);
+    border-radius: var(--ui-panel-radius-tight);
+    color: #edf4fa;
+    text-align: center;
+    font-size: 0.82rem;
+  }
+
+  .troop-preview.native {
+    background: rgba(24, 41, 48, 0.74);
+  }
+
+  .troop-preview.future {
+    border-style: dashed;
+    background: rgba(50, 36, 20, 0.7);
+    color: #f5d6a1;
+  }
+
+  .troop-preview.empty {
+    place-items: center;
+    color: #a7b8c8;
+  }
+
+  .upgrade-grant {
+    border-color: rgba(213, 178, 116, 0.48);
+    background: rgba(45, 34, 18, 0.78);
+  }
+
+  .troop-type-unlock-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .troop-type-choice {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .troop-type-choice small {
+    grid-column: 2;
+    color: #a7b8c8;
+  }
+
+  .floating-detail-panel {
+    position: fixed;
+    right: var(--ui-space-md);
+    bottom: var(--ui-space-md);
+    z-index: 21;
+    width: min(360px, calc(100vw - (2 * var(--ui-space-md))));
+    max-height: min(44vh, 360px);
+    overflow: auto;
+  }
+
   .ability-row,
   .mutator-row,
   .assignment-panel,
@@ -3567,70 +3767,6 @@
     max-width: 28rem;
   }
 
-  .debug-dropdown {
-    position: relative;
-    z-index: 20;
-  }
-
-  .debug-dropdown summary {
-    list-style: none;
-    min-height: 2.35rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.52rem 0.8rem;
-    border: 1px solid rgba(213, 178, 116, 0.32);
-    border-radius: var(--ui-panel-radius-pill);
-    background:
-      linear-gradient(135deg, rgba(20, 27, 38, 0.92), rgba(9, 13, 21, 0.94)),
-      radial-gradient(circle at top right, rgba(213, 178, 116, 0.18), transparent 44%);
-    color: var(--ui-color-text);
-    cursor: pointer;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-size: var(--ui-text-label);
-  }
-
-  .debug-dropdown summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .debug-dropdown summary::before {
-    content: '🐞';
-    letter-spacing: 0;
-  }
-
-  .debug-dropdown-panel {
-    position: absolute;
-    top: calc(100% + 0.6rem);
-    right: 0;
-    width: min(620px, calc(100vw - 2rem));
-    max-height: min(78vh, 760px);
-    overflow: auto;
-  }
-
-  .debug-report-section {
-    display: grid;
-    gap: var(--ui-space-sm);
-  }
-
-  .debug-report-section + .debug-report-section {
-    margin-top: var(--ui-space-xs);
-    padding-top: var(--ui-space-md);
-    border-top: 1px solid rgba(124, 153, 176, 0.18);
-  }
-
-  .debug-report-section h2 {
-    font-size: 1.05rem;
-  }
-
-  .debug-report-section p {
-    color: #a7b8c8;
-  }
-
-  .compact-actions {
-    gap: var(--ui-space-xs);
-  }
 
   .slot-card {
     min-height: 0;
@@ -3700,6 +3836,21 @@
     gap: var(--ui-space-xs);
     text-align: center;
     padding: var(--ui-space-sm);
+  }
+
+  .draft-troop-icon.incompatible {
+    cursor: not-allowed;
+    border-color: rgba(126, 157, 181, 0.12);
+    background: rgba(20, 28, 38, 0.42);
+    color: rgba(167, 184, 200, 0.58);
+    filter: grayscale(0.85);
+    opacity: 0.56;
+  }
+
+  .draft-troop-icon.incompatible:hover {
+    transform: none;
+    border-color: rgba(126, 157, 181, 0.12);
+    box-shadow: none;
   }
 
   .sprite-inspect-button {
@@ -3924,10 +4075,6 @@
     color: #c7d3df;
   }
 
-  .draft-focus-empty {
-    max-width: 80ch;
-  }
-
   .replay-shell {
     min-height: 100dvh;
     height: 100dvh;
@@ -4039,11 +4186,26 @@
     align-content: start;
   }
 
-  .replay-report-message {
-    padding: 0.5rem 0.65rem;
-    border: 1px solid rgba(213, 178, 116, 0.22);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(17, 25, 34, 0.72);
+  .replay-explanation-panel {
+    gap: 0.75rem;
+  }
+
+  .replay-explanation-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .replay-explanation-clear {
+    min-height: 1.8rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(196, 214, 227, 0.22);
+    background: rgba(12, 18, 28, 0.52);
+    color: #d8e4f0;
+    font: inherit;
+    font-size: 0.72rem;
   }
 
   .panel-toggle {
@@ -4476,6 +4638,18 @@
       min-height: 420px;
     }
 
+    .overworld-shell {
+      height: auto;
+      min-height: 100dvh;
+      overflow: visible;
+    }
+
+    .overworld-shell .left-column,
+    .overworld-shell .center-column,
+    .overworld-shell .right-column {
+      overflow: visible;
+    }
+
     .alive-sides,
     .replay-recap-sides {
       grid-template-columns: 1fr;
@@ -4494,15 +4668,6 @@
       flex-direction: column;
     }
 
-    .debug-dropdown,
-    .debug-dropdown-panel {
-      width: 100%;
-    }
-
-    .debug-dropdown-panel {
-      position: static;
-      margin-top: var(--ui-space-sm);
-    }
 
     .action-rail {
       grid-template-columns: 1fr;
@@ -4517,11 +4682,15 @@
 
     .archive-actions-stack,
     .end-cycle-button {
-      justify-self: end;
+      justify-self: stretch;
     }
 
     .footer-ready-troops-panel {
       justify-self: stretch;
+    }
+
+    .end-cycle-button {
+      width: 100%;
     }
 
     .menu-screen,

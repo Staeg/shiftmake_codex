@@ -62,7 +62,9 @@ The app has three UI screens:
 
 Campaign phases are:
 
-- `opening_unlock`: free opening pick of any native faction + troop combination
+- `opening_unlock`: free opening picks for two native faction + troop combinations; the two picks must differ by faction and troop type
+- `faction_unlock`: scheduled cycle-start faction choice
+- `troop_type_unlock`: sequential troop choices for a newly unlocked faction
 - `planning`: normal overworld play
 - `game_over`: shown immediately after cycle 10 resolves unless already dismissed for that run
 
@@ -124,6 +126,8 @@ Important current catalog rules:
 - `troopTypeUpgradeIds`
 - `activeTroopOffer`
 - `activeUpgradeOffer`
+- `activeFactionUnlockOffer`
+- `activeTroopTypeUnlockOffer`
 - `troopOfferRolls`
 - `upgradeOfferRolls`
 - `postgameDismissed`
@@ -317,7 +321,7 @@ The battle engine uses this for side-wide rules that must keep working for futur
 `src/engine/game.ts` currently implements:
 
 1. Start a new run in `opening_unlock`
-2. Claim one free opening troop from any non-summoned faction + troop combination
+2. Claim two free opening troops from native faction + troop combinations; the two starters must have different factions and different unit types
 3. Enter `planning` with `2` Essence and generated cycle-1 Rifts
 4. Spend Essence to reveal combined troop and upgrade offer packs as needed
 5. Claim one troop and one upgrade choice from each revealed combined draft
@@ -325,7 +329,11 @@ The battle engine uses this for side-wide rules that must keep working for futur
 7. Resolve every discovered Rift that has assigned troops
 8. Apply recovery, archive replay inputs, award VP only on victories, and grant `+2` Essence for the next cycle
 9. Generate the next cycle's Rifts
-10. After cycle 10 resolves, enter `game_over` once for that run
+10. At the start of cycle 3, enter a scheduled faction unlock: choose up to 3 still-locked factions, each shown with native troops, defeated-enemy future troop unlocks, and 1 preselected faction upgrade; then choose 2 troop types for that faction
+11. At the start of cycle 7, repeat the scheduled faction unlock with 2 preselected faction upgrades and 3 troop type choices
+12. After cycle 10 resolves, enter `game_over` once for that run
+
+Assignment rule: no more than one troop of a given faction can enter the same Rift unless that faction has `United`, and no more than one troop of a given unit type can enter the same Rift.
 
 Important current rule: ending a cycle with no assignments and/or unspent Essence is allowed, but the store surfaces a confirmation warning before advancing.
 
@@ -377,7 +385,9 @@ Current keys are versioned for the rewrite:
 
 - slot index: `shiftmake:slots:v3`
 - save payload: `shiftmake:slot:<id>:save:v3`
-- replay payloads: `shiftmake:slot:<id>:replay:v2:<replayId>`
+- replay payloads: `shiftmake:slot:<id>:replay:v3.19:<replayId>`
+
+Replay payload storage uses explicit minor versions such as `v3.0` and `v3.19`, not bare `v3`, so deterministic replay payload shape changes can coexist with the same campaign save generation. The loader still accepts older replay keys, including `v3.0`, bare `v3`, `v2`, and early unversioned slot replay keys.
 
 Replay payloads are stored as serialized `BattleInput`, not full replay output. Archived battles are reconstructed by re-running the deterministic resolver when opened.
 

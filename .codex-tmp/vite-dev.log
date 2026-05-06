@@ -17,3 +17,11 @@
 [2m09:40:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
 [2m09:40:56[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
 [2m09:41:06[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte?svelte&type=style&lang.css[22m
+[2m09:51:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m09:51:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m09:52:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m09:52:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m09:53:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte, /src/ui/App.svelte?svelte&type=style&lang.css[22m
+09:53:45 [vite-plugin-svelte] C:/Users/staeg/shiftmake - Codex/src/ui/App.svelte:2854:2 Unused CSS selector ".ui-debug-target[data-design-selected]"
+09:53:45 [vite-plugin-svelte] C:/Users/staeg/shiftmake - Codex/src/ui/App.svelte:2860:2 Unused CSS selector ".ui-debug-target[data-design-tweaked]:not([data-design-selected])"
+[2m09:55:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte?svelte&type=style&lang.css[22m
