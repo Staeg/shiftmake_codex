@@ -2,6 +2,7 @@
   import { formatFixed } from '../engine/fixed';
   import type { BattleUnit, ExplainedStatKey, ReplayTroopProfile, StatBreakdown, StatBreakdownLine } from '../engine/types';
   import { formatAbilityExact, formatRoleExact, statIcon } from './inspectText';
+  import GameIcon from './GameIcon.svelte';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
 
   export let unit: BattleUnit | null = null;
@@ -146,7 +147,7 @@
                 on:mouseleave={() => (hoveredAbilityText = null)}
                 on:blur={() => (hoveredAbilityText = null)}
               >
-                {ability.label}
+                <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
               </button>
             {/each}
           </div>
@@ -362,6 +363,9 @@
   }
 
   .ability-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
     padding: 0.18rem 0.42rem;
     border: 1px solid rgba(212, 173, 115, 0.24);
     border-radius: 999px;
@@ -370,6 +374,17 @@
     font: inherit;
     font-size: 0.68rem;
     cursor: help;
+  }
+
+  .icon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    min-width: 0;
+  }
+
+  .ability-chip :global(.game-icon) {
+    --game-icon-size: 0.95rem;
   }
 
   .inspect-tooltip {

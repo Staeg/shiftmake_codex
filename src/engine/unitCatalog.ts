@@ -306,6 +306,15 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [statEffect('haste', 1, 'flat')],
     shortText: "End of turn: a random allied unit within this unit's range gains +1 speed for the battle.",
   }),
+  'self-haste-2': makeAbility({
+    id: 'self-haste-2',
+    label: 'Self Haste 2',
+    trigger: { timing: 'endOfTurn' },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [statEffect('haste', 2, 'flat')],
+    shortText: 'End of turn: gain +2 speed for the battle.',
+  }),
   'ramp-1': makeSelfStatAbility('ramp-1', 'Ramp 1', 'endOfTurn', [statEffect('ramp', 1, 'flat')], 'End of turn: gain +1 damage for the battle.'),
   'frenzy-ramp-1': makeSelfStatAbility('frenzy-ramp-1', 'Frenzy: Ramp 1', 'onDamaged', [statEffect('ramp', 1, 'flat')], 'After taking damage: gain +1 damage for the battle.'),
   'shredding-arrows': makeAbility({
@@ -1039,7 +1048,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     stats: { health: 50, damage: 16, speed: 13, range: 3, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 60,
-    abilityIds: ['haste-1'],
+    abilityIds: ['self-haste-2'],
   },
   necromancer: {
     id: 'necromancer',

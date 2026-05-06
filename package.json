@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "icons:prompts": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/generateIconPrompts.ts'], bundle:true, platform:'node', format:'esm', outfile:'dist-scripts/scripts/generateIconPrompts.js'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\generateIconPrompts.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\generateIconPrompts.js\"",
+    "icons:placeholders": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/ensureIconPlaceholders.ts'], bundle:true, platform:'node', format:'esm', outfile:'dist-scripts/scripts/ensureIconPlaceholders.js'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\ensureIconPlaceholders.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\ensureIconPlaceholders.js\"",
     "playtest:manual": "npm run build && vite preview --host 127.0.0.1 --port 4174",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -156,7 +156,7 @@ Summoned units do not have their own unlockable upgrades.
 - Attributes: `ranged`
 - Stats: health 50, damage 16, speed 13, range 3, armor 0, size 1, capacity 0
 - Role: backline
-- Abilities: `Haste 1`
+- Abilities: `Self Haste 2`
 - Cost: 60
 - Troop upgrades:
   - `Concussive Shots` (tier 2): on attack, set the target initiative to 0

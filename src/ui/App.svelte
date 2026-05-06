@@ -48,6 +48,7 @@
   import DebugToolsMenu from './DebugToolsMenu.svelte';
   import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
   import EventLog from './EventLog.svelte';
+  import GameIcon from './GameIcon.svelte';
   import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
   import ReplayStepExplanation from './ReplayStepExplanation.svelte';
   import { buildReplayStepExplanationView } from './replayStepExplanation';
@@ -72,6 +73,8 @@
         kind: 'mutator' | 'faction' | 'upgrade';
         label: string;
         description: string;
+        iconKind?: 'upgrade' | 'mutator';
+        iconId?: string;
         stats?: StatEntry[];
       }
     | {
@@ -81,7 +84,7 @@
         description: string;
         portraitUrl: string;
         stats: StatEntry[];
-        abilities: Array<{ label: string; description: string }>;
+        abilities: Array<{ id: string; label: string; description: string }>;
       };
 
   type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
@@ -593,6 +596,8 @@
       kind: 'mutator',
       label: mutator.label,
       description: mutator.description,
+      iconKind: 'mutator',
+      iconId: mutatorId,
     };
   }
 
@@ -603,6 +608,8 @@
       kind: 'upgrade',
       label: details.label,
       description: details.description,
+      iconKind: 'upgrade',
+      iconId: upgradeId,
     };
   }
 
@@ -625,6 +632,7 @@
       portraitUrl: getFactionUnitPortrait(factionId, unitTypeId),
       stats: buildStatEntries(stats, statBreakdowns, true, quantity),
       abilities: abilities.map((ability) => ({
+        id: ability.id,
         label: ability.label,
         description: ability.shortText ?? formatAbilityExact(ability),
       })),
@@ -836,8 +844,21 @@
   }
 
   function selectFaction(factionId: FactionId): void {
-    selectedFactionId = factionId;
+    selectedFactionId = selectedFactionId === factionId ? null : factionId;
     setTroopCenterMode();
+  }
+
+  function handleFactionHeaderClick(factionId: FactionId, factionDetail: DetailCard): void {
+    const wasSelected = selectedFactionId === factionId;
+    selectFaction(factionId);
+
+    if (wasSelected) {
+      pinnedDetail = null;
+      hoveredDetail = null;
+      return;
+    }
+
+    togglePinnedDetail(factionDetail);
   }
 
   function selectTroopForRift(troopId: TroopId): void {
@@ -1439,9 +1460,6 @@
   $: if (selectedFactionId && !factionRosterIds.includes(selectedFactionId)) {
     selectedFactionId = null;
   }
-  $: if (!selectedFactionId && factionRosterIds.length > 0) {
-    selectedFactionId = factionRosterIds[0]!;
-  }
 
   $: if (selectedReplayId && !$gameStore.game.replayIndex.some((entry) => entry.replayId === selectedReplayId)) {
     selectedReplayId = null;
@@ -1692,7 +1710,7 @@
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
               <p class="eyebrow">{activeDetail.kind === 'faction' ? 'Faction Modifiers' : activeDetail.kind === 'unit' ? 'Troop Preview' : 'Detail'}</p>
-              <h2>{activeDetail.label}</h2>
+              <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
                 <div class="hover-unit-detail">
                   <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
@@ -1713,7 +1731,7 @@
                           on:mouseleave={() => (hoveredAbilityTooltip = null)}
                           on:blur={() => (hoveredAbilityTooltip = null)}
                         >
-                          {ability.label}
+                          <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                         </button>
                       {/each}
                     {/if}
@@ -1835,7 +1853,7 @@
                       ? 'Troop Preview'
                       : 'Detail'}
               </p>
-              <h2>{activeDetail.label}</h2>
+              <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
                 <div class="hover-unit-detail">
                   <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
@@ -1856,7 +1874,7 @@
                           on:mouseleave={() => (hoveredAbilityTooltip = null)}
                           on:blur={() => (hoveredAbilityTooltip = null)}
                         >
-                          {ability.label}
+                          <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                         </button>
                       {/each}
                     {/if}
@@ -1921,7 +1939,7 @@
                       on:blur={clearDetail}
                       on:click={() => togglePinnedDetail(upgradeDetail)}
                     >
-                      <span>{getUpgradeDetails(upgradeId).label}</span>
+                      <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
                     </button>
                   {/each}
                 </div>
@@ -2094,7 +2112,7 @@
                     ? 'Upgrade Preview'
                     : 'Unit Inspect'}
             </p>
-            <h2>{activeDetail.label}</h2>
+            <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             {#if activeDetail.kind === 'unit'}
               <div class="hover-unit-detail">
                 <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
@@ -2115,7 +2133,7 @@
                         on:mouseleave={() => (hoveredAbilityTooltip = null)}
                         on:blur={() => (hoveredAbilityTooltip = null)}
                       >
-                        {ability.label}
+                        <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                       </button>
                     {/each}
                   {/if}
@@ -2184,7 +2202,7 @@
                     on:blur={clearDetail}
                     on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
                   >
-                    {getMutator(mutatorId).label}
+                    <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
                   </button>
                 {/each}
               {/if}
@@ -2309,7 +2327,7 @@
                     on:mouseleave={() => (hoveredAbilityTooltip = null)}
                     on:blur={() => (hoveredAbilityTooltip = null)}
                   >
-                    {ability.label}
+                    <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                   </button>
                 {/each}
               {/if}
@@ -2367,7 +2385,7 @@
                         on:blur={clearDetail}
                         on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
                       >
-                        {getMutator(mutatorId).label}
+                        <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
                       </button>
                     {/each}
                   {/if}
@@ -2484,10 +2502,7 @@
                   on:focus={() => previewDetail(factionDetail)}
                   on:mouseleave={clearDetail}
                   on:blur={clearDetail}
-                  on:click={() => {
-                    selectFaction(factionId);
-                    togglePinnedDetail(factionDetail);
-                  }}
+                  on:click={() => handleFactionHeaderClick(factionId, factionDetail)}
                 >
                   <span>{faction.label}</span>
                   <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
@@ -2507,7 +2522,7 @@
                         on:blur={clearDetail}
                         on:click={() => togglePinnedDetail(upgradeDetail)}
                       >
-                        <span>{getUpgradeDetails(upgradeId).label}</span>
+                        <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
                       </button>
                     {/each}
                   </div>
@@ -2647,7 +2662,7 @@
                     on:blur={clearDetail}
                     on:click={() => gameStore.claimUpgradeOffer(upgradeId)}
                   >
-                    <span>{getUpgradeDetails(upgradeId).label}</span>
+                    <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
                     {#if affectedTroops.length > 0}
                       <span class="affected-troop-strip" aria-label="Affected unlocked troops">
                         {#each affectedTroops as troop}
@@ -2696,7 +2711,7 @@
                       on:mouseleave={() => (hoveredAbilityTooltip = null)}
                       on:blur={() => (hoveredAbilityTooltip = null)}
                     >
-                      {ability.label}
+                      <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                     </button>
                   {/each}
                 {/if}
@@ -2726,7 +2741,9 @@
                 <span class="mutator-chip empty">None</span>
               {:else}
                 {#each selectedReplayEntry.mutatorIds as mutatorId}
-                  <span class="mutator-chip">{getMutator(mutatorId).label}</span>
+                  <span class="mutator-chip">
+                    <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
+                  </span>
                 {/each}
               {/if}
             </div>
@@ -2911,7 +2928,7 @@
                 on:mouseleave={clearDetail}
                 on:blur={clearDetail}
               >
-                {getMutator(mutatorId).label}
+                <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
               </button>
             {/each}
           {/if}
@@ -2962,7 +2979,7 @@
         {#if activeDetail}
           <div class="detail-panel replay-detail-panel">
             <p class="eyebrow">{activeDetail.kind === 'mutator' ? 'Mutator Effect' : activeDetail.kind === 'upgrade' ? 'Upgrade Preview' : 'Battle Detail'}</p>
-            <h2>{activeDetail.label}</h2>
+            <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             <p>{activeDetail.description}</p>
           </div>
         {:else if replayExplanationView}
@@ -3576,8 +3593,28 @@
     align-items: center;
   }
 
+  .list-button:has(:global(.game-icon)) {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.45rem;
+  }
+
   .draft-offer-block .list-button {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .draft-offer-block .list-button:has(:global(.game-icon)) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .icon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .icon-label > span {
+    min-width: 0;
   }
 
   .archive-card,
@@ -3625,12 +3662,33 @@
   }
 
   .mutator-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
     border: 1px solid rgba(124, 153, 176, 0.2);
     border-radius: 999px;
     padding: 0.3rem 0.6rem;
     background: rgba(20, 28, 38, 0.76);
     color: inherit;
     font: inherit;
+    line-height: 1.1;
+  }
+
+  .mutator-chip :global(.game-icon),
+  .list-button :global(.game-icon),
+  .detail-title :global(.game-icon) {
+    --game-icon-size: 1.05rem;
+  }
+
+  .detail-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .detail-title :global(.game-icon) {
+    --game-icon-size: 1.35rem;
   }
 
   .mutator-chip.empty {

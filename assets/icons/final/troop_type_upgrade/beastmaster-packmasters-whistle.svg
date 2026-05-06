@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Packmaster's Whistle placeholder">
+  <rect width="128" height="128" fill="none"/>
+  <path d="M64 8 116 64 64 120 12 64Z" fill="hsl(339 42% 20%)" stroke="hsl(339 65% 70%)" stroke-width="8"/>
+  <path d="M64 28 92 64 64 100 36 64Z" fill="hsl(339 58% 42%)"/>
+  <circle cx="64" cy="64" r="13" fill="hsl(339 82% 78%)"/>
+</svg>
