@@ -88,10 +88,11 @@ Current Rift assignment restrictions:
 
 ## Rewards
 
-Rifts award VP and can unlock enemy troop combinations for future troop drafts.
+Rifts award VP and can record enemy troop combinations as latent future unlocks.
 
 - `victoryPoints = tier`
-- winning can add off-roster enemy `faction/unitType` combinations to the player's future troop-offer pool
+- winning can add off-roster enemy `faction/unitType` combinations to the latent future-unlock pool
+- latent combinations from locked factions are not draftable until that faction is unlocked
 - no gold
 - no Essence payout
 - no upgrade batches

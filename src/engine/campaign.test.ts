@@ -127,17 +127,18 @@ describe('campaign progression', () => {
     expect(state.activeUpgradeOffer).not.toBeNull();
   });
 
-  it('builds troop draft offers from owned faction, owned troop type, and new faction buckets', () => {
+  it('builds troop draft offers only from unlocked faction rosters', () => {
     const state = revealEssenceDraft(finishOpening(8, 'human/soldier'));
     const offer = state.activeTroopOffer;
+    const ownedFactionIds = new Set(state.unlockedFactionIds);
 
     expect(offer).not.toBeNull();
     expect(offer?.optionTroopUnlockIds).toHaveLength(3);
     expect(new Set(offer?.optionTroopUnlockIds).size).toBe(3);
     expect(offer?.optionTroopUnlockIds.every((troopUnlockId) => isNativeTroopUnlockId(troopUnlockId))).toBe(true);
+    expect(offer?.optionTroopUnlockIds.every((troopUnlockId) => ownedFactionIds.has(troopUnlockId.split('/')[0]!))).toBe(true);
     expect(offer?.optionTroopUnlockIds.some((troopUnlockId) => troopUnlockId.startsWith('human/') || troopUnlockId.startsWith('elf/'))).toBe(true);
     expect(offer?.optionTroopUnlockIds.some((troopUnlockId) => troopUnlockId.endsWith('/soldier') || troopUnlockId.endsWith('/archer'))).toBe(true);
-    expect(offer?.optionTroopUnlockIds.some((troopUnlockId) => !troopUnlockId.startsWith('human/') && !troopUnlockId.startsWith('elf/'))).toBe(true);
   });
 
   it('claims troop and upgrade offers without spending more Essence', () => {
@@ -166,13 +167,7 @@ describe('campaign progression', () => {
     expect(new Set(offer?.optionUpgradeIds).size).toBe(3);
     expect(offer?.optionUpgradeIds.some((upgradeId) => ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId ?? ''))).toBe(true);
     expect(offer?.optionUpgradeIds.some((upgradeId) => ownedFactionIds.has(FACTION_UPGRADES[upgradeId]?.factionId ?? ''))).toBe(true);
-    expect(
-      offer?.optionUpgradeIds.some(
-        (upgradeId) =>
-          !ownedFactionIds.has(FACTION_UPGRADES[upgradeId]?.factionId ?? '') &&
-          !ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId ?? ''),
-      ),
-    ).toBe(true);
+    expect(offer?.optionUpgradeIds.every((upgradeId) => upgradeId in FACTION_UPGRADES || upgradeId in TROOP_TYPE_UPGRADES)).toBe(true);
   });
 
   it('persists active offers through save round-trips', () => {
@@ -189,9 +184,21 @@ describe('campaign progression', () => {
     expect(loaded.state?.activeTroopOffer).toEqual(claimed.activeTroopOffer);
   });
 
-  it('prioritizes newly unlocked Rift troops in the third troop slot and links the third upgrade slot to it', () => {
+  it('keeps defeated locked-faction Rift troops latent until that faction unlocks', () => {
     const state = revealEssenceDraft({
       ...finishOpening(99, 'human/soldier'),
+      unlockedTroopUnlockIds: ['troll/wizard'],
+      recentTroopUnlockIds: ['troll/wizard'],
+    });
+
+    expect(state.unlockedFactionIds).not.toContain('troll');
+    expect(state.activeTroopOffer?.optionTroopUnlockIds).not.toContain('troll/wizard');
+  });
+
+  it('prioritizes newly unlocked Rift troops for already unlocked factions and links the third upgrade slot to it', () => {
+    const state = revealEssenceDraft({
+      ...finishOpening(99, 'human/soldier'),
+      unlockedFactionIds: ['human', 'elf', 'troll'],
       unlockedTroopUnlockIds: ['troll/wizard'],
       recentTroopUnlockIds: ['troll/wizard'],
     });
@@ -204,15 +211,18 @@ describe('campaign progression', () => {
     ).toBe(true);
   });
 
-  it('falls back to the old third troop new-faction bucket when no recent Rift troops are available', () => {
+  it('does not use locked-faction troops as a third troop fallback when no recent Rift troops are available', () => {
     const state = revealEssenceDraft(finishOpening(101, 'human/soldier'));
+    const ownedFactionIds = new Set(state.unlockedFactionIds);
 
-    expect(state.activeTroopOffer?.optionTroopUnlockIds[2]?.startsWith('human/')).toBe(false);
+    expect(state.activeTroopOffer?.optionTroopUnlockIds[2]).toBeDefined();
+    expect(ownedFactionIds.has(state.activeTroopOffer!.optionTroopUnlockIds[2]!.split('/')[0]!)).toBe(true);
   });
 
   it('falls back to old off-bucket upgrades when the linked third troop has no remaining upgrades', () => {
     const state = revealEssenceDraft({
       ...finishOpening(102, 'human/soldier'),
+      unlockedFactionIds: ['human', 'elf', 'troll'],
       unlockedTroopUnlockIds: ['troll/wizard'],
       recentTroopUnlockIds: ['troll/wizard'],
       factionUpgradeIds: Object.values(FACTION_UPGRADES).filter((upgrade) => upgrade.factionId === 'troll').map((upgrade) => upgrade.id),
@@ -317,6 +327,7 @@ describe('campaign progression', () => {
     const withGoblinSoldiers = claimTroopOffer(
       {
         ...opened,
+        unlockedFactionIds: [...opened.unlockedFactionIds, 'goblin'],
         activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['goblin/soldier'] },
       },
       'goblin/soldier',
@@ -414,6 +425,27 @@ describe('campaign progression', () => {
 
     expect(result.newlyUnlockedTroopUnlockIds).toEqual(['troll/wizard']);
     expect(result.nextState.unlockedTroopUnlockIds).toContain('troll/wizard');
+  });
+
+  it('includes latent defeated troops in scheduled choices when their faction is unlocked', () => {
+    const cycleThreeState: GameState = {
+      ...finishOpening(89, 'human/soldier'),
+      cycleNumber: 3,
+      phase: 'faction_unlock',
+      unlockedTroopUnlockIds: ['troll/wizard'],
+      activeFactionUnlockOffer: {
+        kind: 'faction_unlock',
+        cycleNumber: 3,
+        optionFactionIds: ['troll'],
+        upgradeIdsByFactionId: { troll: [] },
+        troopUnlockChoiceCount: 2,
+      },
+    };
+
+    const withTroll = claimFactionUnlockOffer(cycleThreeState, 'troll');
+
+    expect(withTroll.phase).toBe('troop_type_unlock');
+    expect(withTroll.activeTroopTypeUnlockOffer?.optionTroopUnlockIds).toContain('troll/wizard');
   });
 
   it('transitions to game over after resolving cycle ten and continue playing resumes planning', () => {

@@ -25,9 +25,9 @@ Removed from the progression model:
 
 ## Unlocking troops
 
-Each faction has a native troop roster that can appear in normal troop offers.
+Each unlocked faction has a native troop roster that can appear in normal troop offers.
 
-Off-roster faction-and-troop combinations are not part of the normal pool by default. They are unlocked by winning Rifts that contain those combinations.
+Off-roster faction-and-troop combinations are not part of the normal pool by default. They enter a latent future-unlock pool by winning Rifts that contain those combinations.
 
 Owning any troop from a faction marks that faction as owned for draft bucketing.
 
@@ -35,7 +35,8 @@ Current roster rule:
 
 - the campaign keeps at most one troop per `faction/unitType` combination
 - claiming a troop unlock immediately adds that troop to the player's roster if it is not already owned
-- Rift-earned off-roster unlocks do not immediately add a troop; they add that combination to the future troop-offer pool
+- Rift-earned off-roster unlocks do not immediately add a troop
+- latent Rift-earned combinations only become normal troop-offer candidates after their faction is unlocked
 
 ## Troop offer generation
 
@@ -45,22 +46,23 @@ Buckets are filled in this order:
 
 1. a troop from a faction the player already owns
 2. a troop of a unit type the player already owns
-3. a troop from a faction the player does not yet own
+3. a recently defeated latent troop whose faction is already owned, then another troop from an owned faction
 
-If any bucket cannot be satisfied, that slot falls back to a random unowned troop unlock from the remaining pool.
+If any bucket cannot be satisfied, that slot falls back to a random unowned troop unlock from the remaining claimable pool.
 
 Generated offers persist in save data until they are claimed or the cycle advances.
 
 Offer candidate pool:
 
-- all native troop combinations across the current factions
-- any off-roster troop combinations previously unlocked through Rift victories
+- native troop combinations for unlocked factions only
+- latent off-roster troop combinations previously discovered through Rift victories, but only after their faction is unlocked
 
 Opening pick rule:
 
 - the opening screen only shows native faction rosters
 - the player must choose two starting troops
 - the two starting troops must have different factions and different troop types
+- after the opening campaign starts, only those two factions' native rosters are claimable in normal troop drafts
 
 ## Scheduled faction unlocks
 
@@ -70,13 +72,13 @@ At the start of cycle 3:
 - each faction option shows its native troop roster
 - each faction option also shows defeated-enemy troop combinations already discovered for that faction, as future unlock potential
 - the chosen faction immediately receives 1 randomly selected faction upgrade
-- after choosing the faction, choose 2 troop type unlocks for that faction sequentially
+- after choosing the faction, choose 2 troop type unlocks for that faction sequentially, from its native roster plus any latent defeated troops for that faction
 
 At the start of cycle 7:
 
 - repeat the same faction choice flow
 - the chosen faction immediately receives 2 randomly selected faction upgrades
-- after choosing the faction, choose 3 troop type unlocks for that faction sequentially
+- after choosing the faction, choose 3 troop type unlocks for that faction sequentially, from its native roster plus any latent defeated troops for that faction
 
 With the current 4-faction content set, fewer than 3 faction options can appear if fewer than 3 factions remain locked.
 

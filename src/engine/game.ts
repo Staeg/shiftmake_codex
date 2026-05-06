@@ -297,12 +297,13 @@ function buildTroopOffer(state: GameState): TroopDraftOffer | null {
   const ownedUnitTypeIds = new Set(getOwnedUnitTypeIds(state));
   const ownedFactionIds = new Set(state.unlockedFactionIds);
   const recentTroopUnlockIds = (state.recentTroopUnlockIds ?? []).filter((troopUnlockId) => availableTroopUnlockIds.includes(troopUnlockId));
+  const ownedFactionTroopUnlockIds = availableTroopUnlockIds.filter((troopUnlockId) => ownedFactionIds.has(splitTroopUnlockId(troopUnlockId)[0]));
   const options = pickOfferOptions(
     deriveSeed(state.campaignSeed, state.cycleNumber * 10_001 + state.troopOfferRolls + 1),
     [
-      [availableTroopUnlockIds.filter((troopUnlockId) => ownedFactionIds.has(splitTroopUnlockId(troopUnlockId)[0]))],
+      [ownedFactionTroopUnlockIds],
       [availableTroopUnlockIds.filter((troopUnlockId) => ownedUnitTypeIds.has(splitTroopUnlockId(troopUnlockId)[1]))],
-      [recentTroopUnlockIds, availableTroopUnlockIds.filter((troopUnlockId) => !ownedFactionIds.has(splitTroopUnlockId(troopUnlockId)[0]))],
+      [recentTroopUnlockIds, ownedFactionTroopUnlockIds],
     ],
     availableTroopUnlockIds,
   );
@@ -514,7 +515,11 @@ export function revealEssenceDraft(state: GameState): GameState {
 }
 
 export function claimTroopOffer(state: GameState, troopUnlockId: TroopUnlockId): GameState {
-  if (!state.activeTroopOffer || !state.activeTroopOffer.optionTroopUnlockIds.includes(troopUnlockId)) {
+  if (
+    !state.activeTroopOffer ||
+    !state.activeTroopOffer.optionTroopUnlockIds.includes(troopUnlockId) ||
+    !getAvailableTroopUnlockIds(state).includes(troopUnlockId)
+  ) {
     return state;
   }
 

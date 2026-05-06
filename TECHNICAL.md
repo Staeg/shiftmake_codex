@@ -102,7 +102,8 @@ Important current catalog rules:
 
 - troop quantity is derived as `120 / resolved cost`
 - only Goblins modify cost, at `cost x 0.5`
-- each faction has a native recruit pool, while off-roster `faction/unitType` combinations are primarily unlocked by winning Rifts that contain them
+- each faction has a native recruit pool; only unlocked factions' native rosters are claimable in normal troop drafts
+- off-roster `faction/unitType` combinations defeated in Rifts are recorded as latent future unlocks, and become claimable only after their faction is unlocked
 - enemies can still roll any non-summoned `faction/unitType` combination
 - stat upgrades, blueprints, and faction-unlock purchases no longer exist
 - the Soldier upgrade `Just a bunch of guys` is removed
@@ -150,17 +151,24 @@ Draft offers are persisted in `GameState` so save/load does not reroll them.
 
 Troop and upgrade offers are revealed together as one Essence draft in normal play. The draft costs `2` Essence when both sides still have options; if one side is fully exhausted, a one-sided fallback costs `1` Essence. Claiming an option from a revealed pack does not cost additional Essence.
 
+Troop offer candidates are limited to:
+
+- native troop combinations for already-unlocked factions
+- Rift-earned off-roster combinations whose faction is already unlocked
+
+Rift-earned combinations for locked factions stay latent. They are shown on that faction's scheduled unlock option and can be chosen during that faction's immediate troop-type unlock flow.
+
 Troop offer buckets:
 
 1. a troop from an owned faction
 2. a troop of an owned unit type
-3. a troop newly enabled by the previous cycle's victorious Rifts
+3. a troop newly enabled by the previous cycle's victorious Rifts for an owned faction, then another troop from an owned faction
 
 Native faction troops are always valid offer candidates.
 
-Off-roster troop combinations only join the candidate pool after the player unlocks them through Rift victories.
+Off-roster troop combinations only join the candidate pool after the player unlocks them through Rift victories and owns their faction.
 
-If the third troop bucket is empty, it falls back to a troop from a not-yet-owned faction, then any remaining claimable troop.
+If the third troop bucket is empty, it falls back to any remaining claimable troop.
 
 Upgrade offer buckets:
 
@@ -326,14 +334,14 @@ The battle engine uses this for side-wide rules that must keep working for futur
 1. Start a new run in `opening_unlock`
 2. Claim two free opening troops from native faction + troop combinations; the two starters must have different factions and different unit types
 3. Enter `planning` with `2` Essence and generated cycle-1 Rifts
-4. Spend Essence to reveal combined troop and upgrade offer packs as needed
+4. Spend Essence to reveal combined troop and upgrade offer packs as needed; normal troop offers are limited to unlocked factions
 5. Claim one troop and one upgrade choice from each revealed combined draft
 6. Assign any ready troops to discovered Rifts
 7. Resolve every discovered Rift that has assigned troops
 8. Apply recovery, archive replay inputs, award VP only on victories, and grant `+2` Essence for the next cycle
 9. Generate the next cycle's Rifts
-10. At the start of cycle 3, enter a scheduled faction unlock: choose up to 3 still-locked factions, each shown with native troops, defeated-enemy future troop unlocks, and 1 preselected faction upgrade; then choose 2 troop types for that faction
-11. At the start of cycle 7, repeat the scheduled faction unlock with 2 preselected faction upgrades and 3 troop type choices
+10. At the start of cycle 3, enter a scheduled faction unlock: choose up to 3 still-locked factions, each shown with native troops, latent defeated-enemy future troop unlocks, and 1 preselected faction upgrade; then choose 2 troop types for that faction from its native roster plus latent defeated-enemy combinations
+11. At the start of cycle 7, repeat the scheduled faction unlock with 2 preselected faction upgrades and 3 troop type choices from the same native-plus-latent pool
 12. After cycle 10 resolves, enter `game_over` once for that run
 
 Assignment rule: no more than one troop of a given faction can enter the same Rift unless that faction has `United`, and no more than one troop of a given unit type can enter the same Rift.

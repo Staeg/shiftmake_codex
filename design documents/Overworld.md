@@ -36,12 +36,13 @@ The campaign phases inside the overworld are:
 - Choose a second native faction and troop-type combination for free.
 - The second choice must use a different faction and a different troop type from the first.
 - After the second choice, both troops are added, both factions are marked owned, 2 Essence is granted, and cycle-1 Rifts are generated.
+- Normal troop drafts then use only those unlocked factions' native rosters, plus any latent Rift-earned combinations for already-unlocked factions.
 
 ### Scheduled faction unlocks
 
 - At the start of cycle 3, the player gets a faction unlock offer with up to 3 still-locked factions. With the currently implemented 4-faction catalog, fewer than 3 options can appear if fewer than 3 factions remain locked.
 - Each cycle-3 faction option previews its native troop roster, defeated-enemy troop combinations that could be unlocked for that faction in the future, and 1 random faction upgrade that will be granted immediately.
-- After choosing the cycle-3 faction, the player makes 2 sequential troop type choices for that faction.
+- After choosing the cycle-3 faction, the player makes 2 sequential troop type choices for that faction from its native roster plus any latent defeated-enemy combinations for that faction.
 - At the start of cycle 7, the same flow repeats, but the chosen faction receives 2 random faction upgrades and 3 sequential troop type choices.
 
 ### Drafting
@@ -50,6 +51,7 @@ The campaign phases inside the overworld are:
 - The draft costs 2 Essence when both troop and upgrade options are available.
 - If only troop options or only upgrade options remain, the one-sided draft costs 1 Essence.
 - Claim one troop option and one upgrade option from a revealed draft without spending additional Essence.
+- Troop draft candidates are limited to unlocked factions; defeating an enemy from a locked faction records the combination latently until that faction is later unlocked.
 - Unused Essence carries over between cycles.
 
 ### Rift planning

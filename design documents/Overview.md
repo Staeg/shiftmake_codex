@@ -31,12 +31,13 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 ## Current progression actions
 
 - Claim two free opening troops from native troop rosters, with no repeated faction or troop type.
+- After the opening campaign starts, normal troop drafts are limited to the two unlocked factions' native rosters plus any latent Rift-earned combinations for already-unlocked factions.
 - At the start of cycle 3, choose a new faction from the scheduled faction unlock offer. The chosen faction arrives with 1 random faction upgrade already unlocked, then grants 2 sequential troop type choices for that faction.
 - At the start of cycle 7, choose another new faction from the scheduled faction unlock offer. The chosen faction arrives with 2 random faction upgrades already unlocked, then grants 3 sequential troop type choices for that faction.
 - Reveal troop choices and claim one for 1 Essence.
 - Reveal upgrade choices and claim one for 1 Essence.
 - Use owned factions and owned unit types to bias future draft buckets.
-- Winning a Rift can unlock unusual faction-and-troop combinations from that Rift's enemy army.
+- Winning a Rift can make unusual faction-and-troop combinations from that Rift's enemy army latent future unlocks; those combinations become draftable only once their faction is unlocked.
 - Build synergies through faction-wide and troop-type-wide upgrades.
 
 Removed from the current game:
@@ -52,7 +53,7 @@ Removed from the current game:
 
 - The score is `victoryPoints`.
 - Winning a Rift grants VP equal to that Rift's tier.
-- Rift victories can also unlock unusual troop combinations that appeared in the defeated Rift.
+- Rift victories can also record unusual troop combinations that appeared in the defeated Rift for future faction unlocks.
 - The scored run officially ends after cycle 10.
 
 ## Currently implemented factions

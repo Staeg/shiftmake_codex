@@ -142,6 +142,7 @@
   let troopDrag: TroopDragState | null = null;
   let suppressTroopClickId: TroopId | null = null;
   let openingFocusedTroopUnlockId: TroopUnlockId | null = null;
+  let selectedTroopOfferUnlockId: TroopUnlockId | null = null;
   let rendererDiagnostics: BattleReportDiagnostic[] = [];
   let showUiDebugNames = false;
   let designModeEnabled = false;
@@ -548,7 +549,7 @@
       stats: buildStatEntries(stats, statBreakdowns, true, quantity),
       abilities: abilities.map((ability) => ({
         label: ability.label,
-        description: formatAbilityExact(ability),
+        description: ability.shortText ?? formatAbilityExact(ability),
       })),
     };
   }
@@ -576,6 +577,7 @@
     hoveredDetail = null;
     pinnedDetail = null;
     hoveredAbilityTooltip = null;
+    selectedTroopOfferUnlockId = null;
   }
 
   function clearAutoTimer(): void {
@@ -1045,8 +1047,27 @@
   function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
     hoveredAbilityTooltip = {
       label: ability.label,
-      description: 'shortText' in ability ? formatAbilityExact(ability) : ability.description,
+      description: 'shortText' in ability ? ability.shortText ?? formatAbilityExact(ability) : ability.description,
     };
+  }
+
+  function selectTroopOfferUnlock(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
+    selectedTroopOfferUnlockId = troopUnlockId;
+    pinnedDetail = detail;
+    hoveredDetail = null;
+    hoveredAbilityTooltip = null;
+  }
+
+  function confirmTroopOfferUnlock(): void {
+    if (!selectedTroopOfferUnlockId) {
+      return;
+    }
+
+    gameStore.claimTroopOffer(selectedTroopOfferUnlockId);
+    selectedTroopOfferUnlockId = null;
+    pinnedDetail = null;
+    hoveredDetail = null;
+    hoveredAbilityTooltip = null;
   }
 
   function showMutatorDetail(mutatorId: string): void {
@@ -1178,6 +1199,12 @@
   }
 
   $: uiDebugVisible = debugToolsEnabled && (showUiDebugNames || designModeEnabled);
+  $: if (
+    selectedTroopOfferUnlockId &&
+    !$gameStore.game.activeTroopOffer?.optionTroopUnlockIds.includes(selectedTroopOfferUnlockId)
+  ) {
+    selectedTroopOfferUnlockId = null;
+  }
 
   $: if (debugToolsEnabled && typeof window !== 'undefined' && !verificationLabMode) {
     window.localStorage.setItem(DESIGN_MODE_STORAGE_KEY, JSON.stringify(designTweaksByTarget));
@@ -1213,7 +1240,6 @@
       : null;
   $: activeDetail = openingFocusedDetail ?? pinnedDetail ?? hoveredDetail;
   $: statusCounts = getTroopStatusCounts($gameStore.game);
-  $: ownedUpgradeIds = [...$gameStore.game.factionUpgradeIds, ...$gameStore.game.troopTypeUpgradeIds];
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
   $: essenceDraftButtonLabel =
     essenceDraftCost === 1 ? 'Reveal One Unlock (1 Essence)' : essenceDraftCost === 2 ? 'Reveal Unlock Draft (2 Essence)' : 'Draft Unavailable';
@@ -2024,16 +2050,18 @@
             {/if}
           </div>
         {:else if $gameStore.centerMode === 'troops' && selectedTroop && selectedTroopDefinition}
-          <p class="eyebrow">Allied Troop</p>
+          <p class="eyebrow">Unit Inspect</p>
           <h2>{selectedTroopDefinition.label}</h2>
-          <p>{getFaction(selectedTroop.factionId).label} {getUnitType(selectedTroop.unitTypeId).label}</p>
-          <p>
-            {selectedTroop.assignmentRiftId
-              ? `Assigned to ${selectedTroop.assignmentRiftId}`
-              : selectedTroop.recoveryCyclesRemaining > 0
-                ? `Recovering ${selectedTroop.recoveryCyclesRemaining}`
-                : 'Ready'}
-          </p>
+          <div class="hover-unit-detail">
+            <img class="hover-unit-art" src={getFactionUnitPortrait(selectedTroop.factionId, selectedTroop.unitTypeId)} alt="" aria-hidden="true" />
+            <p>
+              {selectedTroop.assignmentRiftId
+                ? `Assigned to ${selectedTroop.assignmentRiftId}`
+                : selectedTroop.recoveryCyclesRemaining > 0
+                  ? `Recovering ${selectedTroop.recoveryCyclesRemaining}`
+                  : 'Ready'}
+            </p>
+          </div>
           <StatBreakdownGrid
             stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
             columns={4}
@@ -2065,22 +2093,6 @@
               </div>
             {/if}
           </div>
-
-          <div class="assignment-panel">
-            <p class="assignment-label">Open Rifts</p>
-            <div class="assignment-list">
-              {#each discoveredRifts as rift}
-                <button class="list-button" class:selected={selectedTroop.assignmentRiftId === rift.id} on:click={() => gameStore.assignTroopToRift(selectedTroop.id, rift.id)}>
-                  <strong>{formatRiftDisplayId(rift.id)}</strong>
-                  <small>{formatRiftTierLabel(rift.tier)} | Fit {rift.saturation}</small>
-                </button>
-              {/each}
-            </div>
-          </div>
-
-          {#if selectedTroop.assignmentRiftId}
-            <button class="primary" on:click={() => gameStore.clearTroopAssignment(selectedTroop.id)}>Clear Assignment</button>
-          {/if}
         {:else}
           <p class="eyebrow">Unit Inspect</p>
           <h2>No Focus Item</h2>
@@ -2372,17 +2384,26 @@
                   )}
                   <button
                     class="draft-option"
+                    class:selected={selectedTroopOfferUnlockId === troopUnlockId}
                     on:mouseenter={() => previewDetail(troopDetail)}
                     on:focus={() => previewDetail(troopDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click={() => gameStore.claimTroopOffer(troopUnlockId)}
+                    on:click={() => selectTroopOfferUnlock(troopUnlockId, troopDetail)}
                   >
                     <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
                     <span>{describeTroopUnlock(troopUnlockId)}</span>
                   </button>
                 {/each}
               </div>
+              <button
+                type="button"
+                class="primary"
+                disabled={!selectedTroopOfferUnlockId}
+                on:click={confirmTroopOfferUnlock}
+              >
+                Confirm Troop
+              </button>
             </div>
           {/if}
 
@@ -2407,34 +2428,6 @@
             </div>
           {/if}
 
-          <div class="compact-list">
-            <div>
-              <span>Owned Upgrades</span>
-              <strong>{ownedUpgradeIds.length}</strong>
-            </div>
-            <div>
-              <span>Unclaimed Essence</span>
-              <strong>{formatFixed($gameStore.game.essence)}</strong>
-            </div>
-          </div>
-
-          {#if ownedUpgradeIds.length > 0}
-            <div class="unlock-row">
-              {#each ownedUpgradeIds as upgradeId}
-                <button
-                  class="list-button"
-                  on:mouseenter={() => previewDetail(buildUpgradeDetail(upgradeId))}
-                  on:focus={() => previewDetail(buildUpgradeDetail(upgradeId))}
-                  on:mouseleave={clearDetail}
-                  on:blur={clearDetail}
-                  on:click={() => togglePinnedDetail(buildUpgradeDetail(upgradeId))}
-                >
-                  <span>{getUpgradeDetails(upgradeId).label}</span>
-                  <small>{getUpgradeDetails(upgradeId).bucket}</small>
-                </button>
-              {/each}
-            </div>
-          {/if}
         </div>
       {/if}
 
@@ -3362,14 +3355,16 @@
   .unit-tile:hover,
   .sprite-inspect-button:hover,
   .mutator-chip:hover {
-    transform: translateY(-1px);
+    transform: none;
     border-color: rgba(213, 178, 116, 0.6);
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+    box-shadow:
+      inset 0 0 0 1px rgba(213, 178, 116, 0.55),
+      0 10px 22px rgba(0, 0, 0, 0.22);
   }
 
   .archive-card.selected,
   .troop-chip.selected,
-  .list-button.selected,
+  .draft-option.selected,
   .draft-troop-icon.selected,
   .sprite-inspect-button.selected,
   .unit-tile.selected {
