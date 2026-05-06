@@ -932,7 +932,7 @@ function findProtectingPriest(state: InternalState, target: InternalUnit): Inter
   const priests = getAliveUnits(state, target.side).filter(
     (ally) => hasAbility(ally, 'mercy-before-dawn') && hexDistance(ally.position, target.position) <= ally.resolvedStats.range,
   );
-  return priests.sort((left, right) => compareUnitsByDistance(target, left, right))[0] ?? null;
+  return pickNearestUnit(state, target, priests);
 }
 
 function saveUnitFromDeath(
@@ -1623,9 +1623,8 @@ function chooseAdjacentBlastHex(state: InternalState, actor: InternalUnit, origi
   const options = neighbors(origin)
     .filter((coord) => inRadius(coord, state.mapRadius))
     .filter((coord) => !visited.has(hexKey(coord)))
-    .filter((coord) => blastTargetsOnHex(state, actor, coord).length > 0)
-    .sort(compareHex);
-  return options[0] ?? null;
+    .filter((coord) => blastTargetsOnHex(state, actor, coord).length > 0);
+  return options.length > 0 ? pickRandomHex(state, options) : null;
 }
 
 function getStrikeDefaultTarget(event: AbilityTriggerEvent): InternalUnit[] {
@@ -2246,12 +2245,12 @@ function executeStartOfBattleAbilities(state: InternalState): void {
 
 function applyCopiousAle(state: InternalState): void {
   (['player', 'enemy'] as SideId[]).forEach((side) => {
-    if (!sideHasFactionUpgrade(state, side, 'dwarf-copious-ale')) {
+    if (!sideHasFactionUpgrade(state, side, 'dwarf-ale-and-hearty')) {
       return;
     }
     const byTroop = new Map<string, InternalUnit[]>();
     getAliveUnits(state, side)
-      .filter((unit) => isDwarf(unit) && hasAbility(unit, 'copious-ale'))
+      .filter((unit) => isDwarf(unit) && hasAbility(unit, 'ale-and-hearty'))
       .forEach((unit) => {
         const key = `${side}:${unit.troopLabel}`;
         if (state.copiousAleAppliedTroopKeys.has(key)) {
@@ -2269,8 +2268,8 @@ function applyCopiousAle(state: InternalState): void {
         effect: 'copiousAle',
         stat: 'speed',
         amount: fixedSub(1, previousSpeed),
-        sourceAbilityId: 'copious-ale',
-        sourceAbilityLabel: getAbility('copious-ale').label,
+        sourceAbilityId: 'ale-and-hearty',
+        sourceAbilityLabel: getAbility('ale-and-hearty').label,
       });
     });
   });
@@ -2702,7 +2701,7 @@ function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidate
 }
 
 function getStandAsOneRecipients(state: InternalState, target: InternalUnit, damage: number): InternalUnit[] {
-  if (damage <= 0 || !hasAbility(target, 'stand-as-one') || !isDwarf(target)) {
+  if (damage <= 0 || !hasAbility(target, 'mycelial-beards') || !isDwarf(target)) {
     return [target];
   }
   const recipients = getAliveUnits(state, target.side).filter((unit) => isDwarf(unit) && equalsHex(unit.position, target.position));
@@ -2950,25 +2949,6 @@ function validMovementHexes(state: InternalState, actor: InternalUnit): HexCoord
     .filter((coord) => fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) <= state.saturation);
 }
 
-function compareHex(left: HexCoord, right: HexCoord): number {
-  if (left.q !== right.q) {
-    return left.q - right.q;
-  }
-  return left.r - right.r;
-}
-
-function compareUnitsByDistance(actor: InternalUnit, left: InternalUnit, right: InternalUnit): number {
-  const distanceDelta = hexDistance(actor.position, left.position) - hexDistance(actor.position, right.position);
-  if (distanceDelta !== 0) {
-    return distanceDelta;
-  }
-  const positionDelta = compareHex(left.position, right.position);
-  if (positionDelta !== 0) {
-    return positionDelta;
-  }
-  return left.id.localeCompare(right.id);
-}
-
 function getEnemyUnits(state: InternalState, actor: InternalUnit, roles: RoleId[] = []): InternalUnit[] {
   return getAliveUnits(state)
     .filter((unit) => unit.side !== actor.side)
@@ -2979,8 +2959,12 @@ function getAlliedBackline(state: InternalState, actor: InternalUnit): InternalU
   return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'backline');
 }
 
-function pickNearestUnit(actor: InternalUnit, candidates: InternalUnit[]): InternalUnit | null {
-  return [...candidates].sort((left, right) => compareUnitsByDistance(actor, left, right))[0] ?? null;
+function pickNearestUnit(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+  const nearestDistance = Math.min(...candidates.map((candidate) => hexDistance(actor.position, candidate.position)));
+  return state.rng.pick(candidates.filter((candidate) => hexDistance(actor.position, candidate.position) === nearestDistance));
 }
 
 function countFriendlyFrontlineUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
@@ -3089,22 +3073,19 @@ type RoleObjective = {
 };
 
 function pickFrontlineObjective(state: InternalState, actor: InternalUnit): RoleObjective | null {
-  const screeningTargets = getEnemyUnits(state, actor, ['frontline', 'chaff']).sort((left, right) => {
-    const priorityDelta = getScreenPriority(state, actor, left) - getScreenPriority(state, actor, right);
-    if (priorityDelta !== 0) {
-      return priorityDelta;
-    }
-    return compareUnitsByDistance(actor, left, right);
-  });
+  const screeningTargets = getEnemyUnits(state, actor, ['frontline', 'chaff']);
   if (screeningTargets.length > 0) {
+    const bestPriority = Math.min(...screeningTargets.map((target) => getScreenPriority(state, actor, target)));
+    const priorityTiedTargets = screeningTargets.filter((target) => getScreenPriority(state, actor, target) === bestPriority);
+    const target = pickNearestUnit(state, actor, priorityTiedTargets)!;
     return {
-      target: screeningTargets[0]!,
+      target,
       roleIntent: 'screen-frontline',
       reasonCode: 'block-access',
-      targetRole: screeningTargets[0]!.role,
+      targetRole: target.role,
     };
   }
-  const backlineTarget = pickNearestUnit(actor, getEnemyUnits(state, actor, ['backline']));
+  const backlineTarget = pickNearestUnit(state, actor, getEnemyUnits(state, actor, ['backline']));
   if (!backlineTarget) {
     return null;
   }
@@ -3126,7 +3107,7 @@ function pickChaffObjective(state: InternalState, actor: InternalUnit): RoleObje
       targetRole: committedTarget.role,
     };
   }
-  const backlineTarget = pickNearestUnit(actor, getEnemyUnits(state, actor, ['backline']));
+  const backlineTarget = pickNearestUnit(state, actor, getEnemyUnits(state, actor, ['backline']));
   if (backlineTarget) {
     actor.committedBacklineTargetId = backlineTarget.id;
     return {
@@ -3137,7 +3118,7 @@ function pickChaffObjective(state: InternalState, actor: InternalUnit): RoleObje
     };
   }
   actor.committedBacklineTargetId = null;
-  const fallbackTarget = pickNearestUnit(actor, getEnemyUnits(state, actor));
+  const fallbackTarget = pickNearestUnit(state, actor, getEnemyUnits(state, actor));
   if (!fallbackTarget) {
     return null;
   }
@@ -3159,7 +3140,7 @@ function findClosestEnemy(state: InternalState, actor: InternalUnit, preferredRo
   if (enemies.length === 0) {
     return null;
   }
-  return enemies.sort((a, b) => compareUnitsByDistance(actor, a, b))[0] ?? null;
+  return pickNearestUnit(state, actor, enemies);
 }
 
 function moveToward(
@@ -3193,7 +3174,7 @@ function moveToward(
     const minFrontlineSupport = Math.min(...finalists.map((entry) => countFriendlyFrontlineUnitsOnHex(state, actor, entry.coord)));
     finalists = finalists.filter((entry) => countFriendlyFrontlineUnitsOnHex(state, actor, entry.coord) === minFrontlineSupport);
   }
-  const selected = finalists.sort((left, right) => compareHex(left.coord, right.coord))[0]!;
+  const selected = state.rng.pick(finalists);
   if (equalsHex(selected.coord, actor.position)) {
     return false;
   }
@@ -3311,7 +3292,7 @@ function retreatFromEngagement(
 }
 
 function skirmisherRetreat(state: InternalState, actor: InternalUnit): boolean {
-  const nearestThreat = pickNearestUnit(actor, getEnemyUnits(state, actor));
+  const nearestThreat = pickNearestUnit(state, actor, getEnemyUnits(state, actor));
   return retreatFromEngagement(
     state,
     actor,
@@ -3323,7 +3304,7 @@ function skirmisherRetreat(state: InternalState, actor: InternalUnit): boolean {
 }
 
 function retreat(state: InternalState, actor: InternalUnit): boolean {
-  const target = pickNearestUnit(actor, getEnemyUnits(state, actor));
+  const target = pickNearestUnit(state, actor, getEnemyUnits(state, actor));
   const options = validMovementHexes(state, actor).filter(
     (coord) => getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord)).length === 0,
   );

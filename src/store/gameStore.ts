@@ -111,7 +111,7 @@ function makeInitialState(): StoreState {
     currentStep: -1,
     selectedEvent: null,
     autoPlay: false,
-    speedMs: 500,
+    speedMs: 8,
     validationMessages: [],
     systemMessage: null,
     cycleEndConfirmationPending: false,

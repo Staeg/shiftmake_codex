@@ -2,7 +2,7 @@
   export let replayLength = 0;
   export let currentStep = -1;
   export let autoPlay = false;
-  export let speedMs = 500;
+  export let speedMs = 8;
 
   export let onStepBack: () => void;
   export let onStepForward: () => void;
@@ -11,7 +11,7 @@
   export let onSetSpeed: (ms: number) => void;
 
   const BASE_STEP_MS = 500;
-  const SPEED_MULTIPLIERS = [0.5, 1, 2, 4, 8];
+  const SPEED_MULTIPLIERS = [0.25, 1, 4, 16, 64];
   const SPEED_PRESETS = SPEED_MULTIPLIERS.map((multiplier) => ({
     label: `${multiplier}x`,
     ms: Math.round(BASE_STEP_MS / multiplier),

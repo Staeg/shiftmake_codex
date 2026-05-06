@@ -190,16 +190,16 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [],
     shortText: 'Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board.',
   }),
-  'copious-ale': makeAbility({
-    id: 'copious-ale',
+  'ale-and-hearty': makeAbility({
+    id: 'ale-and-hearty',
     label: 'Ale and Hearty',
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
     shortText: 'Passive: one random unit from each troop has speed set to 1 at the start of combat.',
   }),
-  'stand-as-one': makeAbility({
-    id: 'stand-as-one',
+  'mycelial-beards': makeAbility({
+    id: 'mycelial-beards',
     label: 'Mycelial Beards',
     trigger: { timing: 'passive' },
     duration: instantDuration(),
@@ -1347,24 +1347,24 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     description: 'Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.',
     effects: [{ kind: 'addAbility', abilityId: 'diggy-hole' }],
   },
-  'dwarf-copious-ale': {
-    id: 'dwarf-copious-ale',
+  'dwarf-ale-and-hearty': {
+    id: 'dwarf-ale-and-hearty',
     factionId: 'dwarf',
     label: 'Ale and Hearty',
     tier: 2,
     description: 'Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.',
     effects: [
       { kind: 'modifyStats', statModifiers: { speed: { multiplier: 1.4 } } },
-      { kind: 'addAbility', abilityId: 'copious-ale' },
+      { kind: 'addAbility', abilityId: 'ale-and-hearty' },
     ],
   },
-  'dwarf-stand-as-one': {
-    id: 'dwarf-stand-as-one',
+  'dwarf-mycelial-beards': {
+    id: 'dwarf-mycelial-beards',
     factionId: 'dwarf',
     label: 'Mycelial Beards',
     tier: 2,
     description: 'When a Dwarven unit would receive damage, split that damage equally among all Dwarven units on its hex after mitigation.',
-    effects: [{ kind: 'addAbility', abilityId: 'stand-as-one' }],
+    effects: [{ kind: 'addAbility', abilityId: 'mycelial-beards' }],
   },
   'dwarf-stall-warts': {
     id: 'dwarf-stall-warts',

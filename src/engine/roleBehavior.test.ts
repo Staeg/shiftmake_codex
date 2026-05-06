@@ -249,6 +249,40 @@ describe('role behavior', () => {
     expect(retreatDestinations.size).toBeGreaterThan(1);
   });
 
+  it('backline advance target ties vary by seed', () => {
+    const archerStats = {
+      ...getTroopDefinitionOrThrow('elf/archer').stats,
+      range: 1,
+      speed: 20,
+    };
+    const enemyStats = {
+      ...getTroopDefinitionOrThrow('human/soldier').stats,
+      damage: 0,
+      speed: 1,
+    };
+    const advanceTargets = new Set(
+      Array.from({ length: 160 }, (_, offset) => 900 + offset)
+        .map((seed) =>
+          resolveBattle(
+            makeBattleInput(
+              [makeBattleCombatant('elf/archer', 'player', { label: 'Player Backline', stats: archerStats })],
+              [
+                makeBattleCombatant('human/soldier', 'enemy', { label: 'Enemy A', stats: enemyStats }),
+                makeBattleCombatant('human/soldier', 'enemy', { label: 'Enemy B', stats: enemyStats }),
+              ],
+              seed,
+            ),
+          ),
+        )
+        .map((replay) => findFirstRoleStep(replay, 'Player Backline', 'advance-range'))
+        .filter((step): step is BattleStep => Boolean(step))
+        .map((step) => stepTargetLabels(step)[0])
+        .filter((label): label is string => Boolean(label)),
+    );
+
+    expect(advanceTargets.size).toBeGreaterThan(1);
+  });
+
   it('replay metadata exposes role intent and reason codes', () => {
     const replay = resolveBattle(
       makeBattleInput(

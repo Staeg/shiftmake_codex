@@ -664,8 +664,8 @@ describe('ability mechanics', () => {
         'troll-crushing-sweep',
         'troll-rowdy-regrowth',
         'dwarf-diggy-hole',
-        'dwarf-copious-ale',
-        'dwarf-stand-as-one',
+        'dwarf-ale-and-hearty',
+        'dwarf-mycelial-beards',
         'dwarf-stall-warts',
         'orc-seeing-red',
         'orc-first-blood',
@@ -789,8 +789,8 @@ describe('ability mechanics', () => {
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('dogpile');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('rabble-rush');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('diggy-hole');
-    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('copious-ale');
-    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stand-as-one');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('ale-and-hearty');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('mycelial-beards');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stall-warts');
     expect(dwarfSoldier.stats.speed).toBe(11.9);
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('seeing-red');
@@ -828,7 +828,7 @@ describe('ability mechanics', () => {
 
   it('Ale and Hearty sets one random unit from each Dwarven troop to speed 1', () => {
     const dwarf = resolveTroopCombatant(
-      { factionUpgradeIds: ['dwarf-copious-ale'], troopTypeUpgradeIds: [] },
+      { factionUpgradeIds: ['dwarf-ale-and-hearty'], troopTypeUpgradeIds: [] },
       createTroopInstance('dwarf', 'soldier'),
       'player',
     );
@@ -838,9 +838,9 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
 
     const input = makeBattleInput([dwarf], [enemy], 62);
-    input.playerFactionUpgradeIds = ['dwarf-copious-ale'];
+    input.playerFactionUpgradeIds = ['dwarf-ale-and-hearty'];
     const replay = resolveBattle(input);
-    const aleStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'copious-ale');
+    const aleStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'ale-and-hearty');
 
     expect(aleStep).toBeTruthy();
     const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.factionId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
@@ -849,7 +849,7 @@ describe('ability mechanics', () => {
 
   it('Mycelial Beards shares mitigated damage among Dwarves on the target hex', () => {
     const dwarf = resolveTroopCombatant(
-      { factionUpgradeIds: ['dwarf-stand-as-one'], troopTypeUpgradeIds: [] },
+      { factionUpgradeIds: ['dwarf-mycelial-beards'], troopTypeUpgradeIds: [] },
       createTroopInstance('dwarf', 'soldier'),
       'player',
     );
@@ -859,7 +859,7 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 23, speed: 100, range: 99 };
 
     const input = makeBattleInput([dwarf], [enemy], 63);
-    input.playerFactionUpgradeIds = ['dwarf-stand-as-one'];
+    input.playerFactionUpgradeIds = ['dwarf-mycelial-beards'];
     const replay = resolveBattle(input);
     const sharedStep = replay.steps.find((step) => step.kind === 'attack' && step.message.includes('shared among 2 Dwarves'));
 

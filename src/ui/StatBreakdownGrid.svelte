@@ -6,6 +6,8 @@
   export let stats: Array<{
     key: string;
     label: string;
+    name?: string;
+    description?: string;
     value: string;
     breakdown: StatBreakdown | null;
     action?: {
@@ -23,6 +25,17 @@
   let hoveredKey: string | null = null;
   let tooltipStyle = '';
 
+  const STAT_FALLBACKS: Record<string, { name: string; description: string }> = {
+    health: { name: 'Health', description: 'How much punishment each unit can take before falling.' },
+    damage: { name: 'Damage', description: 'How much harm each attack deals before armor and other effects.' },
+    speed: { name: 'Speed', description: 'How quickly the unit gains initiative and takes turns.' },
+    range: { name: 'Range', description: 'How many hexes away the unit can attack from.' },
+    armor: { name: 'Armor', description: 'Flat damage reduction applied when the unit is hit.' },
+    capacity: { name: 'Capacity', description: 'How many enemies this unit can hold in melee engagement.' },
+    size: { name: 'Size', description: 'How much space each unit occupies on the battlefield.' },
+    quantity: { name: 'Quantity', description: 'How many bodies are in this troop group.' },
+  };
+
   function formatLineValue(kind: StatBreakdown['lines'][number]['kind'], value: number): string {
     if (kind === 'base') {
       return formatFixed(value);
@@ -34,14 +47,14 @@
   }
 
   function openTooltip(stat: (typeof stats)[number], target: EventTarget | null): void {
-    if (!stat.breakdown || !(target instanceof HTMLElement)) {
+    if (!(target instanceof HTMLElement)) {
       hoveredKey = null;
       return;
     }
 
     hoveredKey = stat.key;
     const width = Math.min(220, Math.max(180, window.innerWidth - 24));
-    const estimatedHeight = 68 + stat.breakdown.lines.length * 26;
+    const estimatedHeight = 96 + (stat.breakdown?.lines.length ?? 0) * 26;
     const rect = target.getBoundingClientRect();
     const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - width - 12));
     const prefersAbove = rect.bottom + 10 + estimatedHeight > window.innerHeight && rect.top - 10 - estimatedHeight > 12;
@@ -51,43 +64,39 @@
   }
 
   function handleKeydown(event: KeyboardEvent, stat: (typeof stats)[number]): void {
-    if (!stat.breakdown) {
-      return;
-    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       openTooltip(stat, event.currentTarget);
     }
+  }
+
+  function statName(stat: (typeof stats)[number]): string {
+    return stat.name ?? STAT_FALLBACKS[stat.key]?.name ?? stat.label;
+  }
+
+  function statDescription(stat: (typeof stats)[number]): string {
+    return stat.description ?? STAT_FALLBACKS[stat.key]?.description ?? 'A combat statistic used by the battle resolver.';
   }
 </script>
 
 <div class="stats-grid" style={`--stat-columns:${columns};`}>
   {#each stats as stat}
     <div class="stat-card">
-      {#if stat.breakdown}
-        <button
-          type="button"
-          class="stat-main inspectable"
-          aria-label={`${stat.label} details`}
-          on:mouseenter={(event) => openTooltip(stat, event.currentTarget)}
-          on:focus={(event) => openTooltip(stat, event.currentTarget)}
-          on:keydown={(event) => handleKeydown(event, stat)}
-          on:mouseleave={() => (hoveredKey = null)}
-          on:blur={() => (hoveredKey = null)}
-        >
-          <span class="stat-head">
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-          </span>
-        </button>
-      {:else}
-        <div class="stat-main">
-          <span class="stat-head">
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-          </span>
-        </div>
-      {/if}
+      <button
+        type="button"
+        class="stat-main inspectable"
+        aria-label={`${statName(stat)} details`}
+        on:mouseenter={(event) => openTooltip(stat, event.currentTarget)}
+        on:focus={(event) => openTooltip(stat, event.currentTarget)}
+        on:keydown={(event) => handleKeydown(event, stat)}
+        on:mouseleave={() => (hoveredKey = null)}
+        on:blur={() => (hoveredKey = null)}
+      >
+        <span class="stat-head">
+          <span>{stat.label}</span>
+          <strong>{stat.value}</strong>
+        </span>
+      </button>
       {#if stat.action}
         <button
           type="button"
@@ -109,9 +118,10 @@
       {#if stat.breakdown && hoveredKey === stat.key}
         <span class="stat-breakdown-tooltip" style={tooltipStyle}>
           <span class="tooltip-header">
-            <strong>{stat.label}</strong>
+            <strong>{statName(stat)}</strong>
             <span class="tooltip-total">{formatFixed(stat.breakdown.finalValue)}</span>
           </span>
+          <span class="tooltip-description">{statDescription(stat)}</span>
           <span class="breakdown-lines">
             {#each stat.breakdown.lines as line}
               <span class="breakdown-line">
@@ -120,6 +130,14 @@
               </span>
             {/each}
           </span>
+        </span>
+      {:else if hoveredKey === stat.key}
+        <span class="stat-breakdown-tooltip" style={tooltipStyle}>
+          <span class="tooltip-header">
+            <strong>{statName(stat)}</strong>
+            <span class="tooltip-total">{stat.value}</span>
+          </span>
+          <span class="tooltip-description">{statDescription(stat)}</span>
         </span>
       {/if}
     </div>
@@ -253,6 +271,12 @@
     align-items: start;
     justify-content: space-between;
     gap: 0.75rem;
+  }
+
+  .tooltip-description {
+    color: #a7b8c8;
+    font-size: 0.74rem;
+    line-height: 1.35;
   }
 
   .tooltip-total,

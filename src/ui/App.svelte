@@ -4,12 +4,20 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getFactionTroops, getTroopEffectiveDefinition, getTroopStatusCounts, getTroopsAssignedToRift } from '../engine/army';
+  import {
+    createTroopInstance,
+    getFactionTroops,
+    getTroopEffectiveDefinition,
+    getTroopStatusCounts,
+    getTroopsAssignedToRift,
+    resolveTroopCombatant,
+  } from '../engine/army';
   import { formatFixed } from '../engine/fixed';
   import {
     FACTIONS,
     FACTION_UPGRADES,
     TROOP_CATALOG,
+    TROOP_TYPE_UPGRADES,
     getFactionNativeTroopUnlockIds,
     getAbility,
     getFaction,
@@ -52,6 +60,8 @@
   type StatEntry = {
     key: string;
     label: string;
+    name?: string;
+    description?: string;
     value: string;
     breakdown: StatBreakdown | null;
   };
@@ -62,6 +72,7 @@
         kind: 'mutator' | 'faction' | 'upgrade';
         label: string;
         description: string;
+        stats?: StatEntry[];
       }
     | {
         detailKey: string;
@@ -103,6 +114,7 @@
     maxHp: number;
     hpPercent: string;
     hpLabel: string;
+    unitsMinHeight: string;
     units: ReplayHealthUnit[];
   };
 
@@ -143,6 +155,7 @@
   let suppressTroopClickId: TroopId | null = null;
   let openingFocusedTroopUnlockId: TroopUnlockId | null = null;
   let selectedTroopOfferUnlockId: TroopUnlockId | null = null;
+  let lastInspectContextKey = '';
   let rendererDiagnostics: BattleReportDiagnostic[] = [];
   let showUiDebugNames = false;
   let designModeEnabled = false;
@@ -427,6 +440,47 @@
     };
   }
 
+  function getStatLabel(key: ExplainedStatKey): string {
+    return {
+      health: 'Health',
+      damage: 'Damage',
+      speed: 'Speed',
+      range: 'Range',
+      armor: 'Armor',
+      capacity: 'Capacity',
+      size: 'Size',
+    }[key];
+  }
+
+  function getStatDescription(key: ExplainedStatKey): string {
+    return {
+      health: 'How much punishment each unit can take before falling.',
+      damage: 'How much harm each attack deals before armor and other effects.',
+      speed: 'How quickly the unit gains initiative and takes turns.',
+      range: 'How many hexes away the unit can attack from.',
+      armor: 'Flat damage reduction applied when the unit is hit.',
+      capacity: 'How many enemies this unit can hold in melee engagement.',
+      size: 'How much space each unit occupies on the battlefield.',
+    }[key];
+  }
+
+  function formatStatModifier(value: { flat?: number; multiplier?: number } | undefined): string {
+    if (!value) {
+      return '0';
+    }
+
+    const parts: string[] = [];
+    const multiplier = value.multiplier ?? 1;
+    const percent = (multiplier - 1) * 100;
+    if (percent !== 0) {
+      parts.push(`${percent > 0 ? '+' : ''}${formatFixed(percent)}%`);
+    }
+    if ((value.flat ?? 0) !== 0) {
+      parts.push(`${value.flat! > 0 ? '+' : ''}${formatFixed(value.flat!)}`);
+    }
+    return parts.join(', ') || '0';
+  }
+
   function buildStatEntries(
     stats: { health: number; damage: number; speed: number; armor: number; range: number; capacity: number; size?: number },
     breakdowns?: Partial<Record<ExplainedStatKey, StatBreakdown>>,
@@ -435,16 +489,20 @@
   ): StatEntry[] {
     const keys = includeSize ? EXPLAINED_STAT_ORDER : EXPLAINED_STAT_ORDER.filter((stat) => stat !== 'size');
     const entries = keys.map((key) => ({
-      key,
-      label: displayIcon(key),
-      value: formatFixed(key === 'size' ? stats.size ?? 0 : stats[key as keyof typeof stats] as number),
-      breakdown: breakdowns?.[key] ?? null,
+        key,
+        label: displayIcon(key),
+        name: getStatLabel(key),
+        description: getStatDescription(key),
+        value: formatFixed(key === 'size' ? stats.size ?? 0 : stats[key as keyof typeof stats] as number),
+        breakdown: breakdowns?.[key] ?? null,
     }));
 
     if (typeof quantity === 'number') {
       entries.push({
         key: 'quantity',
         label: displayIcon('quantity'),
+        name: 'Quantity',
+        description: 'How many bodies are in this troop group.',
         value: formatFixed(quantity),
         breakdown: null,
       });
@@ -501,11 +559,30 @@
 
   function buildFactionDetail(factionId: FactionId): DetailCard {
     const faction = getFaction(factionId);
+    const nonStatModifiers = [
+      ...(faction.addedAttributes.length > 0 ? [`Attributes: ${faction.addedAttributes.join(', ')}.`] : []),
+      ...faction.abilityIds.map((abilityId) => {
+        const ability = getAbility(abilityId);
+        return `${ability.label}: ${formatAbilityExact(ability)}`;
+      }),
+    ];
+    const stats = (['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'] as ExplainedStatKey[])
+      .map((key) => ({
+        key,
+        label: displayIcon(key),
+        name: getStatLabel(key),
+        description: getStatDescription(key),
+        value: formatStatModifier(faction.statAdjustments[key]),
+        breakdown: null,
+      }))
+      .filter((entry) => entry.value !== '0');
+
     return {
       detailKey: `faction:${factionId}`,
       kind: 'faction',
       label: faction.label,
-      description: [faction.description, ...describeFactionModifiers(factionId)].join(' '),
+      description: nonStatModifiers.length > 0 ? nonStatModifiers.join(' ') : 'No special non-stat modifiers.',
+      stats,
     };
   }
 
@@ -525,7 +602,7 @@
       detailKey: `upgrade:${upgradeId}`,
       kind: 'upgrade',
       label: details.label,
-      description: `${details.bucket}. ${details.description}`,
+      description: details.description,
     };
   }
 
@@ -842,6 +919,26 @@
     );
   }
 
+  function buildScheduledTroopDetail(troopUnlockId: TroopUnlockId, grantedUpgradeIds: UpgradeId[], description: string): DetailCard {
+    const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
+    const previewState = {
+      factionUpgradeIds: [...new Set([...$gameStore.game.factionUpgradeIds, ...grantedUpgradeIds])],
+      troopTypeUpgradeIds: $gameStore.game.troopTypeUpgradeIds,
+    };
+    const troopDef = resolveTroopCombatant(previewState, createTroopInstance(factionId, unitTypeId), 'player');
+    return buildResolvedUnitDetail(
+      `scheduled-faction:${troopUnlockId}:${grantedUpgradeIds.join(',')}`,
+      troopDef.label,
+      factionId,
+      unitTypeId,
+      troopDef.stats,
+      troopDef.quantity,
+      description,
+      troopDef.abilities,
+      troopDef.statBreakdowns,
+    );
+  }
+
   function startTroopDrag(event: PointerEvent, troopId: TroopId, sourceRiftId: string | null, label: string, portraitUrl: string): void {
     if (troopDrag || (event.pointerType === 'mouse' && event.button !== 0)) {
       return;
@@ -1083,7 +1180,7 @@
   }
 
   function formatHpLabel(currentHp: number, maxHp: number): string {
-    return `${formatFixed(currentHp)} / ${formatFixed(maxHp)}`;
+    return `${Math.round(currentHp)} / ${Math.round(maxHp)}`;
   }
 
   function getHpPercent(currentHp: number, maxHp: number): string {
@@ -1094,19 +1191,39 @@
     return `${Math.max(0, Math.min(100, (currentHp / maxHp) * 100))}%`;
   }
 
-  function buildReplayHealthSide(snapshot: BattleUnit[], side: SideId): ReplayHealthSide {
-    const sideUnits = snapshot.filter((unit) => unit.side === side);
-    const currentHp = sideUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
-    const maxHp = sideUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
-    const units = sideUnits
-      .filter((unit) => unit.alive)
-      .sort((left, right) => left.id.localeCompare(right.id))
-      .map((unit) => ({
-        unit,
-        hpPercent: getHpPercent(unit.hp, unit.maxHp),
-        hpLabel: formatHpLabel(unit.hp, unit.maxHp),
+  function buildReplayHealthRoster(replay: BattleReplay): BattleUnit[] {
+    const unitsById = new Map<string, BattleUnit>();
+    const rememberUnit = (unit: BattleUnit): void => {
+      if (!unitsById.has(unit.id)) {
+        unitsById.set(unit.id, unit);
+      }
+    };
+
+    replay.initial.units.forEach(rememberUnit);
+    replay.steps.forEach((step) => step.snapshot.units.forEach(rememberUnit));
+
+    return [...unitsById.values()].sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  function buildReplayHealthSide(roster: BattleUnit[], snapshot: BattleUnit[], side: SideId): ReplayHealthSide {
+    const currentUnitsById = new Map(snapshot.map((unit) => [unit.id, unit]));
+    const sideUnits = roster.filter((unit) => unit.side === side);
+    const snapshotSideUnits = snapshot.filter((unit) => unit.side === side);
+    const currentHp = snapshotSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
+    const maxHp = snapshotSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
+    const units = sideUnits.flatMap((unit) => {
+      const currentUnit = currentUnitsById.get(unit.id);
+      if (!currentUnit?.alive) {
+        return [];
+      }
+
+      return [{
+        unit: currentUnit,
+        hpPercent: getHpPercent(currentUnit.hp, currentUnit.maxHp),
+        hpLabel: formatHpLabel(currentUnit.hp, currentUnit.maxHp),
         portraitUrl: getReplayUnitPortraitUrl(unit),
-      }));
+      }];
+    });
 
     return {
       side,
@@ -1115,6 +1232,7 @@
       maxHp,
       hpPercent: getHpPercent(currentHp, maxHp),
       hpLabel: formatHpLabel(currentHp, maxHp),
+      unitsMinHeight: `${sideUnits.length * 1.9 + Math.max(0, sideUnits.length - 1) * 0.28}rem`,
       units,
     };
   }
@@ -1238,6 +1356,18 @@
     openingFocusedTroopUnlockId && selectedOpeningTroopUnlockIds.has(openingFocusedTroopUnlockId)
       ? buildOpeningTroopDetail(openingFocusedTroopUnlockId)
       : null;
+  $: {
+    const inspectContextKey = `${$gameStore.screen}:${$gameStore.game.phase}`;
+    if (inspectContextKey !== lastInspectContextKey) {
+      lastInspectContextKey = inspectContextKey;
+      resetOverworldInspect();
+      if ($gameStore.screen !== 'overworld' || $gameStore.game.phase === 'faction_unlock') {
+        selectedRiftId = null;
+        selectedTroopId = null;
+        selectedReplayId = null;
+      }
+    }
+  }
   $: activeDetail = openingFocusedDetail ?? pinnedDetail ?? hoveredDetail;
   $: statusCounts = getTroopStatusCounts($gameStore.game);
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
@@ -1284,6 +1414,20 @@
     return $gameStore.game.unlockedTroopUnlockIds.filter((troopUnlockId) => parseTroopUnlockId(troopUnlockId)[0] === factionId);
   }
 
+  function getAffectedTroopsForUpgrade(upgradeId: UpgradeId) {
+    if (upgradeId in FACTION_UPGRADES) {
+      const factionId = FACTION_UPGRADES[upgradeId]!.factionId;
+      return $gameStore.game.troops.filter((troop) => troop.factionId === factionId);
+    }
+
+    const troopTypeUpgrade = TROOP_TYPE_UPGRADES[upgradeId];
+    if (!troopTypeUpgrade) {
+      return [];
+    }
+
+    return $gameStore.game.troops.filter((troop) => troop.unitTypeId === troopTypeUpgrade.unitTypeId);
+  }
+
   $: if (selectedRiftId && !discoveredRifts.some((rift) => rift.id === selectedRiftId)) {
     selectedRiftId = null;
   }
@@ -1320,8 +1464,9 @@
 
   $: replay = $gameStore.loadedReplay;
   $: replaySnapshot = replay ? currentSnapshot(replay) : [];
+  $: replayHealthRoster = replay ? buildReplayHealthRoster(replay) : [];
   $: replayHealthOverview = replay
-    ? [buildReplayHealthSide(replaySnapshot, 'player'), buildReplayHealthSide(replaySnapshot, 'enemy')]
+    ? [buildReplayHealthSide(replayHealthRoster, replaySnapshot, 'player'), buildReplayHealthSide(replayHealthRoster, replaySnapshot, 'enemy')]
     : [];
   $: currentUnitById = new Map(replaySnapshot.map((unit) => [unit.id, unit]));
   $: replayProfilesByKey = new Map((replay?.troopProfiles ?? []).map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
@@ -1670,102 +1815,183 @@
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'faction_unlock' && $gameStore.game.activeFactionUnlockOffer}
   <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Scheduled faction unlock screen">
+    <section class="draft-panel opening-shell scheduled-faction-shell ui-debug-target" data-ui-name="Scheduled faction unlock screen">
       <div class="draft-screen-header">
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber} Muster</p>
         <h1>Choose a Faction</h1>
-        <p>Each candidate joins with its shown faction upgrade already unlocked. Native troops are ready for immediate mustering; discovered troops show what your victories have made possible.</p>
+        <p class="scheduled-unlock-instructions">Each candidate joins with its shown faction upgrade already unlocked. Native troops are ready for immediate mustering; discovered troops show what your victories have made possible.</p>
       </div>
 
-      <div class="draft-grid faction-unlock-grid">
-        {#each $gameStore.game.activeFactionUnlockOffer.optionFactionIds as factionId}
-          {@const faction = getFaction(factionId)}
-          {@const factionDetail = buildFactionDetail(factionId)}
-          {@const nativeTroopUnlockIds = getFactionNativeTroopUnlockIds(factionId)}
-          {@const futureTroopUnlockIds = getDefeatedFutureTroopUnlockIds(factionId)}
-          {@const grantedUpgradeIds = $gameStore.game.activeFactionUnlockOffer.upgradeIdsByFactionId[factionId] ?? []}
-          <article class="draft-card panel faction-unlock-card ui-debug-target" data-ui-name={`Faction unlock option ${faction.label}`}>
-            <header class="draft-card-header">
-              <div class="draft-card-title">
-                <strong>{faction.label}</strong>
-                <button
-                  type="button"
-                  class="sprite-inspect-button"
-                  class:selected={activeDetail?.detailKey === factionDetail.detailKey}
-                  aria-label={`Inspect ${faction.label} faction modifiers`}
-                  on:mouseenter={() => previewDetail(factionDetail)}
-                  on:focus={() => previewDetail(factionDetail)}
-                  on:mouseleave={clearDetail}
-                  on:blur={clearDetail}
-                  on:click={() => togglePinnedDetail(factionDetail)}
-                >
-                  <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
-                </button>
-              </div>
-              <small>{faction.description}</small>
-            </header>
+      <div class="draft-layout scheduled-faction-layout" class:has-detail={!!activeDetail}>
+        {#if activeDetail}
+          <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Scheduled faction detail panel" role="presentation" on:mouseleave={clearDetail}>
+            <div class="detail-panel opening-detail-panel">
+              <p class="eyebrow">
+                {activeDetail.kind === 'faction'
+                  ? 'Faction Modifiers'
+                  : activeDetail.kind === 'upgrade'
+                    ? 'Upgrade Effects'
+                    : activeDetail.kind === 'unit'
+                      ? 'Troop Preview'
+                      : 'Detail'}
+              </p>
+              <h2>{activeDetail.label}</h2>
+              {#if activeDetail.kind === 'unit'}
+                <div class="hover-unit-detail">
+                  <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden="true" />
+                  <p>{activeDetail.description}</p>
+                </div>
+                <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+                <div class="ability-row detail-ability-row">
+                  <span>Abilities</span>
+                  <div class="ability-list">
+                    {#if activeDetail.abilities.length === 0}
+                      <span class="mutator-chip empty">None</span>
+                    {:else}
+                      {#each activeDetail.abilities as ability}
+                        <button
+                          class="mutator-chip ability-chip"
+                          on:mouseenter={() => showAbilityTooltip(ability)}
+                          on:focus={() => showAbilityTooltip(ability)}
+                          on:mouseleave={() => (hoveredAbilityTooltip = null)}
+                          on:blur={() => (hoveredAbilityTooltip = null)}
+                        >
+                          {ability.label}
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
+                  {#if hoveredAbilityTooltip}
+                    <div class="ability-hover-tooltip">
+                      <strong>{hoveredAbilityTooltip.label}</strong>
+                      <p>{hoveredAbilityTooltip.description}</p>
+                    </div>
+                  {/if}
+                </div>
+              {:else}
+                <p>{activeDetail.description}</p>
+                {#if activeDetail.stats && activeDetail.stats.length > 0}
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+                {/if}
+              {/if}
+            </div>
+          </aside>
+        {/if}
 
-            <div class="draft-section">
-              <span class="draft-section-label">Granted upgrades</span>
-              <div class="unlock-row">
-                {#each grantedUpgradeIds as upgradeId}
+        <div class="draft-grid faction-unlock-grid">
+          {#each $gameStore.game.activeFactionUnlockOffer.optionFactionIds as factionId}
+            {@const faction = getFaction(factionId)}
+            {@const factionDetail = buildFactionDetail(factionId)}
+            {@const nativeTroopUnlockIds = getFactionNativeTroopUnlockIds(factionId)}
+            {@const futureTroopUnlockIds = getDefeatedFutureTroopUnlockIds(factionId)}
+            {@const grantedUpgradeIds = $gameStore.game.activeFactionUnlockOffer.upgradeIdsByFactionId[factionId] ?? []}
+            <article class="draft-card panel faction-unlock-card ui-debug-target" data-ui-name={`Faction unlock option ${faction.label}`}>
+              <header class="draft-card-header">
+                <div class="draft-card-title">
+                  <strong>{faction.label}</strong>
                   <button
-                    class="list-button upgrade-grant"
-                    on:mouseenter={() => previewDetail(buildUpgradeDetail(upgradeId))}
-                    on:focus={() => previewDetail(buildUpgradeDetail(upgradeId))}
+                    type="button"
+                    class="sprite-inspect-button"
+                    class:selected={activeDetail?.detailKey === factionDetail.detailKey}
+                    aria-label={`Inspect ${faction.label} faction modifiers`}
+                    on:mouseenter={() => previewDetail(factionDetail)}
+                    on:focus={() => previewDetail(factionDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(buildUpgradeDetail(upgradeId))}
+                    on:click={() => togglePinnedDetail(factionDetail)}
                   >
-                    <span>{getUpgradeDetails(upgradeId).label}</span>
-                    <small>{getUpgradeDetails(upgradeId).bucket}</small>
+                    <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
                   </button>
-                {/each}
-              </div>
-            </div>
+                </div>
+                <small>{faction.description}</small>
+              </header>
 
-            <div class="draft-section">
-              <span class="draft-section-label">Native troops</span>
-              <div class="draft-icon-row troop-preview-row">
-                {#each nativeTroopUnlockIds as troopUnlockId}
-                  {@const [nativeFactionId, nativeUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
-                  <span class="troop-preview native">
-                    <img class="unit-button-art" src={getFactionUnitPortrait(nativeFactionId, nativeUnitTypeId)} alt="" aria-hidden="true" />
-                    <span>{getUnitType(nativeUnitTypeId).label}</span>
-                  </span>
-                {/each}
-              </div>
-            </div>
-
-            <div class="draft-section">
-              <span class="draft-section-label">Defeated enemy unlocks</span>
-              <div class="draft-icon-row troop-preview-row">
-                {#if futureTroopUnlockIds.length === 0}
-                  <span class="troop-preview future empty">None discovered yet</span>
-                {:else}
-                  {#each futureTroopUnlockIds as troopUnlockId}
-                    {@const [futureFactionId, futureUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
-                    <span class="troop-preview future">
-                      <img class="unit-button-art" src={getFactionUnitPortrait(futureFactionId, futureUnitTypeId)} alt="" aria-hidden="true" />
-                      <span>{getUnitType(futureUnitTypeId).label}</span>
-                    </span>
+              <div class="draft-section">
+                <span class="draft-section-label">Granted upgrades</span>
+                <div class="unlock-row">
+                  {#each grantedUpgradeIds as upgradeId}
+                    {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
+                    <button
+                      type="button"
+                      class="list-button upgrade-grant"
+                      class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                      on:mouseenter={() => previewDetail(upgradeDetail)}
+                      on:focus={() => previewDetail(upgradeDetail)}
+                      on:mouseleave={clearDetail}
+                      on:blur={clearDetail}
+                      on:click={() => togglePinnedDetail(upgradeDetail)}
+                    >
+                      <span>{getUpgradeDetails(upgradeId).label}</span>
+                    </button>
                   {/each}
-                {/if}
+                </div>
               </div>
-            </div>
 
-            <button class="primary large" on:click={() => gameStore.claimFactionUnlockOffer(factionId)}>Choose {faction.label}</button>
-          </article>
-        {/each}
+              <div class="draft-section">
+                <span class="draft-section-label">Native troops</span>
+                <div class="draft-icon-row troop-preview-row">
+                  {#each nativeTroopUnlockIds as troopUnlockId}
+                    {@const [nativeFactionId, nativeUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                    {@const troopDetail = buildScheduledTroopDetail(
+                      troopUnlockId,
+                      grantedUpgradeIds,
+                      `Native ${getFaction(nativeFactionId).singularLabel} recruits available as soon as this faction joins.`,
+                    )}
+                    <button
+                      type="button"
+                      class="draft-troop-icon troop-preview native"
+                      class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                      aria-label={`Inspect ${troopDetail.label}`}
+                      on:mouseenter={() => previewDetail(troopDetail)}
+                      on:focus={() => previewDetail(troopDetail)}
+                      on:mouseleave={clearDetail}
+                      on:blur={clearDetail}
+                      on:click={() => togglePinnedDetail(troopDetail)}
+                    >
+                      <img class="unit-button-art" src={getFactionUnitPortrait(nativeFactionId, nativeUnitTypeId)} alt="" aria-hidden="true" />
+                      <span>{getUnitType(nativeUnitTypeId).label}</span>
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="draft-section">
+                <span class="draft-section-label">Defeated enemy unlocks</span>
+                <div class="draft-icon-row troop-preview-row">
+                  {#if futureTroopUnlockIds.length === 0}
+                    <span class="troop-preview future empty">None discovered yet</span>
+                  {:else}
+                    {#each futureTroopUnlockIds as troopUnlockId}
+                      {@const [futureFactionId, futureUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                      {@const troopDetail = buildScheduledTroopDetail(
+                        troopUnlockId,
+                        grantedUpgradeIds,
+                        'Discovered from a defeated Rift enemy. This pairing becomes available once this faction joins.',
+                      )}
+                      <button
+                        type="button"
+                        class="draft-troop-icon troop-preview future"
+                        class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                        aria-label={`Inspect ${troopDetail.label}`}
+                        on:mouseenter={() => previewDetail(troopDetail)}
+                        on:focus={() => previewDetail(troopDetail)}
+                        on:mouseleave={clearDetail}
+                        on:blur={clearDetail}
+                        on:click={() => togglePinnedDetail(troopDetail)}
+                      >
+                        <img class="unit-button-art" src={getFactionUnitPortrait(futureFactionId, futureUnitTypeId)} alt="" aria-hidden="true" />
+                        <span>{getUnitType(futureUnitTypeId).label}</span>
+                      </button>
+                    {/each}
+                  {/if}
+                </div>
+              </div>
+
+              <button class="primary large" on:click={() => gameStore.claimFactionUnlockOffer(factionId)}>Choose {faction.label}</button>
+            </article>
+          {/each}
+        </div>
       </div>
-
-      {#if activeDetail}
-        <aside class="panel floating-detail-panel">
-          <p class="eyebrow">{activeDetail.kind === 'upgrade' ? 'Upgrade Effects' : 'Faction Modifiers'}</p>
-          <h2>{activeDetail.label}</h2>
-          <p>{activeDetail.description}</p>
-        </aside>
-      {/if}
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'troop_type_unlock' && $gameStore.game.activeTroopTypeUnlockOffer}
@@ -1780,7 +2006,7 @@
       <div class="draft-grid troop-type-unlock-grid">
         {#each $gameStore.game.activeTroopTypeUnlockOffer.optionTroopUnlockIds as troopUnlockId}
           {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
-          {@const troopDef = TROOP_CATALOG[troopUnlockId]}
+          {@const troopDef = resolveTroopCombatant($gameStore.game, createTroopInstance(factionId, unitTypeId), 'player')}
           {@const troopDetail = buildResolvedUnitDetail(
             `scheduled-troop:${troopUnlockId}`,
             troopDef.label,
@@ -1802,7 +2028,6 @@
           >
             <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
             <span>{describeTroopUnlock(troopUnlockId)}</span>
-            <small>Qty {formatFixed(troopDef.quantity)}</small>
           </button>
         {/each}
       </div>
@@ -1904,6 +2129,9 @@
               </div>
             {:else}
               <p>{activeDetail.description}</p>
+              {#if activeDetail.stats && activeDetail.stats.length > 0}
+                <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+              {/if}
             {/if}
           </div>
         {:else if false && $gameStore.centerMode === 'rifts' && selectedRift}
@@ -2247,24 +2475,46 @@
             {@const factionDetail = buildFactionDetail(factionId)}
             {@const factionUpgradeIds = $gameStore.game.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === factionId)}
             <section class="faction-card panel ui-debug-target" data-ui-name={`Faction card ${faction.label}`}>
-              <header>
-                <button class="title-button faction-name-button ui-debug-target" data-ui-name={`Faction header ${faction.label}`} on:click={() => selectFaction(factionId)}>
+              <header class="faction-card-top">
+                <button
+                  class="title-button faction-name-button ui-debug-target"
+                  data-ui-name={`Faction header ${faction.label}`}
+                  class:selected={activeDetail?.detailKey === factionDetail.detailKey || selectedFactionId === factionId}
+                  on:mouseenter={() => previewDetail(factionDetail)}
+                  on:focus={() => previewDetail(factionDetail)}
+                  on:mouseleave={clearDetail}
+                  on:blur={clearDetail}
+                  on:click={() => {
+                    selectFaction(factionId);
+                    togglePinnedDetail(factionDetail);
+                  }}
+                >
                   <span>{faction.label}</span>
-                  <img
-                    class="faction-name-art"
-                    src={getFactionPortrait(factionId)}
-                    alt=""
-                    aria-hidden="true"
-                    on:mouseenter={() => previewDetail(factionDetail)}
-                    on:focus={() => previewDetail(factionDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                  />
+                  <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
                 </button>
-                <small>{faction.description}</small>
+
+                {#if factionUpgradeIds.length > 0}
+                  <div class="unlock-row faction-card-upgrades">
+                    {#each factionUpgradeIds as upgradeId}
+                      {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
+                      <button
+                        class="list-button ui-debug-target"
+                        data-ui-name={`Faction upgrade ${getUpgradeDetails(upgradeId).label}`}
+                        class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                        on:mouseenter={() => previewDetail(upgradeDetail)}
+                        on:focus={() => previewDetail(upgradeDetail)}
+                        on:mouseleave={clearDetail}
+                        on:blur={clearDetail}
+                        on:click={() => togglePinnedDetail(upgradeDetail)}
+                      >
+                        <span>{getUpgradeDetails(upgradeId).label}</span>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
               </header>
 
-              <div class="troop-list">
+              <div class="troop-list faction-troop-list">
                 {#each getFactionTroops($gameStore.game, factionId) as troop}
                   {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
                   {@const troopDetail = buildResolvedUnitDetail(
@@ -2296,35 +2546,9 @@
                       <img class="unit-button-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
                       <span>{troopDef.label}</span>
                     </span>
-                    <small>
-                      {troop.assignmentRiftId
-                        ? 'Assigned'
-                        : troop.recoveryCyclesRemaining > 0
-                          ? `Recovering ${troop.recoveryCyclesRemaining}`
-                          : `Qty ${troopDef.quantity}`}
-                    </small>
                   </button>
                 {/each}
               </div>
-
-              {#if factionUpgradeIds.length > 0}
-                <div class="unlock-row">
-                  {#each factionUpgradeIds as upgradeId}
-                    <button
-                      class="list-button ui-debug-target"
-                      data-ui-name={`Faction upgrade ${getUpgradeDetails(upgradeId).label}`}
-                      on:mouseenter={() => previewDetail(buildUpgradeDetail(upgradeId))}
-                      on:focus={() => previewDetail(buildUpgradeDetail(upgradeId))}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(buildUpgradeDetail(upgradeId))}
-                    >
-                      <span>{getUpgradeDetails(upgradeId).label}</span>
-                      <small>Faction upgrade</small>
-                    </button>
-                  {/each}
-                </div>
-              {/if}
             </section>
           {/each}
         </div>
@@ -2412,16 +2636,25 @@
               <span class="assignment-label">Upgrade Choices</span>
               <div class="unlock-row">
                 {#each $gameStore.game.activeUpgradeOffer.optionUpgradeIds as upgradeId}
+                  {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
+                  {@const affectedTroops = getAffectedTroopsForUpgrade(upgradeId)}
                   <button
                     class="list-button"
-                    on:mouseenter={() => previewDetail(buildUpgradeDetail(upgradeId))}
-                    on:focus={() => previewDetail(buildUpgradeDetail(upgradeId))}
+                    class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                    on:mouseenter={() => previewDetail(upgradeDetail)}
+                    on:focus={() => previewDetail(upgradeDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
                     on:click={() => gameStore.claimUpgradeOffer(upgradeId)}
                   >
                     <span>{getUpgradeDetails(upgradeId).label}</span>
-                    <small>{getUpgradeDetails(upgradeId).bucket}</small>
+                    {#if affectedTroops.length > 0}
+                      <span class="affected-troop-strip" aria-label="Affected unlocked troops">
+                        {#each affectedTroops as troop}
+                          <img src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
+                        {/each}
+                      </span>
+                    {/if}
                   </button>
                 {/each}
               </div>
@@ -2865,7 +3098,7 @@
         {#if replayEventLogCollapsed}
           <section class="panel replay-health-overview ui-debug-target" data-ui-name="Collapsed event log health overview" aria-label="Replay health overview">
             {#each replayHealthOverview as side}
-              <section class="replay-health-side" class:enemy={side.side === 'enemy'}>
+              <section class="replay-health-side" class:enemy={side.side === 'enemy'} style={`--replay-health-units-min-height: ${side.unitsMinHeight};`}>
                 <div class="replay-health-total">
                   <div class="replay-health-total-label">
                     <span>{side.label}</span>
@@ -3082,6 +3315,11 @@
     padding-block: 0.75rem;
   }
 
+  .overworld-shell.troops-mode {
+    width: min(1700px, 100%);
+    grid-template-columns: minmax(250px, 282px) minmax(760px, 1fr) minmax(260px, 320px);
+  }
+
   .topbar {
     grid-column: 1 / -1;
     display: grid;
@@ -3136,9 +3374,7 @@
 
   .resource-strip strong,
   .compact-list strong,
-  .troop-chip small,
-  .archive-card small,
-  .list-button small {
+  .archive-card small {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -3334,6 +3570,16 @@
     text-align: left;
   }
 
+  .list-button {
+    display: grid;
+    gap: 0.25rem;
+    align-items: center;
+  }
+
+  .draft-offer-block .list-button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .archive-card,
   .troop-chip,
   .list-button,
@@ -3364,6 +3610,8 @@
 
   .archive-card.selected,
   .troop-chip.selected,
+  .list-button.selected,
+  .title-button.selected,
   .draft-option.selected,
   .draft-troop-icon.selected,
   .sprite-inspect-button.selected,
@@ -3671,7 +3919,6 @@
   .warning-panel p,
   .slot-card p,
   .draft-card small,
-  .faction-card small,
   .detail-panel p,
   .archive-card small,
   .replay-header p {
@@ -3700,6 +3947,30 @@
     max-width: none;
   }
 
+  .draft-screen-header .scheduled-unlock-instructions {
+    max-width: none;
+    font-size: clamp(0.68rem, 0.62vw, 0.78rem);
+    white-space: nowrap;
+  }
+
+  .scheduled-faction-shell {
+    width: min(1780px, 100%);
+    max-height: calc(100vh - (2 * var(--ui-space-md)));
+    overflow: auto;
+  }
+
+  .scheduled-faction-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scheduled-faction-layout.has-detail {
+    grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
+  }
+
+  .scheduled-faction-layout .draft-grid {
+    overflow: visible;
+  }
+
   .faction-unlock-grid {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
@@ -3710,8 +3981,12 @@
     align-content: start;
   }
 
+  .faction-unlock-card > .primary {
+    margin-top: auto;
+  }
+
   .troop-preview-row {
-    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
   }
 
   .troop-preview {
@@ -3725,6 +4000,17 @@
     color: #edf4fa;
     text-align: center;
     font-size: 0.82rem;
+  }
+
+  .scheduled-faction-shell .troop-preview {
+    min-height: 3.75rem;
+    padding: 0.35rem;
+    font-size: 0.76rem;
+  }
+
+  .scheduled-faction-shell .troop-preview .unit-button-art {
+    width: 1.65rem;
+    height: 1.65rem;
   }
 
   .troop-preview.native {
@@ -3755,11 +4041,12 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
+    justify-content: start;
   }
 
-  .troop-type-choice small {
-    grid-column: 2;
-    color: #a7b8c8;
+  .troop-type-choice .unit-button-art {
+    width: 1.75rem;
+    height: 1.75rem;
   }
 
   .floating-detail-panel {
@@ -4119,7 +4406,7 @@
   }
 
   .troop-faction-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: 0.65rem;
   }
 
@@ -4132,6 +4419,10 @@
   }
 
   @media (max-width: 560px) {
+    .draft-screen-header .scheduled-unlock-instructions {
+      white-space: normal;
+    }
+
     .rift-title-card {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -4159,6 +4450,30 @@
     width: 100%;
   }
 
+  .faction-card-top {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.9fr) minmax(170px, 1.1fr);
+    gap: 0.55rem;
+    align-items: stretch;
+  }
+
+  .faction-card-top .faction-name-button {
+    min-height: 4.5rem;
+  }
+
+  .faction-card-upgrades {
+    gap: 0.35rem;
+  }
+
+  .faction-card-upgrades .list-button {
+    min-height: 2rem;
+  }
+
+  .faction-troop-list {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.45rem;
+  }
+
   .troop-chip,
   .draft-option {
     padding: var(--ui-space-sm);
@@ -4171,7 +4486,7 @@
   }
 
   .troops-mode .troop-list {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .troops-mode .faction-card {
@@ -4184,8 +4499,48 @@
     padding: 0.55rem 0.65rem;
   }
 
-  .troops-mode .troop-chip small,
-  .troops-mode .list-button small,
+  .troops-mode .troop-chip {
+    justify-content: flex-start;
+  }
+
+  .troops-mode .unit-button-copy {
+    gap: 0.55rem;
+  }
+
+  .troops-mode .unit-button-copy > span {
+    white-space: nowrap;
+  }
+
+  .scheduled-faction-shell .draft-screen-header {
+    max-width: none;
+  }
+
+  .scheduled-faction-shell .scheduled-faction-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scheduled-faction-shell .scheduled-faction-layout.has-detail {
+    grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
+  }
+
+  .scheduled-faction-shell .faction-unlock-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+
+  .affected-troop-strip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.2rem;
+  }
+
+  .affected-troop-strip img {
+    width: 1.35rem;
+    height: 1.35rem;
+    image-rendering: pixelated;
+    object-fit: contain;
+  }
+
   .opening-detail-panel p,
   .overworld-detail-panel p {
     line-height: 1.35;
@@ -4411,7 +4766,8 @@
   .replay-health-overview {
     min-height: 0;
     overflow: auto;
-    gap: 0.75rem;
+    column-gap: 1.15rem;
+    row-gap: 0.75rem;
     padding: 0.65rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: start;
@@ -4419,26 +4775,36 @@
 
   .replay-health-side {
     display: grid;
+    grid-template-rows: 2.75rem auto;
     gap: 0.45rem;
+    align-content: start;
     min-width: 0;
   }
 
   .replay-health-total {
     display: grid;
+    grid-template-rows: 1.5rem 0.52rem;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.35rem;
+    min-height: 2.37rem;
+    min-width: 0;
   }
 
   .replay-health-total-label {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(6.7rem, 1fr);
     align-items: baseline;
-    justify-content: space-between;
-    gap: 0.65rem;
+    gap: 0.5rem;
+    min-width: 0;
   }
 
   .replay-health-total-label span {
     color: #c9d8e5;
     font-size: 0.82rem;
     letter-spacing: 0.08em;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: clip;
     text-transform: uppercase;
   }
 
@@ -4447,6 +4813,9 @@
     font-family: var(--ui-font-mono);
     font-size: 0.78rem;
     font-weight: 500;
+    line-height: 1.2;
+    text-align: right;
+    white-space: nowrap;
   }
 
   .replay-health-side.enemy .replay-health-total-label strong {
@@ -4455,6 +4824,7 @@
 
   .replay-health-bar {
     width: 100%;
+    min-width: 0;
     height: 0.35rem;
     overflow: hidden;
     border-radius: var(--ui-panel-radius-pill);
@@ -4480,7 +4850,9 @@
 
   .replay-health-units {
     display: grid;
+    grid-auto-rows: 1.9rem;
     gap: 0.28rem;
+    min-height: var(--replay-health-units-min-height, 0);
   }
 
   .replay-health-unit {
@@ -4489,6 +4861,7 @@
     align-items: center;
     gap: 0.35rem;
     min-height: 1.9rem;
+    height: 1.9rem;
     width: 100%;
     padding: 0.22rem 0.28rem;
     border: 1px solid rgba(124, 153, 176, 0.13);
@@ -4518,6 +4891,7 @@
 
   .replay-health-empty {
     margin: 0;
+    min-height: var(--replay-health-units-min-height, 0);
     color: #97a9ba;
     font-size: 0.8rem;
   }
@@ -4898,6 +5272,11 @@
       height: auto;
       min-height: 100dvh;
       overflow: visible;
+    }
+
+    .overworld-shell.troops-mode {
+      width: min(1240px, 100%);
+      grid-template-columns: 1fr;
     }
 
     .overworld-shell .left-column,
