@@ -11,8 +11,10 @@ import {
   clearTroopAssignment,
   continuePlaying,
   deserializeGameState,
+  getOpeningFactionOptionIds,
   revealEssenceDraft,
   serializeGameState,
+  startOpeningCampaign,
   startNewGame,
 } from './game';
 import { FACTION_UPGRADES, NATIVE_TROOP_UNLOCK_IDS, isNativeTroopUnlockId, TROOP_TYPE_UPGRADES } from './unitCatalog';
@@ -67,27 +69,39 @@ function makeResolutionRecord(state: GameState, outcome: 'victory' | 'defeat'): 
 function finishOpening(seed: number, firstTroopUnlockId: string): GameState {
   const first = claimOpeningTroop(startNewGame(seed), firstTroopUnlockId);
   const [firstFactionId, firstUnitTypeId] = firstTroopUnlockId.split('/');
+  const openingFactionIds = new Set(getOpeningFactionOptionIds());
   const secondTroopUnlockId = NATIVE_TROOP_UNLOCK_IDS.find((troopUnlockId) => {
     const [factionId, unitTypeId] = troopUnlockId.split('/');
-    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+    return openingFactionIds.has(factionId) && factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
   })!;
-  return claimOpeningTroop(first, secondTroopUnlockId);
+  return startOpeningCampaign(claimOpeningTroop(first, secondTroopUnlockId));
 }
 
 describe('campaign progression', () => {
-  it('starts in opening unlock and two legal free picks move the run into planning with two Essence', () => {
+  it('starts in opening unlock and waits for confirmation after two legal free picks', () => {
     const state = startNewGame(7);
     const firstPick = claimOpeningTroop(state, 'human/soldier');
-    const opened = claimOpeningTroop(firstPick, 'elf/archer');
+    const secondPick = claimOpeningTroop(firstPick, 'elf/archer');
+    const opened = startOpeningCampaign(secondPick);
 
     expect(state.phase).toBe('opening_unlock');
     expect(firstPick.phase).toBe('opening_unlock');
+    expect(secondPick.phase).toBe('opening_unlock');
+    expect(secondPick.openRifts).toEqual([]);
     expect(opened.phase).toBe('planning');
     expect(opened.essence).toBe(2);
     expect(opened.unlockedFactionIds).toEqual(['human', 'elf']);
     expect(opened.unlockedTroopUnlockIds).toEqual([]);
     expect(opened.troops.map((troop) => troop.id)).toEqual(['human/soldier', 'elf/archer']);
     expect(opened.openRifts).toHaveLength(4);
+  });
+
+  it('limits opening choices to two troops from the four opening factions', () => {
+    const firstPick = claimOpeningTroop(startNewGame(72), 'human/soldier');
+    const secondPick = claimOpeningTroop(firstPick, 'elf/archer');
+
+    expect(claimOpeningTroop(startNewGame(72), 'dwarf/avenger').troops).toEqual([]);
+    expect(claimOpeningTroop(secondPick, 'goblin/wizard').troops.map((troop) => troop.id)).toEqual(['human/soldier', 'elf/archer']);
   });
 
   it('rejects opening choices that repeat a faction or troop type', () => {
@@ -144,17 +158,21 @@ describe('campaign progression', () => {
   it('builds upgrade offers from owned troop type, owned faction, and off-bucket options', () => {
     const state = revealEssenceDraft(finishOpening(10, 'human/archer'));
     const offer = state.activeUpgradeOffer;
-    const troopUpgradeId = offer?.optionUpgradeIds[0]!;
-    const factionUpgradeId = offer?.optionUpgradeIds[1]!;
-    const offBucketId = offer?.optionUpgradeIds[2]!;
+    const ownedUnitTypeIds = new Set(state.troops.map((troop) => troop.unitTypeId));
+    const ownedFactionIds = new Set(state.unlockedFactionIds);
 
     expect(offer).not.toBeNull();
     expect(offer?.optionUpgradeIds).toHaveLength(3);
     expect(new Set(offer?.optionUpgradeIds).size).toBe(3);
-    expect(['archer', 'beastmaster'].includes(TROOP_TYPE_UPGRADES[troopUpgradeId]?.unitTypeId ?? '')).toBe(true);
-    expect(['human', 'elf'].includes(FACTION_UPGRADES[factionUpgradeId]?.factionId ?? '')).toBe(true);
-    expect(FACTION_UPGRADES[offBucketId]?.factionId === 'human').toBe(false);
-    expect(TROOP_TYPE_UPGRADES[offBucketId]?.unitTypeId === 'archer').toBe(false);
+    expect(offer?.optionUpgradeIds.some((upgradeId) => ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId ?? ''))).toBe(true);
+    expect(offer?.optionUpgradeIds.some((upgradeId) => ownedFactionIds.has(FACTION_UPGRADES[upgradeId]?.factionId ?? ''))).toBe(true);
+    expect(
+      offer?.optionUpgradeIds.some(
+        (upgradeId) =>
+          !ownedFactionIds.has(FACTION_UPGRADES[upgradeId]?.factionId ?? '') &&
+          !ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId ?? ''),
+      ),
+    ).toBe(true);
   });
 
   it('persists active offers through save round-trips', () => {

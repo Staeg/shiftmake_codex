@@ -44,6 +44,8 @@ import type {
   ValidationResult,
 } from './types';
 
+const OPENING_FACTION_OPTION_COUNT = 4;
+
 function buildInitialState(seed: number): GameState {
   return {
     version: 3,
@@ -246,6 +248,10 @@ function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeI
   return troopUnlockId.split('/') as [FactionId, UnitTypeId];
 }
 
+export function getOpeningFactionOptionIds(): FactionId[] {
+  return (Object.keys(FACTIONS) as FactionId[]).slice(0, OPENING_FACTION_OPTION_COUNT);
+}
+
 function getAvailableTroopUnlockIds(state: GameState): TroopUnlockId[] {
   const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
   return getClaimableTroopUnlockIds(state).filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
@@ -358,21 +364,15 @@ export function claimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId
   }
 
   const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
-  if (state.troops.some((troop) => troop.factionId === factionId || troop.unitTypeId === unitTypeId)) {
+  if (
+    state.troops.length >= 2 ||
+    !getOpeningFactionOptionIds().includes(factionId) ||
+    state.troops.some((troop) => troop.factionId === factionId || troop.unitTypeId === unitTypeId)
+  ) {
     return state;
   }
 
-  const nextState = addTroopToRoster(state, troopUnlockId);
-  if (nextState.troops.length < 2) {
-    return nextState;
-  }
-
-  return {
-    ...nextState,
-    phase: 'planning',
-    essence: 2,
-    openRifts: generateCycleRifts(nextState),
-  };
+  return addTroopToRoster(state, troopUnlockId);
 }
 
 export function unclaimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId): GameState {
@@ -390,6 +390,19 @@ export function unclaimOpeningTroop(state: GameState, troopUnlockId: TroopUnlock
     ...state,
     unlockedFactionIds: [...new Set(nextTroops.map((troop) => troop.factionId))],
     troops: nextTroops,
+  };
+}
+
+export function startOpeningCampaign(state: GameState): GameState {
+  if (state.phase !== 'opening_unlock' || state.troops.length !== 2) {
+    return state;
+  }
+
+  return {
+    ...state,
+    phase: 'planning',
+    essence: 2,
+    openRifts: generateCycleRifts(state),
   };
 }
 

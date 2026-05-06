@@ -47,7 +47,7 @@
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
-  import { getEssenceDraftCost } from '../engine/game';
+  import { getEssenceDraftCost, getOpeningFactionOptionIds } from '../engine/game';
 
   type StatEntry = {
     key: string;
@@ -89,6 +89,23 @@
     dropTarget: TroopDropTarget | null;
   };
 
+  type ReplayHealthUnit = {
+    unit: BattleUnit;
+    hpPercent: string;
+    hpLabel: string;
+    portraitUrl: string;
+  };
+
+  type ReplayHealthSide = {
+    side: SideId;
+    label: string;
+    currentHp: number;
+    maxHp: number;
+    hpPercent: string;
+    hpLabel: string;
+    units: ReplayHealthUnit[];
+  };
+
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
   const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
@@ -117,13 +134,14 @@
   let hoveredReplayProfileKey: string | null = null;
   let selectedReplayProfileKey: string | null = null;
   let replayAliveCountsExpanded = false;
-  let replayEventLogCollapsed = false;
+  let replayEventLogCollapsed = true;
   let replayRecapOpen = false;
   let expandedReplayRecapTroopKey: string | null = null;
   let pinnedReplayExplanationIndex: number | null = null;
   let lastReplayExplanationReplayId: string | null = null;
   let troopDrag: TroopDragState | null = null;
   let suppressTroopClickId: TroopId | null = null;
+  let openingFocusedTroopUnlockId: TroopUnlockId | null = null;
   let rendererDiagnostics: BattleReportDiagnostic[] = [];
   let showUiDebugNames = false;
   let designModeEnabled = false;
@@ -807,6 +825,21 @@
     };
   }
 
+  function buildOpeningTroopDetail(troopUnlockId: TroopUnlockId): DetailCard {
+    const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
+    const troopDef = TROOP_CATALOG[troopUnlockId];
+    return buildResolvedUnitDetail(
+      `opening:${troopUnlockId}`,
+      troopDef.label,
+      factionId,
+      unitTypeId,
+      troopDef.stats,
+      troopDef.quantity,
+      `Opening unlock for ${getFaction(factionId).label}. Native recruits are available here; unusual faction and troop pairings come from Rift victories.`,
+      troopDef.abilities,
+    );
+  }
+
   function startTroopDrag(event: PointerEvent, troopId: TroopId, sourceRiftId: string | null, label: string, portraitUrl: string): void {
     if (troopDrag || (event.pointerType === 'mouse' && event.button !== 0)) {
       return;
@@ -1028,6 +1061,43 @@
     return replay.steps[Math.min($gameStore.currentStep, replay.steps.length - 1)]?.snapshot.units ?? replay.initial.units;
   }
 
+  function formatHpLabel(currentHp: number, maxHp: number): string {
+    return `${formatFixed(currentHp)} / ${formatFixed(maxHp)}`;
+  }
+
+  function getHpPercent(currentHp: number, maxHp: number): string {
+    if (maxHp <= 0) {
+      return '0%';
+    }
+
+    return `${Math.max(0, Math.min(100, (currentHp / maxHp) * 100))}%`;
+  }
+
+  function buildReplayHealthSide(snapshot: BattleUnit[], side: SideId): ReplayHealthSide {
+    const sideUnits = snapshot.filter((unit) => unit.side === side);
+    const currentHp = sideUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
+    const maxHp = sideUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
+    const units = sideUnits
+      .filter((unit) => unit.alive)
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((unit) => ({
+        unit,
+        hpPercent: getHpPercent(unit.hp, unit.maxHp),
+        hpLabel: formatHpLabel(unit.hp, unit.maxHp),
+        portraitUrl: getReplayUnitPortraitUrl(unit),
+      }));
+
+    return {
+      side,
+      label: side === 'player' ? 'Player' : 'Enemy',
+      currentHp,
+      maxHp,
+      hpPercent: getHpPercent(currentHp, maxHp),
+      hpLabel: formatHpLabel(currentHp, maxHp),
+      units,
+    };
+  }
+
   onMount(() => {
     if (verificationLabMode) {
       if (import.meta.env.DEV) {
@@ -1134,20 +1204,24 @@
 
   $: discoveredRifts = $gameStore.game.openRifts.filter((rift) => rift.state === 'discovered');
   $: factionRosterIds = FACTION_IDS.filter((factionId) => $gameStore.game.unlockedFactionIds.includes(factionId));
-  $: activeDetail = pinnedDetail ?? hoveredDetail;
+  $: selectedOpeningFactionIds = new Set($gameStore.game.troops.map((troop) => troop.factionId));
+  $: selectedOpeningUnitTypeIds = new Set($gameStore.game.troops.map((troop) => troop.unitTypeId));
+  $: selectedOpeningTroopUnlockIds = new Set($gameStore.game.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}` as TroopUnlockId));
+  $: openingFocusedDetail =
+    openingFocusedTroopUnlockId && selectedOpeningTroopUnlockIds.has(openingFocusedTroopUnlockId)
+      ? buildOpeningTroopDetail(openingFocusedTroopUnlockId)
+      : null;
+  $: activeDetail = openingFocusedDetail ?? pinnedDetail ?? hoveredDetail;
   $: statusCounts = getTroopStatusCounts($gameStore.game);
   $: ownedUpgradeIds = [...$gameStore.game.factionUpgradeIds, ...$gameStore.game.troopTypeUpgradeIds];
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
   $: essenceDraftButtonLabel =
     essenceDraftCost === 1 ? 'Reveal One Unlock (1 Essence)' : essenceDraftCost === 2 ? 'Reveal Unlock Draft (2 Essence)' : 'Draft Unavailable';
-  $: starterGroups = FACTION_IDS.map((factionId) => ({
+  $: starterGroups = getOpeningFactionOptionIds().map((factionId) => ({
     factionId,
     label: FACTIONS[factionId].label,
     options: getFactionNativeTroopUnlockIds(factionId),
   }));
-  $: selectedOpeningFactionIds = new Set($gameStore.game.troops.map((troop) => troop.factionId));
-  $: selectedOpeningUnitTypeIds = new Set($gameStore.game.troops.map((troop) => troop.unitTypeId));
-  $: selectedOpeningTroopUnlockIds = new Set($gameStore.game.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}` as TroopUnlockId));
 
   function isOpeningTroopSelected(troopUnlockId: TroopUnlockId): boolean {
     return selectedOpeningTroopUnlockIds.has(troopUnlockId);
@@ -1155,7 +1229,12 @@
 
   function canClaimOpeningTroop(troopUnlockId: TroopUnlockId): boolean {
     const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
-    return !selectedOpeningFactionIds.has(factionId) && !selectedOpeningUnitTypeIds.has(unitTypeId);
+    return (
+      $gameStore.game.troops.length < 2 &&
+      getOpeningFactionOptionIds().includes(factionId) &&
+      !selectedOpeningFactionIds.has(factionId) &&
+      !selectedOpeningUnitTypeIds.has(unitTypeId)
+    );
   }
 
   function isOpeningTroopIncompatible(troopUnlockId: TroopUnlockId): boolean {
@@ -1164,8 +1243,13 @@
 
   function toggleOpeningTroop(troopUnlockId: TroopUnlockId): void {
     if (isOpeningTroopSelected(troopUnlockId)) {
+      const remainingSelected = [...selectedOpeningTroopUnlockIds].filter((selectedId) => selectedId !== troopUnlockId);
+      openingFocusedTroopUnlockId = remainingSelected[remainingSelected.length - 1] ?? null;
       gameStore.unclaimOpeningTroop(troopUnlockId);
     } else {
+      openingFocusedTroopUnlockId = troopUnlockId;
+      pinnedDetail = null;
+      hoveredDetail = null;
       gameStore.claimOpeningTroop(troopUnlockId);
     }
   }
@@ -1210,6 +1294,9 @@
 
   $: replay = $gameStore.loadedReplay;
   $: replaySnapshot = replay ? currentSnapshot(replay) : [];
+  $: replayHealthOverview = replay
+    ? [buildReplayHealthSide(replaySnapshot, 'player'), buildReplayHealthSide(replaySnapshot, 'enemy')]
+    : [];
   $: currentUnitById = new Map(replaySnapshot.map((unit) => [unit.id, unit]));
   $: replayProfilesByKey = new Map((replay?.troopProfiles ?? []).map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
   $: inspectedUnitId = lockedUnitId ?? hoverInfo?.unitId ?? null;
@@ -1541,6 +1628,17 @@
             </article>
           {/each}
         </div>
+      </div>
+      <div class="opening-actions actions-grid">
+        <button
+          type="button"
+          class="primary large ui-debug-target"
+          data-ui-name="Begin campaign button"
+          on:click={() => gameStore.startOpeningCampaign()}
+          disabled={$gameStore.game.troops.length !== 2}
+        >
+          Begin Campaign
+        </button>
       </div>
     </section>
   </main>
@@ -2771,7 +2869,47 @@
           </div>
           <span>{replayEventLogCollapsed ? 'Show' : 'Hide'}</span>
         </button>
-        {#if !replayEventLogCollapsed}
+        {#if replayEventLogCollapsed}
+          <section class="panel replay-health-overview ui-debug-target" data-ui-name="Collapsed event log health overview" aria-label="Replay health overview">
+            {#each replayHealthOverview as side}
+              <section class="replay-health-side" class:enemy={side.side === 'enemy'}>
+                <div class="replay-health-total">
+                  <div class="replay-health-total-label">
+                    <span>{side.label}</span>
+                    <strong>{side.hpLabel}</strong>
+                  </div>
+                  <div class="replay-health-bar total" aria-hidden="true">
+                    <span style={`width: ${side.hpPercent}`}></span>
+                  </div>
+                </div>
+
+                {#if side.units.length === 0}
+                  <p class="replay-health-empty">No units standing.</p>
+                {:else}
+                  <div class="replay-health-units">
+                    {#each side.units as entry}
+                      <button
+                        type="button"
+                        class="replay-health-unit ui-debug-target"
+                        data-ui-name={`Health overview ${side.label} ${entry.unit.id}`}
+                        title={`${entry.unit.troopLabel} ${entry.hpLabel}`}
+                        aria-label={`${entry.unit.troopLabel} health ${entry.hpLabel}`}
+                        on:click={() => setReplayUnitLock(entry.unit.id, { toggle: true, profileKey: replayProfileKey(entry.unit.side, entry.unit.troopLabel) })}
+                      >
+                        <img src={entry.portraitUrl} alt="" aria-hidden="true" />
+                        <div class="replay-health-unit-main">
+                          <div class="replay-health-bar" aria-hidden="true">
+                            <span style={`width: ${entry.hpPercent}`}></span>
+                          </div>
+                        </div>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </section>
+            {/each}
+          </section>
+        {:else}
           <div class="event-log-wrap">
             <EventLog
               steps={replay?.steps ?? []}
@@ -3062,6 +3200,15 @@
     background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
     color: #111;
     border-color: rgba(213, 178, 116, 0.6);
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  .opening-actions {
+    justify-content: flex-end;
   }
 
   .ui-debug-visible .ui-debug-target {
@@ -4264,6 +4411,120 @@
   .event-log-wrap :global(.log) {
     max-height: none;
     min-height: 0;
+  }
+
+  .replay-health-overview {
+    min-height: 0;
+    overflow: auto;
+    gap: 0.75rem;
+    padding: 0.65rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+  }
+
+  .replay-health-side {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .replay-health-total {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .replay-health-total-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.65rem;
+  }
+
+  .replay-health-total-label span {
+    color: #c9d8e5;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .replay-health-total-label strong {
+    color: #f3ead0;
+    font-family: var(--ui-font-mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+
+  .replay-health-side.enemy .replay-health-total-label strong {
+    color: #ffd1d1;
+  }
+
+  .replay-health-bar {
+    width: 100%;
+    height: 0.35rem;
+    overflow: hidden;
+    border-radius: var(--ui-panel-radius-pill);
+    background: rgba(5, 9, 14, 0.74);
+    box-shadow: inset 0 0 0 1px rgba(196, 214, 227, 0.12);
+  }
+
+  .replay-health-bar.total {
+    height: 0.52rem;
+  }
+
+  .replay-health-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #6fbf81, #d9c66f);
+    transition: width 140ms ease-out;
+  }
+
+  .replay-health-side.enemy .replay-health-bar span {
+    background: linear-gradient(90deg, #c86464, #d8a35e);
+  }
+
+  .replay-health-units {
+    display: grid;
+    gap: 0.28rem;
+  }
+
+  .replay-health-unit {
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 1.9rem;
+    width: 100%;
+    padding: 0.22rem 0.28rem;
+    border: 1px solid rgba(124, 153, 176, 0.13);
+    border-radius: 8px;
+    background: rgba(15, 22, 31, 0.72);
+    color: #f4f7fb;
+    text-align: left;
+  }
+
+  .replay-health-unit:hover,
+  .replay-health-unit:focus-visible {
+    border-color: rgba(213, 178, 116, 0.55);
+    background: rgba(35, 29, 21, 0.82);
+  }
+
+  .replay-health-unit img {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+
+  .replay-health-unit-main {
+    display: grid;
+    min-width: 0;
+  }
+
+  .replay-health-empty {
+    margin: 0;
+    color: #97a9ba;
+    font-size: 0.8rem;
   }
 
   .count-grid {

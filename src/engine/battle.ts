@@ -107,10 +107,13 @@ type InternalUnit = {
   mercyBeforeDawnUsed: boolean;
   stonebloodUsed: boolean;
   fadeIntoShadowUsed: boolean;
+  glamourUsed: boolean;
   brambleSnareStacks: number;
   bonusStrikeCharges: number;
   scavengersHungerKills: number;
   sentinelRunesTriggered: boolean;
+  berserkDeathPending: boolean;
+  berserkTurnsUntilDeath: number;
 };
 
 type AbilityTriggerEvent = {
@@ -133,6 +136,8 @@ type AttackContext = {
 
 interface InternalState {
   units: Map<string, InternalUnit>;
+  pendingDiggyHoleCombatants: Record<SideId, ResolvedCombatantDefinition[]>;
+  copiousAleAppliedTroopKeys: Set<string>;
   corpses: Map<string, HexCoord>;
   summonedProfiles: Map<string, ReplayTroopProfile>;
   steps: BattleStep[];
@@ -150,6 +155,9 @@ interface InternalState {
   };
   replayId: string;
   input: BattleInput;
+  currentTurnUnitId: string | null;
+  ensorcelTargetIds: Record<SideId, string | null>;
+  changelingTriggeredSides: Set<SideId>;
 }
 
 interface SpawnContext {
@@ -229,6 +237,10 @@ function getSideTroopTypeUpgradeIds(state: InternalState, side: SideId): string[
 
 function sideHasFactionUpgrade(state: InternalState, side: SideId, upgradeId: string): boolean {
   return getSideFactionUpgradeIds(state, side).includes(upgradeId);
+}
+
+function inputSideHasFactionUpgrade(input: BattleInput, side: SideId, upgradeId: string): boolean {
+  return (side === 'player' ? (input.playerFactionUpgradeIds ?? []) : (input.enemyFactionUpgradeIds ?? [])).includes(upgradeId);
 }
 
 function sideHasTroopTypeUpgrade(state: InternalState, side: SideId, upgradeId: string): boolean {
@@ -688,10 +700,13 @@ function spawnGroup(
       mercyBeforeDawnUsed: false,
       stonebloodUsed: false,
       fadeIntoShadowUsed: false,
+      glamourUsed: false,
       brambleSnareStacks: 0,
       bonusStrikeCharges: 0,
       scavengersHungerKills: 0,
       sentinelRunesTriggered: false,
+      berserkDeathPending: false,
+      berserkTurnsUntilDeath: 0,
     });
   });
 
@@ -713,24 +728,35 @@ function spawnUnitsForSide(
   combatants: ResolvedCombatantDefinition[],
   radius: number,
   context: SpawnContext,
+  placementSide: SideId = side,
 ): boolean {
   const ranged = combatants.filter((combatant) => combatant.stats.range > 0);
   const melee = combatants.filter((combatant) => combatant.stats.range === 0);
   const meleeForbidden = new Set<string>();
 
-  const rangedHexes = spawnGroup(side, ranged, startingCorner(side, radius), radius, context, new Set<string>());
+  const rangedHexes = spawnGroup(side, ranged, startingCorner(placementSide, radius), radius, context, new Set<string>());
   if (!rangedHexes) {
     return false;
   }
   rangedHexes.forEach((key) => meleeForbidden.add(key));
-  const meleeHexes = spawnGroup(side, melee, meleeStart(side, radius), radius, context, meleeForbidden);
+  const meleeHexes = spawnGroup(side, melee, meleeStart(placementSide, radius), radius, context, meleeForbidden);
   return meleeHexes !== null;
 }
 
-function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, InternalUnit>; mapRadius: number } {
+function shouldDelayForDiggyHole(input: BattleInput, combatant: ResolvedCombatantDefinition): boolean {
+  return combatant.factionId === 'dwarf' && inputSideHasFactionUpgrade(input, combatant.side, 'dwarf-diggy-hole');
+}
+
+function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, InternalUnit>; mapRadius: number; pendingDiggyHoleCombatants: Record<SideId, ResolvedCombatantDefinition[]> } {
   let radius = BASE_MAP_RADIUS;
-  const playerUnits = expandCombatants(input.playerCombatants);
-  const enemyUnits = expandCombatants(input.enemyCombatants);
+  const playerExpanded = expandCombatants(input.playerCombatants);
+  const enemyExpanded = expandCombatants(input.enemyCombatants);
+  const pendingDiggyHoleCombatants = {
+    player: playerExpanded.filter((combatant) => shouldDelayForDiggyHole(input, combatant)),
+    enemy: enemyExpanded.filter((combatant) => shouldDelayForDiggyHole(input, combatant)),
+  };
+  const playerUnits = playerExpanded.filter((combatant) => !shouldDelayForDiggyHole(input, combatant));
+  const enemyUnits = enemyExpanded.filter((combatant) => !shouldDelayForDiggyHole(input, combatant));
   const saturation = input.saturation ?? DEFAULT_SATURATION;
 
   while (true) {
@@ -739,7 +765,7 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
     const playerOk = spawnUnitsForSide('player', playerUnits, radius, context);
     const enemyOk = playerOk && spawnUnitsForSide('enemy', enemyUnits, radius, context);
     if (playerOk && enemyOk) {
-      return { units, mapRadius: radius };
+      return { units, mapRadius: radius, pendingDiggyHoleCombatants };
     }
     radius += 1;
   }
@@ -747,6 +773,10 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
 
 function getAliveUnits(state: InternalState, side?: SideId): InternalUnit[] {
   return [...state.units.values()].filter((unit) => unit.alive && (!side || unit.side === side));
+}
+
+function hasPendingDiggyHoleUnits(state: InternalState, side: SideId): boolean {
+  return state.pendingDiggyHoleCombatants[side].length > 0;
 }
 
 function resolveBattleOutcome(state: InternalState): 'victory' | 'defeat' | 'draw' {
@@ -808,6 +838,9 @@ function createEngagement(state: InternalState, actor: InternalUnit, target: Int
     target.fadeIntoShadowUsed = true;
     retreatFromEngagement(state, target, actor, `${target.troopLabel} fades into shadow.`, 'fadeIntoShadow');
   }
+  if (actor.alive && target.alive && actor.engagedWith.has(target.id) && hasAbility(actor, 'first-blood')) {
+    attack(state, actor, target, actor.resolvedStats.range > 0 ? 'ranged' : 'melee', true, 0, 'normal');
+  }
 }
 
 function engageEnemiesOnHex(
@@ -834,8 +867,10 @@ function engageEnemiesOnHex(
   candidatesByPriority.forEach((enemy) => {
     if (enemy.resolvedStats.size <= remainingCapacity && enemy.alive && !actor.engagedWith.has(enemy.id)) {
       createEngagement(state, actor, enemy);
-      remainingCapacity = fixedSub(remainingCapacity, enemy.resolvedStats.size);
-      engagedTargets.push(enemy);
+      if (enemy.alive && actor.engagedWith.has(enemy.id)) {
+        remainingCapacity = fixedSub(remainingCapacity, enemy.resolvedStats.size);
+        engagedTargets.push(enemy);
+      }
     }
   });
 
@@ -856,6 +891,22 @@ function formatSigned(value: number): string {
 
 function hasAbility(unit: InternalUnit, abilityId: string): boolean {
   return unit.resolvedAbilities.some((runtime) => runtime.definition.id === abilityId);
+}
+
+function isDwarf(unit: InternalUnit): boolean {
+  return unit.factionId === 'dwarf' || unit.attributes.includes('dwarf');
+}
+
+function isOrc(unit: InternalUnit): boolean {
+  return unit.factionId === 'orc' || unit.attributes.includes('orc');
+}
+
+function isFae(unit: InternalUnit): boolean {
+  return unit.factionId === 'fae' || unit.attributes.includes('fae');
+}
+
+function canTakeDamage(unit: InternalUnit): boolean {
+  return !unit.berserkDeathPending;
 }
 
 function isRangedOrCaster(unit: InternalUnit): boolean {
@@ -922,6 +973,13 @@ function preventDeath(state: InternalState, actor: InternalUnit, target: Interna
     target.stonebloodUsed = true;
     target.resolvedAbilities = target.resolvedAbilities.filter((runtime) => runtime.definition.id !== 'regen-5');
     return saveUnitFromDeath(state, target, target, 25, 'stoneblood', `${target.troopLabel} refuses to fall and stays at 25 HP.`, 'stoneblood');
+  }
+
+  if (!target.berserkDeathPending && hasAbility(target, 'berserk')) {
+    target.berserkDeathPending = true;
+    target.berserkTurnsUntilDeath = state.currentTurnUnitId === target.id ? 2 : 1;
+    target.initiative = 0;
+    return saveUnitFromDeath(state, target, target, 1, 'berserk', `${target.troopLabel} goes berserk and refuses damage until its next turn ends.`, 'berserk');
   }
 
   return false;
@@ -1829,10 +1887,13 @@ function summonUnit(
     mercyBeforeDawnUsed: false,
     stonebloodUsed: false,
     fadeIntoShadowUsed: false,
+    glamourUsed: false,
     brambleSnareStacks: 0,
     bonusStrikeCharges: 0,
     scavengersHungerKills: 0,
     sentinelRunesTriggered: false,
+    berserkDeathPending: false,
+    berserkTurnsUntilDeath: 0,
   };
   applyMutatorAdjustmentsToUnit(summonedUnit, state.effects);
   state.units.set(unitId, summonedUnit);
@@ -1931,9 +1992,12 @@ function applyBlastSequence(
   let applied = false;
   targets.forEach((target) => {
     const damage = fixedMax(totalAmount, 0);
-    target.hp = fixedSub(target.hp, damage);
-    buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} splashes ${formatFixed(damage)} blast damage.`, {
-      damage,
+    const inflictedDamage = canTakeDamage(target) ? damage : 0;
+    if (inflictedDamage > 0) {
+      target.hp = fixedSub(target.hp, inflictedDamage);
+    }
+    buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} splashes ${formatFixed(inflictedDamage)} blast damage.`, {
+      damage: inflictedDamage,
       mode: 'blast',
       category: 'strike',
       baseDamage: totalAmount,
@@ -1945,8 +2009,11 @@ function applyBlastSequence(
     applied = true;
     if (target.hp <= 0 && target.alive) {
       handleDeath(state, actor, target, { mode: 'blast', category: 'strike' });
-    } else if (target.alive) {
+    } else if (target.alive && canTakeDamage(target)) {
       triggerUnitAbilities(state, target, { timing: 'onDamaged' });
+      if (inflictedDamage > 0) {
+        applyWhimsy(state, target);
+      }
     }
   });
 
@@ -2177,6 +2244,74 @@ function executeStartOfBattleAbilities(state: InternalState): void {
   });
 }
 
+function applyCopiousAle(state: InternalState): void {
+  (['player', 'enemy'] as SideId[]).forEach((side) => {
+    if (!sideHasFactionUpgrade(state, side, 'dwarf-copious-ale')) {
+      return;
+    }
+    const byTroop = new Map<string, InternalUnit[]>();
+    getAliveUnits(state, side)
+      .filter((unit) => isDwarf(unit) && hasAbility(unit, 'copious-ale'))
+      .forEach((unit) => {
+        const key = `${side}:${unit.troopLabel}`;
+        if (state.copiousAleAppliedTroopKeys.has(key)) {
+          return;
+        }
+        byTroop.set(key, [...(byTroop.get(key) ?? []), unit]);
+      });
+
+    byTroop.forEach((units, key) => {
+      const target = state.rng.pick(units);
+      state.copiousAleAppliedTroopKeys.add(key);
+      const previousSpeed = target.resolvedStats.speed;
+      target.resolvedStats.speed = 1;
+      buildStep(state, 'buff', [target.id], [target.id], `${target.troopLabel} has too much ale and slows to 1 speed.`, {
+        effect: 'copiousAle',
+        stat: 'speed',
+        amount: fixedSub(1, previousSpeed),
+        sourceAbilityId: 'copious-ale',
+        sourceAbilityLabel: getAbility('copious-ale').label,
+      });
+    });
+  });
+}
+
+function pickEnsorcelTarget(state: InternalState, side: SideId): InternalUnit | null {
+  const enemies = getAliveUnits(state).filter((unit) => unit.side !== side);
+  for (const role of ['frontline', 'chaff', 'backline'] as RoleId[]) {
+    const candidates = enemies.filter((unit) => unit.role === role);
+    if (candidates.length > 0) {
+      return state.rng.pick(candidates);
+    }
+  }
+  return null;
+}
+
+function applyEnsorcel(state: InternalState, side: SideId): void {
+  if (!sideHasFactionUpgrade(state, side, 'fae-ensorcel')) {
+    return;
+  }
+  if (!getAliveUnits(state, side).some((unit) => isFae(unit) && hasAbility(unit, 'ensorcel'))) {
+    return;
+  }
+  const target = pickEnsorcelTarget(state, side);
+  if (!target) {
+    state.ensorcelTargetIds[side] = null;
+    return;
+  }
+  state.ensorcelTargetIds[side] = target.id;
+  target.resolvedAbilities = [];
+  buildStep(state, 'buff', [], [target.id], `${target.troopLabel} is ensorcelled and loses all abilities.`, {
+    effect: 'ensorcel',
+    sourceAbilityId: 'ensorcel',
+    sourceAbilityLabel: getAbility('ensorcel').label,
+  });
+}
+
+function applyInitialEnsorcel(state: InternalState): void {
+  (['player', 'enemy'] as SideId[]).forEach((side) => applyEnsorcel(state, side));
+}
+
 function performBrace(state: InternalState, actor: InternalUnit): void {
   if (!hasAbility(actor, 'brace') || actor.engagedWith.size === 0 || availableCapacity(state, actor) !== 0) {
     return;
@@ -2362,6 +2497,29 @@ function performThrillKillBuff(state: InternalState, actor: InternalUnit, positi
     });
 }
 
+function performWarcry(state: InternalState, fallen: InternalUnit): void {
+  getAliveUnits(state)
+    .filter((unit) => unit.side !== fallen.side && isOrc(unit) && hasAbility(unit, 'warcry') && equalsHex(unit.position, fallen.position))
+    .forEach((orc) => {
+      getAliveUnits(state, orc.side).forEach((ally) => {
+        applyRamp(state, orc, ally, createRuntimeAbilityState(getAbility('warcry')), {
+          kind: 'ramp',
+          amount: 1,
+          mode: 'flat',
+          disposition: 'beneficial',
+        });
+      });
+    });
+}
+
+function refreshEnsorcelAfterDeath(state: InternalState, fallen: InternalUnit): void {
+  (['player', 'enemy'] as SideId[]).forEach((side) => {
+    if (state.ensorcelTargetIds[side] === fallen.id) {
+      applyEnsorcel(state, side);
+    }
+  });
+}
+
 function performLastWitness(state: InternalState, killer: InternalUnit, fallen: InternalUnit): void {
   getAliveUnits(state, fallen.side)
     .filter((unit) => unit.id !== fallen.id && hasAbility(unit, 'last-witness') && equalsHex(unit.position, fallen.position))
@@ -2409,6 +2567,8 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
   );
 
+  refreshEnsorcelAfterDeath(state, target);
+  performWarcry(state, target);
   triggerUnitAbilities(state, actor, { timing: 'onKill', fallenUnit: target });
   performScavengersHunger(state, actor, target);
   if (hasAbility(actor, 'snatch-the-moment')) {
@@ -2435,9 +2595,12 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     getAliveUnits(state)
       .filter((unit) => unit.side !== actor.side && equalsHex(unit.position, target.position))
       .forEach((unit) => {
-        unit.hp = fixedSub(unit.hp, splash);
-        buildStep(state, 'attack', [actor.id], [unit.id], `${actor.troopLabel} crushes nearby enemies for ${formatFixed(splash)}.`, {
-          damage: splash,
+        const inflictedSplash = canTakeDamage(unit) ? splash : 0;
+        if (inflictedSplash > 0) {
+          unit.hp = fixedSub(unit.hp, inflictedSplash);
+        }
+        buildStep(state, 'attack', [actor.id], [unit.id], `${actor.troopLabel} crushes nearby enemies for ${formatFixed(inflictedSplash)}.`, {
+          damage: inflictedSplash,
           mode: 'melee',
           category: context.category,
           baseDamage: splash,
@@ -2448,8 +2611,11 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
         });
         if (unit.hp <= 0 && unit.alive) {
           handleDeath(state, actor, unit, context);
-        } else if (unit.alive) {
+        } else if (unit.alive && canTakeDamage(unit)) {
           triggerUnitAbilities(state, unit, { timing: 'onDamaged' });
+          if (inflictedSplash > 0) {
+            applyWhimsy(state, unit);
+          }
         }
       });
   }
@@ -2464,7 +2630,9 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
       }
     }
   });
-  bondedDependents.forEach((unit) => handleDeath(state, target, unit, { mode: 'melee', category: 'strike' }));
+  bondedDependents.forEach((unit) =>
+    handleEnvironmentalDeath(state, unit, 'bonded', getAbility('bonded').label, `${unit.troopLabel} is destroyed when its summoner falls.`, true),
+  );
 }
 
 function handleEnvironmentalDeath(
@@ -2473,11 +2641,12 @@ function handleEnvironmentalDeath(
   effectId: string,
   effectLabel: string,
   message: string,
+  bypassPrevention = false,
 ): void {
   if (!target.alive) {
     return;
   }
-  if (preventDeath(state, target, target)) {
+  if (!bypassPrevention && preventDeath(state, target, target)) {
     return;
   }
   target.alive = false;
@@ -2500,6 +2669,8 @@ function handleEnvironmentalDeath(
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
   );
 
+  refreshEnsorcelAfterDeath(state, target);
+  performWarcry(state, target);
   performHoldTheStandard(state, target);
   triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
   getAliveUnits(state).forEach((unit) => {
@@ -2511,17 +2682,65 @@ function handleEnvironmentalDeath(
     }
   });
   bondedDependents.forEach((unit) =>
-    handleEnvironmentalDeath(state, unit, effectId, effectLabel, `${unit.troopLabel} is destroyed when its summoner falls.`),
+    handleEnvironmentalDeath(state, unit, 'bonded', getAbility('bonded').label, `${unit.troopLabel} is destroyed when its summoner falls.`, true),
   );
 }
 
 function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit {
+  if (isFae(actor)) {
+    const ensorcelTarget = state.ensorcelTargetIds[actor.side] ? state.units.get(state.ensorcelTargetIds[actor.side]!) : null;
+    if (ensorcelTarget?.alive && ensorcelTarget.side !== actor.side && candidates.some((candidate) => candidate.id === ensorcelTarget.id)) {
+      return ensorcelTarget;
+    }
+  }
   if (hasAbility(actor, 'executioner')) {
     const lowestHp = Math.min(...candidates.map((enemy) => enemy.hp));
     const lowest = candidates.filter((enemy) => enemy.hp === lowestHp);
     return state.rng.pick(lowest);
   }
   return state.rng.pick(candidates);
+}
+
+function getStandAsOneRecipients(state: InternalState, target: InternalUnit, damage: number): InternalUnit[] {
+  if (damage <= 0 || !hasAbility(target, 'stand-as-one') || !isDwarf(target)) {
+    return [target];
+  }
+  const recipients = getAliveUnits(state, target.side).filter((unit) => isDwarf(unit) && equalsHex(unit.position, target.position));
+  return recipients.length > 0 ? recipients : [target];
+}
+
+function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: InternalUnit, mode: 'melee' | 'ranged', category: AttackCategory): boolean {
+  if (category !== 'normal' || target.glamourUsed || !hasAbility(target, 'glamour') || !isFae(target)) {
+    return false;
+  }
+  const candidates = getAliveUnits(state)
+    .filter((unit) => unit.side !== target.side && unit.id !== target.id)
+    .filter((unit) => hexDistance(target.position, unit.position) <= target.resolvedStats.range);
+  if (candidates.length === 0) {
+    return false;
+  }
+  target.glamourUsed = true;
+  const redirectedTarget = state.rng.pick(candidates);
+  buildStep(state, 'buff', [target.id], [redirectedTarget.id], `${target.troopLabel} glamours the attack toward ${redirectedTarget.troopLabel}.`, {
+    effect: 'glamour',
+    sourceAbilityId: 'glamour',
+    sourceAbilityLabel: getAbility('glamour').label,
+  });
+  attack(state, target, redirectedTarget, target.resolvedStats.range > 0 ? 'ranged' : mode, true, 0, 'normal');
+  return true;
+}
+
+function applyStallWarts(state: InternalState, unit: InternalUnit): void {
+  if (!unit.alive || !hasAbility(unit, 'stall-warts')) {
+    return;
+  }
+  applyStatDelta(state, unit, unit, createRuntimeAbilityState(getAbility('stall-warts')), {
+    kind: 'statDelta',
+    stat: 'armor',
+    amount: 1,
+    mode: 'flat',
+    disposition: 'beneficial',
+  });
 }
 
 function attack(
@@ -2533,6 +2752,9 @@ function attack(
   strikeCount = 0,
   category: AttackCategory = 'normal',
 ): void {
+  if (tryApplyGlamour(state, actor, target, mode, category)) {
+    return;
+  }
   const attackContext: AttackContext = { mode, category };
   let attackDamage = actor.resolvedStats.damage;
   const distanceToTarget = hexDistance(actor.position, target.position);
@@ -2552,13 +2774,28 @@ function attack(
   const baseDamage = fixedSub(attackDamage, armorAfterMods);
   const modifiedDamage = mode === 'ranged' ? fixedMul(baseDamage, state.effects.rangedDamageMultiplier) : baseDamage;
   const damage = fixedMax(modifiedDamage, 0);
-  target.hp = fixedSub(target.hp, damage);
+  const damageRecipients = getStandAsOneRecipients(state, target, damage);
+  const damagePerRecipient = damageRecipients.length > 1 ? fixed(damage / damageRecipients.length) : damage;
+  const inflictedDamage = fixedSum(damageRecipients.map((recipient) => (canTakeDamage(recipient) ? damagePerRecipient : 0)));
+  damageRecipients.forEach((recipient) => {
+    if (canTakeDamage(recipient)) {
+      recipient.hp = fixedSub(recipient.hp, damagePerRecipient);
+    }
+  });
   if (distanceBonus.initiative > 0) {
     actor.initiative = fixedAdd(actor.initiative, distanceBonus.initiative);
   }
 
-  buildStep(state, 'attack', [actor.id], [target.id], `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(damage)}.`, {
-    damage,
+  buildStep(
+    state,
+    'attack',
+    [actor.id],
+    damageRecipients.map((recipient) => recipient.id),
+    damageRecipients.length > 1
+      ? `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(inflictedDamage)}, shared among ${damageRecipients.length} Dwarves.`
+      : `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(inflictedDamage)}.`,
+    {
+    damage: inflictedDamage,
     mode,
     category,
     baseDamage: actor.resolvedStats.damage,
@@ -2570,7 +2807,8 @@ function attack(
     armorReduction: armorReduction || undefined,
     armorApplied: armorAfterMods,
     rangedMultiplier: mode === 'ranged' ? state.effects.rangedDamageMultiplier : undefined,
-  });
+    },
+  );
 
   if (allowOnAttackAbilities) {
     triggerUnitAbilities(state, actor, { timing: 'onAttack', attackTarget: target });
@@ -2594,14 +2832,30 @@ function attack(
     });
   }
 
-  if (target.hp <= 0 && target.alive) {
-    handleDeath(state, actor, target, attackContext);
-  } else {
-    triggerUnitAbilities(state, target, { timing: 'onDamaged' });
-    if (category === 'normal' && hasAbility(target, 'thornhide') && target.role === 'frontline' && target.resolvedStats.range === 0) {
-      actor.hp = fixedSub(actor.hp, 6);
-      buildStep(state, 'attack', [target.id], [actor.id], `${target.troopLabel} thorns ${actor.troopLabel} for 6.`, {
-        damage: 6,
+  damageRecipients.forEach((recipient) => {
+    if (category === 'normal') {
+      applyStallWarts(state, recipient);
+    }
+  });
+
+  const deadRecipients = damageRecipients.filter((recipient) => recipient.hp <= 0 && recipient.alive);
+  deadRecipients.forEach((recipient) => handleDeath(state, actor, recipient, attackContext));
+  damageRecipients.forEach((recipient) => {
+    if (recipient.alive && canTakeDamage(recipient)) {
+      triggerUnitAbilities(state, recipient, { timing: 'onDamaged' });
+      if (damagePerRecipient > 0) {
+        applyWhimsy(state, recipient);
+      }
+    }
+  });
+  if (target.alive) {
+    if (category === 'normal' && hasAbility(target, 'thornhide') && target.role === 'frontline' && target.resolvedStats.range === 0 && target.alive) {
+      const thornDamage = canTakeDamage(actor) ? 6 : 0;
+      if (thornDamage > 0) {
+        actor.hp = fixedSub(actor.hp, thornDamage);
+      }
+      buildStep(state, 'attack', [target.id], [actor.id], `${target.troopLabel} thorns ${actor.troopLabel} for ${formatFixed(thornDamage)}.`, {
+        damage: thornDamage,
         mode: 'blast',
         category: 'strike',
         baseDamage: 6,
@@ -2763,6 +3017,47 @@ function pickBestMovementHex(
     .filter((entry) => entry.friendlyOccupancy === lowestOccupancy)
     .map((entry) => entry.coord);
   return pickRandomHex(state, finalists);
+}
+
+function allMapHexes(radius: number): HexCoord[] {
+  const coords: HexCoord[] = [];
+  for (let q = -radius; q <= radius; q += 1) {
+    for (let r = -radius; r <= radius; r += 1) {
+      const coord = { q, r };
+      if (inRadius(coord, radius)) {
+        coords.push(coord);
+      }
+    }
+  }
+  return coords;
+}
+
+function randomLegalRelocationHex(state: InternalState, actor: InternalUnit): HexCoord | null {
+  const candidates = allMapHexes(state.mapRadius).filter(
+    (coord) => !equalsHex(coord, actor.position) && fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) <= state.saturation,
+  );
+  if (candidates.length === 0) {
+    return null;
+  }
+  return pickRandomHex(state, candidates);
+}
+
+function applyWhimsy(state: InternalState, actor: InternalUnit): void {
+  if (!actor.alive || !hasAbility(actor, 'whimsy') || !isFae(actor)) {
+    return;
+  }
+  const destination = randomLegalRelocationHex(state, actor);
+  if (!destination) {
+    return;
+  }
+  relocateUnit(state, actor, destination);
+  buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} is carried away by Whimsy.`, {
+    effect: 'whimsy',
+    sourceAbilityId: 'whimsy',
+    sourceAbilityLabel: getAbility('whimsy').label,
+    toQ: actor.position.q,
+    toR: actor.position.r,
+  });
 }
 
 function getScreenPriority(state: InternalState, actor: InternalUnit, candidate: InternalUnit): number {
@@ -3131,9 +3426,12 @@ function applyDecay(state: InternalState): void {
   }
 
   getAliveUnits(state).forEach((unit) => {
-    unit.hp = fixedSub(unit.hp, state.effects.decayDamagePerBeat);
-    buildStep(state, 'attack', [], [unit.id], `${unit.troopLabel} loses ${formatFixed(state.effects.decayDamagePerBeat)} HP to Decay.`, {
-      damage: state.effects.decayDamagePerBeat,
+    const damage = canTakeDamage(unit) ? state.effects.decayDamagePerBeat : 0;
+    if (damage > 0) {
+      unit.hp = fixedSub(unit.hp, damage);
+    }
+    buildStep(state, 'attack', [], [unit.id], `${unit.troopLabel} loses ${formatFixed(damage)} HP to Decay.`, {
+      damage,
       mode: 'blast',
       category: 'strike',
       baseDamage: state.effects.decayDamagePerBeat,
@@ -3145,13 +3443,100 @@ function applyDecay(state: InternalState): void {
     });
     if (unit.hp <= 0 && unit.alive) {
       handleEnvironmentalDeath(state, unit, 'decay', getMutator('decay').label, `${unit.troopLabel} is consumed by Decay.`);
-    } else if (unit.alive) {
+    } else if (unit.alive && canTakeDamage(unit)) {
       triggerUnitAbilities(state, unit, { timing: 'onDamaged' });
+      if (damage > 0) {
+        applyWhimsy(state, unit);
+      }
+    }
+  });
+}
+
+function spawnPendingDiggyHoleUnits(state: InternalState): void {
+  if (state.beatCount !== 10) {
+    return;
+  }
+
+  (['player', 'enemy'] as SideId[]).forEach((side) => {
+    const pending = state.pendingDiggyHoleCombatants[side];
+    if (pending.length === 0) {
+      return;
+    }
+
+    const before = new Set(state.units.keys());
+    const context: SpawnContext = { units: state.units, rng: state.rng, saturation: state.saturation };
+    const placementSide: SideId = side === 'player' ? 'enemy' : 'player';
+    while (!spawnUnitsForSide(side, pending, state.mapRadius, context, placementSide)) {
+      state.mapRadius += 1;
+    }
+    state.pendingDiggyHoleCombatants[side] = [];
+    const spawned = [...state.units.values()].filter((unit) => !before.has(unit.id));
+    spawned.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
+    buildStep(
+      state,
+      'move',
+      spawned.map((unit) => unit.id),
+      [],
+      `Diggy Hole opens beneath enemy lines for ${side === 'player' ? 'player' : 'enemy'} Dwarves.`,
+      {
+        effect: 'diggyHole',
+        sourceAbilityId: 'diggy-hole',
+        sourceAbilityLabel: getAbility('diggy-hole').label,
+      },
+    );
+  });
+
+  applyCopiousAle(state);
+}
+
+function combatantWasBrought(input: BattleInput, side: SideId, factionId: string): boolean {
+  const combatants = side === 'player' ? input.playerCombatants : input.enemyCombatants;
+  return combatants.some((combatant) => combatant.factionId === factionId);
+}
+
+function applyChangeling(state: InternalState): void {
+  if (state.beatCount !== 12) {
+    return;
+  }
+  (['player', 'enemy'] as SideId[]).forEach((side) => {
+    if (state.changelingTriggeredSides.has(side) || !sideHasFactionUpgrade(state, side, 'fae-changeling') || !combatantWasBrought(state.input, side, 'fae')) {
+      return;
+    }
+    const enemySide: SideId = side === 'player' ? 'enemy' : 'player';
+    const byTroop = new Map<string, InternalUnit[]>();
+    getAliveUnits(state, enemySide).forEach((unit) => {
+      const key = unit.troopInstanceId ?? unit.troopLabel;
+      byTroop.set(key, [...(byTroop.get(key) ?? []), unit]);
+    });
+    const changed: InternalUnit[] = [];
+    byTroop.forEach((units) => {
+      const unit = state.rng.pick(units);
+      removeAllEngagements(state, unit);
+      unit.side = side;
+      unit.initiative = 0;
+      changed.push(unit);
+    });
+    state.changelingTriggeredSides.add(side);
+    if (changed.length > 0) {
+      buildStep(
+        state,
+        'buff',
+        [],
+        changed.map((unit) => unit.id),
+        `Changeling turns ${changed.length} enemy ${changed.length === 1 ? 'unit' : 'units'}.`,
+        {
+          effect: 'changeling',
+          sourceAbilityId: 'changeling',
+          sourceAbilityLabel: getAbility('changeling').label,
+        },
+      );
     }
   });
 }
 
 function applyBeatMutators(state: InternalState): void {
+  spawnPendingDiggyHoleUnits(state);
+  applyChangeling(state);
   applyQuakes(state);
   applyDecay(state);
 }
@@ -3211,17 +3596,28 @@ function executeTurn(state: InternalState, actor: InternalUnit): void {
   if (!actor.alive) {
     return;
   }
+  state.currentTurnUnitId = actor.id;
   executeStartOfTurnAbilities(state, actor);
   if (!actor.alive) {
+    state.currentTurnUnitId = null;
     return;
   }
   executeTurnActions(state, actor);
   executeEndOfTurnAbilities(state, actor);
   expireTimedEffects(state, actor);
+  if (actor.alive && actor.berserkDeathPending) {
+    actor.berserkTurnsUntilDeath = Math.max(0, actor.berserkTurnsUntilDeath - 1);
+    if (actor.berserkTurnsUntilDeath === 0) {
+      handleEnvironmentalDeath(state, actor, 'berserk', getAbility('berserk').label, `${actor.troopLabel} burns out after going berserk.`, true);
+    }
+  }
+  state.currentTurnUnitId = null;
 }
 
 function isBattleOver(state: InternalState): boolean {
-  return getAliveUnits(state, 'player').length === 0 || getAliveUnits(state, 'enemy').length === 0;
+  const playerPresent = getAliveUnits(state, 'player').length > 0 || hasPendingDiggyHoleUnits(state, 'player');
+  const enemyPresent = getAliveUnits(state, 'enemy').length > 0 || hasPendingDiggyHoleUnits(state, 'enemy');
+  return !playerPresent || !enemyPresent;
 }
 
 export function resolveBattle(input: BattleInput): BattleReplay {
@@ -3231,6 +3627,8 @@ export function resolveBattle(input: BattleInput): BattleReplay {
   const saturation = input.saturation ?? DEFAULT_SATURATION;
   const state: InternalState = {
     units: init.units,
+    pendingDiggyHoleCombatants: init.pendingDiggyHoleCombatants,
+    copiousAleAppliedTroopKeys: new Set<string>(),
     corpses: new Map<string, HexCoord>(),
     summonedProfiles: new Map<string, ReplayTroopProfile>(),
     steps: [],
@@ -3241,6 +3639,9 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     effects: buildEffects(input.mutatorIds),
     replayId: makeReplayId(seed, input.riftId),
     input,
+    currentTurnUnitId: null,
+    ensorcelTargetIds: { player: null, enemy: null },
+    changelingTriggeredSides: new Set<SideId>(),
   };
   state.units.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
 
@@ -3248,7 +3649,9 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     [...input.playerCombatants, ...input.enemyCombatants].map((combatant) => [combatant.combatantId, combatant.label]),
   );
   const initial = cloneSnapshot(state.units);
+  applyInitialEnsorcel(state);
   executeStartOfBattleAbilities(state);
+  applyCopiousAle(state);
 
   while (!isBattleOver(state) && state.beatCount < MAX_BEATS) {
     state.beatCount += 1;

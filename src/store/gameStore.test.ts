@@ -115,6 +115,7 @@ function currentStoreState<T>(): T {
 function claimDefaultOpeningTroops(): void {
   gameStore.claimOpeningTroop('human/soldier');
   gameStore.claimOpeningTroop('elf/archer');
+  gameStore.startOpeningCampaign();
 }
 
 describe('persistReplayPayloadWrites', () => {

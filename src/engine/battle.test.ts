@@ -64,6 +64,12 @@ describe('troop composition', () => {
 
   it('adds new faction roster units with their abilities', () => {
     expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 3', 'Regen 5']);
+    expect(composeTroopDefinition('dwarf', 'avenger').attributes).toEqual(['melee', 'dwarf']);
+    expect(composeTroopDefinition('dwarf', 'avenger').stats).toMatchObject({ health: 240, damage: 6, speed: 8.5, armor: 3, size: 2, capacity: 2 });
+    expect(composeTroopDefinition('orc', 'soldier').attributes).toEqual(['melee', 'orc']);
+    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 110, damage: 12.5, speed: 11, armor: 1, size: 1, capacity: 1 });
+    expect(composeTroopDefinition('fae', 'wizard').attributes).toEqual(['caster', 'fae']);
+    expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, speed: 9.2, range: 3, armor: -1 });
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
     expect(composeTroopDefinition('goblin', 'shaman').abilities.map((ability) => ability.label)).toEqual(['Enhance 1']);
     expect(composeTroopDefinition('elf', 'elementalist').abilities.map((ability) => ability.label)).toEqual(['Charge 4 Summon Elemental']);
@@ -657,6 +663,18 @@ describe('ability mechanics', () => {
         'troll-stoneblood',
         'troll-crushing-sweep',
         'troll-rowdy-regrowth',
+        'dwarf-diggy-hole',
+        'dwarf-copious-ale',
+        'dwarf-stand-as-one',
+        'dwarf-stall-warts',
+        'orc-seeing-red',
+        'orc-first-blood',
+        'orc-warcry',
+        'orc-berserk',
+        'fae-ensorcel',
+        'fae-glamour',
+        'fae-changeling',
+        'fae-whimsy',
       ],
       troopTypeUpgradeIds: [
         'soldier-shield-drill',
@@ -716,6 +734,9 @@ describe('ability mechanics', () => {
     const goblinWizard = resolveTroopCombatant(upgradedState, createTroopInstance('goblin', 'wizard'), 'player');
     const humanKnight = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'knight'), 'player');
     const humanMilitia = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'militia'), 'player');
+    const dwarfSoldier = resolveTroopCombatant(upgradedState, createTroopInstance('dwarf', 'soldier'), 'player');
+    const orcSoldier = resolveTroopCombatant(upgradedState, createTroopInstance('orc', 'soldier'), 'player');
+    const faeWizard = resolveTroopCombatant(upgradedState, createTroopInstance('fae', 'wizard'), 'player');
 
     expect(humanSoldier.abilities.map((ability) => ability.id)).toContain('shield-drill');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
@@ -767,6 +788,294 @@ describe('ability mechanics', () => {
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('hold-the-standard');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('dogpile');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('rabble-rush');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('diggy-hole');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('copious-ale');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stand-as-one');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stall-warts');
+    expect(dwarfSoldier.stats.speed).toBe(11.9);
+    expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('seeing-red');
+    expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('first-blood');
+    expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('warcry');
+    expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('berserk');
+    expect(faeWizard.abilities.map((ability) => ability.id)).toContain('ensorcel');
+    expect(faeWizard.abilities.map((ability) => ability.id)).toContain('glamour');
+    expect(faeWizard.abilities.map((ability) => ability.id)).toContain('changeling');
+    expect(faeWizard.abilities.map((ability) => ability.id)).toContain('whimsy');
+  });
+
+  it('diggy hole delays Dwarven deployment until beat 10 on the enemy side of the board', () => {
+    const dwarf = resolveTroopCombatant(
+      { factionUpgradeIds: ['dwarf-diggy-hole'], troopTypeUpgradeIds: [] },
+      createTroopInstance('dwarf', 'soldier'),
+      'player',
+    );
+    const enemy = makeBattleCombatant('human/soldier', 'enemy');
+    dwarf.quantity = 1;
+    dwarf.stats = { ...dwarf.stats, damage: 0, speed: 1 };
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([dwarf], [enemy], 61);
+    input.playerFactionUpgradeIds = ['dwarf-diggy-hole'];
+    const replay = resolveBattle(input);
+
+    expect(replay.initial.units.some((unit) => unit.factionId === 'dwarf')).toBe(false);
+    const digStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'diggy-hole');
+    expect(digStep).toBeTruthy();
+    expect(replay.steps.filter((step) => step.kind === 'beat').find((step) => step.metadata?.beat === 10)).toBeTruthy();
+    const spawnedDwarf = digStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf' && unit.side === 'player');
+    expect(spawnedDwarf?.position.q).toBeGreaterThan(0);
+  });
+
+  it('Ale and Hearty sets one random unit from each Dwarven troop to speed 1', () => {
+    const dwarf = resolveTroopCombatant(
+      { factionUpgradeIds: ['dwarf-copious-ale'], troopTypeUpgradeIds: [] },
+      createTroopInstance('dwarf', 'soldier'),
+      'player',
+    );
+    dwarf.quantity = 3;
+    dwarf.stats = { ...dwarf.stats, damage: 0 };
+    const enemy = makeBattleCombatant('human/soldier', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([dwarf], [enemy], 62);
+    input.playerFactionUpgradeIds = ['dwarf-copious-ale'];
+    const replay = resolveBattle(input);
+    const aleStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'copious-ale');
+
+    expect(aleStep).toBeTruthy();
+    const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.factionId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
+    expect(dwarfSpeeds).toEqual([1, 11.9, 11.9]);
+  });
+
+  it('Mycelial Beards shares mitigated damage among Dwarves on the target hex', () => {
+    const dwarf = resolveTroopCombatant(
+      { factionUpgradeIds: ['dwarf-stand-as-one'], troopTypeUpgradeIds: [] },
+      createTroopInstance('dwarf', 'soldier'),
+      'player',
+    );
+    dwarf.quantity = 2;
+    dwarf.stats = { ...dwarf.stats, health: 50, damage: 0, speed: 1 };
+    const enemy = makeBattleCombatant('human/archer', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 23, speed: 100, range: 99 };
+
+    const input = makeBattleInput([dwarf], [enemy], 63);
+    input.playerFactionUpgradeIds = ['dwarf-stand-as-one'];
+    const replay = resolveBattle(input);
+    const sharedStep = replay.steps.find((step) => step.kind === 'attack' && step.message.includes('shared among 2 Dwarves'));
+
+    expect(sharedStep?.targetIds).toHaveLength(2);
+    const damagedDwarves = sharedStep?.snapshot.units.filter((unit) => unit.factionId === 'dwarf').map((unit) => unit.hp).sort((a, b) => a - b);
+    expect(damagedDwarves).toEqual([41, 41]);
+  });
+
+  it('stall warts grants Dwarves armor after normal attacks hit them', () => {
+    const dwarf = resolveTroopCombatant(
+      { factionUpgradeIds: ['dwarf-stall-warts'], troopTypeUpgradeIds: [] },
+      createTroopInstance('dwarf', 'soldier'),
+      'player',
+    );
+    dwarf.quantity = 1;
+    dwarf.stats = { ...dwarf.stats, damage: 0, speed: 1 };
+    const enemy = makeBattleCombatant('human/archer', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 10, speed: 100, range: 99 };
+
+    const input = makeBattleInput([dwarf], [enemy], 64);
+    input.playerFactionUpgradeIds = ['dwarf-stall-warts'];
+    const replay = resolveBattle(input);
+    const armorStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'stall-warts');
+
+    expect(armorStep?.message).toContain('gains +1 armor');
+    expect(armorStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf')?.stats.armor).toBe(6);
+  });
+
+  it('seeing red costs armor and grants initiative when Orcs kill', () => {
+    const orc = resolveTroopCombatant(
+      { factionUpgradeIds: ['orc-seeing-red'], troopTypeUpgradeIds: [] },
+      createTroopInstance('orc', 'champion'),
+      'player',
+    );
+    orc.quantity = 1;
+    orc.stats = { ...orc.stats, damage: 100, speed: 100 };
+    const enemy = makeBattleCombatant('human/militia', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([orc], [enemy], 65);
+    input.playerFactionUpgradeIds = ['orc-seeing-red'];
+    const replay = resolveBattle(input);
+
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'seeing-red' && step.message.includes('loses 1 armor'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'seeing-red' && step.message.includes('gains 75 initiative'))).toBe(true);
+  });
+
+  it('first blood makes Orcs attack immediately when they engage', () => {
+    const orc = resolveTroopCombatant(
+      { factionUpgradeIds: ['orc-first-blood'], troopTypeUpgradeIds: [] },
+      createTroopInstance('orc', 'soldier'),
+      'player',
+    );
+    orc.quantity = 1;
+    orc.stats = { ...orc.stats, damage: 5, speed: 100 };
+    const enemy = makeBattleCombatant('human/soldier', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1, health: 100 };
+
+    const input = makeBattleInput([orc], [enemy], 66);
+    input.playerFactionUpgradeIds = ['orc-first-blood'];
+    const replay = resolveBattle(input);
+    const engageIndex = replay.steps.findIndex((step) => step.kind === 'engage' && step.actorIds.some((id) => id.startsWith('player_')));
+    const nearbyAttacks = replay.steps
+      .slice(Math.max(0, engageIndex - 3), engageIndex + 4)
+      .filter((step) => step.kind === 'attack' && step.actorIds.some((id) => id.startsWith('player_')));
+
+    expect(engageIndex).toBeGreaterThan(-1);
+    expect(nearbyAttacks.length).toBeGreaterThanOrEqual(2);
+    expect(nearbyAttacks.some((step) => step.index < engageIndex)).toBe(true);
+    expect(nearbyAttacks.some((step) => step.index > engageIndex)).toBe(true);
+  });
+
+  it('warcry grants allied damage once per Orc on the fallen enemy hex', () => {
+    const orc = resolveTroopCombatant(
+      { factionUpgradeIds: ['orc-warcry'], troopTypeUpgradeIds: [] },
+      createTroopInstance('orc', 'soldier'),
+      'player',
+    );
+    orc.quantity = 1;
+    orc.stats = { ...orc.stats, damage: 100, speed: 100 };
+    const ally = makeBattleCombatant('human/archer', 'player');
+    ally.stats = { ...ally.stats, damage: 1, speed: 1 };
+    const enemy = makeBattleCombatant('human/militia', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([orc, ally], [enemy], 67);
+    input.playerFactionUpgradeIds = ['orc-warcry'];
+    const replay = resolveBattle(input);
+    const archerBuffs = replay.steps.filter(
+      (step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'warcry' && step.message.includes('Human Archer gains +1 damage'),
+    );
+
+    expect(archerBuffs).toHaveLength(1);
+  });
+
+  it('berserk prevents lethal damage, blocks later damage, then kills the Orc after its next turn', () => {
+    const orc = resolveTroopCombatant(
+      { factionUpgradeIds: ['orc-berserk'], troopTypeUpgradeIds: [] },
+      createTroopInstance('orc', 'soldier'),
+      'player',
+    );
+    orc.quantity = 1;
+    orc.stats = { ...orc.stats, health: 10, damage: 0, speed: 50 };
+    const enemy = makeBattleCombatant('human/archer', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 50, speed: 100, range: 99 };
+
+    const input = makeBattleInput([orc], [enemy], 68);
+    input.playerFactionUpgradeIds = ['orc-berserk'];
+    const replay = resolveBattle(input);
+    const berserkStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'berserk');
+    const zeroDamageAfterBerserk = replay.steps.find(
+      (step) => step.index > (berserkStep?.index ?? 0) && step.kind === 'attack' && step.targetIds.some((id) => id.startsWith('player_')) && step.metadata?.damage === 0,
+    );
+    const deathStep = replay.steps.find((step) => step.kind === 'death' && step.metadata?.sourceAbilityId === 'berserk');
+
+    expect(berserkStep?.message).toContain('goes berserk');
+    expect(zeroDamageAfterBerserk).toBeTruthy();
+    expect(deathStep?.message).toContain('burns out');
+  });
+
+  it('ensorcel marks a priority enemy, removes its abilities, and Fae target it in range', () => {
+    const fae = resolveTroopCombatant(
+      { factionUpgradeIds: ['fae-ensorcel'], troopTypeUpgradeIds: [] },
+      createTroopInstance('fae', 'wizard'),
+      'player',
+    );
+    fae.quantity = 1;
+    fae.stats = { ...fae.stats, damage: 1, speed: 100, range: 99 };
+    const frontline = makeBattleCombatant('human/beastmaster', 'enemy');
+    frontline.stats = { ...frontline.stats, damage: 0, speed: 1 };
+    const backline = makeBattleCombatant('human/wizard', 'enemy');
+    backline.stats = { ...backline.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([fae], [backline, frontline], 69);
+    input.playerFactionUpgradeIds = ['fae-ensorcel'];
+    const replay = resolveBattle(input);
+    const ensorcelStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'ensorcel');
+    const firstFaeAttack = replay.steps.find((step) => step.kind === 'attack' && step.actorIds.some((id) => id.startsWith('player_')));
+
+    expect(ensorcelStep?.message).toContain('Human Beastmaster');
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId?.startsWith('summon-wolf'))).toBe(false);
+    expect(firstFaeAttack?.targetIds.map((id) => replay.steps[firstFaeAttack.index]!.snapshot.units.find((unit) => unit.id === id)?.troopLabel)).toContain('Human Beastmaster');
+  });
+
+  it('glamour redirects one incoming normal attack with the Fae as the attacker', () => {
+    const fae = resolveTroopCombatant(
+      { factionUpgradeIds: ['fae-glamour'], troopTypeUpgradeIds: [] },
+      createTroopInstance('fae', 'wizard'),
+      'player',
+    );
+    fae.quantity = 1;
+    fae.stats = { ...fae.stats, damage: 7, speed: 1, range: 99 };
+    const attacker = makeBattleCombatant('human/archer', 'enemy');
+    attacker.stats = { ...attacker.stats, damage: 50, speed: 100, range: 99 };
+    const bystander = makeBattleCombatant('human/soldier', 'enemy');
+    bystander.stats = { ...bystander.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([fae], [attacker, bystander], 70);
+    input.playerFactionUpgradeIds = ['fae-glamour'];
+    const replay = resolveBattle(input);
+    const glamourStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'glamour');
+    const redirectedAttack = replay.steps.find((step) => step.kind === 'attack' && step.index > (glamourStep?.index ?? 0) && step.actorIds[0]?.startsWith('player_'));
+    const redirectedTarget = redirectedAttack
+      ? redirectedAttack.snapshot.units.find((unit) => unit.id === redirectedAttack.targetIds[0])
+      : null;
+
+    expect(glamourStep?.message).toContain('glamours');
+    expect(redirectedAttack?.message).toContain('Fae Wizard hits Human');
+    expect(redirectedTarget?.side).toBe('enemy');
+  });
+
+  it('changeling turns one random enemy from each enemy troop after beat 12', () => {
+    const fae = resolveTroopCombatant(
+      { factionUpgradeIds: ['fae-changeling'], troopTypeUpgradeIds: [] },
+      createTroopInstance('fae', 'wizard'),
+      'player',
+    );
+    fae.quantity = 1;
+    fae.stats = { ...fae.stats, damage: 0, speed: 1 };
+    const soldiers = makeBattleCombatant('human/soldier', 'enemy');
+    soldiers.quantity = 2;
+    soldiers.stats = { ...soldiers.stats, damage: 0, speed: 1 };
+    const archers = makeBattleCombatant('human/archer', 'enemy');
+    archers.quantity = 2;
+    archers.stats = { ...archers.stats, damage: 0, speed: 1 };
+
+    const input = makeBattleInput([fae], [soldiers, archers], 71);
+    input.playerFactionUpgradeIds = ['fae-changeling'];
+    const replay = resolveBattle(input);
+    const changelingStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'changeling');
+    const changedUnits = changelingStep?.snapshot.units.filter((unit) => unit.side === 'player' && unit.factionId === 'human') ?? [];
+
+    expect(changelingStep?.message).toContain('2 enemy units');
+    expect(changedUnits).toHaveLength(2);
+    expect(new Set(changedUnits.map((unit) => unit.unitTypeId))).toEqual(new Set(['soldier', 'archer']));
+  });
+
+  it('whimsy relocates a damaged Fae unit to a random legal hex', () => {
+    const fae = resolveTroopCombatant(
+      { factionUpgradeIds: ['fae-whimsy'], troopTypeUpgradeIds: [] },
+      createTroopInstance('fae', 'wizard'),
+      'player',
+    );
+    fae.quantity = 1;
+    fae.stats = { ...fae.stats, damage: 0, speed: 1 };
+    const enemy = makeBattleCombatant('human/archer', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 10, speed: 100, range: 99 };
+
+    const input = makeBattleInput([fae], [enemy], 72);
+    input.playerFactionUpgradeIds = ['fae-whimsy'];
+    const replay = resolveBattle(input);
+    const whimsyStep = replay.steps.find((step) => step.kind === 'move' && step.metadata?.sourceAbilityId === 'whimsy');
+
+    expect(whimsyStep?.message).toContain('Whimsy');
+    expect(whimsyStep?.metadata?.toQ).toBeTypeOf('number');
+    expect(whimsyStep?.metadata?.toR).toBeTypeOf('number');
   });
 
   it('executioner prioritizes the lowest-current-hp legal attack target', () => {

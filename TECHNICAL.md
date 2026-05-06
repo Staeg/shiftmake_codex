@@ -178,6 +178,9 @@ If a bucket is empty, the picker falls back to any remaining unowned option.
 - `elf`
 - `goblin`
 - `troll`
+- `dwarf`
+- `orc`
+- `fae`
 
 ### Unit types
 

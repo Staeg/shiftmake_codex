@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimOpeningTroop, serializeGameState, startNewGame } from '../engine/game';
+import { claimOpeningTroop, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
 import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, writeSlotReplay } from './saveSlots';
 
 class MemoryStorage implements Storage {
@@ -53,7 +53,7 @@ describe('save slot repository', () => {
       factionLabel: null,
     });
 
-    saveToSlot(storage, 1, claimOpeningTroop(claimOpeningTroop(opening, 'troll/soldier'), 'elf/archer'));
+    saveToSlot(storage, 1, startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(opening, 'troll/soldier'), 'elf/archer')));
 
     expect(listSaveSlots(storage)[0]).toMatchObject({
       slotId: 1,
@@ -99,7 +99,7 @@ describe('save slot repository', () => {
   it('migrates a legacy save into slot one and copies legacy replay payloads', () => {
     const storage = new MemoryStorage();
     const game = {
-      ...claimOpeningTroop(claimOpeningTroop(startNewGame(9), 'elf/archer'), 'human/soldier'),
+      ...startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(startNewGame(9), 'elf/archer'), 'human/soldier')),
       replayIndex: [
         {
           id: 'test-battle',

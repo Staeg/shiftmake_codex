@@ -247,6 +247,27 @@ Summoned units do not have their own unlockable upgrades.
 - `Crushing Sweep` (tier 3): melee kills deal splash damage equal to `5 x size` on that hex
 - `Rowdy Regrowth` (tier 2): whenever a Troll is healed, it gains 15 initiative
 
+### Dwarves
+
+- `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
+- `Ale and Hearty` (tier 2): Dwarven troops gain +40% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
+- `Mycelial Beards` (tier 2): damage a Dwarven unit would receive is split equally among all Dwarven units on that hex after mitigation
+- `Stall Warts` (tier 3): Dwarven troops gain +1 armor for the battle after they are hit by normal attacks
+
+### Orcs
+
+- `Seeing Red` (tier 1): whenever an Orc kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative
+- `First Blood` (tier 2): Orc units make an immediate normal attack when they engage, before the normal engagement attack
+- `Warcry` (tier 3): when an enemy dies on a hex with an Orc unit, all allied units gain +1 damage for the battle; multiple Orcs can trigger from the same death
+- `Berserk` (tier 3): when an Orc would die from damage, it becomes immune to damage, has its initiative set to 0, and dies at the end of its next turn
+
+### Fae
+
+- `Ensorcel` (tier 1): at combat start, mark a random enemy prioritized by frontline, chaff, then backline; the marked unit loses all abilities, Fae target it while it is in range, and a new enemy is marked when it dies
+- `Glamour` (tier 2): once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range; triggered attack effects resolve as though the Fae made the attack
+- `Changeling` (tier 3): if a Fae troop was brought to battle, after beat 12 one random enemy unit from each enemy troop changes sides
+- `Whimsy` (tier 3): whenever a Fae unit takes damage, it relocates to a random hex
+
 ## Notes
 
 - Base unit costs are faction-neutral. Resolved troop cost can change after faction modifiers.

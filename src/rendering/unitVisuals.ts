@@ -6,14 +6,17 @@ import avengerUrl from '../../assets/unit sprites/avenger.png';
 import beastmasterUrl from '../../assets/unit sprites/beastmaster.png';
 import championUrl from '../../assets/unit sprites/champion.png';
 import druidUrl from '../../assets/unit sprites/druid.png';
+import dwarfFactionUrl from '../../assets/faction sprites/human.png';
 import elfFactionUrl from '../../assets/faction sprites/elf.png';
 import elementalUrl from '../../assets/unit sprites/elemental.png';
 import elementalistUrl from '../../assets/unit sprites/elementalist.png';
+import faeFactionUrl from '../../assets/faction sprites/elf.png';
 import goblinFactionUrl from '../../assets/faction sprites/goblin.png';
 import humanFactionUrl from '../../assets/faction sprites/human.png';
 import knightUrl from '../../assets/unit sprites/knight.png';
 import militiaUrl from '../../assets/unit sprites/militia.png';
 import necromancerUrl from '../../assets/unit sprites/necromancer.png';
+import orcFactionUrl from '../../assets/faction sprites/troll.png';
 import priestUrl from '../../assets/unit sprites/priest.png';
 import rangerUrl from '../../assets/unit sprites/ranger.png';
 import shamanUrl from '../../assets/unit sprites/shaman.png';
@@ -53,6 +56,9 @@ const FACTION_SPRITE_URLS: Record<FactionId, string> = {
   elf: elfFactionUrl,
   goblin: goblinFactionUrl,
   troll: trollFactionUrl,
+  dwarf: dwarfFactionUrl,
+  orc: orcFactionUrl,
+  fae: faeFactionUrl,
 };
 
 const FACTION_PALETTES: Record<FactionId, FactionPaletteProfile> = {
@@ -75,6 +81,21 @@ const FACTION_PALETTES: Record<FactionId, FactionPaletteProfile> = {
     primary: [0x2a224a, 0x6259af, 0xb6b0f1],
     secondary: [0x6c431d, 0xb77734, 0xf1c97a],
     glow: [0x1d5364, 0x2d9aaa, 0x9de8e2],
+  },
+  dwarf: {
+    primary: [0x1f3342, 0x536b7a, 0xb9cad1],
+    secondary: [0x5a321e, 0xb46a32, 0xf0b66a],
+    glow: [0x46515a, 0xa8b4bd, 0xf2f7f8],
+  },
+  orc: {
+    primary: [0x3a1515, 0x8f2f2b, 0xe15b45],
+    secondary: [0x4a3d2c, 0xa89062, 0xe8d3a2],
+    glow: [0x5a1f10, 0xd96428, 0xffb15a],
+  },
+  fae: {
+    primary: [0x40153e, 0x9a3d91, 0xf0a4df],
+    secondary: [0x1f4c5a, 0x52aebf, 0xc8f7ff],
+    glow: [0x5a2a66, 0xd87cf0, 0xffe6ff],
   },
 };
 

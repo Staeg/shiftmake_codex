@@ -61,6 +61,9 @@ Removed from the current game:
 - Elves
 - Goblins
 - Trolls
+- Dwarves
+- Orcs
+- Fae
 
 ## Platform target
 

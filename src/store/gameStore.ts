@@ -12,6 +12,7 @@ import {
   continuePlaying,
   resolveAssignedRifts,
   revealEssenceDraft,
+  startOpeningCampaign,
   startNewGame,
   unclaimOpeningTroop,
   validateAssignments,
@@ -337,6 +338,15 @@ export const gameStore = (() => {
         saveActiveCampaign({
           ...clearCycleEndConfirmation(state),
           game: unclaimOpeningTroop(state.game, troopUnlockId),
+        }),
+      );
+    },
+    startOpeningCampaign() {
+      update((state) =>
+        saveActiveCampaign({
+          ...clearCycleEndConfirmation(state),
+          game: startOpeningCampaign(state.game),
+          systemMessage: null,
         }),
       );
     },
