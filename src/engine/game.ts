@@ -89,9 +89,12 @@ function buildReplayIndexEntry(
     battleSeed: replay.seed,
     outcome: replay.outcome,
     playerTroopLabels: replay.summary.playerTroops,
+    enemyTroopLabels: replay.summary.enemyTroops,
     mutatorIds: replay.mutatorIds,
     summary: `${replay.outcome.toUpperCase()} ${replay.summary.finalPlayerAlive}-${replay.summary.finalEnemyAlive}`,
     estimatedBytes,
+    finalPlayerAlive: replay.summary.finalPlayerAlive,
+    finalEnemyAlive: replay.summary.finalEnemyAlive,
   };
 }
 

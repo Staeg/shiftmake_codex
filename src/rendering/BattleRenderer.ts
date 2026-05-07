@@ -1,6 +1,7 @@
 import {
   Application,
   Assets,
+  ColorMatrixFilter,
   Container,
   FederatedPointerEvent,
   Graphics,
@@ -26,6 +27,7 @@ const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 3;
 const ZOOM_STEP_FACTOR = 1.18;
 const DRAG_THRESHOLD_PX = 6;
+const OUTLINE_GOLD = { r: 0.95, g: 0.69, b: 0.17 };
 
 type PixelPoint = { x: number; y: number };
 type LayoutResult = {
@@ -142,7 +144,9 @@ export class BattleRenderer {
 
   private unitAlive = new Map<string, boolean>();
 
-  private selectionRings = new Map<string, Graphics>();
+  private unitOutlines = new Map<string, Container<Sprite>>();
+
+  private targetMarkers = new Map<string, Graphics>();
 
   private replay: BattleReplay | null = null;
 
@@ -362,7 +366,8 @@ export class BattleRenderer {
     this.unitSprites.clear();
     this.unitBaseScales.clear();
     this.unitAlive.clear();
-    this.selectionRings.clear();
+    this.unitOutlines.clear();
+    this.targetMarkers.clear();
   }
 
   private reportDiagnostic(diagnostic: BattleReportDiagnostic): void {
@@ -452,12 +457,98 @@ export class BattleRenderer {
       this.unitSprites.set(unit.id, sprite);
       this.unitBaseScales.set(unit.id, baseScale);
 
-      const ring = new Graphics();
-      ring.lineStyle(2, 0xf7c85d, 1);
-      ring.drawCircle(0, 0, 14);
-      ring.visible = false;
-      this.unitLayer.addChild(ring);
-      this.selectionRings.set(unit.id, ring);
+      const outline = this.createUnitOutline(texture);
+      this.unitLayer.addChildAt(outline, Math.max(0, this.unitLayer.getChildIndex(sprite)));
+      this.unitOutlines.set(unit.id, outline);
+
+      const targetMarker = new Graphics();
+      this.drawTargetMarker(targetMarker);
+      targetMarker.visible = false;
+      this.unitLayer.addChild(targetMarker);
+      this.targetMarkers.set(unit.id, targetMarker);
+    });
+  }
+
+  private createUnitOutline(texture: Texture): Container<Sprite> {
+    const outline = new Container<Sprite>();
+    const offsets: PixelPoint[] = [
+      { x: 0, y: -3 },
+      { x: 3, y: 0 },
+      { x: 0, y: 3 },
+      { x: -3, y: 0 },
+      { x: 2.2, y: -2.2 },
+      { x: 2.2, y: 2.2 },
+      { x: -2.2, y: 2.2 },
+      { x: -2.2, y: -2.2 },
+    ];
+
+    offsets.forEach((offset) => {
+      const copy = new Sprite(texture);
+      copy.anchor.set(0.5, 0.5);
+      copy.position.set(offset.x, offset.y);
+      const solidGold = new ColorMatrixFilter();
+      solidGold.matrix = [
+        0,
+        0,
+        0,
+        0,
+        OUTLINE_GOLD.r,
+        0,
+        0,
+        0,
+        0,
+        OUTLINE_GOLD.g,
+        0,
+        0,
+        0,
+        0,
+        OUTLINE_GOLD.b,
+        0,
+        0,
+        0,
+        1,
+        0,
+      ];
+      copy.filters = [solidGold];
+      copy.alpha = 0.98;
+      outline.addChild(copy);
+    });
+
+    outline.alpha = 0;
+    outline.visible = false;
+    return outline;
+  }
+
+  private drawTargetMarker(marker: Graphics): void {
+    const red = 0xe73731;
+    const darkRed = 0x7f1010;
+    marker.clear();
+    marker.lineStyle(2, darkRed, 0.26);
+    marker.drawCircle(0, 0, 4.3);
+    marker.moveTo(-9, 0);
+    marker.lineTo(-5, 0);
+    marker.moveTo(5, 0);
+    marker.lineTo(9, 0);
+    marker.moveTo(0, -9);
+    marker.lineTo(0, -5);
+    marker.moveTo(0, 5);
+    marker.lineTo(0, 9);
+
+    marker.lineStyle(0.95, red, 0.92);
+    marker.drawCircle(0, 0, 4.3);
+    marker.moveTo(-9, 0);
+    marker.lineTo(-5, 0);
+    marker.moveTo(5, 0);
+    marker.lineTo(9, 0);
+    marker.moveTo(0, -9);
+    marker.lineTo(0, -5);
+    marker.moveTo(0, 5);
+    marker.lineTo(0, 9);
+  }
+
+  private setOutlineScale(outline: Container<Sprite>, xScale: number, yScale: number): void {
+    outline.children.forEach((copy) => {
+      copy.scale.set(xScale, yScale);
     });
   }
 
@@ -527,15 +618,17 @@ export class BattleRenderer {
 
     units.forEach((unit) => {
       const sprite = this.unitSprites.get(unit.id);
-      const ring = this.selectionRings.get(unit.id);
-      if (!sprite || !ring) {
+      const outline = this.unitOutlines.get(unit.id);
+      const targetMarker = this.targetMarkers.get(unit.id);
+      if (!sprite || !outline || !targetMarker) {
         return;
       }
 
       if (!unit.alive) {
         sprite.visible = false;
         sprite.alpha = 0;
-        ring.visible = false;
+        outline.visible = false;
+        targetMarker.visible = false;
         return;
       }
 
@@ -546,13 +639,15 @@ export class BattleRenderer {
       const yScale = baseScale * densityScale;
 
       sprite.position.set(pos.x, pos.y);
-      ring.position.set(sprite.x, sprite.y);
-      ring.scale.set(densityScale);
+      outline.position.set(sprite.x, sprite.y);
+      targetMarker.position.set(sprite.x, sprite.y);
+      targetMarker.scale.set(densityScale);
 
       sprite.tint = 0xffffff;
       sprite.visible = true;
       sprite.alpha = 1;
       sprite.scale.set(xScale, yScale);
+      this.setOutlineScale(outline, xScale, yScale);
     });
   }
 
@@ -640,13 +735,15 @@ export class BattleRenderer {
         animate(this.scaledDurationMs(220), (t) => {
           sprite.x = start.x + (end.x - start.x) * t;
           sprite.y = start.y + (end.y - start.y) * t;
-          const ring = this.selectionRings.get(actorId as string);
-          if (ring) {
-            ring.position.set(sprite.x, sprite.y);
-          }
+          this.syncUnitAdornments(actorId as string, sprite.x, sprite.y);
         }),
       );
     }
+  }
+
+  private syncUnitAdornments(unitId: string, x: number, y: number): void {
+    this.unitOutlines.get(unitId)?.position.set(x, y);
+    this.targetMarkers.get(unitId)?.position.set(x, y);
   }
 
   private buffEffectLabel(effect: string | null): string {
@@ -849,16 +946,9 @@ export class BattleRenderer {
       return () => {};
     }
 
-    const ring = this.selectionRings.get(unitId);
     const startX = sprite.x;
     const startY = sprite.y;
     const jumpHeight = Math.max(2, Math.round(UNIT_PIXEL_SIZE * 0.16));
-
-    const syncRing = () => {
-      if (ring) {
-        ring.position.set(sprite.x, sprite.y);
-      }
-    };
 
     let cleaned = false;
     const cleanup = () => {
@@ -867,7 +957,7 @@ export class BattleRenderer {
       }
       cleaned = true;
       sprite.position.set(startX, startY);
-      syncRing();
+      this.syncUnitAdornments(unitId, sprite.x, sprite.y);
     };
 
     const stop = animate(
@@ -875,7 +965,7 @@ export class BattleRenderer {
       (t) => {
         const lift = Math.sin(Math.PI * t);
         sprite.position.set(startX, startY - jumpHeight * lift);
-        syncRing();
+        this.syncUnitAdornments(unitId, sprite.x, sprite.y);
       },
       cleanup,
       cleanup,
@@ -892,17 +982,10 @@ export class BattleRenderer {
       return () => {};
     }
 
-    const ring = this.selectionRings.get(unitId);
     const startX = sprite.x;
     const startY = sprite.y;
     const amplitude = Math.max(2, Math.round(UNIT_PIXEL_SIZE * 0.1));
     const oscillations = 2;
-
-    const syncRing = () => {
-      if (ring) {
-        ring.position.set(sprite.x, sprite.y);
-      }
-    };
 
     let cleaned = false;
     const cleanup = () => {
@@ -911,7 +994,7 @@ export class BattleRenderer {
       }
       cleaned = true;
       sprite.position.set(startX, startY);
-      syncRing();
+      this.syncUnitAdornments(unitId, sprite.x, sprite.y);
     };
 
     const stop = animate(
@@ -920,7 +1003,7 @@ export class BattleRenderer {
         const damping = 1 - t;
         const wave = Math.sin(Math.PI * 2 * oscillations * t);
         sprite.position.set(startX + wave * amplitude * damping, startY);
-        syncRing();
+        this.syncUnitAdornments(unitId, sprite.x, sprite.y);
       },
       cleanup,
       cleanup,
@@ -1039,12 +1122,16 @@ export class BattleRenderer {
 
   private applyHighlights(): void {
     this.unitSprites.forEach((sprite, unitId) => {
-      const ring = this.selectionRings.get(unitId);
+      const outline = this.unitOutlines.get(unitId);
+      const targetMarker = this.targetMarkers.get(unitId);
       const alive = this.unitAlive.get(unitId) ?? false;
       if (!alive) {
         sprite.visible = false;
-        if (ring) {
-          ring.visible = false;
+        if (outline) {
+          outline.visible = false;
+        }
+        if (targetMarker) {
+          targetMarker.visible = false;
         }
         return;
       }
@@ -1053,20 +1140,18 @@ export class BattleRenderer {
       const isFaint = !isStrong && this.faintHighlightIds.has(unitId);
 
       sprite.tint = 0xffffff;
-      sprite.alpha = isFaint ? 0.75 : 1;
+      sprite.alpha = 1;
 
-      if (ring) {
-        if (isStrong) {
-          ring.visible = true;
-          ring.alpha = 0.95;
-          ring.tint = 0xf7c85d;
-        } else if (isFaint) {
-          ring.visible = true;
-          ring.alpha = 0.32;
-          ring.tint = 0x9ec8ff;
-        } else {
-          ring.visible = false;
-        }
+      if (outline) {
+        outline.visible = isStrong;
+        outline.alpha = isStrong ? 1 : 0;
+        outline.position.set(sprite.x, sprite.y);
+      }
+
+      if (targetMarker) {
+        targetMarker.visible = isFaint;
+        targetMarker.alpha = isFaint ? 0.84 : 0;
+        targetMarker.position.set(sprite.x, sprite.y);
       }
     });
   }

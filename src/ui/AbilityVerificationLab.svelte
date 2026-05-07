@@ -105,11 +105,12 @@
     }
 
     const step = displayStep >= 0 ? state.replay.steps[displayStep] ?? null : null;
-    const strongIds = step ? [...step.actorIds, ...step.targetIds] : [];
-    const highlightKey = strongIds.join(',');
+    const strongIds = step?.actorIds ?? [];
+    const faintIds = step?.targetIds ?? [];
+    const highlightKey = `${strongIds.join(',')}::${faintIds.join(',')}`;
     if (renderedHighlightKey !== highlightKey) {
       renderedHighlightKey = highlightKey;
-      renderer.setHighlights(strongIds, []);
+      renderer.setHighlights(strongIds, faintIds);
     }
 
     renderer.setPlaybackTiming(state.autoPlay, state.speedMs);

@@ -387,6 +387,10 @@
     --game-icon-size: 0.95rem;
   }
 
+  .ability-chip :global(.game-icon.raster-icon) {
+    --game-icon-raster-scale: 1.45;
+  }
+
   .inspect-tooltip {
     display: grid;
     gap: 0.25rem;

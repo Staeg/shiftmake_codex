@@ -12,10 +12,11 @@
       : kind === 'upgrade'
         ? getUpgradeIconUrl(id)
         : getMutatorIconUrl(id);
+  $: isRasterIcon = url ? !url.endsWith('.svg') : false;
 </script>
 
 {#if url}
-  <img class="game-icon" src={url} alt="" aria-hidden="true" title={label} />
+  <img class:raster-icon={isRasterIcon} class="game-icon" src={url} alt="" aria-hidden="true" title={label} />
 {/if}
 
 <style>
@@ -27,5 +28,10 @@
     image-rendering: pixelated;
     border-radius: 4px;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+  }
+
+  .raster-icon {
+    transform: scale(var(--game-icon-raster-scale, 1));
+    transform-origin: center;
   }
 </style>

@@ -32,6 +32,7 @@
     BattleUnit,
     ExplainedStatKey,
     FactionId,
+    ResolvedCombatantDefinition,
     SideId,
     StatBreakdown,
     TroopId,
@@ -119,6 +120,13 @@
     hpLabel: string;
     unitsMinHeight: string;
     units: ReplayHealthUnit[];
+  };
+
+  type ArchiveHealthTotal = {
+    side: SideId;
+    label: string;
+    hpPercent: string;
+    hpLabel: string;
   };
 
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
@@ -838,8 +846,6 @@
   function selectTroop(troopId: TroopId): void {
     const nextTroopId = selectedTroopId === troopId ? null : troopId;
     selectedTroopId = nextTroopId;
-    const troop = $gameStore.game.troops.find((entry) => entry.id === troopId);
-    selectedFactionId = nextTroopId ? troop?.factionId ?? null : null;
     setTroopCenterMode();
   }
 
@@ -1258,6 +1264,37 @@
     };
   }
 
+  function finalReplaySnapshot(replay: BattleReplay): BattleUnit[] {
+    return replay.steps[replay.steps.length - 1]?.snapshot.units ?? replay.initial.units;
+  }
+
+  function buildArchiveHealthTotal(replay: BattleReplay, side: SideId): ArchiveHealthTotal {
+    const finalUnits = finalReplaySnapshot(replay).filter((unit) => unit.side === side);
+    const initialUnits = replay.initial.units.filter((unit) => unit.side === side);
+    const currentHp = finalUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
+    const maxHp = initialUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
+    return {
+      side,
+      label: side === 'player' ? 'Player' : 'Enemy',
+      hpPercent: getHpPercent(currentHp, maxHp),
+      hpLabel: `${Math.round(Number.parseFloat(getHpPercent(currentHp, maxHp)))}% (${formatHpLabel(currentHp, maxHp)})`,
+    };
+  }
+
+  function buildArchiveCombatantDetail(combatant: ResolvedCombatantDefinition, side: SideId): DetailCard {
+    return buildResolvedUnitDetail(
+      `archive:${side}:${combatant.combatantId}`,
+      combatant.label,
+      combatant.factionId,
+      combatant.unitTypeId,
+      combatant.stats,
+      combatant.quantity,
+      side === 'player' ? 'Player force at battle time.' : 'Enemy force.',
+      combatant.abilities,
+      combatant.statBreakdowns,
+    );
+  }
+
   onMount(() => {
     if (verificationLabMode) {
       if (import.meta.env.DEV) {
@@ -1473,6 +1510,17 @@
     : null;
   $: selectedReplayAvailable =
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
+  $: selectedArchiveReplay =
+    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.getReplay(selectedReplayEntry.replayId) : null;
+  $: selectedArchivePayload =
+    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.getReplayPayload(selectedReplayEntry.replayId) : null;
+  $: selectedArchiveHealthTotals = selectedArchiveReplay
+    ? [buildArchiveHealthTotal(selectedArchiveReplay, 'player'), buildArchiveHealthTotal(selectedArchiveReplay, 'enemy')]
+    : [];
+  $: selectedArchivePlayerUpgradeIds = [
+    ...(selectedArchivePayload?.input.playerFactionUpgradeIds ?? []),
+    ...(selectedArchivePayload?.input.playerTroopTypeUpgradeIds ?? []),
+  ];
   $: readyTroops = $gameStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
   $: selectedRiftAssignableTroops = selectedRift
     ? $gameStore.game.troops.filter(
@@ -2734,6 +2782,12 @@
           <p class="eyebrow">Battle Archive</p>
           <h2>{selectedReplayEntry.summary}</h2>
           <p>Cycle {selectedReplayEntry.cycleNumber} {selectedReplayEntry.outcome}.</p>
+          {#if selectedReplayEntry.resultDrift}
+            <div class="archive-drift-note">
+              <strong>Rules changed this replay.</strong>
+              <span>It now resolves as {selectedReplayEntry.resultDrift.currentSummary}; archived result was {selectedReplayEntry.resultDrift.originalSummary}.</span>
+            </div>
+          {/if}
           <div class="ability-row">
             <span>Mutators</span>
             <div class="ability-list">
@@ -2741,28 +2795,117 @@
                 <span class="mutator-chip empty">None</span>
               {:else}
                 {#each selectedReplayEntry.mutatorIds as mutatorId}
-                  <span class="mutator-chip">
+                  <button
+                    class="mutator-chip"
+                    class:selected={activeDetail?.detailKey === buildMutatorDetail(mutatorId).detailKey}
+                    on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
+                    on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
+                  >
                     <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
-                  </span>
+                  </button>
                 {/each}
               {/if}
             </div>
           </div>
-          <div class="compact-list">
-            <div>
-              <span>Troops Sent</span>
-              <strong>{selectedReplayEntry.playerTroopLabels.join(', ') || 'Unknown troop'}</strong>
+
+          {#if selectedArchiveHealthTotals.length > 0}
+            <div class="archive-health-totals">
+              {#each selectedArchiveHealthTotals as total}
+                <div class="archive-health-total" class:enemy={total.side === 'enemy'}>
+                  <div>
+                    <span>{total.label} final HP</span>
+                    <strong>{total.hpLabel}</strong>
+                  </div>
+                  <div class="replay-health-bar total" aria-hidden="true">
+                    <span style={`width: ${total.hpPercent}`}></span>
+                  </div>
+                </div>
+              {/each}
             </div>
-            <div>
-              <span>Replay Status</span>
-              <strong>{selectedReplayEntry.summaryOnly ? 'Summary only' : selectedReplayAvailable ? 'Replay available' : 'Replay missing'}</strong>
+          {/if}
+
+          {#if selectedArchivePayload}
+            <div class="archive-force-block">
+              <span class="assignment-label">Player Forces</span>
+              <div class="assigned-strip archive-force-strip">
+                {#each selectedArchivePayload.input.playerCombatants as combatant}
+                  {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'player')}
+                  <button
+                    class="unit-tile assigned-summary-tile ui-debug-target"
+                    data-ui-name={`Archive player force ${combatant.label}`}
+                    class:selected={activeDetail?.detailKey === combatantDetail.detailKey}
+                    on:mouseenter={() => previewDetail(combatantDetail)}
+                    on:focus={() => previewDetail(combatantDetail)}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => togglePinnedDetail(combatantDetail)}
+                  >
+                    <img class="unit-tile-art" src={getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId)} alt="" aria-hidden="true" />
+                  </button>
+                {/each}
+              </div>
+              <div class="unlock-row archive-upgrade-row">
+                {#if selectedArchivePlayerUpgradeIds.length === 0}
+                  <span class="mutator-chip empty">No upgrades</span>
+                {:else}
+                  {#each selectedArchivePlayerUpgradeIds as upgradeId}
+                    {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
+                    <button
+                      class="list-button archive-upgrade-chip"
+                      class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                      on:mouseenter={() => previewDetail(upgradeDetail)}
+                      on:focus={() => previewDetail(upgradeDetail)}
+                      on:mouseleave={clearDetail}
+                      on:blur={clearDetail}
+                      on:click={() => togglePinnedDetail(upgradeDetail)}
+                    >
+                      <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
+                    </button>
+                  {/each}
+                {/if}
+              </div>
             </div>
-          </div>
+
+            <div class="archive-force-block">
+              <span class="assignment-label">Enemy Forces</span>
+              <div class="assigned-strip enemy-strip archive-force-strip">
+                {#each selectedArchivePayload.input.enemyCombatants as combatant}
+                  {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'enemy')}
+                  <button
+                    class="unit-tile enemy-tile ui-debug-target"
+                    data-ui-name={`Archive enemy force ${combatant.label}`}
+                    class:selected={activeDetail?.detailKey === combatantDetail.detailKey}
+                    on:mouseenter={() => previewDetail(combatantDetail)}
+                    on:focus={() => previewDetail(combatantDetail)}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => togglePinnedDetail(combatantDetail)}
+                  >
+                    <img class="unit-tile-art" src={getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId)} alt="" aria-hidden="true" />
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {:else}
+            <div class="compact-list">
+              <div>
+                <span>Troops Sent</span>
+                <strong>{selectedReplayEntry.playerTroopLabels.join(', ') || 'Unknown troop'}</strong>
+              </div>
+              <div>
+                <span>Replay Status</span>
+                <strong>{selectedReplayEntry.summaryOnly ? 'Summary only' : selectedReplayAvailable ? 'Replay available' : 'Replay missing'}</strong>
+              </div>
+            </div>
+          {/if}
           <p>
             {#if selectedReplayEntry.summaryOnly}
               This battle was archived as a summary only.
             {:else if selectedReplayAvailable}
-              Open the replay to inspect the full battle log and outcome.
+              Open the replay to inspect the full battle log.
             {:else}
               The archive entry exists, but the replay payload is missing.
             {/if}
@@ -2786,7 +2929,7 @@
                 >
                   <strong>{replayEntry.summary}</strong>
                   <small>Cycle {replayEntry.cycleNumber} | {replayEntry.mutatorIds.map((id) => getMutator(id).label).join(', ') || 'No mutators'}</small>
-                  <small>{replayEntry.summaryOnly ? 'Summary only' : 'Replay available'}</small>
+                  <small>{replayEntry.resultDrift ? `Now ${replayEntry.resultDrift.currentSummary}` : replayEntry.summaryOnly ? 'Summary only' : 'Replay available'}</small>
                 </button>
               {/each}
             </div>
@@ -3651,6 +3794,7 @@
   .title-button.selected,
   .draft-option.selected,
   .draft-troop-icon.selected,
+  .mutator-chip.selected,
   .sprite-inspect-button.selected,
   .unit-tile.selected {
     background:
@@ -3681,6 +3825,10 @@
     --game-icon-size: 1.05rem;
   }
 
+  .ability-chip :global(.game-icon.raster-icon) {
+    --game-icon-raster-scale: 1.45;
+  }
+
   .detail-title {
     display: flex;
     align-items: center;
@@ -3693,6 +3841,67 @@
 
   .mutator-chip.empty {
     color: #95a9ba;
+  }
+
+  .archive-drift-note {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(213, 178, 116, 0.34);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(50, 33, 17, 0.62);
+    color: #f0d4a6;
+  }
+
+  .archive-drift-note span {
+    color: #d7c3a4;
+    font-size: 0.78rem;
+  }
+
+  .archive-health-totals,
+  .archive-force-block {
+    display: grid;
+    gap: var(--ui-space-sm);
+  }
+
+  .archive-health-total {
+    display: grid;
+    gap: 0.35rem;
+    padding: var(--ui-space-sm);
+    border: 1px solid rgba(124, 153, 176, 0.15);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(20, 28, 38, 0.72);
+  }
+
+  .archive-health-total > div:first-child {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ui-space-sm);
+    color: var(--ui-color-text-dim);
+    font-size: 0.78rem;
+  }
+
+  .archive-health-total strong {
+    color: #d8f4df;
+  }
+
+  .archive-health-total.enemy strong {
+    color: #f1b1a8;
+  }
+
+  .archive-force-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .archive-upgrade-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .archive-upgrade-chip {
+    min-width: 0;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.74rem;
   }
 
   .reward-pill {

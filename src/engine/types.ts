@@ -535,11 +535,22 @@ export interface ReplayIndexEntry {
   battleSeed: number;
   outcome: BattleOutcome;
   playerTroopLabels: string[];
+  enemyTroopLabels?: string[];
   mutatorIds: MutatorId[];
   summary: string;
   replayId: string;
   estimatedBytes: number;
+  finalPlayerAlive?: number;
+  finalEnemyAlive?: number;
   summaryOnly?: boolean;
+  resultDrift?: {
+    checkedAt: string;
+    originalSummary: string;
+    currentSummary: string;
+    currentOutcome: BattleOutcome;
+    currentFinalPlayerAlive: number;
+    currentFinalEnemyAlive: number;
+  };
 }
 
 export interface TroopDraftOffer {

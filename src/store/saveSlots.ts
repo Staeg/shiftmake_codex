@@ -1,7 +1,7 @@
 import { getFaction } from '../engine/unitCatalog';
 import { deserializeGameState, serializeGameState, startNewGame } from '../engine/game';
 import { resolveBattle } from '../engine/battle';
-import type { BattleReplay, CampaignPhase, CampaignReportPayload, GameState, StoredReplayPayload } from '../engine/types';
+import type { BattleReplay, BattleOutcome, CampaignPhase, CampaignReportPayload, GameState, ReplayIndexEntry, StoredReplayPayload } from '../engine/types';
 
 export type SaveSlotId = 1 | 2 | 3;
 
@@ -127,6 +127,78 @@ function loadGameFromStorage(storage: Storage, slotId: SaveSlotId): GameState | 
 
   const result = deserializeGameState(raw);
   return result.ok ? result.state ?? null : null;
+}
+
+function parseSummaryCounts(summary: string): { player: number; enemy: number } | null {
+  const match = /\b(\d+)\s*-\s*(\d+)\b/.exec(summary);
+  if (!match) {
+    return null;
+  }
+  return {
+    player: Number(match[1]),
+    enemy: Number(match[2]),
+  };
+}
+
+function buildReplaySummary(outcome: BattleOutcome, finalPlayerAlive: number, finalEnemyAlive: number): string {
+  return `${outcome.toUpperCase()} ${finalPlayerAlive}-${finalEnemyAlive}`;
+}
+
+function replayResultMatchesEntry(entry: ReplayIndexEntry, replay: BattleReplay): boolean {
+  const storedCounts = {
+    player: entry.finalPlayerAlive ?? parseSummaryCounts(entry.summary)?.player ?? null,
+    enemy: entry.finalEnemyAlive ?? parseSummaryCounts(entry.summary)?.enemy ?? null,
+  };
+  return (
+    entry.outcome === replay.outcome &&
+    storedCounts.player === replay.summary.finalPlayerAlive &&
+    storedCounts.enemy === replay.summary.finalEnemyAlive
+  );
+}
+
+export function verifyReplayIndexAgainstStoredPayloads(storage: Storage, slotId: SaveSlotId, game: GameState): { game: GameState; changedCount: number } {
+  let updated = false;
+  let changedCount = 0;
+  const checkedAt = new Date().toISOString();
+  const replayIndex = game.replayIndex.map((entry) => {
+    if (entry.summaryOnly) {
+      return entry;
+    }
+
+    const payload = readSlotReplayPayload(storage, slotId, entry.replayId);
+    if (!payload) {
+      return entry;
+    }
+
+    const replay = resolveBattle(payload.input);
+    if (replayResultMatchesEntry(entry, replay)) {
+      if (entry.resultDrift) {
+        updated = true;
+        const { resultDrift, ...clearedEntry } = entry;
+        return clearedEntry;
+      }
+      return entry;
+    }
+
+    updated = true;
+    changedCount += 1;
+    return {
+      ...entry,
+      resultDrift: {
+        checkedAt,
+        originalSummary: entry.summary,
+        currentSummary: buildReplaySummary(replay.outcome, replay.summary.finalPlayerAlive, replay.summary.finalEnemyAlive),
+        currentOutcome: replay.outcome,
+        currentFinalPlayerAlive: replay.summary.finalPlayerAlive,
+        currentFinalEnemyAlive: replay.summary.finalEnemyAlive,
+      },
+    };
+  });
+
+  return {
+    game: updated ? { ...game, replayIndex } : game,
+    changedCount,
+  };
 }
 
 function clearSlotReplays(storage: Storage, slotId: SaveSlotId): void {

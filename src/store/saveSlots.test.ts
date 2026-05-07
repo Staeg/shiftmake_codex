@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { claimOpeningTroop, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
-import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, writeSlotReplay } from './saveSlots';
+import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, verifyReplayIndexAgainstStoredPayloads, writeSlotReplay } from './saveSlots';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -94,6 +94,45 @@ describe('save slot repository', () => {
     storage.setItem('shiftmake:slot:1:replay:old-unversioned', payload);
     expect(readSlotReplay(storage, 1, 'old-v30')).not.toBeNull();
     expect(readSlotReplay(storage, 1, 'old-unversioned')).not.toBeNull();
+  });
+
+  it('marks archived battles whose stored input now resolves to a different result', () => {
+    const storage = new MemoryStorage();
+    const game = {
+      ...startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(startNewGame(9), 'elf/archer'), 'human/soldier')),
+      replayIndex: [
+        {
+          id: 'changed-battle',
+          riftId: 'rift',
+          cycleNumber: 1,
+          battleSeed: 3,
+          outcome: 'defeat' as const,
+          playerTroopLabels: ['Elven Archers'],
+          mutatorIds: [],
+          summary: 'DEFEAT 0-17',
+          replayId: 'changed-battle',
+          estimatedBytes: 100,
+        },
+      ],
+    };
+    saveToSlot(storage, 1, game);
+    writeSlotReplay(
+      storage,
+      1,
+      'changed-battle',
+      JSON.stringify({ version: 1, input: { seed: 3, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }),
+    );
+
+    const verified = verifyReplayIndexAgainstStoredPayloads(storage, 1, game);
+
+    expect(verified.changedCount).toBe(1);
+    expect(verified.game.replayIndex[0]?.resultDrift).toMatchObject({
+      originalSummary: 'DEFEAT 0-17',
+      currentSummary: 'DRAW 0-0',
+      currentOutcome: 'draw',
+      currentFinalPlayerAlive: 0,
+      currentFinalEnemyAlive: 0,
+    });
   });
 
   it('migrates a legacy save into slot one and copies legacy replay payloads', () => {

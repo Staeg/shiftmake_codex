@@ -58,6 +58,7 @@ import {
   type SaveSlotId,
   type SaveSlotSummary,
   saveToSlot,
+  verifyReplayIndexAgainstStoredPayloads,
 } from './saveSlots';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 import { describeTroopUnlock } from '../engine/upgrades';
@@ -286,9 +287,14 @@ export const gameStore = (() => {
       });
     },
     loadSlot(slotId: SaveSlotId) {
-      const game = loadSaveSlot(localStorage, slotId);
-      if (!game) {
+      const loadedGame = loadSaveSlot(localStorage, slotId);
+      if (!loadedGame) {
         return false;
+      }
+      const verification = verifyReplayIndexAgainstStoredPayloads(localStorage, slotId, loadedGame);
+      const game = verification.game;
+      if (verification.game !== loadedGame) {
+        saveToSlot(localStorage, slotId, game);
       }
 
       set({
@@ -297,6 +303,10 @@ export const gameStore = (() => {
         activeSlotId: slotId,
         slots: listSaveSlots(localStorage),
         game,
+        systemMessage:
+          verification.changedCount > 0
+            ? `${verification.changedCount} archived ${verification.changedCount === 1 ? 'battle now replays' : 'battles now replay'} with a different result.`
+            : null,
       });
       return true;
     },
@@ -550,6 +560,12 @@ export const gameStore = (() => {
     hasReplay(replayId: string) {
       return snapshot.activeSlotId ? readSlotReplay(localStorage, snapshot.activeSlotId, replayId) !== null : false;
     },
+    getReplay(replayId: string): BattleReplay | null {
+      return snapshot.activeSlotId ? readSlotReplay(localStorage, snapshot.activeSlotId, replayId) : null;
+    },
+    getReplayPayload(replayId: string): StoredReplayPayload | null {
+      return snapshot.activeSlotId ? readSlotReplayPayload(localStorage, snapshot.activeSlotId, replayId) : null;
+    },
     createBattleReport(replayId: string, currentStep: number | null, diagnostics: BattleReportDiagnostic[] = []): string | null {
       if (!snapshot.activeSlotId) {
         return null;
@@ -643,7 +659,12 @@ export const gameStore = (() => {
         return { ok: false, message: campaignReportDecodeErrorMessage(decoded.error) };
       }
 
-      const game = importCampaignReportToSlot(localStorage, slotId, decoded.payload);
+      const importedGame = importCampaignReportToSlot(localStorage, slotId, decoded.payload);
+      const verification = verifyReplayIndexAgainstStoredPayloads(localStorage, slotId, importedGame);
+      const game = verification.game;
+      if (verification.game !== importedGame) {
+        saveToSlot(localStorage, slotId, game);
+      }
       set({
         ...makeInitialState(),
         screen: 'overworld',
@@ -651,7 +672,10 @@ export const gameStore = (() => {
         slots: listSaveSlots(localStorage),
         centerMode: decoded.payload.uiContext.centerMode,
         game,
-        systemMessage: `Imported campaign report ${decoded.payload.reportId} into Slot ${slotId}.`,
+        systemMessage:
+          verification.changedCount > 0
+            ? `Imported campaign report ${decoded.payload.reportId} into Slot ${slotId}. ${verification.changedCount} archived ${verification.changedCount === 1 ? 'battle now replays' : 'battles now replay'} with a different result.`
+            : `Imported campaign report ${decoded.payload.reportId} into Slot ${slotId}.`,
         validationMessages: [...decoded.payload.uiContext.validationMessages],
       });
       return { ok: true, reportId: decoded.payload.reportId };
