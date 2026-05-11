@@ -22,6 +22,17 @@ export function getClaimableTroopUnlockIds(state: Pick<GameState, 'unlockedFacti
   return [...new Set([...nativeTroopUnlockIds, ...latentTroopUnlockIds])];
 }
 
+export function getOwnedTroopUnlockIds(state: Pick<GameState, 'troops'>): TroopUnlockId[] {
+  return state.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}`);
+}
+
+export function getAvailableTroopUnlockIds(
+  state: Pick<GameState, 'troops' | 'unlockedFactionIds' | 'unlockedTroopUnlockIds'>,
+): TroopUnlockId[] {
+  const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
+  return getClaimableTroopUnlockIds(state).filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
+}
+
 export function describeTroopUnlock(troopUnlockId: TroopUnlockId): string {
   const [factionId, unitTypeId] = troopUnlockId.split('/') as [FactionId, string];
   return composeBaseTroopDefinition(factionId, unitTypeId).label;

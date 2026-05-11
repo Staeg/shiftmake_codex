@@ -1,6 +1,6 @@
 # Abilities
 
-This document describes the implemented battle ability architecture and the current authored ability catalog.
+This document describes the implemented battle ability architecture and representative authored abilities.
 
 ## Ability model
 
@@ -175,7 +175,9 @@ Attacks are classified at runtime as:
 
 `Retaliate` only answers `normal` attacks, which prevents retaliation loops while still allowing ordinary on-attack and on-kill logic to function.
 
-## Current ability list
+## Representative ability list
+
+The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and upgrade-facing abilities are also summarized in `Unit details.md`; this section calls out the main reusable ability patterns rather than every authored passive helper.
 
 ### Alternate Fuel
 

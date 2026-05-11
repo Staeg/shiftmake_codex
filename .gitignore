@@ -1,2 +1,5 @@
 balance_results/
 tmp/
+node_modules/
+dist/
+.codex-tmp/

@@ -212,7 +212,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: after being hit by normal attacks, gain +1 armor for the battle.',
+    shortText: 'Passive: after being hit by normal attacks, gain +1 armor and lose 1 speed for the battle.',
   }),
   'seeing-red': makeAbility({
     id: 'seeing-red',
@@ -1101,7 +1101,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'human',
     label: 'Humans',
     singularLabel: 'Human',
-    description: 'Slightly better at pretty much everything. Boring but solid.',
     addedAttributes: ['human'],
     statAdjustments: {
       health: { multiplier: 1.1 },
@@ -1116,7 +1115,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'elf',
     label: 'Elves',
     singularLabel: 'Elven',
-    description: 'Feared from afar. Less so up close.',
     addedAttributes: ['elf'],
     statAdjustments: {
       health: { multiplier: 0.9 },
@@ -1130,7 +1128,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'goblin',
     label: 'Goblins',
     singularLabel: 'Goblin',
-    description: "The one good thing you can say about goblins is that there's more than one of them.",
     addedAttributes: ['goblin', 'expendable'],
     statAdjustments: {
       health: { multiplier: 0.7 },
@@ -1147,7 +1144,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'troll',
     label: 'Trolls',
     singularLabel: 'Troll',
-    description: 'Never down for the count, never down for counting.',
     addedAttributes: ['troll'],
     statAdjustments: {
       health: { multiplier: 1.3 },
@@ -1162,7 +1158,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'dwarf',
     label: 'Dwarves',
     singularLabel: 'Dwarven',
-    description: 'Slow, stubborn tunnel fighters who prefer arriving from the wrong direction.',
     addedAttributes: ['dwarf'],
     statAdjustments: {
       health: { multiplier: 1.2 },
@@ -1176,7 +1171,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'orc',
     label: 'Orcs',
     singularLabel: 'Orc',
-    description: 'Fast, loud shock troops who turn a breach into a brawl.',
     addedAttributes: ['orc'],
     statAdjustments: {
       health: { multiplier: 1.1 },
@@ -1191,7 +1185,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     id: 'fae',
     label: 'Fae',
     singularLabel: 'Fae',
-    description: 'Fragile tricksters who decide which enemy matters and when everyone is standing in the wrong place.',
     addedAttributes: ['fae'],
     statAdjustments: {
       health: { multiplier: 0.8 },
@@ -1380,7 +1373,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'dwarf',
     label: 'Stall Warts',
     tier: 3,
-    description: 'Dwarven troops gain +1 armor for the rest of the battle after they are hit by normal attacks.',
+    description: 'Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.',
     effects: [{ kind: 'addAbility', abilityId: 'stall-warts' }],
   },
   'orc-seeing-red': {
@@ -2002,13 +1995,13 @@ export const ALL_TROOP_UNLOCK_IDS = Object.keys(FACTIONS).flatMap((factionId) =>
   UNLOCKABLE_UNIT_TYPE_IDS.map((unitTypeId) => getTroopUnlockId(factionId as FactionId, unitTypeId)),
 );
 export const NATIVE_TROOP_UNIT_TYPE_IDS_BY_FACTION: Record<FactionId, UnitTypeId[]> = {
-  human: ['soldier', 'militia', 'archer', 'knight', 'priest', 'wizard'],
+  human: ['soldier', 'archer', 'knight', 'priest', 'wizard'],
   elf: ['archer', 'ranger', 'druid', 'beastmaster', 'champion'],
   goblin: ['militia', 'soldier', 'shaman', 'necromancer', 'wizard'],
-  troll: ['soldier', 'champion', 'avenger', 'beastmaster', 'shaman', 'elementalist'],
-  dwarf: ['soldier', 'knight', 'avenger', 'priest', 'elementalist'],
+  troll: ['champion', 'avenger', 'priest', 'shaman', 'elementalist'],
+  dwarf: ['soldier', 'knight', 'avenger', 'necromancer', 'elementalist'],
   orc: ['militia', 'soldier', 'champion', 'avenger', 'beastmaster'],
-  fae: ['archer', 'druid', 'shaman', 'wizard', 'elementalist'],
+  fae: ['ranger', 'druid', 'shaman', 'wizard', 'elementalist'],
 };
 export const NATIVE_TROOP_UNLOCK_IDS_BY_FACTION: Record<FactionId, string[]> = Object.fromEntries(
   (Object.keys(NATIVE_TROOP_UNIT_TYPE_IDS_BY_FACTION) as FactionId[]).map((factionId) => [

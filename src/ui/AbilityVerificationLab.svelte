@@ -92,6 +92,8 @@
       return;
     }
 
+    renderer.setPlaybackTiming(state.autoPlay, state.speedMs);
+
     if (renderedReplayId !== state.replay.id) {
       renderedReplayId = state.replay.id;
       renderedStep = Number.NaN;
@@ -105,15 +107,13 @@
     }
 
     const step = displayStep >= 0 ? state.replay.steps[displayStep] ?? null : null;
-    const strongIds = step?.actorIds ?? [];
-    const faintIds = step?.targetIds ?? [];
-    const highlightKey = `${strongIds.join(',')}::${faintIds.join(',')}`;
+    const strongIds = state.autoPlay ? [] : step?.actorIds ?? [];
+    const faintIds = state.autoPlay ? [] : step?.targetIds ?? [];
+    const highlightKey = `${state.autoPlay ? 'autoplay' : 'manual'}::${strongIds.join(',')}::${faintIds.join(',')}`;
     if (renderedHighlightKey !== highlightKey) {
       renderedHighlightKey = highlightKey;
       renderer.setHighlights(strongIds, faintIds);
     }
-
-    renderer.setPlaybackTiming(state.autoPlay, state.speedMs);
   }
 
   function loadScenario(targetScenario: AbilityVerificationScenario, runBattle = true): void {
@@ -140,7 +140,13 @@
     if (stepIndex === null) {
       return;
     }
+    debugBattleStore.setAutoPlay(false);
     debugBattleStore.selectEvent(stepIndex);
+  }
+
+  function runManualReplayAction(action: () => void): void {
+    debugBattleStore.setAutoPlay(false);
+    action();
   }
 
   onMount(() => {
@@ -292,9 +298,9 @@
       currentStep={state.currentStep}
       autoPlay={state.autoPlay}
       speedMs={state.speedMs}
-      onJumpStart={() => debugBattleStore.jumpTo(-1)}
-      onStepBack={() => debugBattleStore.stepBackward()}
-      onStepForward={() => debugBattleStore.stepForward()}
+      onJumpStart={() => runManualReplayAction(() => debugBattleStore.jumpTo(-1))}
+      onStepBack={() => runManualReplayAction(() => debugBattleStore.stepBackward())}
+      onStepForward={() => runManualReplayAction(() => debugBattleStore.stepForward())}
       onToggleAuto={() => debugBattleStore.setAutoPlay(!state.autoPlay)}
       onSetSpeed={(speedMs) => debugBattleStore.setSpeedMs(speedMs)}
     />
@@ -323,7 +329,7 @@
       selected={state.selectedEvent}
       currentStep={state.currentStep}
       showTitle={true}
-      onSelect={(index) => debugBattleStore.selectEvent(index)}
+      onSelect={(index) => runManualReplayAction(() => debugBattleStore.selectEvent(index))}
     />
   </section>
 </main>

@@ -8,10 +8,11 @@ The only progression currency is `Essence`.
 
 Current rules:
 
-- the two opening faction-and-troop choices are free
+- the two opening faction choices are free, and each selected faction grants its preselected starting troop
 - each cycle grants `+2` Essence after battles resolve
-- claiming a troop unlock costs `1` Essence
-- claiming an upgrade unlock costs `1` Essence
+- revealing a combined troop-and-upgrade draft costs `2` Essence when both sides still have options
+- a one-sided draft fallback costs `1` Essence if only troop unlocks or only upgrade unlocks remain
+- claiming options from a revealed draft costs no additional Essence
 - unused Essence carries over between cycles
 
 Removed from the progression model:
@@ -57,11 +58,13 @@ Offer candidate pool:
 - native troop combinations for unlocked factions only
 - latent off-roster troop combinations previously discovered through Rift victories, but only after their faction is unlocked
 
-Opening pick rule:
+Opening faction rule:
 
 - the opening screen only shows native faction rosters
-- the player must choose two starting troops
-- the two starting troops must have different factions and different troop types
+- the player chooses two starting factions, not troop types
+- each faction option includes one preselected starting troop type from that faction's native roster
+- the player can still see the other native troop types that faction may unlock later
+- the generated opening offer should not force duplicate starting troop types across the two selected factions
 - after the opening campaign starts, only those two factions' native rosters are claimable in normal troop drafts
 
 ## Scheduled faction unlocks
@@ -71,16 +74,18 @@ At the start of cycle 3:
 - choose from up to 3 still-locked factions
 - each faction option shows its native troop roster
 - each faction option also shows defeated-enemy troop combinations already discovered for that faction, as future unlock potential
-- the chosen faction immediately receives 1 randomly selected faction upgrade
-- after choosing the faction, choose 2 troop type unlocks for that faction sequentially, from its native roster plus any latent defeated troops for that faction
+- each faction option shows the 2 troop types that will be unlocked immediately if selected
+- the chosen faction immediately receives 1 preselected faction upgrade
+- the chosen faction immediately receives its 2 preselected troop type unlocks from its native roster plus any latent defeated troops for that faction
 
 At the start of cycle 7:
 
 - repeat the same faction choice flow
-- the chosen faction immediately receives 2 randomly selected faction upgrades
-- after choosing the faction, choose 3 troop type unlocks for that faction sequentially, from its native roster plus any latent defeated troops for that faction
+- each faction option shows the 3 troop types that will be unlocked immediately if selected
+- the chosen faction immediately receives 2 preselected faction upgrades
+- the chosen faction immediately receives its 3 preselected troop type unlocks from its native roster plus any latent defeated troops for that faction
 
-With the current 4-faction content set, fewer than 3 faction options can appear if fewer than 3 factions remain locked.
+With the current 7-faction content set, fewer than 3 faction options can appear if fewer than 3 factions remain locked.
 
 ## Unlocking upgrades
 
@@ -95,13 +100,13 @@ There are no troop stat upgrades.
 
 ## Upgrade offer generation
 
-Upgrade offers show 3 unique options.
+Upgrade offers are revealed as part of the combined Essence draft and show 3 unique options when enough upgrades remain.
 
 Buckets are filled in this order:
 
 1. a troop-type upgrade for a unit type the player already owns
 2. a faction upgrade for a faction the player already owns
-3. an upgrade that matches neither of the first two buckets
+3. a random upgrade affecting a random allied troop among those with the fewest existing faction-plus-type upgrades affecting them
 
 If any bucket cannot be satisfied, that slot falls back to a random unowned upgrade from the remaining pool.
 
@@ -111,29 +116,81 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 
 - `Humans United`
 - `Human Combined Arms`
+- `Tubthumping`
+- `Hold the Standard`
 - `Elven Eyes`
+- `Fade Into Shadow`
 - `Elven Forsaken`
+- `Long Shot Doctrine`
+- `Silver Distance`
 - `Goblin Farewell`
 - `Goblin Pack`
+- `Snatch the Moment`
+- `Loot Frenzy`
 - `Troll Momentum`
+- `Stoneblood`
 - `Troll Frenzy`
+- `Crushing Sweep`
+- `Rowdy Regrowth`
+- `Diggy Hole`
+- `Ale and Hearty`
+- `Mycelial Beards`
+- `Stall Warts`
+- `Seeing Red`
+- `First Blood`
+- `Warcry`
+- `Berserk`
+- `Ensorcel`
+- `Glamour`
+- `Changeling`
+- `Whimsy`
 
 ## Implemented troop-type upgrades
 
+- `Shield Drill`
 - `Shredding Arrows`
+- `Pinning Volley`
 - `Sevenfold`
+- `Blood Oath`
+- `Last Witness`
 - `Blood in the Water`
+- `Packmaster's Whistle`
+- `Thrill of the Hunt`
 - `Executioner`
+- `Anointed`
 - `Wild Growth`
+- `True Form`
+- `Thornhide`
+- `Bramble Snare`
+- `Wild Call`
+- `Arc Conductor`
 - `Mitosis`
+- `Living Circuit`
 - `Retaliate`
+- `Brace`
+- `Challenge Accepted`
+- `Sentinel Runes`
+- `Rabble Rush`
 - `Scurry`
+- `Dogpile`
 - `Alternate Fuel`
+- `Early Riser`
 - `Rising Tide`
+- `Carrion Choir`
 - `Zeal`
+- `Mercy Before Dawn`
+- `Overflowing Grace`
 - `Concussive Shots`
+- `Skirmisher's Step`
+- `Heartseeker`
+- `Scavenger's Hunger`
+- `War Drums`
 - `Serve Once More`
+- `Static Charge`
 - `Storm`
+- `Spell Echo`
+- `Leyline Focus`
+- `Lightning Rods`
 
 Removed upgrade:
 

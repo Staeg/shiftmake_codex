@@ -7,7 +7,6 @@ import {
   Graphics,
   Rectangle,
   Sprite,
-  Text,
   Texture,
 } from 'pixi.js';
 import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/types';
@@ -20,7 +19,8 @@ const HEX_SIZE = 42;
 const UNIT_PIXEL_SIZE = 32;
 const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const BASE_PLAYBACK_STEP_MS = 500;
+const BASE_EFFECT_MS = 1000;
+const AUTO_ATTACK_EFFECT_MS = 280;
 const VIEWPORT_PADDING = 18;
 const DEFAULT_FIT_SCALE = 1.2;
 const MIN_ZOOM_FACTOR = 0.6;
@@ -35,6 +35,7 @@ type LayoutResult = {
   densityScales: Map<string, number>;
 };
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
+type EffectIndicatorKind = 'positive' | 'negative';
 
 export type UnitPointerInfo = {
   unitId: string;
@@ -164,8 +165,6 @@ export class BattleRenderer {
 
   private isAutoPlayback = false;
 
-  private playbackStepMs = 500;
-
   private currentMapRadius = 0;
 
   private boardBounds: Bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
@@ -246,9 +245,11 @@ export class BattleRenderer {
     this.onDiagnostic = handler;
   }
 
-  setPlaybackTiming(autoPlay: boolean, speedMs: number): void {
+  setPlaybackTiming(autoPlay: boolean, _speedMs: number): void {
+    if (this.isAutoPlayback && !autoPlay) {
+      this.clearEffects();
+    }
     this.isAutoPlayback = autoPlay;
-    this.playbackStepMs = speedMs;
   }
 
   destroy(): void {
@@ -329,7 +330,7 @@ export class BattleRenderer {
 
     const snapshot = normalized < 0 ? this.replay.initial.units : this.replay.steps[normalized]?.snapshot.units ?? [];
 
-    if (normalized !== previous) {
+    if (normalized !== previous && !this.isAutoPlayback) {
       this.clearEffects();
     }
 
@@ -651,13 +652,12 @@ export class BattleRenderer {
     });
   }
 
-  private scaledDurationMs(baseMs: number): number {
-    const ratio = this.playbackStepMs / BASE_PLAYBACK_STEP_MS;
-    return Math.max(16, Math.round(baseMs * ratio));
+  private effectDurationMs(): number {
+    return BASE_EFFECT_MS;
   }
 
-  private effectDurationMs(): number {
-    return this.scaledDurationMs(1000);
+  private attackEffectDurationMs(): number {
+    return this.isAutoPlayback ? AUTO_ATTACK_EFFECT_MS : this.effectDurationMs();
   }
 
   private playStepEffect(step: BattleStep, prevUnits: BattleUnit[], nextUnits: BattleUnit[]): void {
@@ -679,30 +679,33 @@ export class BattleRenderer {
         return;
       }
 
-      const label = this.buffEffectLabel(effect);
+      const indicatorKind = this.buffEffectIndicatorKind(step);
       step.targetIds.forEach((targetId) => {
-        this.stopEffects.push(this.showBuffPopup(targetId, label));
+        this.stopEffects.push(this.showBuffIndicator(targetId, indicatorKind));
       });
       return;
     }
 
     if (step.kind === 'attack') {
       const actorId = step.actorIds[0] ?? '';
-      const actor = getUnitById(nextUnits, actorId);
+      const actor = getUnitById(prevUnits, actorId) ?? getUnitById(nextUnits, actorId);
       if (!actor) {
         return;
       }
 
-      const durationMs = this.effectDurationMs();
+      const durationMs = this.attackEffectDurationMs();
       this.stopEffects.push(this.jumpUnit(actor.id, durationMs));
 
-      const actorPos = nextLayout.positions.get(actor.id) ?? axialToPixel(actor.position);
+      const actorPos = prevLayout.positions.get(actor.id) ?? nextLayout.positions.get(actor.id) ?? axialToPixel(actor.position);
       const targets = step.targetIds
-        .map((targetId) => getUnitById(nextUnits, targetId))
+        .map((targetId) => getUnitById(prevUnits, targetId) ?? getUnitById(nextUnits, targetId))
         .filter((unit): unit is BattleUnit => Boolean(unit));
 
       targets.forEach((target) => {
-        const targetPos = nextLayout.positions.get(target.id) ?? axialToPixel(target.position);
+        const targetPos = prevLayout.positions.get(target.id) ?? nextLayout.positions.get(target.id) ?? axialToPixel(target.position);
+        if (target.alive) {
+          this.stopEffects.push(this.holdUnitAtAttackPose(target, targetPos, prevLayout.densityScales.get(target.id), durationMs));
+        }
         if ((step.metadata?.mode as string) === 'ranged') {
           this.stopEffects.push(this.fireProjectile(actorPos, targetPos, durationMs));
         }
@@ -712,9 +715,8 @@ export class BattleRenderer {
     }
 
     if (step.kind === 'heal') {
-      const amount = (step.metadata?.amount as number | undefined) ?? 0;
       step.targetIds.forEach((targetId) => {
-        this.stopEffects.push(this.showHealPopup(targetId, amount));
+        this.stopEffects.push(this.showEffectIndicator(targetId, 'positive'));
       });
       return;
     }
@@ -732,7 +734,7 @@ export class BattleRenderer {
       const end = nextLayout.positions.get(nextUnit.id) ?? axialToPixel(nextUnit.position);
 
       this.stopEffects.push(
-        animate(this.scaledDurationMs(220), (t) => {
+        animate(220, (t) => {
           sprite.x = start.x + (end.x - start.x) * t;
           sprite.y = start.y + (end.y - start.y) * t;
           this.syncUnitAdornments(actorId as string, sprite.x, sprite.y);
@@ -746,32 +748,85 @@ export class BattleRenderer {
     this.targetMarkers.get(unitId)?.position.set(x, y);
   }
 
-  private buffEffectLabel(effect: string | null): string {
-    switch (effect) {
-      case 'summon':
-        return 'Summon';
-      case 'heal':
-        return 'Heal';
-      case 'bolster':
-        return 'Bolster';
-      case 'haste':
-        return 'Haste';
-      case 'ramp':
-        return 'Damage Up';
-      case 'grantAbility':
-        return 'New Ability';
-      case 'rangeset':
-        return 'Range Shift';
-      case 'roleset':
-        return 'Role Shift';
-      case 'statDelta':
-        return 'Stat Shift';
-      case 'initiativeDelta':
-      case 'initiativeSet':
-        return 'Initiative';
-      default:
-        return 'Buff';
+  private holdUnitAtAttackPose(unit: BattleUnit, position: PixelPoint, densityScale = 1, durationMs: number): () => void {
+    const sprite = this.unitSprites.get(unit.id);
+    const outline = this.unitOutlines.get(unit.id);
+    const targetMarker = this.targetMarkers.get(unit.id);
+    if (!sprite) {
+      return () => {};
     }
+
+    const postState = {
+      visible: sprite.visible,
+      alpha: sprite.alpha,
+      x: sprite.x,
+      y: sprite.y,
+      scaleX: sprite.scale.x,
+      scaleY: sprite.scale.y,
+      outlineVisible: outline?.visible ?? false,
+      outlineAlpha: outline?.alpha ?? 0,
+      markerVisible: targetMarker?.visible ?? false,
+      markerAlpha: targetMarker?.alpha ?? 0,
+    };
+    const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
+    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale;
+    const yScale = baseScale * densityScale;
+
+    sprite.visible = true;
+    sprite.alpha = 1;
+    sprite.position.set(position.x, position.y);
+    sprite.scale.set(xScale, yScale);
+    if (outline) {
+      this.setOutlineScale(outline, xScale, yScale);
+    }
+    this.syncUnitAdornments(unit.id, sprite.x, sprite.y);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      sprite.visible = postState.visible;
+      sprite.alpha = postState.alpha;
+      sprite.position.set(postState.x, postState.y);
+      sprite.scale.set(postState.scaleX, postState.scaleY);
+      if (outline) {
+        outline.visible = postState.outlineVisible;
+        outline.alpha = postState.outlineAlpha;
+        outline.position.set(sprite.x, sprite.y);
+      }
+      if (targetMarker) {
+        targetMarker.visible = postState.markerVisible;
+        targetMarker.alpha = postState.markerAlpha;
+        targetMarker.position.set(sprite.x, sprite.y);
+      }
+    };
+
+    const stop = animate(durationMs, () => {}, cleanup, cleanup);
+
+    return () => {
+      stop();
+    };
+  }
+
+  private buffEffectIndicatorKind(step: BattleStep): EffectIndicatorKind {
+    if (step.metadata?.expired === true) {
+      return 'negative';
+    }
+
+    const amount = step.metadata?.amount;
+    if (typeof amount === 'number' && amount < 0) {
+      return 'negative';
+    }
+
+    const effect = typeof step.metadata?.effect === 'string' ? step.metadata.effect : null;
+    const value = step.metadata?.value;
+    if ((effect === 'initiativeSet' || effect === 'rangeset') && typeof value === 'number' && value <= 0) {
+      return 'negative';
+    }
+
+    return 'positive';
   }
 
   private fireProjectile(from: PixelPoint, to: PixelPoint, durationMs: number): () => void {
@@ -792,8 +847,6 @@ export class BattleRenderer {
     const projectileAngle = Math.atan2(deltaY, deltaX);
     const trailWidth = 2;
     const glowWidth = 5;
-    const trailHoldFraction = 0.28;
-    const travelFraction = Math.max(0.2, 1 - trailHoldFraction);
     const trailLength = 9;
     const trailPoints: PixelPoint[] = [{ x: from.x, y: from.y }];
 
@@ -840,23 +893,20 @@ export class BattleRenderer {
     const stop = animate(
       durationMs,
       (t) => {
-        const travelProgress = t < travelFraction ? t / travelFraction : 1;
-        const lingerProgress = t <= travelFraction ? 0 : (t - travelFraction) / (1 - travelFraction);
-        const trailAlpha = t < travelFraction ? 1 : 1 - lingerProgress;
-        const currentX = from.x + deltaX * travelProgress;
-        const currentY = from.y + deltaY * travelProgress;
+        const currentX = from.x + deltaX * t;
+        const currentY = from.y + deltaY * t;
 
         sprite.rotation = projectileAngle;
         sprite.x = currentX;
         sprite.y = currentY;
-        sprite.alpha = trailAlpha;
+        sprite.alpha = 1;
 
         trailPoints.push({ x: currentX, y: currentY });
         while (trailPoints.length > trailLength) {
           trailPoints.shift();
         }
 
-        drawTrail(trailAlpha);
+        drawTrail(1);
       },
       cleanup,
       cleanup,
@@ -886,20 +936,13 @@ export class BattleRenderer {
     glow.position.set(sprite.x, sprite.y);
     this.effectLayer.addChild(glow);
 
-    const label = new Text('Summon', {
-      fontSize: 12,
-      fontWeight: 'bold',
-      fill: 0xcdfcb3,
-      stroke: 0x163018,
-      strokeThickness: 3,
-    });
-    label.anchor.set(0.5, 1);
-    label.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
-    this.effectLayer.addChild(label);
+    const arrow = this.createEffectArrow('positive');
+    arrow.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.62);
+    this.effectLayer.addChild(arrow);
 
     const startRadius = 10;
     const endRadius = 28;
-    const startY = label.y;
+    const startY = arrow.y;
 
     let cleaned = false;
     const cleanup = () => {
@@ -907,7 +950,7 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      [ring, glow, label].forEach((node) => {
+      [ring, glow, arrow].forEach((node) => {
         if (node.parent) {
           node.parent.removeChild(node);
         }
@@ -916,7 +959,7 @@ export class BattleRenderer {
     };
 
     const stop = animate(
-      this.scaledDurationMs(620),
+      620,
       (t) => {
         const radius = startRadius + (endRadius - startRadius) * t;
         ring.clear();
@@ -928,8 +971,8 @@ export class BattleRenderer {
         glow.drawCircle(0, 0, radius * 0.72);
         glow.endFill();
 
-        label.y = startY - 14 * t;
-        label.alpha = 1 - t;
+        arrow.y = startY - 14 * t;
+        arrow.alpha = 1 - t;
       },
       cleanup,
       cleanup,
@@ -1014,26 +1057,43 @@ export class BattleRenderer {
     };
   }
 
-  private showHealPopup(unitId: string, amount: number): () => void {
+  private createEffectArrow(kind: EffectIndicatorKind): Graphics {
+    const arrow = new Graphics();
+    const isPositive = kind === 'positive';
+    const fill = isPositive ? 0x58e37a : 0xf0524b;
+    const stroke = isPositive ? 0x12351d : 0x3d1010;
+
+    arrow.lineStyle(2, stroke, 0.95);
+    arrow.beginFill(fill, 0.96);
+    arrow.drawRoundedRect(-1.8, isPositive ? -1 : -7, 3.6, 8, 1.4);
+    arrow.endFill();
+
+    arrow.lineStyle(2, stroke, 0.95);
+    arrow.beginFill(fill, 0.96);
+    arrow.moveTo(0, isPositive ? -9 : 9);
+    arrow.lineTo(5.5, isPositive ? -2.5 : 2.5);
+    arrow.lineTo(2.4, isPositive ? -2.5 : 2.5);
+    arrow.lineTo(2.4, isPositive ? -1 : 1);
+    arrow.lineTo(-2.4, isPositive ? -1 : 1);
+    arrow.lineTo(-2.4, isPositive ? -2.5 : 2.5);
+    arrow.lineTo(-5.5, isPositive ? -2.5 : 2.5);
+    arrow.closePath();
+    arrow.endFill();
+    return arrow;
+  }
+
+  private showEffectIndicator(unitId: string, kind: EffectIndicatorKind): () => void {
     const sprite = this.unitSprites.get(unitId);
     if (!sprite) {
       return () => {};
     }
 
-    const label = `+${Math.round(amount)}`;
-    const text = new Text(label, {
-      fontSize: 13,
-      fontWeight: 'bold',
-      fill: 0x55dd77,
-      stroke: 0x112211,
-      strokeThickness: 3,
-    });
-    text.anchor.set(0.5, 1);
-    text.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.6);
-    this.effectLayer.addChild(text);
+    const arrow = this.createEffectArrow(kind);
+    arrow.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.62);
+    this.effectLayer.addChild(arrow);
 
-    const startY = text.y;
-    const floatDistance = 22;
+    const startY = arrow.y;
+    const floatDistance = kind === 'positive' ? -22 : 22;
 
     let cleaned = false;
     const cleanup = () => {
@@ -1041,17 +1101,18 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      if (text.parent) {
-        text.parent.removeChild(text);
+      if (arrow.parent) {
+        arrow.parent.removeChild(arrow);
       }
-      text.destroy();
+      arrow.destroy();
     };
 
     const stop = animate(
-      this.scaledDurationMs(800),
+      800,
       (t) => {
-        text.y = startY - floatDistance * t;
-        text.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+        arrow.y = startY + floatDistance * t;
+        arrow.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+        arrow.scale.set(1 + 0.15 * Math.sin(Math.PI * t));
       },
       cleanup,
       cleanup,
@@ -1062,30 +1123,25 @@ export class BattleRenderer {
     };
   }
 
-  private showBuffPopup(unitId: string, label: string): () => void {
+  private showBuffIndicator(unitId: string, kind: EffectIndicatorKind): () => void {
     const sprite = this.unitSprites.get(unitId);
     if (!sprite) {
       return () => {};
     }
 
-    const text = new Text(label, {
-      fontSize: 12,
-      fontWeight: 'bold',
-      fill: 0x7dc5ff,
-      stroke: 0x0e2034,
-      strokeThickness: 3,
-    });
-    text.anchor.set(0.5, 1);
-    text.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
-    this.effectLayer.addChild(text);
+    const arrow = this.createEffectArrow(kind);
+    arrow.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
+    this.effectLayer.addChild(arrow);
 
     const halo = new Graphics();
-    halo.lineStyle(2, 0x7dc5ff, 0.85);
+    const haloColor = kind === 'positive' ? 0x58e37a : 0xf0524b;
+    halo.lineStyle(2, haloColor, 0.85);
     halo.drawCircle(0, 0, 12);
     halo.position.set(sprite.x, sprite.y);
     this.effectLayer.addChild(halo);
 
-    const startY = text.y;
+    const startY = arrow.y;
+    const floatDistance = kind === 'positive' ? -12 : 12;
 
     let cleaned = false;
     const cleanup = () => {
@@ -1093,7 +1149,7 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      [text, halo].forEach((node) => {
+      [arrow, halo].forEach((node) => {
         if (node.parent) {
           node.parent.removeChild(node);
         }
@@ -1102,13 +1158,14 @@ export class BattleRenderer {
     };
 
     const stop = animate(
-      this.scaledDurationMs(540),
+      540,
       (t) => {
-        text.y = startY - 12 * t;
-        text.alpha = 1 - t;
+        arrow.y = startY + floatDistance * t;
+        arrow.alpha = 1 - t;
+        arrow.scale.set(1 + 0.12 * Math.sin(Math.PI * t));
 
         halo.clear();
-        halo.lineStyle(2, 0x7dc5ff, 0.85 * (1 - t));
+        halo.lineStyle(2, haloColor, 0.85 * (1 - t));
         halo.drawCircle(0, 0, 12 + 8 * t);
       },
       cleanup,

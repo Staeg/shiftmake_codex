@@ -9,7 +9,7 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 ## Current flow
 
 1. Start a campaign from one of three save slots.
-2. Pick two free opening faction-and-troop combinations from native rosters. The two starting troops must use different factions and different troop types.
+2. Pick two free opening factions from the opening offer. Each faction option includes one specific starting troop type; the player chooses the faction, not the troop type.
 3. Enter the planning screen for the current cycle.
 4. Inspect visible Rifts, their mutators, enemy troops, saturation limit, and VP reward directly from the board.
 5. Spend carried Essence on troop and upgrade draft claims.
@@ -30,12 +30,11 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 
 ## Current progression actions
 
-- Claim two free opening troops from native troop rosters, with no repeated faction or troop type.
+- Claim two free opening factions. Each chosen faction grants its preselected starting troop from that faction's native roster, while the rest of that faction's native roster is shown as later unlock potential.
 - After the opening campaign starts, normal troop drafts are limited to the two unlocked factions' native rosters plus any latent Rift-earned combinations for already-unlocked factions.
-- At the start of cycle 3, choose a new faction from the scheduled faction unlock offer. The chosen faction arrives with 1 random faction upgrade already unlocked, then grants 2 sequential troop type choices for that faction.
-- At the start of cycle 7, choose another new faction from the scheduled faction unlock offer. The chosen faction arrives with 2 random faction upgrades already unlocked, then grants 3 sequential troop type choices for that faction.
-- Reveal troop choices and claim one for 1 Essence.
-- Reveal upgrade choices and claim one for 1 Essence.
+- At the start of cycle 3, choose a new faction from the scheduled faction unlock offer. The chosen faction arrives with 1 preselected faction upgrade and 2 preselected troop types already unlocked. Other native and latent troop types for that faction are still shown as later unlock potential.
+- At the start of cycle 7, choose another new faction from the scheduled faction unlock offer. The chosen faction arrives with 2 preselected faction upgrades and 3 preselected troop types already unlocked. Other native and latent troop types for that faction are still shown as later unlock potential.
+- Spend 2 Essence to reveal a combined troop-and-upgrade draft, then claim one troop option and one upgrade option at no additional cost. If one side of the draft is exhausted, a one-sided fallback costs 1 Essence.
 - Use owned factions and owned unit types to bias future draft buckets.
 - Winning a Rift can make unusual faction-and-troop combinations from that Rift's enemy army latent future unlocks; those combinations become draftable only once their faction is unlocked.
 - Build synergies through faction-wide and troop-type-wide upgrades.

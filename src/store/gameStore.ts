@@ -44,6 +44,7 @@ import type {
   TroopId,
   TroopUnlockId,
   UpgradeId,
+  GameMode,
 } from '../engine/types';
 import {
   createNewSlotCampaign,
@@ -63,7 +64,7 @@ import {
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 import { describeTroopUnlock } from '../engine/upgrades';
 
-export type CenterMode = 'rifts' | 'troops';
+export type CenterMode = 'rifts' | 'troops' | 'contest';
 export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
 
 interface StoreState {
@@ -310,8 +311,8 @@ export const gameStore = (() => {
       });
       return true;
     },
-    startNewCampaign(slotId: SaveSlotId) {
-      const game = createNewSlotCampaign(localStorage, slotId, Date.now() >>> 0);
+    startNewCampaign(slotId: SaveSlotId, gameMode: GameMode = 'campaign') {
+      const game = createNewSlotCampaign(localStorage, slotId, Date.now() >>> 0, gameMode);
       set({
         ...makeInitialState(),
         screen: 'overworld',

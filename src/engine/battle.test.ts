@@ -412,7 +412,7 @@ describe('resolveDebugBattle', () => {
       enemy: { 'human/knight': 1 },
     });
 
-    expect(replay.steps.filter((step) => step.message.includes('becomes frontline.')).length).toBeGreaterThan(0);
+    expect(replay.steps.filter((step) => step.message.includes('becomes frontline')).length).toBeGreaterThan(0);
     expect(replay.steps.some((step) => step.message.includes('sets range to 0'))).toBe(true);
   });
 
@@ -423,7 +423,7 @@ describe('resolveDebugBattle', () => {
       enemy: { 'human/knight': 1 },
     });
 
-    const buffStep = replay.steps.find((step) => step.kind === 'buff' && step.message.includes('gains +20 damage.'));
+    const buffStep = replay.steps.find((step) => step.kind === 'buff' && step.message.includes('gains +20 damage'));
     const druid = buffStep?.snapshot.units.find((unit) => unit.troopLabel === 'Elven Druid');
 
     expect(druid?.stats.damage).toBeGreaterThan(10);
@@ -870,14 +870,14 @@ describe('ability mechanics', () => {
     expect(damagedDwarves).toEqual([41, 41]);
   });
 
-  it('stall warts grants Dwarves armor after normal attacks hit them', () => {
+  it('stall warts grants Dwarves armor and reduces speed after normal attacks hit them', () => {
     const dwarf = resolveTroopCombatant(
       { factionUpgradeIds: ['dwarf-stall-warts'], troopTypeUpgradeIds: [] },
       createTroopInstance('dwarf', 'soldier'),
       'player',
     );
     dwarf.quantity = 1;
-    dwarf.stats = { ...dwarf.stats, damage: 0, speed: 1 };
+    dwarf.stats = { ...dwarf.stats, damage: 0 };
     const enemy = makeBattleCombatant('human/archer', 'enemy');
     enemy.stats = { ...enemy.stats, damage: 10, speed: 100, range: 99 };
 
@@ -885,9 +885,12 @@ describe('ability mechanics', () => {
     input.playerFactionUpgradeIds = ['dwarf-stall-warts'];
     const replay = resolveBattle(input);
     const armorStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'stall-warts');
+    const speedStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'stall-warts' && step.metadata.stat === 'speed');
 
     expect(armorStep?.message).toContain('gains +1 armor');
     expect(armorStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf')?.stats.armor).toBe(6);
+    expect(speedStep?.message).toContain('loses 1 speed');
+    expect(speedStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf')?.stats.speed).toBe(7.5);
   });
 
   it('seeing red costs armor and grants initiative when Orcs kill', () => {
@@ -951,7 +954,7 @@ describe('ability mechanics', () => {
     input.playerFactionUpgradeIds = ['orc-warcry'];
     const replay = resolveBattle(input);
     const archerBuffs = replay.steps.filter(
-      (step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'warcry' && step.message.includes('Human Archer gains +1 damage'),
+      (step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'warcry' && step.targetIds.some((id) => id.includes('human/archer')),
     );
 
     expect(archerBuffs).toHaveLength(1);
@@ -1139,7 +1142,7 @@ describe('ability mechanics', () => {
     );
     const replay = resolveBattle(makeBattleInput([archer], [makeBattleCombatant('human/soldier', 'enemy')], 24));
 
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier loses 1 speed.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier loses 1 speed'))).toBe(true);
   });
 
   it('rabble rush grants militia initiative based on same-hex militia allies', () => {
@@ -1150,7 +1153,7 @@ describe('ability mechanics', () => {
     );
     const replay = resolveBattle(makeBattleInput([militia, militia], [makeBattleCombatant('human/knight', 'enemy')], 25));
 
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Militia gains 1 initiative.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'rabble-rush' && step.message.includes('Human Militia gains +'))).toBe(true);
   });
 
   it('early riser gives necromancer skeleton summons immediate initiative', () => {
@@ -1194,8 +1197,8 @@ describe('ability mechanics', () => {
     );
     const replay = resolveBattle(makeBattleInput([archer], [enemyArcher], 48));
 
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Archer gains +1 speed.'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Archer loses 1 speed.'))).toBe(false);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Archer gains +1 speed'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Archer loses 1 speed'))).toBe(false);
   });
 
   it('stoneblood saves trolls at 25 hp and removes regen for the rest of the battle', () => {
@@ -1222,9 +1225,9 @@ describe('ability mechanics', () => {
       makeBattleInput([priest, makeBattleCombatant('human/soldier', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 29),
     );
 
-    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Human Priest heals Human Soldier for 0.'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 speed.'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 damage.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Human Priest heals Human Soldier for 0'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 speed'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 damage'))).toBe(true);
   });
 
   it('serve once more reacts to both regen and other beneficial effects', () => {
@@ -1237,10 +1240,10 @@ describe('ability mechanics', () => {
       makeBattleInput([shaman, makeBattleCombatant('troll/soldier', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 31),
     );
 
-    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Troll Shaman heals Troll Shaman for 0.'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Shaman gains Fading.'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains Fading.'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains On Death Summon Skeleton.'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Troll Shaman heals Troll Shaman for 0'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Shaman gains Fading'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains Fading'))).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains On Death Summon Skeleton'))).toBe(true);
   });
 
   it('militia with scurry can share a hex past saturation without changing their actual size', () => {

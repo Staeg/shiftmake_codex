@@ -555,7 +555,8 @@ export function extractSimulationMetrics(replay: BattleReplay): SimulationMetric
 
     const sourceAbilityId = typeof step.metadata?.sourceAbilityId === 'string' ? step.metadata.sourceAbilityId : null;
     if (sourceAbilityId) {
-      abilitySuccessfulApplications[sourceAbilityId] = (abilitySuccessfulApplications[sourceAbilityId] ?? 0) + 1;
+      const applicationCount = typeof step.metadata?.batchCount === 'number' ? step.metadata.batchCount : 1;
+      abilitySuccessfulApplications[sourceAbilityId] = (abilitySuccessfulApplications[sourceAbilityId] ?? 0) + applicationCount;
       if (!abilityNetImpact[sourceAbilityId]) {
         abilityNetImpact[sourceAbilityId] = emptyImpact();
       }

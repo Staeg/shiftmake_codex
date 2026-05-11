@@ -100,6 +100,46 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
   });
 }
 
+export function getContestCycleTierSchedule(cycleNumber: number): number[] {
+  if (cycleNumber === 1) {
+    return [1, 1, 1];
+  }
+  if (cycleNumber === 3) {
+    return [2];
+  }
+  if (cycleNumber === 5) {
+    return [3];
+  }
+  if (cycleNumber === 7) {
+    return [4];
+  }
+  return [];
+}
+
+export function generateContestCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycleNumber'>): RiftInstance[] {
+  const tiers = getContestCycleTierSchedule(state.cycleNumber);
+  const cycleSeed = deriveSeed(state.campaignSeed, state.cycleNumber * 9_973 + 17);
+  const cycleMutatorAssignments = buildCycleMutatorAssignments(tiers, cycleSeed);
+
+  return tiers.map((tier, index) => {
+    const riftSeed = deriveSeed(cycleSeed, index + 1);
+    return {
+      id: `contest-cycle-${state.cycleNumber}-rift-${index + 1}`,
+      cycleNumber: state.cycleNumber,
+      seed: riftSeed,
+      tier,
+      mutatorIds: cycleMutatorAssignments[index] ?? [],
+      enemyArmy: buildEnemyArmy(tier, riftSeed),
+      victoryPoints: tier,
+      saturation: pickRiftSaturation(riftSeed),
+      state: 'discovered',
+      controller: 'neutral',
+      occupyingPlayerId: null,
+      occupyingTroopIds: [],
+    };
+  });
+}
+
 export function getMutatorLabels(mutatorIds: MutatorId[]): string[] {
   return mutatorIds.map((id) => getMutator(id).label);
 }

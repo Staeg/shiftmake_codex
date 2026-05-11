@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
-import type { CampaignReportUiContext, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload } from '../engine/types';
+import { getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
+import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites } from './gameStore';
 
 class MemoryStorage implements Storage {
@@ -112,9 +113,23 @@ function currentStoreState<T>(): T {
   return value as T;
 }
 
+function getOpeningPair(state: GameState): [TroopUnlockId, TroopUnlockId] {
+  const startersByFactionId = getOpeningFactionStarterTroopUnlockIds(state);
+  const candidates = getOpeningFactionOptionIds(state).map((factionId) => startersByFactionId[factionId]);
+  const firstTroopUnlockId = candidates[0]!;
+  const [firstFactionId, firstUnitTypeId] = firstTroopUnlockId.split('/');
+  const secondTroopUnlockId = candidates.find((troopUnlockId) => {
+    const [factionId, unitTypeId] = troopUnlockId.split('/');
+    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+  })!;
+  return [firstTroopUnlockId, secondTroopUnlockId];
+}
+
 function claimDefaultOpeningTroops(): void {
-  gameStore.claimOpeningTroop('human/soldier');
-  gameStore.claimOpeningTroop('elf/archer');
+  const state = currentStoreState<{ game: GameState }>();
+  const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(state.game);
+  gameStore.claimOpeningTroop(firstTroopUnlockId);
+  gameStore.claimOpeningTroop(secondTroopUnlockId);
   gameStore.startOpeningCampaign();
 }
 

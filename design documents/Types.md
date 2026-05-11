@@ -23,7 +23,7 @@ Primary type matters for:
 Combatants also have secondary `attributes`, for example:
 
 - combat style tags: `melee`, `ranged`, `caster`
-- faction tags: `human`, `elf`, `goblin`, `troll`
+- faction tags: `human`, `elf`, `goblin`, `troll`, `dwarf`, `orc`, `fae`
 - special traits: `expendable`, `summoner`, `summoned`
 
 Ability target filters match against the combined visible identity set of:

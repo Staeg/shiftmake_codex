@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTroopInstance, getResolvedStatBreakdowns, resolveEnemyCombatant, resolveTroopCombatant } from './army';
-import { composeBaseTroopDefinition, getTroopQuantityForCost } from './unitCatalog';
+import { composeBaseTroopDefinition, getFactionNativeTroopUnlockIds, getTroopQuantityForCost, isNativeTroopUnlockId } from './unitCatalog';
 
 describe('troop composition', () => {
   it('derives troop quantity from 120 divided by resolved troop cost', () => {
@@ -24,6 +24,11 @@ describe('troop composition', () => {
     expect(composeBaseTroopDefinition('elf', 'soldier').cost).toBe(24);
     expect(composeBaseTroopDefinition('troll', 'soldier').cost).toBe(24);
     expect(composeBaseTroopDefinition('goblin', 'soldier').cost).toBe(12);
+  });
+
+  it('does not include Troll Soldiers in the Troll native troop pool', () => {
+    expect(getFactionNativeTroopUnlockIds('troll')).not.toContain('troll/soldier');
+    expect(isNativeTroopUnlockId('troll/soldier')).toBe(false);
   });
 
   it('does not apply faction range bonuses or penalties to melee units', () => {

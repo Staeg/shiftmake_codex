@@ -62,9 +62,9 @@ The app has three UI screens:
 
 Campaign phases are:
 
-- `opening_unlock`: free opening picks for two native faction + troop combinations; the two picks must differ by faction and troop type
+- `opening_unlock`: free opening picks for two factions; each faction option grants one preselected native starting troop and shows its other native troop types as later unlock potential
 - `faction_unlock`: scheduled cycle-start faction choice
-- `troop_type_unlock`: sequential troop choices for a newly unlocked faction
+- `troop_type_unlock`: scheduled troop unlock grant step for a newly unlocked faction
 - `planning`: normal overworld play
 - `game_over`: shown immediately after cycle 10 resolves unless already dismissed for that run
 
@@ -174,7 +174,7 @@ Upgrade offer buckets:
 
 1. a troop-type upgrade for an owned unit type
 2. a faction upgrade for an owned faction
-3. an upgrade matching the third troop offer's faction or troop type
+3. a random upgrade affecting a random allied troop among those with the fewest existing faction-plus-type upgrades affecting them
 
 If a bucket is empty, the picker falls back to any remaining unowned option.
 
@@ -332,7 +332,7 @@ The battle engine uses this for side-wide rules that must keep working for futur
 `src/engine/game.ts` currently implements:
 
 1. Start a new run in `opening_unlock`
-2. Claim two free opening troops from native faction + troop combinations; the two starters must have different factions and different unit types
+2. Claim two free opening factions; each chosen faction grants its preselected native starting troop, and other native troop types remain visible as later unlock potential
 3. Enter `planning` with `2` Essence and generated cycle-1 Rifts
 4. Spend Essence to reveal combined troop and upgrade offer packs as needed; normal troop offers are limited to unlocked factions
 5. Claim one troop and one upgrade choice from each revealed combined draft
@@ -340,8 +340,8 @@ The battle engine uses this for side-wide rules that must keep working for futur
 7. Resolve every discovered Rift that has assigned troops
 8. Apply recovery, archive replay inputs, award VP only on victories, and grant `+2` Essence for the next cycle
 9. Generate the next cycle's Rifts
-10. At the start of cycle 3, enter a scheduled faction unlock: choose up to 3 still-locked factions, each shown with native troops, latent defeated-enemy future troop unlocks, and 1 preselected faction upgrade; then choose 2 troop types for that faction from its native roster plus latent defeated-enemy combinations
-11. At the start of cycle 7, repeat the scheduled faction unlock with 2 preselected faction upgrades and 3 troop type choices from the same native-plus-latent pool
+10. At the start of cycle 3, enter a scheduled faction unlock: choose up to 3 still-locked factions, each shown with native troops, latent defeated-enemy future troop unlocks, 1 preselected faction upgrade, and 2 preselected troop type unlocks from that faction's native-plus-latent pool
+11. At the start of cycle 7, repeat the scheduled faction unlock with 2 preselected faction upgrades and 3 preselected troop type unlocks from the same native-plus-latent pool
 12. After cycle 10 resolves, enter `game_over` once for that run
 
 Assignment rule: no more than one troop of a given faction can enter the same Rift unless that faction has `United`, and no more than one troop of a given unit type can enter the same Rift.

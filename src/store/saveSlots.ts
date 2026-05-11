@@ -1,13 +1,14 @@
 import { getFaction } from '../engine/unitCatalog';
 import { deserializeGameState, serializeGameState, startNewGame } from '../engine/game';
 import { resolveBattle } from '../engine/battle';
-import type { BattleReplay, BattleOutcome, CampaignPhase, CampaignReportPayload, GameState, ReplayIndexEntry, StoredReplayPayload } from '../engine/types';
+import type { BattleReplay, BattleOutcome, CampaignPhase, CampaignReportPayload, GameMode, GameState, ReplayIndexEntry, StoredReplayPayload } from '../engine/types';
 
 export type SaveSlotId = 1 | 2 | 3;
 
 export interface SaveSlotSummary {
   slotId: SaveSlotId;
   status: 'empty' | 'occupied';
+  gameMode: GameMode | null;
   cycleNumber: number | null;
   phase: CampaignPhase | null;
   factionLabel: string | null;
@@ -101,6 +102,7 @@ function summarizeSlot(slotId: SaveSlotId, game: GameState | null, updatedAt: st
     return {
       slotId,
       status: 'empty',
+      gameMode: null,
       cycleNumber: null,
       phase: null,
       factionLabel: null,
@@ -112,6 +114,7 @@ function summarizeSlot(slotId: SaveSlotId, game: GameState | null, updatedAt: st
   return {
     slotId,
     status: 'occupied',
+    gameMode: game.gameMode ?? 'campaign',
     cycleNumber: game.cycleNumber,
     phase: game.phase,
     factionLabel: leadFactionId ? getFaction(leadFactionId).label : null,
@@ -248,9 +251,10 @@ export function createNewSlotCampaign(
   storage: Storage,
   slotId: SaveSlotId,
   seed = Date.now() >>> 0,
+  gameMode: GameMode = 'campaign',
 ): GameState {
   clearSlotReplays(storage, slotId);
-  const game = startNewGame(seed);
+  const game = startNewGame(seed, gameMode);
   saveToSlot(storage, slotId, game);
   return game;
 }

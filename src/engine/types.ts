@@ -34,6 +34,9 @@ export type CampaignPhase = 'opening_unlock' | 'faction_unlock' | 'troop_type_un
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
 export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
+export type GameMode = 'campaign' | 'contest';
+export type ContestPlayerId = 'human' | 'ai';
+export type ContestRiftController = 'neutral' | ContestPlayerId;
 
 export interface HexCoord {
   q: number;
@@ -179,7 +182,6 @@ export interface FactionDefinition {
   id: FactionId;
   label: string;
   singularLabel: string;
-  description: string;
   addedAttributes: string[];
   statAdjustments: Partial<Record<keyof UnitStats | 'cost', { flat?: number; multiplier?: number }>>;
   abilityIds: AbilityId[];
@@ -493,7 +495,7 @@ export interface BattleReportPayload {
 
 export interface CampaignReportUiContext {
   screen: 'main_menu' | 'overworld' | 'replay';
-  centerMode: 'rifts' | 'troops';
+  centerMode: 'rifts' | 'troops' | 'contest';
   selectedRiftId: string | null;
   selectedTroopId: TroopId | null;
   selectedReplayId: string | null;
@@ -534,6 +536,7 @@ export interface ReplayIndexEntry {
   cycleNumber: number;
   battleSeed: number;
   outcome: BattleOutcome;
+  encounterLabel?: string;
   playerTroopLabels: string[];
   enemyTroopLabels?: string[];
   mutatorIds: MutatorId[];
@@ -569,6 +572,7 @@ export interface FactionUnlockOffer {
   optionFactionIds: FactionId[];
   upgradeIdsByFactionId: Record<FactionId, UpgradeId[]>;
   troopUnlockChoiceCount: number;
+  troopUnlockIdsByFactionId: Record<FactionId, TroopUnlockId[]>;
 }
 
 export interface TroopTypeUnlockOffer {
@@ -589,10 +593,43 @@ export interface RiftInstance {
   victoryPoints: number;
   saturation: number;
   state: RiftState;
+  controller?: ContestRiftController;
+  occupyingPlayerId?: ContestPlayerId | null;
+  occupyingTroopIds?: TroopId[];
+}
+
+export interface ContestPlayerState {
+  victoryPoints: number;
+  essence: number;
+  unlockedFactionIds: FactionId[];
+  unlockedTroopUnlockIds: TroopUnlockId[];
+  recentTroopUnlockIds: TroopUnlockId[];
+  troops: TroopInstance[];
+  factionUpgradeIds: UpgradeId[];
+  troopTypeUpgradeIds: UpgradeId[];
+  activeTroopOffer: TroopDraftOffer | null;
+  activeUpgradeOffer: UpgradeDraftOffer | null;
+  activeFactionUnlockOffer: FactionUnlockOffer | null;
+  activeTroopTypeUnlockOffer: TroopTypeUnlockOffer | null;
+  troopOfferRolls: number;
+  upgradeOfferRolls: number;
+}
+
+export interface ContestState {
+  players: {
+    ai: ContestPlayerState;
+  };
+  opponentInfo: ContestOpponentInfoSnapshot | null;
+}
+
+export interface ContestOpponentInfoSnapshot {
+  cycleNumber: number;
+  ai: ContestPlayerState;
 }
 
 export interface GameState {
   version: 3;
+  gameMode: GameMode;
   campaignSeed: number;
   cycleNumber: number;
   phase: CampaignPhase;
@@ -613,6 +650,7 @@ export interface GameState {
   postgameDismissed: boolean;
   openRifts: RiftInstance[];
   replayIndex: ReplayIndexEntry[];
+  contest?: ContestState;
 }
 
 export interface ValidationIssue {
@@ -624,7 +662,8 @@ export interface ValidationIssue {
     | 'no_assignments'
     | 'invalid_phase'
     | 'unknown_troop'
-    | 'unknown_rift';
+    | 'unknown_rift'
+    | 'own_rift';
   message: string;
   troopId?: TroopId;
   riftId?: string;
@@ -643,10 +682,18 @@ export interface RiftResolutionRecord {
   outcome: BattleOutcome;
   victoryPoints: number;
   recoveryMap: Record<TroopId, number>;
+  contest?: {
+    kind: 'guardian' | 'pvp' | 'occupation';
+    attackerId?: ContestPlayerId;
+    winnerId?: ContestPlayerId | null;
+    defenderId?: ContestPlayerId | 'neutral';
+  };
 }
 
 export interface CycleResolution {
   records: RiftResolutionRecord[];
+  preparedState?: GameState;
+  contestOpponentInfoSnapshot?: ContestOpponentInfoSnapshot;
 }
 
 export interface ReplayPayloadWrite {

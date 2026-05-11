@@ -402,15 +402,164 @@ function buildStep(
   metadata?: BattleStepMetadata,
 ): void {
   const enrichedMetadata = enrichStepMetadata(state, kind, actorIds, metadata);
+  const formattedMessage = appendSourceContext(state, actorIds, message, enrichedMetadata);
+  const previous = state.steps[state.steps.length - 1];
+  if (previous && tryMergeStep(state, previous, kind, actorIds, targetIds, formattedMessage, enrichedMetadata)) {
+    return;
+  }
   state.steps.push({
     index: state.steps.length,
     kind,
     actorIds,
     targetIds,
-    message,
+    message: formattedMessage,
     metadata: enrichedMetadata,
     snapshot: cloneSnapshot(state.units),
   });
+}
+
+function sameIds(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function mergeUniqueIds(left: string[], right: string[]): string[] {
+  const seen = new Set(left);
+  const merged = [...left];
+  right.forEach((id) => {
+    if (!seen.has(id)) {
+      seen.add(id);
+      merged.push(id);
+    }
+  });
+  return merged;
+}
+
+function canMergeStep(previous: BattleStep, kind: BattleStepKind, actorIds: string[], metadata?: BattleStepMetadata): boolean {
+  const previousMetadata = previous.metadata;
+  if (!previousMetadata || !metadata || previous.kind !== kind || !sameIds(previous.actorIds, actorIds)) {
+    return false;
+  }
+  if (!metadata.sourceAbilityId || previousMetadata.sourceAbilityId !== metadata.sourceAbilityId) {
+    return false;
+  }
+  if (previousMetadata.effect !== metadata.effect) {
+    return false;
+  }
+  return (
+    previousMetadata.stat === metadata.stat &&
+    previousMetadata.temporary === metadata.temporary &&
+    previousMetadata.expired === metadata.expired &&
+    previousMetadata.abilityId === metadata.abilityId &&
+    previousMetadata.role === metadata.role &&
+    previousMetadata.unitTypeId === metadata.unitTypeId
+  );
+}
+
+function mergedNumericValue(left: unknown, right: unknown): number | undefined {
+  return typeof left === 'number' && typeof right === 'number' ? fixedAdd(left, right) : undefined;
+}
+
+function unitLabelsForIds(state: InternalState, targetIds: string[]): string[] {
+  return targetIds.map((id) => state.units.get(id)?.troopLabel).filter((label): label is string => Boolean(label));
+}
+
+function formatTargetSubject(state: InternalState, targetIds: string[]): string {
+  const labels = [...new Set(unitLabelsForIds(state, targetIds))];
+  if (labels.length === 0) {
+    return 'Targets';
+  }
+  if (labels.length === 1) {
+    return labels[0]!;
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]}`;
+  }
+  return `${labels[0]} and ${labels.length - 1} others`;
+}
+
+function subjectVerb(subject: string, singularVerb: string, pluralVerb: string): string {
+  return subject.includes(' and ') ? pluralVerb : singularVerb;
+}
+
+function rebuildBatchedMessage(state: InternalState, step: BattleStep): string {
+  const metadata = step.metadata;
+  if (!metadata) {
+    return step.message;
+  }
+  const targetSubject = formatTargetSubject(state, step.targetIds);
+  const amount = typeof metadata.amount === 'number' ? metadata.amount : undefined;
+  const sourceSuffix = sourceLabelForStep(state, step.actorIds, metadata);
+  const finish = (base: string) => (sourceSuffix ? `${base} from the ${sourceSuffix}.` : `${base}.`);
+  const untilEndOfTurn = metadata.temporary === true && metadata.expired !== true ? ' until end of turn' : '';
+  const verb = metadata.expired === true || (typeof amount === 'number' && amount < 0) ? 'loses' : 'gains';
+  const signedAmount = typeof amount === 'number' ? (verb === 'gains' ? formatSigned(amount) : formatSigned(Math.abs(amount))) : null;
+
+  if ((metadata.effect === 'ramp' || (metadata.effect === 'statDelta' && metadata.stat === 'damage')) && signedAmount) {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === 'gains' ? 'gain' : 'lose')} ${signedAmount} damage${untilEndOfTurn}`);
+  }
+  if ((metadata.effect === 'haste' || (metadata.effect === 'statDelta' && metadata.stat === 'speed')) && signedAmount) {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === 'gains' ? 'gain' : 'lose')} ${signedAmount} speed${untilEndOfTurn}`);
+  }
+  if (metadata.effect === 'bolster' && signedAmount) {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === 'gains' ? 'gain' : 'lose')} ${signedAmount} health${untilEndOfTurn}`);
+  }
+  if (metadata.effect === 'initiativeDelta' && signedAmount) {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === 'gains' ? 'gain' : 'lose')} ${signedAmount} initiative`);
+  }
+  if (metadata.effect === 'summon') {
+    const actor = step.actorIds.length === 1 ? state.units.get(step.actorIds[0]!) ?? null : null;
+    const summonedLabels = [...new Set(unitLabelsForIds(state, step.targetIds))];
+    const summonedLabel = summonedLabels.length === 1 ? summonedLabels[0]! : `${step.targetIds.length} units`;
+    const countSuffix = step.targetIds.length > 1 && summonedLabels.length === 1 ? ` x${step.targetIds.length}` : '';
+    return finish(`${actor?.troopLabel ?? 'A unit'} summons ${summonedLabel}${countSuffix}`);
+  }
+  if (metadata.effect === 'heal' && typeof metadata.amount === 'number') {
+    const actor = step.actorIds.length === 1 ? state.units.get(step.actorIds[0]!) ?? null : null;
+    return finish(`${actor?.troopLabel ?? 'A unit'} heals ${targetSubject} for ${formatFixed(metadata.amount)}`);
+  }
+  if (kindIsAttackStep(step) && typeof metadata.damage === 'number') {
+    const actor = step.actorIds.length === 1 ? state.units.get(step.actorIds[0]!) ?? null : null;
+    const mode = metadata.mode === 'blast' ? 'blast damage to' : 'damage to';
+    return finish(`${actor?.troopLabel ?? 'A unit'} deals ${formatFixed(metadata.damage)} ${mode} ${targetSubject}`);
+  }
+  return step.message;
+}
+
+function kindIsAttackStep(step: BattleStep): boolean {
+  return step.kind === 'attack';
+}
+
+function tryMergeStep(
+  state: InternalState,
+  previous: BattleStep,
+  kind: BattleStepKind,
+  actorIds: string[],
+  targetIds: string[],
+  _message: string,
+  metadata?: BattleStepMetadata,
+): boolean {
+  if (!canMergeStep(previous, kind, actorIds, metadata)) {
+    return false;
+  }
+  const repeatsExistingTargets = targetIds.length > 0 && targetIds.every((id) => previous.targetIds.includes(id));
+  previous.targetIds = mergeUniqueIds(previous.targetIds, targetIds);
+  const previousMetadata = previous.metadata!;
+  if (repeatsExistingTargets || targetIds.length === 0) {
+    const amount = mergedNumericValue(previousMetadata.amount, metadata!.amount);
+    if (typeof amount === 'number') {
+      previousMetadata.amount = amount;
+    }
+    const damage = mergedNumericValue(previousMetadata.damage, metadata!.damage);
+    if (typeof damage === 'number') {
+      previousMetadata.damage = damage;
+      previousMetadata.finalDamage = damage;
+    }
+  }
+  previousMetadata.batchCount = ((typeof previousMetadata.batchCount === 'number' ? previousMetadata.batchCount : 1) + 1);
+  previous.snapshot = cloneSnapshot(state.units);
+  previous.metadata = enrichStepMetadata(state, previous.kind, previous.actorIds, previousMetadata);
+  previous.message = rebuildBatchedMessage(state, previous);
+  return true;
 }
 
 function buildAbilityExplanation(metadata: BattleStepMetadata): BattleAbilityExplanation | undefined {
@@ -887,6 +1036,44 @@ function getDistinctFriendlyUnitTypes(state: InternalState, unit: InternalUnit):
 
 function formatSigned(value: number): string {
   return value >= 0 ? `+${formatFixed(value)}` : formatFixed(value);
+}
+
+function formatPossessive(label: string): string {
+  return `${label}'s`;
+}
+
+function sourceLabelForStep(state: InternalState, actorIds: string[], metadata?: BattleStepMetadata): string | null {
+  const sourceAbilityId = metadata?.sourceAbilityId;
+  if (!sourceAbilityId) {
+    return null;
+  }
+  if (sourceAbilityId === 'battle-resolution') {
+    return metadata?.sourceAbilityLabel ?? 'Battle resolution';
+  }
+  const actor = actorIds.length === 1 ? state.units.get(actorIds[0]!) ?? null : null;
+  let abilityLabel = metadata?.sourceAbilityLabel ?? sourceAbilityId;
+  if (!metadata?.sourceAbilityLabel) {
+    try {
+      abilityLabel = getAbility(sourceAbilityId).label;
+    } catch {
+      try {
+        abilityLabel = getMutator(sourceAbilityId).label;
+      } catch {
+        abilityLabel = sourceAbilityId;
+      }
+    }
+  }
+  return actor ? `${formatPossessive(actor.troopLabel)} ${abilityLabel} ability` : `${abilityLabel} ability`;
+}
+
+function appendSourceContext(state: InternalState, actorIds: string[], message: string, metadata?: BattleStepMetadata): string {
+  const sourceLabel = sourceLabelForStep(state, actorIds, metadata);
+  if (!sourceLabel) {
+    return message;
+  }
+  const trimmed = message.trim();
+  const withoutPeriod = trimmed.endsWith('.') ? trimmed.slice(0, -1) : trimmed;
+  return `${withoutPeriod} from the ${sourceLabel}.`;
 }
 
 function hasAbility(unit: InternalUnit, abilityId: string): boolean {
@@ -2733,12 +2920,20 @@ function applyStallWarts(state: InternalState, unit: InternalUnit): void {
   if (!unit.alive || !hasAbility(unit, 'stall-warts')) {
     return;
   }
-  applyStatDelta(state, unit, unit, createRuntimeAbilityState(getAbility('stall-warts')), {
+  const runtime = createRuntimeAbilityState(getAbility('stall-warts'));
+  applyStatDelta(state, unit, unit, runtime, {
     kind: 'statDelta',
     stat: 'armor',
     amount: 1,
     mode: 'flat',
     disposition: 'beneficial',
+  });
+  applyStatDelta(state, unit, unit, runtime, {
+    kind: 'statDelta',
+    stat: 'speed',
+    amount: -1,
+    mode: 'flat',
+    disposition: 'harmful',
   });
 }
 

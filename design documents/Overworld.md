@@ -12,9 +12,9 @@ The app has:
 
 The campaign phases inside the overworld are:
 
-- `opening_unlock`: choose two free opening faction-and-troop combinations from native rosters; the two choices must differ by faction and troop type
+- `opening_unlock`: choose two free opening factions; each faction option grants one preselected native starting troop and shows its other native troop types as later unlock potential
 - `faction_unlock`: choose a scheduled new faction at the start of cycle 3 or cycle 7
-- `troop_type_unlock`: choose sequential troop type unlocks for that newly unlocked faction
+- `troop_type_unlock`: scheduled troop unlock grant step for that newly unlocked faction
 - `planning`: inspect Rifts, draft unlocks, assign troops, end cycle
 - `game_over`: shown immediately after cycle 10 resolves
 
@@ -32,18 +32,18 @@ The campaign phases inside the overworld are:
 
 ### Opening unlock
 
-- Choose any native faction and troop-type combination for free.
-- Choose a second native faction and troop-type combination for free.
-- The second choice must use a different faction and a different troop type from the first.
-- After the second choice, both troops are added, both factions are marked owned, 2 Essence is granted, and cycle-1 Rifts are generated.
+- Choose any offered opening faction for free; the faction's preselected starting troop type is included automatically.
+- Choose a second offered opening faction for free; its preselected starting troop type is included automatically.
+- The player can inspect the other native troop types each offered faction may unlock later, but does not choose the starter's troop type.
+- After the second choice, both starting troops are added, both factions are marked owned, 2 Essence is granted, and cycle-1 Rifts are generated.
 - Normal troop drafts then use only those unlocked factions' native rosters, plus any latent Rift-earned combinations for already-unlocked factions.
 
 ### Scheduled faction unlocks
 
-- At the start of cycle 3, the player gets a faction unlock offer with up to 3 still-locked factions. With the currently implemented 4-faction catalog, fewer than 3 options can appear if fewer than 3 factions remain locked.
-- Each cycle-3 faction option previews its native troop roster, defeated-enemy troop combinations that could be unlocked for that faction in the future, and 1 random faction upgrade that will be granted immediately.
-- After choosing the cycle-3 faction, the player makes 2 sequential troop type choices for that faction from its native roster plus any latent defeated-enemy combinations for that faction.
-- At the start of cycle 7, the same flow repeats, but the chosen faction receives 2 random faction upgrades and 3 sequential troop type choices.
+- At the start of cycle 3, the player gets a faction unlock offer with up to 3 still-locked factions. With the currently implemented 7-faction catalog, fewer than 3 options can appear if fewer than 3 factions remain locked.
+- Each cycle-3 faction option previews its native troop roster, defeated-enemy troop combinations that could be unlocked for that faction in the future, 1 preselected faction upgrade, and 2 preselected troop types that will be granted immediately.
+- After choosing the cycle-3 faction, the selected faction, its preselected upgrade, and its 2 preselected troop types are added without a follow-up troop-type picker.
+- At the start of cycle 7, the same flow repeats, but the chosen faction receives 2 preselected faction upgrades and 3 preselected troop types.
 
 ### Drafting
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { claimOpeningTroop, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
+import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
+import { FACTIONS } from '../engine/unitCatalog';
+import type { GameState, TroopUnlockId } from '../engine/types';
 import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, verifyReplayIndexAgainstStoredPayloads, writeSlotReplay } from './saveSlots';
 
 class MemoryStorage implements Storage {
@@ -30,14 +32,31 @@ class MemoryStorage implements Storage {
   }
 }
 
+function getOpeningPair(state: GameState): [TroopUnlockId, TroopUnlockId] {
+  const startersByFactionId = getOpeningFactionStarterTroopUnlockIds(state);
+  const candidates = getOpeningFactionOptionIds(state).map((factionId) => startersByFactionId[factionId]);
+  const firstTroopUnlockId = candidates[0]!;
+  const [firstFactionId, firstUnitTypeId] = firstTroopUnlockId.split('/');
+  const secondTroopUnlockId = candidates.find((troopUnlockId) => {
+    const [factionId, unitTypeId] = troopUnlockId.split('/');
+    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+  })!;
+  return [firstTroopUnlockId, secondTroopUnlockId];
+}
+
+function finishOpening(state: GameState): GameState {
+  const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(state);
+  return startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(state, firstTroopUnlockId), secondTroopUnlockId));
+}
+
 describe('save slot repository', () => {
   it('always exposes three slots and uses the v2 empty summary', () => {
     const storage = new MemoryStorage();
 
     expect(listSaveSlots(storage)).toEqual([
-      { slotId: 1, status: 'empty', cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
-      { slotId: 2, status: 'empty', cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
-      { slotId: 3, status: 'empty', cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
+      { slotId: 1, status: 'empty', gameMode: null, cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
+      { slotId: 2, status: 'empty', gameMode: null, cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
+      { slotId: 3, status: 'empty', gameMode: null, cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
     ]);
   });
 
@@ -53,14 +72,16 @@ describe('save slot repository', () => {
       factionLabel: null,
     });
 
-    saveToSlot(storage, 1, startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(opening, 'troll/soldier'), 'elf/archer')));
+    const opened = finishOpening(opening);
+    saveToSlot(storage, 1, opened);
+    const leadFaction = opened.unlockedFactionIds[0]!;
 
     expect(listSaveSlots(storage)[0]).toMatchObject({
       slotId: 1,
       status: 'occupied',
       cycleNumber: 1,
       phase: 'planning',
-      factionLabel: 'Trolls',
+      factionLabel: FACTIONS[leadFaction].label,
     });
   });
 
@@ -98,8 +119,9 @@ describe('save slot repository', () => {
 
   it('marks archived battles whose stored input now resolves to a different result', () => {
     const storage = new MemoryStorage();
+    const opened = finishOpening(startNewGame(9));
     const game = {
-      ...startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(startNewGame(9), 'elf/archer'), 'human/soldier')),
+      ...opened,
       replayIndex: [
         {
           id: 'changed-battle',
@@ -137,8 +159,9 @@ describe('save slot repository', () => {
 
   it('migrates a legacy save into slot one and copies legacy replay payloads', () => {
     const storage = new MemoryStorage();
+    const opened = finishOpening(startNewGame(9));
     const game = {
-      ...startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(startNewGame(9), 'elf/archer'), 'human/soldier')),
+      ...opened,
       replayIndex: [
         {
           id: 'test-battle',
@@ -162,7 +185,7 @@ describe('save slot repository', () => {
     expect(slots[0]).toMatchObject({
       slotId: 1,
       status: 'occupied',
-      factionLabel: 'Elves',
+      factionLabel: FACTIONS[opened.unlockedFactionIds[0]!].label,
     });
     expect(storage.getItem('shiftmake:save:v1')).toBeNull();
     expect(readSlotReplay(storage, 1, 'test-battle')).not.toBeNull();

@@ -128,7 +128,7 @@
     {/if}
 
     <div class="meta">
-      <span>Type: {display.type}{display.attributes.length > 0 ? ` | Attributes: ${display.attributes.join(', ')}` : ''}</span>
+      <span>Type: {display.type}</span>
     </div>
 
     {#if display.stats}

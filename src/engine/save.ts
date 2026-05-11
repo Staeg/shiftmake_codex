@@ -19,12 +19,20 @@ export function deserializeGameState(json: string): LoadGameResult {
     ) {
       return { ok: false, error: 'invalid_shape' };
     }
+    const state = parsed as GameState;
     return {
       ok: true,
       state: {
-        ...(parsed as GameState),
+        ...state,
+        gameMode: parsed.gameMode ?? 'campaign',
         activeFactionUnlockOffer: parsed.activeFactionUnlockOffer ?? null,
         activeTroopTypeUnlockOffer: parsed.activeTroopTypeUnlockOffer ?? null,
+        contest: state.contest
+          ? {
+              ...state.contest,
+              opponentInfo: state.contest.opponentInfo ?? null,
+            }
+          : state.contest,
       },
     };
   } catch {
