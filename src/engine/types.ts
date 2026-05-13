@@ -282,12 +282,26 @@ export interface BattleInput {
   tier: number | null;
   mutatorIds: MutatorId[];
   saturation?: number;
+  sideParticipants?: BattleSideParticipants;
   playerFactionUpgradeIds?: UpgradeId[];
   playerTroopTypeUpgradeIds?: UpgradeId[];
   enemyFactionUpgradeIds?: UpgradeId[];
   enemyTroopTypeUpgradeIds?: UpgradeId[];
   playerCombatants: ResolvedCombatantDefinition[];
   enemyCombatants: ResolvedCombatantDefinition[];
+}
+
+export type BattleParticipantKind = 'player' | 'opponent' | 'neutral';
+
+export interface BattleSideParticipant {
+  kind: BattleParticipantKind;
+  label: string;
+  playerId?: ContestPlayerId;
+}
+
+export interface BattleSideParticipants {
+  player: BattleSideParticipant;
+  enemy: BattleSideParticipant;
 }
 
 export interface BattleUnit {
@@ -537,6 +551,7 @@ export interface ReplayIndexEntry {
   battleSeed: number;
   outcome: BattleOutcome;
   encounterLabel?: string;
+  sideParticipants?: BattleSideParticipants;
   playerTroopLabels: string[];
   enemyTroopLabels?: string[];
   mutatorIds: MutatorId[];

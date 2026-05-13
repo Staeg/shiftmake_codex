@@ -24,6 +24,7 @@ import {
   encodeBattleReport,
   replayFromBattleReport,
 } from '../engine/battleReport';
+import { resolveBattle } from '../engine/battle';
 import {
   buildCampaignReportPayload,
   campaignReportDecodeErrorMessage,
@@ -45,6 +46,7 @@ import type {
   TroopUnlockId,
   UpgradeId,
   GameMode,
+  ContestPlayerState,
 } from '../engine/types';
 import {
   createNewSlotCampaign,
@@ -63,6 +65,8 @@ import {
 } from './saveSlots';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 import { describeTroopUnlock } from '../engine/upgrades';
+import { DEFAULT_CONTEST_PLAYER_NAMES, type ContestPlayerNames } from '../engine/multiplayerContest';
+import { buildContestAiPlanKey, type ContestAiWorkerResponse } from './contestAiPlanner';
 
 export type CenterMode = 'rifts' | 'troops' | 'contest';
 export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
@@ -72,6 +76,7 @@ interface StoreState {
   screen: ScreenMode;
   activeSlotId: SaveSlotId | null;
   slots: SaveSlotSummary[];
+  multiplayer: MultiplayerSession | null;
   centerMode: CenterMode;
   loadedReplay: BattleReplay | null;
   loadedReplayPayload: StoredReplayPayload | null;
@@ -96,6 +101,96 @@ interface ReplayWriteResult {
 
 const REPLAY_IDENTITY_KEY = (replayId: string): string => replayId;
 
+interface MultiplayerSession {
+  connected: boolean;
+  serverUrl: string;
+  roomId: string | null;
+  playerId: 'human' | 'ai' | null;
+  readiness: { human: boolean; ai: boolean };
+  playerNames: ContestPlayerNames;
+  message: string | null;
+}
+
+type MultiplayerServerMessage =
+  | {
+      kind: 'room-snapshot';
+      roomId: string;
+      playerId: 'human' | 'ai';
+      game: GameState;
+      readiness: { human: boolean; ai: boolean };
+      playerNames: ContestPlayerNames;
+      replayPayloads: Record<string, StoredReplayPayload>;
+      message: string | null;
+    }
+  | { kind: 'room-error'; message: string };
+
+let multiplayerSocket: WebSocket | null = null;
+let multiplayerReplayPayloads: Record<string, StoredReplayPayload> = {};
+
+function isMultiplayerSubmitted(state: StoreState): boolean {
+  const playerId = state.multiplayer?.playerId;
+  return !!playerId && !!state.multiplayer?.readiness[playerId];
+}
+
+function canEditGame(state: StoreState): boolean {
+  return !state.multiplayer || !isMultiplayerSubmitted(state);
+}
+
+function shouldPreserveUnsubmittedMultiplayerGame(state: StoreState, message: Extract<MultiplayerServerMessage, { kind: 'room-snapshot' }>): boolean {
+  const session = state.multiplayer;
+  if (!session?.connected || state.screen === 'main_menu' || session.roomId !== message.roomId || session.playerId !== message.playerId) {
+    return false;
+  }
+  return !isMultiplayerSubmitted(state);
+}
+
+interface ContestAiPlanCache {
+  key: string;
+  ai: ContestPlayerState;
+}
+
+let contestAiWorker: Worker | null = null;
+let contestAiPendingKey: string | null = null;
+let contestAiPlanCache: ContestAiPlanCache | null = null;
+
+function getContestAiWorker(): Worker | null {
+  if (typeof Worker === 'undefined') {
+    return null;
+  }
+  if (!contestAiWorker) {
+    contestAiWorker = new Worker(new URL('./contestAiWorker.ts', import.meta.url), { type: 'module' });
+    contestAiWorker.onmessage = (event: MessageEvent<ContestAiWorkerResponse>) => {
+      const response = event.data;
+      if (response.kind !== 'contest-ai-plan') {
+        return;
+      }
+      contestAiPlanCache = { key: response.key, ai: response.ai };
+      if (contestAiPendingKey === response.key) {
+        contestAiPendingKey = null;
+      }
+    };
+  }
+  return contestAiWorker;
+}
+
+function scheduleContestAiPlanning(game: GameState): void {
+  const key = buildContestAiPlanKey(game);
+  if (!key || contestAiPendingKey === key || contestAiPlanCache?.key === key) {
+    return;
+  }
+  const worker = getContestAiWorker();
+  if (!worker) {
+    return;
+  }
+  contestAiPendingKey = key;
+  worker.postMessage({ kind: 'plan-contest-ai', key, game });
+}
+
+function getPreparedContestAiPlan(game: GameState): ContestPlayerState | undefined {
+  const key = buildContestAiPlanKey(game);
+  return key && contestAiPlanCache?.key === key ? contestAiPlanCache.ai : undefined;
+}
+
 function makeInitialGame(): GameState {
   return startNewGame(1);
 }
@@ -106,6 +201,7 @@ function makeInitialState(): StoreState {
     screen: 'main_menu',
     activeSlotId: null,
     slots: [],
+    multiplayer: null,
     centerMode: 'rifts',
     loadedReplay: null,
     loadedReplayPayload: null,
@@ -129,11 +225,15 @@ function clearCycleEndConfirmation<T extends Pick<StoreState, 'cycleEndConfirmat
 }
 
 function saveActiveCampaign(state: StoreState): StoreState {
+  if (state.multiplayer) {
+    return state;
+  }
   if (!state.activeSlotId) {
     return state;
   }
 
   saveToSlot(localStorage, state.activeSlotId, state.game);
+  scheduleContestAiPlanning(state.game);
   return {
     ...state,
     slots: listSaveSlots(localStorage),
@@ -278,6 +378,108 @@ export const gameStore = (() => {
     snapshot = state;
   });
 
+  function connectMultiplayerContest(serverUrl: string, roomId?: string, playerName?: string): void {
+    multiplayerSocket?.close();
+    multiplayerReplayPayloads = {};
+    const socket = new WebSocket(serverUrl);
+    multiplayerSocket = socket;
+
+    set({
+      ...makeInitialState(),
+      slots: listSaveSlots(localStorage),
+      multiplayer: {
+        connected: false,
+        serverUrl,
+        roomId: roomId || null,
+        playerId: null,
+        readiness: { human: false, ai: false },
+        playerNames: { ...DEFAULT_CONTEST_PLAYER_NAMES },
+        message: 'Connecting to Contest room...',
+      },
+      systemMessage: 'Connecting to Contest room...',
+    });
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify(roomId ? { kind: 'join-room', roomId, playerName } : { kind: 'create-room', playerName }));
+    };
+
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data) as MultiplayerServerMessage;
+      if (message.kind === 'room-error') {
+        update((state) => ({
+          ...state,
+          slots: listSaveSlots(localStorage),
+          systemMessage: message.message,
+          multiplayer: state.multiplayer ? { ...state.multiplayer, message: message.message } : state.multiplayer,
+        }));
+        return;
+      }
+
+      multiplayerReplayPayloads = {
+        ...multiplayerReplayPayloads,
+        ...message.replayPayloads,
+      };
+      update((state) => ({
+        ...state,
+        screen: state.screen === 'main_menu' ? 'overworld' : state.screen,
+        activeSlotId: null,
+        game: shouldPreserveUnsubmittedMultiplayerGame(state, message) ? state.game : message.game,
+        slots: listSaveSlots(localStorage),
+        multiplayer: {
+          connected: true,
+          serverUrl,
+          roomId: message.roomId,
+          playerId: message.playerId,
+          readiness: message.readiness,
+          playerNames: message.playerNames,
+          message: message.message,
+        },
+        systemMessage: message.message,
+        cycleEndConfirmationPending: false,
+      }));
+    };
+
+    socket.onclose = () => {
+      update((state) => ({
+        ...state,
+        multiplayer: state.multiplayer ? { ...state.multiplayer, connected: false, message: 'Disconnected from multiplayer server.' } : state.multiplayer,
+        systemMessage: state.multiplayer ? 'Disconnected from multiplayer server.' : state.systemMessage,
+      }));
+    };
+
+    socket.onerror = () => {
+      update((state) => ({
+        ...state,
+        systemMessage: 'Unable to connect to multiplayer server.',
+        multiplayer: state.multiplayer ? { ...state.multiplayer, message: 'Unable to connect to multiplayer server.' } : state.multiplayer,
+      }));
+    };
+  }
+
+  function submitMultiplayerReady(): void {
+    if (!snapshot.multiplayer || !snapshot.multiplayer.connected || !multiplayerSocket || multiplayerSocket.readyState !== WebSocket.OPEN) {
+      update((state) => ({ ...state, systemMessage: 'No multiplayer room is connected.' }));
+      return;
+    }
+    if (isMultiplayerSubmitted(snapshot)) {
+      return;
+    }
+    multiplayerSocket.send(JSON.stringify({ kind: 'submit-ready', game: snapshot.game }));
+    const playerId = snapshot.multiplayer.playerId;
+    update((state) => ({
+      ...state,
+      multiplayer:
+        state.multiplayer && playerId
+          ? {
+              ...state.multiplayer,
+              readiness: { ...state.multiplayer.readiness, [playerId]: true },
+              message: 'Ready submitted. Waiting for the other player.',
+            }
+          : state.multiplayer,
+      systemMessage: 'Ready submitted. Waiting for the other player.',
+    }));
+  }
+
   return {
     subscribe,
     initialize() {
@@ -285,6 +487,17 @@ export const gameStore = (() => {
       set({
         ...makeInitialState(),
         slots,
+      });
+    },
+    connectMultiplayerContest,
+    submitMultiplayerReady,
+    leaveMultiplayerContest() {
+      multiplayerSocket?.close();
+      multiplayerSocket = null;
+      multiplayerReplayPayloads = {};
+      set({
+        ...makeInitialState(),
+        slots: listSaveSlots(localStorage),
       });
     },
     loadSlot(slotId: SaveSlotId) {
@@ -309,6 +522,7 @@ export const gameStore = (() => {
             ? `${verification.changedCount} archived ${verification.changedCount === 1 ? 'battle now replays' : 'battles now replay'} with a different result.`
             : null,
       });
+      scheduleContestAiPlanning(game);
       return true;
     },
     startNewCampaign(slotId: SaveSlotId, gameMode: GameMode = 'campaign') {
@@ -320,6 +534,7 @@ export const gameStore = (() => {
         slots: listSaveSlots(localStorage),
         game,
       });
+      scheduleContestAiPlanning(game);
     },
     returnToMainMenu() {
       update((state) => ({
@@ -338,45 +553,59 @@ export const gameStore = (() => {
     },
     claimOpeningTroop(troopUnlockId: TroopUnlockId) {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: claimOpeningTroop(state.game, troopUnlockId),
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: claimOpeningTroop(state.game, troopUnlockId),
+            }),
       );
     },
     unclaimOpeningTroop(troopUnlockId: TroopUnlockId) {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: unclaimOpeningTroop(state.game, troopUnlockId),
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: unclaimOpeningTroop(state.game, troopUnlockId),
+            }),
       );
     },
     startOpeningCampaign() {
+      if (snapshot.multiplayer) {
+        submitMultiplayerReady();
+        return;
+      }
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: startOpeningCampaign(state.game),
-          systemMessage: null,
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: startOpeningCampaign(state.game),
+              systemMessage: null,
+            }),
       );
     },
     claimFactionUnlockOffer(factionId: FactionId) {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: claimFactionUnlockOffer(state.game, factionId),
-          systemMessage: null,
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: claimFactionUnlockOffer(state.game, factionId),
+              systemMessage: null,
+            }),
       );
     },
     claimTroopTypeUnlockOffer(troopUnlockId: TroopUnlockId) {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: claimTroopTypeUnlockOffer(state.game, troopUnlockId),
-          systemMessage: null,
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: claimTroopTypeUnlockOffer(state.game, troopUnlockId),
+              systemMessage: null,
+            }),
       );
     },
     setCenterMode(mode: CenterMode) {
@@ -384,30 +613,39 @@ export const gameStore = (() => {
     },
     revealEssenceDraft() {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: revealEssenceDraft(state.game),
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: revealEssenceDraft(state.game),
+            }),
       );
     },
     claimTroopOffer(troopUnlockId: TroopUnlockId) {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: claimTroopOffer(state.game, troopUnlockId),
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: claimTroopOffer(state.game, troopUnlockId),
+            }),
       );
     },
     claimUpgradeOffer(upgradeId: UpgradeId) {
       update((state) =>
-        saveActiveCampaign({
-          ...clearCycleEndConfirmation(state),
-          game: claimUpgradeOffer(state.game, upgradeId),
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: claimUpgradeOffer(state.game, upgradeId),
+            }),
       );
     },
     assignTroopToRift(troopId: TroopId, riftId: string) {
       update((state) => {
+        if (!canEditGame(state)) {
+          return state;
+        }
         const assignment = canAssignTroopToRift(state.game, troopId, riftId);
         if (!assignment.ok) {
           return {
@@ -428,6 +666,9 @@ export const gameStore = (() => {
     },
     clearTroopAssignment(troopId: TroopId) {
       update((state) => {
+        if (!canEditGame(state)) {
+          return state;
+        }
         const nextGame = clearTroopAssignment(state.game, troopId);
         return saveActiveCampaign({
           ...clearCycleEndConfirmation(state),
@@ -438,15 +679,21 @@ export const gameStore = (() => {
     },
     continuePlaying() {
       update((state) =>
-        saveActiveCampaign({
-          ...state,
-          game: continuePlaying(state.game),
-          cycleEndConfirmationPending: false,
-          systemMessage: null,
-        }),
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...state,
+              game: continuePlaying(state.game),
+              cycleEndConfirmationPending: false,
+              systemMessage: null,
+            }),
       );
     },
     endCycle(force = false) {
+      if (snapshot.multiplayer) {
+        submitMultiplayerReady();
+        return;
+      }
       update((state) => {
         const validation = validateAssignments(state.game);
         const blockingIssues = validation.issues.filter((issue) => issue.kind !== 'no_assignments');
@@ -475,7 +722,7 @@ export const gameStore = (() => {
           return { ...state, systemMessage: 'No active save slot is loaded.' };
         }
 
-        const resolution = resolveAssignedRifts(state.game);
+        const resolution = resolveAssignedRifts(state.game, getPreparedContestAiPlan(state.game));
         try {
           const applied = applyCycleOutcomes(state.game, resolution);
           applied.replayPayloadDeletes.forEach((entry) => removeSlotReplay(localStorage, state.activeSlotId as SaveSlotId, entry.replayId));
@@ -526,6 +773,34 @@ export const gameStore = (() => {
     },
     openReplay(replayId: string) {
       update((state) => {
+        if (state.multiplayer) {
+          const loadedReplayPayload = multiplayerReplayPayloads[replayId] ?? null;
+          const loadedReplay = loadedReplayPayload ? resolveBattle(loadedReplayPayload.input) : null;
+          if (!loadedReplay) {
+            return {
+              ...state,
+              screen: 'overworld',
+              loadedReplay: null,
+              loadedReplayPayload: null,
+              loadedBattleReport: null,
+              currentStep: -1,
+              selectedEvent: null,
+              autoPlay: false,
+              systemMessage: 'This archived battle is only available as a summary.',
+            };
+          }
+          return {
+            ...state,
+            screen: 'replay',
+            loadedReplay,
+            loadedReplayPayload,
+            loadedBattleReport: null,
+            currentStep: -1,
+            selectedEvent: null,
+            autoPlay: false,
+            systemMessage: null,
+          };
+        }
         if (!state.activeSlotId) {
           return state;
         }
@@ -559,12 +834,22 @@ export const gameStore = (() => {
       });
     },
     hasReplay(replayId: string) {
+      if (snapshot.multiplayer) {
+        return !!multiplayerReplayPayloads[replayId];
+      }
       return snapshot.activeSlotId ? readSlotReplay(localStorage, snapshot.activeSlotId, replayId) !== null : false;
     },
     getReplay(replayId: string): BattleReplay | null {
+      if (snapshot.multiplayer) {
+        const payload = multiplayerReplayPayloads[replayId] ?? null;
+        return payload ? resolveBattle(payload.input) : null;
+      }
       return snapshot.activeSlotId ? readSlotReplay(localStorage, snapshot.activeSlotId, replayId) : null;
     },
     getReplayPayload(replayId: string): StoredReplayPayload | null {
+      if (snapshot.multiplayer) {
+        return multiplayerReplayPayloads[replayId] ?? null;
+      }
       return snapshot.activeSlotId ? readSlotReplayPayload(localStorage, snapshot.activeSlotId, replayId) : null;
     },
     createBattleReport(replayId: string, currentStep: number | null, diagnostics: BattleReportDiagnostic[] = []): string | null {

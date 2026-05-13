@@ -1,0 +1,5 @@
+
+> shiftmake@0.1.0 multiplayer:server
+> tsx src/server/contestMultiplayerServer.ts
+
+Shiftmake Contest multiplayer server listening on ws://localhost:8787

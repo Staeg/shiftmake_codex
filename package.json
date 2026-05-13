@@ -12,6 +12,7 @@
     "playtest:manual": "npm run build && vite preview --host 127.0.0.1 --port 4174",
     "test": "vitest run",
     "test:watch": "vitest",
+    "multiplayer:server": "tsx src/server/contestMultiplayerServer.ts",
     "report:2v2": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations2v2.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations2v2.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations2v2.js @args\"",
     "report:3v3": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations3v3.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations3v3.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations3v3.js @args\"",
     "inspect:report": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/inspectBattleReport.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\inspectBattleReport.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\inspectBattleReport.js @args\"",
@@ -20,12 +21,15 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@tsconfig/svelte": "^5.0.4",
+    "@types/ws": "^8.18.1",
     "svelte": "^4.2.19",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.0",
     "vitest": "^2.0.5"
   },
   "dependencies": {
-    "pixi.js": "^7.4.2"
+    "pixi.js": "^7.4.2",
+    "ws": "^8.20.0"
   }
 }

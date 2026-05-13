@@ -28,6 +28,7 @@
   import type {
     AbilityDefinition,
     BattleReportDiagnostic,
+    BattleParticipantKind,
     BattleReplay,
     BattleStep,
     BattleUnit,
@@ -134,6 +135,11 @@
     hpLabel: string;
   };
 
+  const ARCHIVE_PARTICIPANT_FALLBACK: Record<SideId, { kind: BattleParticipantKind; label: string }> = {
+    player: { kind: 'player', label: 'Player' },
+    enemy: { kind: 'neutral', label: 'Neutral Guardians' },
+  };
+
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
   const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
@@ -180,6 +186,11 @@
   let designTweaksByTarget: Record<string, DesignTweaks> = {};
   let uiDebugVisible = false;
   let abilityVerificationLabComponent: typeof import('./AbilityVerificationLab.svelte').default | null = null;
+  let multiplayerServerUrl = 'ws://localhost:8787';
+  let multiplayerRoomCode = '';
+  let multiplayerPlayerName = 'Player';
+  let multiplayerReadySubmitted = false;
+  let multiplayerStatus: string | null = null;
 
   function handleUiDebugKeydown(event: KeyboardEvent): void {
     if (!debugToolsEnabled) {
@@ -876,6 +887,20 @@
     gameStore.startNewCampaign(slot.slotId, gameMode);
   }
 
+  function createMultiplayerContest(): void {
+    resetZoneState();
+    gameStore.connectMultiplayerContest(multiplayerServerUrl.trim() || 'ws://localhost:8787', undefined, multiplayerPlayerName);
+  }
+
+  function joinMultiplayerContest(): void {
+    const roomId = multiplayerRoomCode.trim().toUpperCase();
+    if (!roomId) {
+      return;
+    }
+    resetZoneState();
+    gameStore.connectMultiplayerContest(multiplayerServerUrl.trim() || 'ws://localhost:8787', roomId, multiplayerPlayerName);
+  }
+
   function returnToMainMenu(): void {
     resetZoneState();
     gameStore.returnToMainMenu();
@@ -898,6 +923,14 @@
 
   function handleEndCycle(): void {
     gameStore.endCycle($gameStore.cycleEndConfirmationPending);
+  }
+
+  function multiplayerReadyLabel(): string {
+    const playerId = $gameStore.multiplayer?.playerId;
+    if (!$gameStore.multiplayer || !playerId) {
+      return 'Submit Ready';
+    }
+    return $gameStore.multiplayer.readiness[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'Submit Ready';
   }
 
   function setRiftCenterMode(): void {
@@ -1474,10 +1507,33 @@
     const maxHp = initialUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
     return {
       side,
-      label: side === 'player' ? 'Player' : 'Enemy',
+      label: getArchiveSideLabel(side),
       hpPercent: getHpPercent(currentHp, maxHp),
       hpLabel: `${Math.round(Number.parseFloat(getHpPercent(currentHp, maxHp)))}% (${formatHpLabel(currentHp, maxHp)})`,
     };
+  }
+
+  function getArchiveParticipant(side: SideId): { kind: BattleParticipantKind; label: string } {
+    return selectedArchivePayload?.input.sideParticipants?.[side] ?? selectedReplayEntry?.sideParticipants?.[side] ?? ARCHIVE_PARTICIPANT_FALLBACK[side];
+  }
+
+  function getArchiveSideLabel(side: SideId): string {
+    return getArchiveParticipant(side).label;
+  }
+
+  function getArchiveForcesLabel(side: SideId): string {
+    return `${getArchiveSideLabel(side)} Forces`;
+  }
+
+  function archiveParticipantClass(kind: BattleParticipantKind): string {
+    return `archive-${kind}`;
+  }
+
+  function getArchiveCardStyle(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): string {
+    const fallbackLeft = entry.encounterLabel?.includes(' vs Neutral Guardians') ? 'opponent' : 'player';
+    const left = entry.sideParticipants?.player?.kind ?? fallbackLeft;
+    const right = entry.sideParticipants?.enemy?.kind ?? 'neutral';
+    return `--archive-left-color: var(--archive-${left}); --archive-right-color: var(--archive-${right});`;
   }
 
   function buildArchiveCombatantDetail(combatant: ResolvedCombatantDefinition, side: SideId): DetailCard {
@@ -1488,7 +1544,7 @@
       combatant.unitTypeId,
       combatant.stats,
       combatant.quantity,
-      side === 'player' ? 'Player force at battle time.' : 'Enemy force.',
+      `${getArchiveSideLabel(side)} force at battle time.`,
       combatant.abilities,
       combatant.statBreakdowns,
     );
@@ -1519,6 +1575,20 @@
     return mode === 'contest' ? 'Contest' : 'Campaign';
   }
 
+  function getLocalPlayerName(): string {
+    const playerId = $gameStore.multiplayer?.playerId;
+    return playerId ? $gameStore.multiplayer?.playerNames[playerId] ?? 'Player' : 'Player';
+  }
+
+  function getOpponentPlayerName(): string {
+    const playerId = $gameStore.multiplayer?.playerId;
+    if (!$gameStore.multiplayer || !playerId) {
+      return 'Rival';
+    }
+    const opponentId = playerId === 'human' ? 'ai' : 'human';
+    return $gameStore.multiplayer.playerNames[opponentId] ?? 'Rival';
+  }
+
   function getRiftControllerLabel(rift: { controller?: string }): string {
     if ($gameStore.game.gameMode !== 'contest') {
       return 'Guardians';
@@ -1527,7 +1597,7 @@
       return 'Held By You';
     }
     if (rift.controller === 'ai') {
-      return 'Held By AI';
+      return `Held By ${getOpponentPlayerName()}`;
     }
     return 'Neutral Guardians';
   }
@@ -1559,7 +1629,7 @@
     if ($gameStore.centerMode === 'troops') {
       return 'Factions and troops board';
     }
-    return 'Opponent info board';
+    return $gameStore.multiplayer ? `${getOpponentPlayerName()} info board` : 'Rival info board';
   }
 
   function getOpponentFactionUpgradeIds(opponent: ContestPlayerState, factionId: FactionId): UpgradeId[] {
@@ -1690,6 +1760,20 @@
   $: if ($gameStore.centerMode === 'contest' && $gameStore.game.gameMode !== 'contest') {
     gameStore.setCenterMode('rifts');
   }
+
+  $: multiplayerReadySubmitted = (() => {
+    const playerId = $gameStore.multiplayer?.playerId;
+    return !!playerId && !!$gameStore.multiplayer?.readiness[playerId];
+  })();
+  $: multiplayerStatus = (() => {
+    if (!$gameStore.multiplayer) {
+      return null;
+    }
+    const room = $gameStore.multiplayer.roomId ? `Room ${$gameStore.multiplayer.roomId}` : 'Connecting';
+    const player = getLocalPlayerName();
+    const message = multiplayerReadySubmitted ? `Waiting for ${getOpponentPlayerName()}.` : ($gameStore.multiplayer.message ?? multiplayerReadyLabel());
+    return `${room} - ${player} - ${message}`;
+  })();
 
   $: discoveredRifts = $gameStore.game.openRifts.filter((rift) => rift.state === 'discovered');
   $: opponentInfo = $gameStore.game.gameMode === 'contest' ? $gameStore.game.contest?.opponentInfo ?? null : null;
@@ -2027,6 +2111,13 @@
         {/if}
       </div>
 
+      {#if $gameStore.systemMessage}
+        <div class="menu-system-message panel ui-debug-target" data-ui-name="Main menu system message">
+          <strong>System Notice</strong>
+          <p>{$gameStore.systemMessage}</p>
+        </div>
+      {/if}
+
       <div class="slot-grid">
         {#each $gameStore.slots as slot}
           <article class="slot-card panel ui-debug-target" data-ui-name={`Save slot ${slot.slotId}`}>
@@ -2061,6 +2152,29 @@
           </article>
         {/each}
       </div>
+
+      <section class="multiplayer-menu panel ui-debug-target" data-ui-name="Multiplayer Contest panel">
+        <div>
+          <p class="eyebrow">Contest Multiplayer</p>
+          <h2>Play Contest Online</h2>
+        </div>
+        <div class="multiplayer-controls">
+          <label>
+            <span>Name</span>
+            <input bind:value={multiplayerPlayerName} maxlength="24" aria-label="Multiplayer player name" />
+          </label>
+          <label>
+            <span>Server</span>
+            <input bind:value={multiplayerServerUrl} aria-label="Multiplayer server URL" />
+          </label>
+          <label>
+            <span>Room</span>
+            <input bind:value={multiplayerRoomCode} aria-label="Multiplayer room code" on:input={() => (multiplayerRoomCode = multiplayerRoomCode.toUpperCase())} />
+          </label>
+          <button class="primary ui-debug-target" data-ui-name="Create multiplayer Contest room" on:click={createMultiplayerContest}>Create Room</button>
+          <button class="ui-debug-target" data-ui-name="Join multiplayer Contest room" on:click={joinMultiplayerContest} disabled={!multiplayerRoomCode.trim()}>Join Room</button>
+        </div>
+      </section>
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'opening_unlock'}
@@ -2070,6 +2184,9 @@
         <p class="eyebrow">Opening Muster</p>
         <h1>Choose Two Starting Factions</h1>
         <p class="opening-instructions">Each faction brings its included starter troop. Other native troops are shown as later unlock potential.</p>
+        {#if multiplayerStatus}
+          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer opening status">{multiplayerStatus}</p>
+        {/if}
       </div>
       <div class="draft-layout">
         <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Opening detail panel" role="presentation" on:mouseleave={clearDetail}>
@@ -2243,9 +2360,9 @@
           class="primary large ui-debug-target"
           data-ui-name="Begin campaign button"
           on:click={beginOpeningCampaign}
-          disabled={$gameStore.game.troops.length !== 2}
+          disabled={$gameStore.game.troops.length !== 2 || multiplayerReadySubmitted}
         >
-          Begin Campaign
+          {$gameStore.multiplayer ? multiplayerReadyLabel() : 'Begin Campaign'}
         </button>
       </div>
     </section>
@@ -2257,6 +2374,9 @@
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber} Muster</p>
         <h1>Choose a Faction</h1>
         <p class="scheduled-unlock-instructions">Each candidate joins with its shown upgrades and included troop types already unlocked. Other troops show what can be unlocked later.</p>
+        {#if multiplayerStatus}
+          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer faction unlock status">{multiplayerStatus}</p>
+        {/if}
       </div>
 
       <div class="draft-layout scheduled-faction-layout" class:has-detail={!!activeDetail}>
@@ -2444,6 +2564,9 @@
         <p class="eyebrow">{getFaction($gameStore.game.activeTroopTypeUnlockOffer.factionId).label} Muster</p>
         <h1>Choose Troop Type {$gameStore.game.activeTroopTypeUnlockOffer.remainingChoices}</h1>
         <p>Pick one troop for the new faction. Remaining picks will follow immediately.</p>
+        {#if multiplayerStatus}
+          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer troop unlock status">{multiplayerStatus}</p>
+        {/if}
       </div>
 
       <div class="draft-grid troop-type-unlock-grid">
@@ -2501,18 +2624,20 @@
     class:design-mode-enabled={designModeEnabled}
   >
     <header class="topbar ui-debug-target" data-ui-name="Overworld top bar">
-      <div class="ui-debug-target" data-ui-name="Campaign title">
-        <p class="eyebrow">Cycle {$gameStore.game.cycleNumber}</p>
-        <h1>Shiftmake Command Table</h1>
-      </div>
-
       <div class="resource-strip">
+        <div class="ui-debug-target" data-ui-name="Cycle counter"><span>Cycle</span><strong>{$gameStore.game.cycleNumber}</strong></div>
         <div class="resource-essence ui-debug-target" data-ui-name="Essence counter"><span>Essence</span><strong><i class="resource-icon essence"></i>{formatFixed($gameStore.game.essence)}</strong></div>
         {#if $gameStore.game.gameMode === 'contest'}
           <div class="contest-score ui-debug-target" data-ui-name="Contest score counter">
             <span>Contest VP</span>
             <strong>{$gameStore.game.victoryPoints} - {$gameStore.game.contest?.players.ai.victoryPoints ?? 0}</strong>
           </div>
+          {#if $gameStore.multiplayer}
+            <div class="contest-score multiplayer-room-status ui-debug-target" data-ui-name="Multiplayer room status">
+              <span>Room {$gameStore.multiplayer.roomId ?? '...'}</span>
+              <strong>{$gameStore.multiplayer.connected ? multiplayerReadyLabel() : 'Offline'}</strong>
+            </div>
+          {/if}
         {:else}
           <div class="ui-debug-target" data-ui-name="Victory points counter"><span>Victory Points</span><strong>{$gameStore.game.victoryPoints}</strong></div>
         {/if}
@@ -2525,7 +2650,9 @@
         <button class="ui-debug-target" data-ui-name="Show rifts view" class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
         <button class="ui-debug-target" data-ui-name="Show factions and troops view" class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
         {#if $gameStore.game.gameMode === 'contest'}
-          <button class="ui-debug-target" data-ui-name="Show opponent info view" class:selected={$gameStore.centerMode === 'contest'} on:click={setContestCenterMode}>Opponent info</button>
+          <button class="ui-debug-target" data-ui-name="Show opponent info view" class:selected={$gameStore.centerMode === 'contest'} on:click={setContestCenterMode}>
+            {$gameStore.multiplayer ? `${getOpponentPlayerName()} Info` : 'Rival Info'}
+          </button>
         {/if}
         <button class="ui-debug-target" data-ui-name="Return to main menu" on:click={returnToMainMenu}>Main Menu</button>
         {#if debugToolsEnabled}
@@ -3386,7 +3513,7 @@
           {#if selectedArchiveHealthTotals.length > 0}
             <div class="archive-health-totals">
               {#each selectedArchiveHealthTotals as total}
-                <div class="archive-health-total" class:enemy={total.side === 'enemy'}>
+                <div class={`archive-health-total ${archiveParticipantClass(getArchiveParticipant(total.side).kind)}`}>
                   <div>
                     <span>{total.label} final HP</span>
                     <strong>{total.hpLabel}</strong>
@@ -3401,7 +3528,7 @@
 
           {#if selectedArchivePayload}
             <div class="archive-force-block">
-              <span class="assignment-label">Player Forces</span>
+              <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('player').kind)}`}>{getArchiveForcesLabel('player')}</span>
               <div class="assigned-strip archive-force-strip">
                 {#each selectedArchivePayload.input.playerCombatants as combatant}
                   {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'player')}
@@ -3440,7 +3567,7 @@
             </div>
 
             <div class="archive-force-block">
-              <span class="assignment-label">{selectedReplayEntry.encounterLabel ?? 'Enemy'} Forces</span>
+              <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('enemy').kind)}`}>{getArchiveForcesLabel('enemy')}</span>
               <div class="assigned-strip enemy-strip archive-force-strip">
                 {#each selectedArchivePayload.input.enemyCombatants as combatant}
                   {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'enemy')}
@@ -3513,6 +3640,7 @@
                   class="archive-card ui-debug-target"
                   data-ui-name={`Archive entry ${replayEntry.summary}`}
                   class:selected={selectedReplayId === replayEntry.replayId}
+                  style={getArchiveCardStyle(replayEntry)}
                   on:click={() => selectReplay(replayEntry.replayId)}
                 >
                   <strong>{replayEntry.summary}</strong>
@@ -3604,8 +3732,8 @@
             {/if}
           </div>
         {/if}
-        <button class="primary large end-cycle-button ui-debug-target" data-ui-name="End cycle button" on:click={handleEndCycle}>
-          {$gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
+        <button class="primary large end-cycle-button ui-debug-target" data-ui-name="End cycle button" on:click={handleEndCycle} disabled={multiplayerReadySubmitted}>
+          {$gameStore.multiplayer ? multiplayerReadyLabel() : $gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
         </button>
       {/if}
     </footer>
@@ -4067,7 +4195,7 @@
   .topbar {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: 1.2fr 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.75rem;
     align-items: center;
     padding: 0.8rem 1rem;
@@ -4079,20 +4207,10 @@
     box-shadow: var(--ui-shadow-panel);
   }
 
-  .topbar > div:first-child {
-    min-width: 0;
-    display: grid;
-    gap: var(--ui-space-xs);
-  }
-
-  .topbar h1 {
-    font-size: clamp(1.55rem, 1.8vw, 1.9rem);
-    line-height: 1.05;
-  }
-
   .resource-strip {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-width: 0;
+    display: flex;
+    flex-wrap: nowrap;
     gap: 0.45rem;
   }
 
@@ -4104,6 +4222,11 @@
     border: 1px solid rgba(124, 153, 176, 0.15);
     border-radius: var(--ui-panel-radius-tight);
     background: var(--ui-color-surface-soft);
+  }
+
+  .resource-strip div {
+    min-width: 6.2rem;
+    white-space: nowrap;
   }
 
   .resource-strip span,
@@ -4147,9 +4270,18 @@
   .mode-toggle,
   .actions-grid {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: var(--ui-space-sm);
     align-items: center;
+  }
+
+  .mode-toggle {
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  .mode-toggle button {
+    white-space: nowrap;
   }
 
   .mode-toggle button,
@@ -4446,6 +4578,33 @@
     font-size: 0.78rem;
   }
 
+  .archive-card {
+    --archive-player: rgba(74, 193, 111, 0.58);
+    --archive-opponent: rgba(213, 75, 82, 0.58);
+    --archive-neutral: rgba(143, 153, 164, 0.52);
+    --archive-left-color: var(--archive-player);
+    --archive-right-color: var(--archive-neutral);
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--archive-left-color) 34%, transparent),
+        color-mix(in srgb, var(--archive-left-color) 12%, var(--archive-right-color) 12%) 48%,
+        color-mix(in srgb, var(--archive-right-color) 34%, transparent)
+      ),
+      var(--ui-color-surface-interactive);
+  }
+
+  .archive-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-left: 3px solid var(--archive-left-color);
+    border-right: 3px solid var(--archive-right-color);
+    pointer-events: none;
+  }
+
   .archive-health-totals,
   .archive-force-block {
     display: grid;
@@ -4469,12 +4628,19 @@
     font-size: 0.78rem;
   }
 
-  .archive-health-total strong {
+  .archive-side-label.archive-player,
+  .archive-health-total.archive-player strong {
     color: #d8f4df;
   }
 
-  .archive-health-total.enemy strong {
+  .archive-side-label.archive-opponent,
+  .archive-health-total.archive-opponent strong {
     color: #f1b1a8;
+  }
+
+  .archive-side-label.archive-neutral,
+  .archive-health-total.archive-neutral strong {
+    color: #c7d0d8;
   }
 
   .archive-force-strip {
@@ -4924,6 +5090,16 @@
     max-width: none;
   }
 
+  .draft-screen-header .multiplayer-status-line {
+    max-width: none;
+    width: fit-content;
+    border: var(--ui-border-strong);
+    border-radius: 6px;
+    padding: 0.45rem 0.65rem;
+    color: var(--ui-color-text);
+    background: rgba(213, 178, 116, 0.12);
+  }
+
   .draft-screen-header .scheduled-unlock-instructions {
     max-width: none;
     font-size: clamp(0.68rem, 0.62vw, 0.78rem);
@@ -5177,6 +5353,26 @@
     padding: var(--ui-space-sm);
   }
 
+  .menu-system-message {
+    display: grid;
+    gap: 0.35rem;
+    padding: var(--ui-space-sm);
+    border-color: rgba(213, 178, 116, 0.34);
+  }
+
+  .menu-system-message strong {
+    color: var(--ui-color-accent);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
+  .menu-system-message p {
+    margin: 0;
+    color: var(--ui-color-text);
+  }
+
   .slot-card-header {
     display: flex;
     align-items: center;
@@ -5208,6 +5404,44 @@
 
   .slot-card .actions-grid button {
     min-height: var(--ui-space-hit);
+  }
+
+  .multiplayer-menu {
+    display: grid;
+    gap: var(--ui-space-sm);
+    padding: var(--ui-space-sm);
+  }
+
+  .multiplayer-menu h2 {
+    margin: 0;
+    font-size: var(--ui-text-title);
+    line-height: var(--ui-line-title);
+  }
+
+  .multiplayer-controls {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.3fr) minmax(120px, 0.7fr) auto auto;
+    gap: var(--ui-space-sm);
+    align-items: end;
+  }
+
+  .multiplayer-controls label {
+    display: grid;
+    gap: 5px;
+    color: var(--ui-color-text-dim);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
+  .multiplayer-controls input {
+    min-width: 0;
+    border: var(--ui-border-subtle);
+    border-radius: 6px;
+    padding: 9px 10px;
+    color: var(--ui-color-text);
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .draft-layout {
@@ -6323,7 +6557,7 @@
     }
 
     .topbar {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr) auto;
     }
 
     .slot-grid {

@@ -32,9 +32,12 @@ import type {
   ContestPlayerId,
   ContestPlayerState,
   ContestOpponentInfoSnapshot,
+  BattleSideParticipants,
   GameMode,
   GameState,
   ReplayIndexEntry,
+  ResolvedCombatantDefinition,
+  RiftResolutionRecord,
   RiftInstance,
   StoredReplayPayload,
   TroopDraftOffer,
@@ -50,8 +53,25 @@ import type {
 
 const OPENING_FACTION_OPTION_COUNT = 4;
 const CONTEST_FINAL_CYCLE = 8;
-const AI_ALLOCATION_CANDIDATE_BUDGET_PER_SUBSET_SIZE = 500;
-const AI_WINNING_GROUPS_PER_RIFT = 24;
+const AI_MIN_ESTIMATED_WIN_MARGIN = -20;
+
+export interface ContestAiPlannerOptions {
+  maxCandidateGroupsPerRift: number;
+  maxBattleSimulationsPerRift: number;
+  maxConfirmedWinningGroupsPerRift: number;
+}
+
+export const CONTEST_AI_WORKER_OPTIONS: ContestAiPlannerOptions = {
+  maxCandidateGroupsPerRift: 32,
+  maxBattleSimulationsPerRift: 12,
+  maxConfirmedWinningGroupsPerRift: 6,
+};
+
+export const CONTEST_AI_SYNC_FALLBACK_OPTIONS: ContestAiPlannerOptions = {
+  maxCandidateGroupsPerRift: 8,
+  maxBattleSimulationsPerRift: 3,
+  maxConfirmedWinningGroupsPerRift: 2,
+};
 
 function buildEmptyContestPlayerState(): ContestPlayerState {
   return {
@@ -109,6 +129,7 @@ function buildReplayIndexEntry(
   replay: CycleResolution['records'][number]['replay'],
   estimatedBytes: number,
   encounterLabel?: string,
+  sideParticipants?: BattleSideParticipants,
 ): ReplayIndexEntry {
   return {
     id: replay.id,
@@ -118,6 +139,7 @@ function buildReplayIndexEntry(
     battleSeed: replay.seed,
     outcome: replay.outcome,
     encounterLabel,
+    sideParticipants,
     playerTroopLabels: replay.summary.playerTroops,
     enemyTroopLabels: replay.summary.enemyTroops,
     mutatorIds: replay.mutatorIds,
@@ -132,6 +154,16 @@ function buildStoredReplayPayload(record: CycleResolution['records'][number]): S
   return {
     version: 1,
     input: record.battleInput,
+  };
+}
+
+function withBattleSideParticipants(
+  input: CycleResolution['records'][number]['battleInput'],
+  sideParticipants: BattleSideParticipants,
+): CycleResolution['records'][number]['battleInput'] {
+  return {
+    ...input,
+    sideParticipants,
   };
 }
 
@@ -989,6 +1021,42 @@ function randomlyAdvanceAiUnlocks(state: GameState): GameState {
   return withContestAi(state, progressFromPseudoState(pseudo));
 }
 
+export function extractContestPlayerProgress(state: GameState): ContestPlayerState {
+  return progressFromPseudoState(state);
+}
+
+export function applyContestPlayerProgress(state: GameState, playerId: ContestPlayerId, progress: ContestPlayerState): GameState {
+  if (playerId === 'human') {
+    return {
+      ...state,
+      victoryPoints: progress.victoryPoints,
+      essence: progress.essence,
+      unlockedFactionIds: progress.unlockedFactionIds,
+      unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
+      recentTroopUnlockIds: progress.recentTroopUnlockIds,
+      troops: progress.troops,
+      factionUpgradeIds: progress.factionUpgradeIds,
+      troopTypeUpgradeIds: progress.troopTypeUpgradeIds,
+      activeTroopOffer: progress.activeTroopOffer,
+      activeUpgradeOffer: progress.activeUpgradeOffer,
+      activeFactionUnlockOffer: progress.activeFactionUnlockOffer,
+      activeTroopTypeUnlockOffer: progress.activeTroopTypeUnlockOffer,
+      troopOfferRolls: progress.troopOfferRolls,
+      upgradeOfferRolls: progress.upgradeOfferRolls,
+    };
+  }
+
+  return withContestAi(state, progress);
+}
+
+export function getContestPlayerProgress(state: GameState, playerId: ContestPlayerId): ContestPlayerState {
+  return playerId === 'human' ? extractContestPlayerProgress(state) : getContestAi(state);
+}
+
+export function applyScheduledUnlockToContestProgress(state: GameState, progress: ContestPlayerState): ContestPlayerState {
+  return progressFromPseudoState(applyScheduledCycleUnlock(buildProgressPseudoState(state, progress)));
+}
+
 function getContestCombatantsForTroops(
   state: GameState,
   playerId: ContestPlayerId,
@@ -1001,7 +1069,7 @@ function getContestCombatantsForTroops(
   );
 }
 
-function getContestRiftDefenderCombatants(state: GameState, rift: RiftInstance, attackerId: ContestPlayerId) {
+function getContestRiftDefenderCombatants(state: GameState, rift: RiftInstance) {
   if (rift.controller === 'neutral' || !rift.occupyingPlayerId) {
     return {
       defenderId: 'neutral' as const,
@@ -1019,7 +1087,7 @@ function getContestRiftDefenderCombatants(state: GameState, rift: RiftInstance, 
     defenderId,
     factionUpgradeIds: defenderProgress.factionUpgradeIds,
     troopTypeUpgradeIds: defenderProgress.troopTypeUpgradeIds,
-    combatants: getContestCombatantsForTroops(state, defenderId, troops, attackerId === 'human' ? 'enemy' : 'player'),
+    combatants: getContestCombatantsForTroops(state, defenderId, troops, 'enemy'),
   };
 }
 
@@ -1031,28 +1099,41 @@ function resolveContestBattle(
   salt: number,
 ): RiftResolutionRecord {
   const attackerProgress = contestPlayerState(state, attackerId);
-  const defender = getContestRiftDefenderCombatants(state, rift, attackerId);
+  const defender = getContestRiftDefenderCombatants(state, rift);
   const assignedTroopIds = attackingTroops.map((troop) => troop.id).sort((a, b) => a.localeCompare(b));
   const battleSeed = deriveSeed(
     rift.seed,
     salt + assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0),
   );
-  const attackerSide = attackerId === 'human' ? 'player' : 'enemy';
-  const battleInput = buildBattleInputFromResolvedCombatants(
+  const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(
     battleSeed,
     rift.id,
     rift.tier,
     rift.mutatorIds,
     rift.saturation,
-    attackerSide === 'player' ? attackerProgress.factionUpgradeIds : defender.factionUpgradeIds,
-    attackerSide === 'player' ? attackerProgress.troopTypeUpgradeIds : defender.troopTypeUpgradeIds,
-    attackerSide === 'player' ? defender.factionUpgradeIds : attackerProgress.factionUpgradeIds,
-    attackerSide === 'player' ? defender.troopTypeUpgradeIds : attackerProgress.troopTypeUpgradeIds,
-    attackerSide === 'player' ? getContestCombatantsForTroops(state, attackerId, attackingTroops, 'player') : defender.combatants,
-    attackerSide === 'player' ? defender.combatants : getContestCombatantsForTroops(state, attackerId, attackingTroops, 'enemy'),
-  );
+    attackerProgress.factionUpgradeIds,
+    attackerProgress.troopTypeUpgradeIds,
+    defender.factionUpgradeIds,
+    defender.troopTypeUpgradeIds,
+    getContestCombatantsForTroops(state, attackerId, attackingTroops, 'player'),
+    defender.combatants,
+  ), {
+    player: {
+      kind: attackerId === 'human' ? 'player' : 'opponent',
+      label: attackerId === 'human' ? 'Player' : 'Rival',
+      playerId: attackerId,
+    },
+    enemy:
+      defender.defenderId === 'neutral'
+        ? { kind: 'neutral', label: 'Neutral Guardians' }
+        : {
+            kind: defender.defenderId === 'human' ? 'player' : 'opponent',
+            label: defender.defenderId === 'human' ? 'Player' : 'Rival',
+            playerId: defender.defenderId,
+          },
+  });
   const replay = resolveBattle(battleInput);
-  const attackerWon = attackerSide === 'player' ? replay.outcome === 'victory' : replay.outcome === 'defeat';
+  const attackerWon = replay.outcome === 'victory';
 
   return {
     riftId: rift.id,
@@ -1082,7 +1163,7 @@ function resolveContestPvpBattle(
   const battleSeed = deriveSeed(rift.seed, salt + assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
   const human = contestPlayerState(state, 'human');
   const ai = contestPlayerState(state, 'ai');
-  const battleInput = buildBattleInputFromResolvedCombatants(
+  const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(
     battleSeed,
     rift.id,
     rift.tier,
@@ -1094,7 +1175,10 @@ function resolveContestPvpBattle(
     ai.troopTypeUpgradeIds,
     getContestCombatantsForTroops(state, 'human', humanTroops, 'player'),
     getContestCombatantsForTroops(state, 'ai', aiTroops, 'enemy'),
-  );
+  ), {
+    player: { kind: 'player', label: 'Player', playerId: 'human' },
+    enemy: { kind: 'opponent', label: 'Rival', playerId: 'ai' },
+  });
   const replay = resolveBattle(battleInput);
   return {
     riftId: rift.id,
@@ -1112,29 +1196,6 @@ function resolveContestPvpBattle(
   };
 }
 
-function combinations<T>(items: T[], size: number): T[][] {
-  if (size <= 0) {
-    return [[]];
-  }
-  if (size > items.length) {
-    return [];
-  }
-  const result: T[][] = [];
-  const visit = (start: number, selected: T[]) => {
-    if (selected.length === size) {
-      result.push([...selected]);
-      return;
-    }
-    for (let index = start; index < items.length; index += 1) {
-      selected.push(items[index]!);
-      visit(index + 1, selected);
-      selected.pop();
-    }
-  };
-  visit(0, []);
-  return result;
-}
-
 function isValidAiTroopGroupAddition(state: GameState, target: typeof state.troops, troop: (typeof state.troops)[number]): boolean {
   if (target.some((entry) => entry.id === troop.id || entry.unitTypeId === troop.unitTypeId)) {
     return false;
@@ -1145,44 +1206,109 @@ function isValidAiTroopGroupAddition(state: GameState, target: typeof state.troo
   return true;
 }
 
-function scoreAiTroopForDeployment(state: GameState, troop: (typeof state.troops)[number]): number {
-  const combatant = resolveTroopCombatant(contestPlayerState(state, 'ai'), troop, 'player');
-  return (
-    combatant.quantity * (combatant.stats.health + combatant.stats.damage * 2 + combatant.stats.speed * 0.5 + combatant.stats.armor * 2) +
-    combatant.stats.range * 5
-  );
+function getAiRiftValue(rift: RiftInstance): number {
+  const controllerMultiplier = rift.controller === 'human' ? 2 : rift.controller === 'neutral' || !rift.controller ? 1 : 0;
+  return rift.victoryPoints * 100 * controllerMultiplier;
 }
 
 function sortAiRiftsForDeployment(rifts: RiftInstance[]): RiftInstance[] {
   return [...rifts].sort((left, right) => {
-    const tierDelta = right.tier - left.tier;
-    if (tierDelta !== 0) {
-      return tierDelta;
-    }
-    const leftControllerScore = left.controller === 'human' ? 1 : 0;
-    const rightControllerScore = right.controller === 'human' ? 1 : 0;
-    const controllerDelta = rightControllerScore - leftControllerScore;
-    if (controllerDelta !== 0) {
-      return controllerDelta;
+    const valueDelta = getAiRiftValue(right) - getAiRiftValue(left);
+    if (valueDelta !== 0) {
+      return valueDelta;
     }
     return left.id.localeCompare(right.id);
   });
 }
 
-function buildAiWinningGroupsForRift(
+function scoreResolvedCombatantPower(combatant: ResolvedCombatantDefinition): number {
+  const offensePower = combatant.quantity * combatant.stats.health * combatant.stats.damage;
+  const durabilityPower = combatant.quantity * combatant.stats.health * (1 + combatant.stats.armor / 10);
+  const tempoPower = combatant.quantity * combatant.stats.speed * 8;
+  const reachPower = combatant.stats.range * combatant.quantity * 20;
+  const capacityPower = combatant.stats.capacity * combatant.quantity * 12;
+  return offensePower + durabilityPower + tempoPower + reachPower + capacityPower;
+}
+
+function scoreAiTroopForDeployment(state: GameState, troop: (typeof state.troops)[number]): number {
+  return scoreResolvedCombatantPower(resolveTroopCombatant(contestPlayerState(state, 'ai'), troop, 'player'));
+}
+
+function scoreAiCombatantGroupPower(combatants: ResolvedCombatantDefinition[]): number {
+  return combatants.reduce((sum, combatant) => sum + scoreResolvedCombatantPower(combatant), 0);
+}
+
+function scoreAiRoleMix(combatants: ResolvedCombatantDefinition[]): number {
+  const hasFrontline = combatants.some((combatant) => combatant.role === 'frontline');
+  const hasBackline = combatants.some((combatant) => combatant.role === 'backline');
+  const hasChaff = combatants.some((combatant) => combatant.role === 'chaff');
+  const hasSupport = combatants.some((combatant) => combatant.attributes.includes('support') || combatant.attributes.includes('healer'));
+  const onlyBacklinePenalty = hasBackline && !hasFrontline && !hasChaff ? -35 : 0;
+  return (hasFrontline ? 30 : -25) + (hasBackline ? 15 : 0) + (hasSupport ? 10 : 0) + (hasChaff ? 8 : 0) + onlyBacklinePenalty;
+}
+
+type StateTroopArray = GameState['troops'];
+
+function compareDeterministicTroopGroups(left: StateTroopArray, right: StateTroopArray): number {
+  return left.map((troop) => troop.id).sort().join('|').localeCompare(right.map((troop) => troop.id).sort().join('|'));
+}
+
+interface AiCandidateGroup {
+  troops: StateTroopArray;
+  groupPower: number;
+  roleMixScore: number;
+  estimatedWinMargin: number;
+  commitmentCost: number;
+  candidateScore: number;
+}
+
+interface AiWinningGroup extends AiCandidateGroup {
+  winningGroupScore: number;
+}
+
+function compareAiCandidateGroups(left: AiCandidateGroup, right: AiCandidateGroup): number {
+  return (
+    right.candidateScore - left.candidateScore ||
+    left.groupPower - right.groupPower ||
+    left.troops.length - right.troops.length ||
+    compareDeterministicTroopGroups(left.troops, right.troops)
+  );
+}
+
+function compareAiWinningGroups(left: AiWinningGroup, right: AiWinningGroup): number {
+  return (
+    right.winningGroupScore - left.winningGroupScore ||
+    left.groupPower - right.groupPower ||
+    left.troops.length - right.troops.length ||
+    compareDeterministicTroopGroups(left.troops, right.troops)
+  );
+}
+
+function buildAiCandidateGroupsForRift(
   state: GameState,
   rift: RiftInstance,
-  readyTroops: typeof state.troops,
-  canWin: (rift: RiftInstance, troops: typeof state.troops) => boolean,
-): Array<typeof state.troops> {
-  const groups: Array<typeof state.troops> = [];
+  readyTroops: StateTroopArray,
+  options: ContestAiPlannerOptions,
+): AiCandidateGroup[] {
+  const defenderPower = scoreAiCombatantGroupPower(getContestRiftDefenderCombatants(state, rift).combatants);
+  const candidates: AiCandidateGroup[] = [];
   const visit = (startIndex: number, group: typeof state.troops): void => {
-    if (groups.length >= AI_WINNING_GROUPS_PER_RIFT) {
-      return;
-    }
-    if (group.length > 0 && canWin(rift, group)) {
-      groups.push([...group]);
-      return;
+    if (group.length > 0) {
+      const combatants = getContestCombatantsForTroops(state, 'ai', group, 'player');
+      const groupPower = scoreAiCombatantGroupPower(combatants);
+      const roleMixScore = scoreAiRoleMix(combatants);
+      const estimatedWinMargin = ((groupPower + roleMixScore - defenderPower) / Math.max(defenderPower, 1)) * 100;
+      if (estimatedWinMargin >= AI_MIN_ESTIMATED_WIN_MARGIN) {
+        const commitmentCost = groupPower / 25;
+        candidates.push({
+          troops: [...group],
+          groupPower,
+          roleMixScore,
+          estimatedWinMargin,
+          commitmentCost,
+          candidateScore: estimatedWinMargin - commitmentCost,
+        });
+      }
     }
     for (let index = startIndex; index < readyTroops.length; index += 1) {
       const troop = readyTroops[index]!;
@@ -1196,11 +1322,41 @@ function buildAiWinningGroupsForRift(
   };
 
   visit(0, []);
-  return groups;
+  return candidates.sort(compareAiCandidateGroups).slice(0, options.maxCandidateGroupsPerRift);
 }
 
-function firstWinningAiAllocation(state: GameState): Map<string, TroopId[]> {
-  const availableRifts = sortAiRiftsForDeployment(state.openRifts.filter((rift) => rift.state === 'discovered' && rift.controller !== 'ai'));
+function buildAiWinningGroupsForRift(
+  state: GameState,
+  rift: RiftInstance,
+  readyTroops: StateTroopArray,
+  options: ContestAiPlannerOptions,
+): AiWinningGroup[] {
+  const riftValue = getAiRiftValue(rift);
+  const battleCache = new Map<string, boolean>();
+  const winningGroups: AiWinningGroup[] = [];
+
+  for (const candidate of buildAiCandidateGroupsForRift(state, rift, readyTroops, options).slice(0, options.maxBattleSimulationsPerRift)) {
+    const key = `${rift.id}:${rift.controller}:${(rift.occupyingTroopIds ?? []).join(',')}:${candidate.troops.map((troop) => troop.id).sort().join(',')}`;
+    let won = battleCache.get(key);
+    if (won === undefined) {
+      won = resolveContestBattle(state, rift, 'ai', candidate.troops, 91_003).outcome === 'victory';
+      battleCache.set(key, won);
+    }
+    if (!won) {
+      continue;
+    }
+    const overkillPenalty = candidate.estimatedWinMargin > 75 ? (candidate.estimatedWinMargin - 75) * 0.5 : 0;
+    winningGroups.push({
+      ...candidate,
+      winningGroupScore: riftValue * 10 - candidate.commitmentCost - overkillPenalty,
+    });
+  }
+
+  return winningGroups.sort(compareAiWinningGroups).slice(0, options.maxConfirmedWinningGroupsPerRift);
+}
+
+function firstWinningAiAllocation(state: GameState, options: ContestAiPlannerOptions): Map<string, TroopId[]> {
+  const availableRifts = sortAiRiftsForDeployment(state.openRifts.filter((rift) => rift.state === 'discovered' && getAiRiftValue(rift) > 0));
   const readyTroops = [...getContestReadyTroops(state, 'ai')].sort(
     (left, right) => scoreAiTroopForDeployment(state, right) - scoreAiTroopForDeployment(state, left) || left.id.localeCompare(right.id),
   );
@@ -1209,79 +1365,101 @@ function firstWinningAiAllocation(state: GameState): Map<string, TroopId[]> {
     return empty;
   }
 
-  const battleCache = new Map<string, boolean>();
-  const canWin = (rift: RiftInstance, troops: typeof readyTroops): boolean => {
-    const key = `${rift.id}:${rift.controller}:${(rift.occupyingTroopIds ?? []).join(',')}:${troops.map((troop) => troop.id).sort().join(',')}`;
-    const cached = battleCache.get(key);
-    if (cached !== undefined) {
-      return cached;
-    }
-    const record = resolveContestBattle(state, rift, 'ai', troops, 91_003);
-    const result = record.outcome === 'victory';
-    battleCache.set(key, result);
-    return result;
-  };
-  const winningGroupCache = new Map<string, Array<typeof readyTroops>>();
-  const getWinningGroups = (rift: RiftInstance): Array<typeof readyTroops> => {
-    const cached = winningGroupCache.get(rift.id);
-    if (cached) {
-      return cached;
-    }
-    const groups = buildAiWinningGroupsForRift(state, rift, readyTroops, canWin);
-    winningGroupCache.set(rift.id, groups);
-    return groups;
-  };
+  const winningGroupsByRift = availableRifts.map((rift) => ({
+    rift,
+    groups: buildAiWinningGroupsForRift(state, rift, readyTroops, options),
+  }));
 
-  for (let subsetSize = availableRifts.length; subsetSize >= 1; subsetSize -= 1) {
-    let candidatesCheckedForSubsetSize = 0;
-    for (const riftSubset of combinations(availableRifts, subsetSize)) {
-      if (candidatesCheckedForSubsetSize >= AI_ALLOCATION_CANDIDATE_BUDGET_PER_SUBSET_SIZE) {
-        break;
-      }
-      const winningGroupsByRift = riftSubset.map((rift) => getWinningGroups(rift));
-      if (winningGroupsByRift.some((groups) => groups.length === 0)) {
-        continue;
-      }
-
-      const selectedGroups: Array<typeof readyTroops> = [];
-      const usedTroopIds = new Set<TroopId>();
-      const visit = (riftIndex: number): Map<string, TroopId[]> | null => {
-        if (candidatesCheckedForSubsetSize >= AI_ALLOCATION_CANDIDATE_BUDGET_PER_SUBSET_SIZE) {
-          return null;
-        }
-        if (riftIndex >= riftSubset.length) {
-          candidatesCheckedForSubsetSize += 1;
-          return new Map(riftSubset.map((rift, index) => [rift.id, selectedGroups[index]!.map((troop) => troop.id)]));
-        }
-
-        for (const group of winningGroupsByRift[riftIndex]!) {
-          if (group.some((troop) => usedTroopIds.has(troop.id))) {
-            continue;
-          }
-          group.forEach((troop) => usedTroopIds.add(troop.id));
-          selectedGroups.push(group);
-          const found = visit(riftIndex + 1);
-          if (found) {
-            return found;
-          }
-          selectedGroups.pop();
-          group.forEach((troop) => usedTroopIds.delete(troop.id));
-        }
-        return null;
-      };
-
-      const found = visit(0);
-      if (found) {
-        return found;
-      }
-    }
+  interface AllocationChoice {
+    rift: RiftInstance;
+    group: AiWinningGroup;
   }
 
-  return empty;
+  interface AllocationScore {
+    choices: AllocationChoice[];
+    score: number;
+    humanHeldCount: number;
+    victoryPoints: number;
+    committedPower: number;
+    key: string;
+  }
+
+  let best: AllocationScore | null = null;
+  const selected: AllocationChoice[] = [];
+  const usedTroopIds = new Set<TroopId>();
+
+  const scoreSelected = (): AllocationScore => {
+    const riftValueSum = selected.reduce((sum, choice) => sum + getAiRiftValue(choice.rift), 0);
+    const totalCommittedPower = selected.reduce((sum, choice) => sum + choice.group.groupPower, 0);
+    const totalTroopCount = selected.reduce((sum, choice) => sum + choice.group.troops.length, 0);
+    const humanHeldCount = selected.filter((choice) => choice.rift.controller === 'human').length;
+    const victoryPoints = selected.reduce((sum, choice) => sum + choice.rift.victoryPoints, 0);
+    const key = selected
+      .map((choice) => `${choice.rift.id}:${choice.group.troops.map((troop) => troop.id).sort().join(',')}`)
+      .sort()
+      .join('|');
+    return {
+      choices: [...selected],
+      score: riftValueSum * 100 - totalCommittedPower / 10 - totalTroopCount * 5,
+      humanHeldCount,
+      victoryPoints,
+      committedPower: totalCommittedPower,
+      key,
+    };
+  };
+
+  const isBetterAllocation = (left: AllocationScore, right: AllocationScore | null): boolean => {
+    if (!right) {
+      return true;
+    }
+    return (
+      left.score > right.score ||
+      (left.score === right.score &&
+        (left.humanHeldCount > right.humanHeldCount ||
+          (left.humanHeldCount === right.humanHeldCount &&
+            (left.victoryPoints > right.victoryPoints ||
+              (left.victoryPoints === right.victoryPoints &&
+                (left.committedPower < right.committedPower ||
+                  (left.committedPower === right.committedPower && left.key.localeCompare(right.key) < 0)))))))
+    );
+  };
+
+  const visit = (riftIndex: number): void => {
+    if (riftIndex >= winningGroupsByRift.length) {
+      if (selected.length === 0) {
+        return;
+      }
+      const score = scoreSelected();
+      if (isBetterAllocation(score, best)) {
+        best = score;
+      }
+      return;
+    }
+
+    visit(riftIndex + 1);
+
+    const entry = winningGroupsByRift[riftIndex]!;
+    for (const group of entry.groups) {
+      if (group.troops.some((troop) => usedTroopIds.has(troop.id))) {
+        continue;
+      }
+      group.troops.forEach((troop) => usedTroopIds.add(troop.id));
+      selected.push({ rift: entry.rift, group });
+      visit(riftIndex + 1);
+      selected.pop();
+      group.troops.forEach((troop) => usedTroopIds.delete(troop.id));
+    }
+  };
+
+  visit(0);
+
+  return best
+    ? new Map(best.choices.map((choice) => [choice.rift.id, choice.group.troops.map((troop) => troop.id)]))
+    : empty;
 }
 
-function assignAiContestTroops(state: GameState): GameState {
-  const allocation = firstWinningAiAllocation(state);
+function assignAiContestTroops(state: GameState, options: ContestAiPlannerOptions): GameState {
+  const allocation = firstWinningAiAllocation(state, options);
   if (allocation.size === 0) {
     return state;
   }
@@ -1296,8 +1474,12 @@ function assignAiContestTroops(state: GameState): GameState {
   });
 }
 
-function prepareContestCycle(state: GameState): GameState {
-  return assignAiContestTroops(randomlyAdvanceAiUnlocks(state));
+function prepareContestCycle(state: GameState, options: ContestAiPlannerOptions = CONTEST_AI_WORKER_OPTIONS): GameState {
+  return assignAiContestTroops(randomlyAdvanceAiUnlocks(state), options);
+}
+
+export function prepareContestAiForCycle(state: GameState, options: ContestAiPlannerOptions = CONTEST_AI_WORKER_OPTIONS): ContestPlayerState {
+  return getContestAi(prepareContestCycle(state, options));
 }
 
 function resolveContestAssignedRifts(state: GameState): CycleResolution {
@@ -1350,7 +1532,7 @@ function getGuardianUnlocksForRecord(state: GameState, record: RiftResolutionRec
     return [];
   }
   const progress = contestPlayerState(state, playerId);
-  const guardianCombatants = playerId === 'human' ? record.battleInput.enemyCombatants : record.battleInput.playerCombatants;
+  const guardianCombatants = record.battleInput.enemyCombatants;
   return guardianCombatants
     .map((combatant) => `${combatant.factionId}/${combatant.unitTypeId}` as TroopUnlockId)
     .filter((troopUnlockId) => !isNativeTroopUnlockId(troopUnlockId))
@@ -1380,9 +1562,9 @@ function isContestRecordVisibleToHuman(record: RiftResolutionRecord): boolean {
 
 function getContestEncounterLabel(record: RiftResolutionRecord): string {
   if (record.contest?.kind === 'guardian' && record.contest.attackerId === 'ai') {
-    return 'AI vs Neutral Guardians';
+    return 'Rival vs Neutral Guardians';
   }
-  return record.contest?.kind === 'guardian' ? 'Neutral Guardians' : 'Opponent';
+  return record.contest?.kind === 'guardian' ? 'Neutral Guardians' : 'Rival';
 }
 
 function clearContestTroopAssignments(progress: ContestPlayerState, occupiedByRift: Map<string, Set<TroopId>>): ContestPlayerState {
@@ -1568,7 +1750,7 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
   visibleRecords.forEach((record) => {
     const payload = writes.find((entry) => entry.replayId === record.replay.id);
     nextState.replayIndex = [
-      buildReplayIndexEntry(state.cycleNumber, record.replay, payload?.estimatedBytes ?? 0, getContestEncounterLabel(record)),
+      buildReplayIndexEntry(state.cycleNumber, record.replay, payload?.estimatedBytes ?? 0, getContestEncounterLabel(record), record.battleInput.sideParticipants),
       ...nextState.replayIndex,
     ];
   });
@@ -1594,10 +1776,12 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
   };
 }
 
-export function resolveAssignedRifts(state: GameState): CycleResolution {
+export function resolveAssignedRifts(state: GameState, preparedContestAi?: ContestPlayerState): CycleResolution {
   if (state.gameMode === 'contest') {
+    const preparedState = preparedContestAi ? withContestAi(state, preparedContestAi) : prepareContestCycle(state, CONTEST_AI_SYNC_FALLBACK_OPTIONS);
     return {
-      ...resolveContestAssignedRifts(prepareContestCycle(state)),
+      ...resolveContestAssignedRifts(preparedState),
+      preparedState,
       contestOpponentInfoSnapshot: buildContestOpponentInfoSnapshot(state),
     };
   }
@@ -1612,7 +1796,7 @@ export function resolveAssignedRifts(state: GameState): CycleResolution {
 
       const assignedTroopIds = troops.map((troop) => troop.id).sort((a, b) => a.localeCompare(b));
       const battleSeed = deriveSeed(rift.seed, assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
-      const battleInput = buildBattleInputFromResolvedCombatants(
+      const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(
         battleSeed,
         rift.id,
         rift.tier,
@@ -1624,7 +1808,10 @@ export function resolveAssignedRifts(state: GameState): CycleResolution {
         [],
         troops.map((troop) => resolveTroopCombatant(state, troop, 'player')),
         rift.enemyArmy,
-      );
+      ), {
+        player: { kind: 'player', label: 'Player' },
+        enemy: { kind: 'neutral', label: 'Neutral Guardians' },
+      });
       const replay = resolveBattle(battleInput);
 
       const recoveryMap = Object.fromEntries(
@@ -1716,7 +1903,10 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
 
   resolution.records.forEach((record) => {
     const payload = writes.find((entry) => entry.replayId === record.replay.id);
-    nextState.replayIndex = [buildReplayIndexEntry(unlockedState.cycleNumber, record.replay, payload?.estimatedBytes ?? 0), ...nextState.replayIndex];
+    nextState.replayIndex = [
+      buildReplayIndexEntry(unlockedState.cycleNumber, record.replay, payload?.estimatedBytes ?? 0, undefined, record.battleInput.sideParticipants),
+      ...nextState.replayIndex,
+    ];
     if (record.outcome === 'victory') {
       nextState.victoryPoints += record.victoryPoints;
     }

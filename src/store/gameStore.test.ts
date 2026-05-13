@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
-import { getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
+import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, startNewGame, startOpeningCampaign } from '../engine/game';
 import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites } from './gameStore';
 
@@ -59,6 +59,40 @@ class QuotaStorage {
 
   private totalChars(): number {
     return [...this.values.values()].reduce((total, value) => total + value.length, 0);
+  }
+}
+
+class FakeWebSocket {
+  static readonly OPEN = 1;
+  static instances: FakeWebSocket[] = [];
+
+  readonly OPEN = 1;
+  readyState = FakeWebSocket.OPEN;
+  onopen: (() => void) | null = null;
+  onmessage: ((event: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  sent: string[] = [];
+
+  constructor(readonly url: string) {
+    FakeWebSocket.instances.push(this);
+  }
+
+  send(message: string): void {
+    this.sent.push(message);
+  }
+
+  close(): void {
+    this.readyState = 3;
+    this.onclose?.();
+  }
+
+  open(): void {
+    this.onopen?.();
+  }
+
+  receive(message: unknown): void {
+    this.onmessage?.({ data: JSON.stringify(message) });
   }
 }
 
@@ -177,10 +211,13 @@ describe('gameStore progression flow', () => {
 
   beforeEach(() => {
     storage = new MemoryStorage();
+    FakeWebSocket.instances = [];
+    vi.unstubAllGlobals();
     Object.defineProperty(globalThis, 'localStorage', {
       value: storage,
       configurable: true,
     });
+    gameStore.leaveMultiplayerContest();
     gameStore.initialize();
   });
 
@@ -371,5 +408,89 @@ describe('gameStore progression flow', () => {
     expect(storage.getItem('shiftmake:slot:2:replay:stale')).toBeNull();
     expect(storage.getItem(`shiftmake:slot:2:replay:v3.19:${imported.game.replayIndex[0]?.replayId}`)).not.toBeNull();
     expect(storage.getItem('shiftmake:slot:1:save:v3')).not.toBeNull();
+  });
+
+  it('preserves unsubmitted multiplayer edits when the other player submits readiness', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(123, 'contest');
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'ABCD', 'Player 2');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'ABCD',
+      playerId: 'ai',
+      game: room,
+      readiness: { human: false, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    const base = currentStoreState<{ game: GameState }>().game;
+    const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(base);
+    gameStore.claimOpeningTroop(firstTroopUnlockId);
+    gameStore.claimOpeningTroop(secondTroopUnlockId);
+    const selectedTroops = currentStoreState<{ game: GameState }>().game.troops;
+
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'ABCD',
+      playerId: 'ai',
+      game: room,
+      readiness: { human: true, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    const afterOpponentReady = currentStoreState<{
+      game: GameState;
+      multiplayer: { readiness: { human: boolean; ai: boolean }; message: string | null } | null;
+      systemMessage: string | null;
+    }>();
+    expect(afterOpponentReady.game.troops).toEqual(selectedTroops);
+    expect(afterOpponentReady.multiplayer?.readiness).toEqual({ human: true, ai: false });
+    expect(afterOpponentReady.multiplayer?.message).toBeNull();
+    expect(afterOpponentReady.systemMessage).toBeNull();
+  });
+
+  it('preserves unsubmitted multiplayer troop assignments when the other player submits readiness', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const opening = startNewGame(456, 'contest');
+    const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(opening);
+    const room = startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(opening, firstTroopUnlockId), secondTroopUnlockId));
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'WXYZ', 'Player 2');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'WXYZ',
+      playerId: 'ai',
+      game: room,
+      readiness: { human: false, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    const current = currentStoreState<{ game: GameState }>().game;
+    gameStore.assignTroopToRift(current.troops[0]!.id, current.openRifts[0]!.id);
+
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'WXYZ',
+      playerId: 'ai',
+      game: room,
+      readiness: { human: true, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    const afterOpponentReady = currentStoreState<{ game: GameState }>().game;
+    expect(afterOpponentReady.troops[0]?.assignmentRiftId).toBe(current.openRifts[0]!.id);
   });
 });
