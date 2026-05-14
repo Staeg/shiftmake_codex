@@ -65,7 +65,7 @@ import {
 } from './saveSlots';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 import { describeTroopUnlock } from '../engine/upgrades';
-import { DEFAULT_CONTEST_PLAYER_NAMES, type ContestPlayerNames } from '../engine/multiplayerContest';
+import { buildContestMultiplayerSubmission, DEFAULT_CONTEST_PLAYER_NAMES, type ContestPlayerNames } from '../engine/multiplayerContest';
 import { buildContestAiPlanKey, type ContestAiWorkerResponse } from './contestAiPlanner';
 
 export type CenterMode = 'rifts' | 'troops' | 'contest';
@@ -106,7 +106,9 @@ interface MultiplayerSession {
   serverUrl: string;
   roomId: string | null;
   playerId: 'human' | 'ai' | null;
+  playerToken: string | null;
   readiness: { human: boolean; ai: boolean };
+  connectedPlayers: { human: boolean; ai: boolean };
   playerNames: ContestPlayerNames;
   message: string | null;
 }
@@ -116,8 +118,10 @@ type MultiplayerServerMessage =
       kind: 'room-snapshot';
       roomId: string;
       playerId: 'human' | 'ai';
+      playerToken: string;
       game: GameState;
       readiness: { human: boolean; ai: boolean };
+      connectedPlayers?: { human: boolean; ai: boolean };
       playerNames: ContestPlayerNames;
       replayPayloads: Record<string, StoredReplayPayload>;
       message: string | null;
@@ -126,6 +130,102 @@ type MultiplayerServerMessage =
 
 let multiplayerSocket: WebSocket | null = null;
 let multiplayerReplayPayloads: Record<string, StoredReplayPayload> = {};
+
+interface StoredMultiplayerIdentity {
+  serverUrl: string;
+  roomId: string;
+  playerId: 'human' | 'ai';
+  playerToken: string;
+}
+
+const MULTIPLAYER_IDENTITY_KEY_PREFIX = 'shiftmake:multiplayer:contest:identity:';
+const MULTIPLAYER_LAST_PLAYER_NAME_KEY = 'shiftmake:multiplayer:contest:last-player-name';
+const MULTIPLAYER_LAST_SERVER_URL_KEY = 'shiftmake:multiplayer:contest:last-server-url';
+
+function multiplayerIdentityStorageKey(serverUrl: string, roomId: string): string {
+  return `${MULTIPLAYER_IDENTITY_KEY_PREFIX}${serverUrl}|${roomId}`;
+}
+
+function readStoredMultiplayerIdentity(serverUrl: string, roomId: string | undefined): StoredMultiplayerIdentity | null {
+  if (!roomId || typeof sessionStorage === 'undefined') {
+    return null;
+  }
+  try {
+    const raw = sessionStorage.getItem(multiplayerIdentityStorageKey(serverUrl, roomId));
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<StoredMultiplayerIdentity>;
+    if (
+      parsed.serverUrl === serverUrl &&
+      parsed.roomId === roomId &&
+      (parsed.playerId === 'human' || parsed.playerId === 'ai') &&
+      typeof parsed.playerToken === 'string' &&
+      parsed.playerToken
+    ) {
+      return {
+        serverUrl,
+        roomId,
+        playerId: parsed.playerId,
+        playerToken: parsed.playerToken,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function writeStoredMultiplayerIdentity(identity: StoredMultiplayerIdentity): void {
+  if (typeof sessionStorage === 'undefined') {
+    return;
+  }
+  try {
+    sessionStorage.setItem(multiplayerIdentityStorageKey(identity.serverUrl, identity.roomId), JSON.stringify(identity));
+  } catch {
+    // Session storage is a convenience for refresh reconnects; live memory still has the token.
+  }
+}
+
+function readStoredString(key: string): string | null {
+  if (typeof localStorage === 'undefined') {
+    return null;
+  }
+  try {
+    const value = localStorage.getItem(key)?.trim() ?? '';
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredString(key: string, value: string | undefined): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  const trimmed = value?.trim() ?? '';
+  if (!trimmed) {
+    return;
+  }
+  try {
+    localStorage.setItem(key, trimmed);
+  } catch {
+    // Multiplayer preferences are convenience-only and should never block room flow.
+  }
+}
+
+export function readLastMultiplayerPlayerName(): string | null {
+  return readStoredString(MULTIPLAYER_LAST_PLAYER_NAME_KEY);
+}
+
+export function readLastMultiplayerServerUrl(): string | null {
+  return readStoredString(MULTIPLAYER_LAST_SERVER_URL_KEY);
+}
+
+function persistMultiplayerPreferences(serverUrl: string, playerName?: string): void {
+  writeStoredString(MULTIPLAYER_LAST_SERVER_URL_KEY, serverUrl);
+  writeStoredString(MULTIPLAYER_LAST_PLAYER_NAME_KEY, playerName);
+}
 
 function isMultiplayerSubmitted(state: StoreState): boolean {
   const playerId = state.multiplayer?.playerId;
@@ -142,6 +242,22 @@ function shouldPreserveUnsubmittedMultiplayerGame(state: StoreState, message: Ex
     return false;
   }
   return !isMultiplayerSubmitted(state);
+}
+
+function closeMultiplayerSocket(options: { notifyServer: boolean } = { notifyServer: false }): void {
+  const socket = multiplayerSocket;
+  multiplayerSocket = null;
+  if (!socket) {
+    return;
+  }
+  if (options.notifyServer && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ kind: 'leave-room' }));
+  }
+  socket.onopen = null;
+  socket.onmessage = null;
+  socket.onclose = null;
+  socket.onerror = null;
+  socket.close();
 }
 
 interface ContestAiPlanCache {
@@ -379,8 +495,10 @@ export const gameStore = (() => {
   });
 
   function connectMultiplayerContest(serverUrl: string, roomId?: string, playerName?: string): void {
-    multiplayerSocket?.close();
+    closeMultiplayerSocket();
     multiplayerReplayPayloads = {};
+    persistMultiplayerPreferences(serverUrl, playerName);
+    const storedIdentity = readStoredMultiplayerIdentity(serverUrl, roomId);
     const socket = new WebSocket(serverUrl);
     multiplayerSocket = socket;
 
@@ -391,8 +509,10 @@ export const gameStore = (() => {
         connected: false,
         serverUrl,
         roomId: roomId || null,
-        playerId: null,
+        playerId: storedIdentity?.playerId ?? null,
+        playerToken: storedIdentity?.playerToken ?? null,
         readiness: { human: false, ai: false },
+        connectedPlayers: { human: false, ai: false },
         playerNames: { ...DEFAULT_CONTEST_PLAYER_NAMES },
         message: 'Connecting to Contest room...',
       },
@@ -400,7 +520,15 @@ export const gameStore = (() => {
     });
 
     socket.onopen = () => {
-      socket.send(JSON.stringify(roomId ? { kind: 'join-room', roomId, playerName } : { kind: 'create-room', playerName }));
+      socket.send(
+        JSON.stringify(
+          storedIdentity
+            ? { kind: 'reconnect-room', roomId: storedIdentity.roomId, playerId: storedIdentity.playerId, token: storedIdentity.playerToken, playerName }
+            : roomId
+              ? { kind: 'join-room', roomId, playerName }
+              : { kind: 'create-room', playerName },
+        ),
+      );
     };
 
     socket.onmessage = (event) => {
@@ -410,7 +538,15 @@ export const gameStore = (() => {
           ...state,
           slots: listSaveSlots(localStorage),
           systemMessage: message.message,
-          multiplayer: state.multiplayer ? { ...state.multiplayer, message: message.message } : state.multiplayer,
+          multiplayer: state.multiplayer
+            ? {
+                ...state.multiplayer,
+                readiness: state.multiplayer.playerId
+                  ? { ...state.multiplayer.readiness, [state.multiplayer.playerId]: false }
+                  : state.multiplayer.readiness,
+                message: message.message,
+              }
+            : state.multiplayer,
         }));
         return;
       }
@@ -419,6 +555,12 @@ export const gameStore = (() => {
         ...multiplayerReplayPayloads,
         ...message.replayPayloads,
       };
+      writeStoredMultiplayerIdentity({
+        serverUrl,
+        roomId: message.roomId,
+        playerId: message.playerId,
+        playerToken: message.playerToken,
+      });
       update((state) => ({
         ...state,
         screen: state.screen === 'main_menu' ? 'overworld' : state.screen,
@@ -430,7 +572,9 @@ export const gameStore = (() => {
           serverUrl,
           roomId: message.roomId,
           playerId: message.playerId,
+          playerToken: message.playerToken,
           readiness: message.readiness,
+          connectedPlayers: message.connectedPlayers ?? state.multiplayer?.connectedPlayers ?? { human: true, ai: true },
           playerNames: message.playerNames,
           message: message.message,
         },
@@ -464,7 +608,7 @@ export const gameStore = (() => {
     if (isMultiplayerSubmitted(snapshot)) {
       return;
     }
-    multiplayerSocket.send(JSON.stringify({ kind: 'submit-ready', game: snapshot.game }));
+    multiplayerSocket.send(JSON.stringify({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(snapshot.game) }));
     const playerId = snapshot.multiplayer.playerId;
     update((state) => ({
       ...state,
@@ -480,6 +624,39 @@ export const gameStore = (() => {
     }));
   }
 
+  function cancelMultiplayerReady(): void {
+    if (!snapshot.multiplayer || !snapshot.multiplayer.connected || !multiplayerSocket || multiplayerSocket.readyState !== WebSocket.OPEN) {
+      update((state) => ({ ...state, systemMessage: 'No multiplayer room is connected.' }));
+      return;
+    }
+    const playerId = snapshot.multiplayer.playerId;
+    if (!playerId || !snapshot.multiplayer.readiness[playerId]) {
+      return;
+    }
+    multiplayerSocket.send(JSON.stringify({ kind: 'unsubmit-ready' }));
+    update((state) => ({
+      ...state,
+      multiplayer:
+        state.multiplayer && playerId
+          ? {
+              ...state.multiplayer,
+              readiness: { ...state.multiplayer.readiness, [playerId]: false },
+              message: 'Ready canceled.',
+            }
+          : state.multiplayer,
+      systemMessage: 'Ready canceled.',
+    }));
+  }
+
+  function reconnectMultiplayerContest(playerName?: string): void {
+    const session = snapshot.multiplayer;
+    if (!session?.roomId) {
+      update((state) => ({ ...state, systemMessage: 'No multiplayer room is available to reconnect.' }));
+      return;
+    }
+    connectMultiplayerContest(session.serverUrl, session.roomId, playerName ?? session.playerNames[session.playerId ?? 'human']);
+  }
+
   return {
     subscribe,
     initialize() {
@@ -491,13 +668,15 @@ export const gameStore = (() => {
     },
     connectMultiplayerContest,
     submitMultiplayerReady,
+    cancelMultiplayerReady,
+    reconnectMultiplayerContest,
     leaveMultiplayerContest() {
-      multiplayerSocket?.close();
-      multiplayerSocket = null;
+      closeMultiplayerSocket({ notifyServer: true });
       multiplayerReplayPayloads = {};
       set({
         ...makeInitialState(),
         slots: listSaveSlots(localStorage),
+        systemMessage: 'Left multiplayer room.',
       });
     },
     loadSlot(slotId: SaveSlotId) {

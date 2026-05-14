@@ -3,7 +3,7 @@ import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
 import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, startNewGame, startOpeningCampaign } from '../engine/game';
 import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId } from '../engine/types';
-import { gameStore, persistReplayPayloadWrites } from './gameStore';
+import { gameStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -217,6 +217,10 @@ describe('gameStore progression flow', () => {
       value: storage,
       configurable: true,
     });
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+    });
     gameStore.leaveMultiplayerContest();
     gameStore.initialize();
   });
@@ -421,6 +425,7 @@ describe('gameStore progression flow', () => {
       kind: 'room-snapshot',
       roomId: 'ABCD',
       playerId: 'ai',
+      playerToken: 'ai-token',
       game: room,
       readiness: { human: false, ai: false },
       playerNames: { human: 'Player 1', ai: 'Player 2' },
@@ -438,6 +443,7 @@ describe('gameStore progression flow', () => {
       kind: 'room-snapshot',
       roomId: 'ABCD',
       playerId: 'ai',
+      playerToken: 'ai-token',
       game: room,
       readiness: { human: true, ai: false },
       playerNames: { human: 'Player 1', ai: 'Player 2' },
@@ -469,6 +475,7 @@ describe('gameStore progression flow', () => {
       kind: 'room-snapshot',
       roomId: 'WXYZ',
       playerId: 'ai',
+      playerToken: 'ai-token',
       game: room,
       readiness: { human: false, ai: false },
       playerNames: { human: 'Player 1', ai: 'Player 2' },
@@ -483,6 +490,7 @@ describe('gameStore progression flow', () => {
       kind: 'room-snapshot',
       roomId: 'WXYZ',
       playerId: 'ai',
+      playerToken: 'ai-token',
       game: room,
       readiness: { human: true, ai: false },
       playerNames: { human: 'Player 1', ai: 'Player 2' },
@@ -492,5 +500,184 @@ describe('gameStore progression flow', () => {
 
     const afterOpponentReady = currentStoreState<{ game: GameState }>().game;
     expect(afterOpponentReady.troops[0]?.assignmentRiftId).toBe(current.openRifts[0]!.id);
+  });
+
+  it('stores multiplayer reconnect tokens from room snapshots', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(789, 'contest');
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'TOKN', 'Player 1');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'TOKN',
+      playerId: 'human',
+      playerToken: 'human-token',
+      game: room,
+      readiness: { human: false, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    expect(sessionStorage.getItem('shiftmake:multiplayer:contest:identity:ws://test-room|TOKN')).toContain('human-token');
+  });
+
+  it('updates multiplayer player names from later room snapshots', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(987, 'contest');
+
+    gameStore.connectMultiplayerContest('ws://test-room', undefined, 'Host');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'NAME',
+      playerId: 'human',
+      playerToken: 'human-token',
+      game: room,
+      readiness: { human: false, ai: false },
+      connectedPlayers: { human: true, ai: false },
+      playerNames: { human: 'Host', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'NAME',
+      playerId: 'human',
+      playerToken: 'human-token',
+      game: room,
+      readiness: { human: false, ai: false },
+      connectedPlayers: { human: true, ai: true },
+      playerNames: { human: 'Host', ai: 'Guest' },
+      replayPayloads: {},
+      message: 'Guest joined room NAME.',
+    });
+
+    expect(
+      currentStoreState<{ multiplayer: { connectedPlayers: { human: boolean; ai: boolean }; playerNames: { human: string; ai: string } } | null }>().multiplayer,
+    ).toMatchObject({
+      connectedPlayers: { human: true, ai: true },
+      playerNames: { human: 'Host', ai: 'Guest' },
+    });
+  });
+
+  it('uses a stored multiplayer token to reconnect to the same side', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    sessionStorage.setItem(
+      'shiftmake:multiplayer:contest:identity:ws://test-room|RCNT',
+      JSON.stringify({ serverUrl: 'ws://test-room', roomId: 'RCNT', playerId: 'ai', playerToken: 'ai-token' }),
+    );
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'RCNT', 'Player 2');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+
+    expect(JSON.parse(socket.sent[0]!)).toEqual({
+      kind: 'reconnect-room',
+      roomId: 'RCNT',
+      playerId: 'ai',
+      token: 'ai-token',
+      playerName: 'Player 2',
+    });
+  });
+
+  it('persists and restores the last multiplayer name and server URL', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+
+    gameStore.connectMultiplayerContest(' ws://lan-room:8787 ', 'LAN1', 'Local Hero');
+
+    expect(readLastMultiplayerServerUrl()).toBe('ws://lan-room:8787');
+    expect(readLastMultiplayerPlayerName()).toBe('Local Hero');
+  });
+
+  it('cancels ready by sending unsubmit-ready and restoring editable state', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(246, 'contest');
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'CANC', 'Player 1');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'CANC',
+      playerId: 'human',
+      playerToken: 'human-token',
+      game: room,
+      readiness: { human: false, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    gameStore.submitMultiplayerReady();
+    gameStore.cancelMultiplayerReady();
+
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ kind: 'unsubmit-ready' });
+    expect(currentStoreState<{ multiplayer: { readiness: { human: boolean; ai: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
+      readiness: { human: false, ai: false },
+      message: 'Ready canceled.',
+    });
+  });
+
+  it('leaves a multiplayer room by notifying the server and clearing local session state', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(864, 'contest');
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'EXIT', 'Player 1');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'EXIT',
+      playerId: 'human',
+      playerToken: 'human-token',
+      game: room,
+      readiness: { human: false, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    gameStore.leaveMultiplayerContest();
+
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ kind: 'leave-room' });
+    expect(socket.readyState).toBe(3);
+    expect(currentStoreState<{ multiplayer: unknown; screen: string; systemMessage: string | null }>()).toMatchObject({
+      multiplayer: null,
+      screen: 'main_menu',
+      systemMessage: 'Left multiplayer room.',
+    });
+  });
+
+  it('restores editing after a rejected multiplayer submission', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(357, 'contest');
+
+    gameStore.connectMultiplayerContest('ws://test-room', 'FAIL', 'Player 1');
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.receive({
+      kind: 'room-snapshot',
+      roomId: 'FAIL',
+      playerId: 'human',
+      playerToken: 'human-token',
+      game: room,
+      readiness: { human: false, ai: false },
+      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      replayPayloads: {},
+      message: null,
+    });
+
+    gameStore.submitMultiplayerReady();
+    socket.receive({ kind: 'room-error', message: 'That multiplayer submission is not legal.' });
+
+    expect(currentStoreState<{ multiplayer: { readiness: { human: boolean; ai: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
+      readiness: { human: false, ai: false },
+      message: 'That multiplayer submission is not legal.',
+    });
   });
 });

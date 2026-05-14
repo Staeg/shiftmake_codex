@@ -13,12 +13,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "multiplayer:server": "tsx src/server/contestMultiplayerServer.ts",
+    "multiplayer:server:prod": "tsx src/server/contestMultiplayerServer.ts",
     "report:2v2": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations2v2.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations2v2.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations2v2.js @args\"",
     "report:3v3": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/reportPermutations3v3.ts','scripts/permutationWorker.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\reportPermutations3v3.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\reportPermutations3v3.js @args\"",
     "inspect:report": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/inspectBattleReport.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\inspectBattleReport.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\inspectBattleReport.js @args\"",
     "inspect:campaign-report": "powershell -Command \"& 'C:\\Program Files\\nodejs\\node.exe' -e \\\"require('esbuild').buildSync({entryPoints:['scripts/inspectCampaignReport.ts'], bundle:true, platform:'node', format:'esm', outdir:'dist-scripts/scripts'});\\\"; if (-not (Test-Path 'dist-scripts\\scripts\\inspectCampaignReport.js')) { exit 1 }; & 'C:\\Program Files\\nodejs\\node.exe' dist-scripts\\scripts\\inspectCampaignReport.js @args\""
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@tsconfig/svelte": "^5.0.4",
     "@types/ws": "^8.18.1",

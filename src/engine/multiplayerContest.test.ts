@@ -3,10 +3,12 @@ import { assignTroopToRift, claimOpeningTroop, getOpeningFactionStarterTroopUnlo
 import {
   advanceContestMultiplayerRoom,
   buildStoredReplayPayloadMap,
+  buildContestMultiplayerSubmission,
   projectContestRoomStateForPlayer,
   projectReplayIndexForPlayer,
   projectStoredReplayPayloadMapForPlayer,
   projectContestStateForPlayer,
+  validateAndApplyContestSubmission,
 } from './multiplayerContest';
 import type { GameState, TroopUnlockId } from './types';
 
@@ -138,5 +140,90 @@ describe('multiplayer Contest rooms', () => {
     expect(projectContestStateForPlayer(cycleThree, 'human').activeFactionUnlockOffer?.optionFactionIds).not.toEqual(
       projectContestStateForPlayer(cycleThree, 'ai').activeFactionUnlockOffer?.optionFactionIds,
     );
+  });
+
+  it('validates legal opening submissions into projected player progress', () => {
+    const room = startNewGame(123, 'contest');
+    const projected = chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human'));
+
+    const result = validateAndApplyContestSubmission(room, 'human', buildContestMultiplayerSubmission(projected));
+
+    expect(result.ok).toBe(true);
+    expect(result.projectedState?.troops).toHaveLength(2);
+  });
+
+  it('rejects forged opening troops', () => {
+    const room = startNewGame(123, 'contest');
+    const legal = buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')));
+
+    const result = validateAndApplyContestSubmission(room, 'human', {
+      ...legal,
+      selectedStartingTroopUnlockIds: ['human/soldier' as TroopUnlockId, 'human/archer' as TroopUnlockId],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Opening troop');
+  });
+
+  it('rejects forged planning upgrades', () => {
+    const room = startNewGame(456, 'contest');
+    const opened = advanceContestMultiplayerRoom(room, {
+      human: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')),
+      ai: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'ai')),
+    }).state;
+    const projected = projectContestStateForPlayer(opened, 'human');
+    const submission = buildContestMultiplayerSubmission(projected);
+
+    const result = validateAndApplyContestSubmission(opened, 'human', {
+      ...submission,
+      selectedUpgradeIds: [...submission.selectedUpgradeIds, 'fake-upgrade' as never],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('draft choices');
+  });
+
+  it('rejects illegal assignments to already controlled Rifts', () => {
+    const room = startNewGame(456, 'contest');
+    const opened = advanceContestMultiplayerRoom(room, {
+      human: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')),
+      ai: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'ai')),
+    }).state;
+    const controlled: GameState = {
+      ...opened,
+      openRifts: [
+        {
+          ...opened.openRifts[0]!,
+          controller: 'human',
+          occupyingPlayerId: 'human',
+          occupyingTroopIds: [opened.troops[0]!.id],
+        },
+        ...opened.openRifts.slice(1),
+      ],
+    };
+    const projected = projectContestStateForPlayer(controlled, 'human');
+    const submission = buildContestMultiplayerSubmission({
+      ...projected,
+      troops: projected.troops.map((troop, index) => (index === 1 ? { ...troop, assignmentRiftId: projected.openRifts[0]!.id } : troop)),
+    });
+
+    const result = validateAndApplyContestSubmission(controlled, 'human', submission);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Assignment');
+  });
+
+  it('rejects stale cycle submissions', () => {
+    const room = startNewGame(789, 'contest');
+    const opened = advanceContestMultiplayerRoom(room, {
+      human: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')),
+      ai: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'ai')),
+    }).state;
+    const submission = buildContestMultiplayerSubmission(projectContestStateForPlayer(opened, 'human'));
+
+    const result = validateAndApplyContestSubmission({ ...opened, cycleNumber: opened.cycleNumber + 1 }, 'human', submission);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('old cycle');
   });
 });

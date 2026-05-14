@@ -1,4 +1,20 @@
-import { applyCycleOutcomes, applyContestPlayerProgress, applyScheduledUnlockToContestProgress, extractContestPlayerProgress, getContestPlayerProgress, resolveAssignedRifts } from './game';
+import {
+  applyCycleOutcomes,
+  applyContestPlayerProgress,
+  applyScheduledUnlockToContestProgress,
+  assignTroopToRift,
+  claimFactionUnlockOffer,
+  claimOpeningTroop,
+  claimTroopOffer,
+  claimTroopTypeUnlockOffer,
+  claimUpgradeOffer,
+  clearTroopAssignment,
+  extractContestPlayerProgress,
+  getContestPlayerProgress,
+  revealEssenceDraft,
+  resolveAssignedRifts,
+  validateAssignments,
+} from './game';
 import { deriveSeed, generateContestCycleRifts } from './rift';
 import type {
   ApplyCycleOutcomeResult,
@@ -8,7 +24,11 @@ import type {
   ContestPlayerId,
   ContestPlayerState,
   ContestRiftController,
+  FactionId,
   GameState,
+  TroopId,
+  TroopUnlockId,
+  UpgradeId,
   ReplayIndexEntry,
   ReplayPayloadWrite,
   ResolvedCombatantDefinition,
@@ -24,6 +44,29 @@ export interface ContestReadiness {
 export interface ContestSubmission {
   playerId: ContestPlayerId;
   projectedState: GameState;
+}
+
+export interface ContestTroopAssignmentSubmission {
+  troopId: TroopId;
+  riftId: string | null;
+}
+
+export interface ContestMultiplayerSubmission {
+  kind: 'contest-submission';
+  cycleNumber: number;
+  phase: GameState['phase'];
+  selectedStartingTroopUnlockIds: TroopUnlockId[];
+  selectedFactionIds: FactionId[];
+  selectedTroopUnlockIds: TroopUnlockId[];
+  selectedUpgradeIds: UpgradeId[];
+  troopAssignments: ContestTroopAssignmentSubmission[];
+  endCycleConfirmed: boolean;
+}
+
+export interface ContestSubmissionValidationResult {
+  ok: boolean;
+  projectedState?: GameState;
+  error?: string;
 }
 
 export interface ContestAdvanceResult {
@@ -255,6 +298,28 @@ export function projectContestRoomStateForPlayer(
   return submissions[playerId] ?? projectContestStateForPlayer(state, playerId);
 }
 
+function troopUnlockIdFromTroop(troop: GameState['troops'][number]): TroopUnlockId {
+  return `${troop.factionId}/${troop.unitTypeId}` as TroopUnlockId;
+}
+
+function uniqueInOrder<T>(items: T[]): T[] {
+  return [...new Set(items)];
+}
+
+export function buildContestMultiplayerSubmission(state: GameState): ContestMultiplayerSubmission {
+  return {
+    kind: 'contest-submission',
+    cycleNumber: state.cycleNumber,
+    phase: state.phase,
+    selectedStartingTroopUnlockIds: uniqueInOrder(state.troops.map(troopUnlockIdFromTroop)),
+    selectedFactionIds: uniqueInOrder(state.unlockedFactionIds),
+    selectedTroopUnlockIds: uniqueInOrder(state.troops.map(troopUnlockIdFromTroop)),
+    selectedUpgradeIds: uniqueInOrder([...state.factionUpgradeIds, ...state.troopTypeUpgradeIds]),
+    troopAssignments: state.troops.map((troop) => ({ troopId: troop.id, riftId: troop.assignmentRiftId })),
+    endCycleConfirmed: state.phase === 'planning',
+  };
+}
+
 export function extractSubmissionProgress(submission: ContestSubmission): ContestPlayerState {
   return extractContestPlayerProgress(submission.projectedState);
 }
@@ -264,6 +329,200 @@ export function mergeContestSubmissions(state: GameState, submissions: Record<Co
     (next, playerId) => applyContestPlayerProgress(next, playerId, extractContestPlayerProgress(submissions[playerId])),
     state,
   );
+}
+
+function additionalSelectedIds<T extends string>(baseIds: T[], submittedIds: T[]): T[] {
+  const base = new Set(baseIds);
+  return uniqueInOrder(submittedIds).filter((id) => !base.has(id));
+}
+
+function rejectSubmission(message: string): ContestSubmissionValidationResult {
+  return { ok: false, error: message };
+}
+
+function applyOpeningSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+  if (submission.phase !== 'opening_unlock') {
+    return rejectSubmission('That submission is for the wrong phase.');
+  }
+  if (submission.selectedUpgradeIds.length > 0 || submission.troopAssignments.some((assignment) => assignment.riftId !== null)) {
+    return rejectSubmission('Opening submissions can only choose starting troops.');
+  }
+
+  let next = { ...projected, troops: [], unlockedFactionIds: [] };
+  for (const troopUnlockId of uniqueInOrder(submission.selectedStartingTroopUnlockIds)) {
+    const applied = claimOpeningTroop(next, troopUnlockId);
+    if (applied === next) {
+      return rejectSubmission(`Opening troop ${troopUnlockId} is not a legal starting choice.`);
+    }
+    next = applied;
+  }
+  if (next.troops.length !== 2) {
+    return rejectSubmission('Choose exactly two legal starting troops.');
+  }
+  return { ok: true, projectedState: next };
+}
+
+function applyScheduledFactionSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+  if (submission.troopAssignments.some((assignment) => assignment.riftId !== null)) {
+    return rejectSubmission('Troops cannot be assigned during a scheduled unlock.');
+  }
+  const selectedFactionIds = additionalSelectedIds(projected.unlockedFactionIds, submission.selectedFactionIds);
+  if (selectedFactionIds.length !== 1) {
+    return rejectSubmission('Choose exactly one scheduled faction unlock.');
+  }
+  const next = claimFactionUnlockOffer(projected, selectedFactionIds[0]!);
+  if (next === projected) {
+    return rejectSubmission(`Faction ${selectedFactionIds[0]} is not a legal scheduled unlock.`);
+  }
+  return { ok: true, projectedState: next };
+}
+
+function applyScheduledTroopTypeSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+  if (submission.troopAssignments.some((assignment) => assignment.riftId !== null)) {
+    return rejectSubmission('Troops cannot be assigned during a scheduled unlock.');
+  }
+
+  let next = projected;
+  const selectedTroopUnlockIds = additionalSelectedIds(projected.troops.map(troopUnlockIdFromTroop), submission.selectedTroopUnlockIds);
+  for (const troopUnlockId of selectedTroopUnlockIds) {
+    const applied = claimTroopTypeUnlockOffer(next, troopUnlockId);
+    if (applied === next) {
+      return rejectSubmission(`Troop type ${troopUnlockId} is not a legal scheduled unlock.`);
+    }
+    next = applied;
+  }
+  if (next.phase === 'troop_type_unlock') {
+    return rejectSubmission('Finish all scheduled troop type choices before submitting.');
+  }
+  return { ok: true, projectedState: next };
+}
+
+function applyPlanningDraftChoices(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+  let next = projected;
+  const troopChoices = additionalSelectedIds(projected.troops.map(troopUnlockIdFromTroop), submission.selectedTroopUnlockIds);
+  const upgradeChoices = additionalSelectedIds([...projected.factionUpgradeIds, ...projected.troopTypeUpgradeIds], submission.selectedUpgradeIds);
+  let guard = 0;
+
+  while (troopChoices.length > 0 || upgradeChoices.length > 0) {
+    guard += 1;
+    if (guard > 20) {
+      return rejectSubmission('Too many draft choices were submitted.');
+    }
+
+    if (!next.activeTroopOffer && !next.activeUpgradeOffer) {
+      const revealed = revealEssenceDraft(next);
+      if (revealed === next) {
+        return rejectSubmission('Submitted draft choices cannot be paid for or revealed legally.');
+      }
+      next = revealed;
+    }
+
+    let changed = false;
+    const troopChoiceIndex = troopChoices.findIndex((troopUnlockId) => next.activeTroopOffer?.optionTroopUnlockIds.includes(troopUnlockId));
+    if (troopChoiceIndex >= 0) {
+      const troopUnlockId = troopChoices.splice(troopChoiceIndex, 1)[0]!;
+      const applied = claimTroopOffer(next, troopUnlockId);
+      if (applied === next) {
+        return rejectSubmission(`Troop draft choice ${troopUnlockId} is not legal.`);
+      }
+      next = applied;
+      changed = true;
+    }
+
+    const upgradeChoiceIndex = upgradeChoices.findIndex((upgradeId) => next.activeUpgradeOffer?.optionUpgradeIds.includes(upgradeId));
+    if (upgradeChoiceIndex >= 0) {
+      const upgradeId = upgradeChoices.splice(upgradeChoiceIndex, 1)[0]!;
+      const applied = claimUpgradeOffer(next, upgradeId);
+      if (applied === next) {
+        return rejectSubmission(`Upgrade draft choice ${upgradeId} is not legal.`);
+      }
+      next = applied;
+      changed = true;
+    }
+
+    if (!changed) {
+      return rejectSubmission('Submitted draft choices do not match the legal offers.');
+    }
+  }
+
+  return { ok: true, projectedState: next };
+}
+
+function applyPlanningAssignments(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+  let next = projected.troops.reduce((current, troop) => (troop.assignmentRiftId ? clearTroopAssignment(current, troop.id) : current), projected);
+  const knownTroopIds = new Set(next.troops.map((troop) => troop.id));
+  const submittedTroopIds = new Set<TroopId>();
+
+  for (const assignment of submission.troopAssignments) {
+    if (!knownTroopIds.has(assignment.troopId)) {
+      return rejectSubmission(`Unknown troop ${assignment.troopId} in submission.`);
+    }
+    if (submittedTroopIds.has(assignment.troopId)) {
+      return rejectSubmission(`Troop ${assignment.troopId} was submitted more than once.`);
+    }
+    submittedTroopIds.add(assignment.troopId);
+    if (!assignment.riftId) {
+      continue;
+    }
+    const applied = assignTroopToRift(next, assignment.troopId, assignment.riftId);
+    if (applied === next) {
+      return rejectSubmission(`Assignment of ${assignment.troopId} to Rift ${assignment.riftId} is not legal.`);
+    }
+    next = applied;
+  }
+
+  const assignmentValidation = validateAssignments(next);
+  if (!assignmentValidation.ok && next.troops.some((troop) => troop.assignmentRiftId !== null)) {
+    return rejectSubmission(assignmentValidation.issues[0]?.message ?? 'Submitted assignments are not legal.');
+  }
+  return { ok: true, projectedState: next };
+}
+
+function applyPlanningSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+  if (submission.phase !== 'planning' || !submission.endCycleConfirmed) {
+    return rejectSubmission('Planning submissions must explicitly end the cycle.');
+  }
+  const extraFactionIds = additionalSelectedIds(projected.unlockedFactionIds, submission.selectedFactionIds);
+  if (extraFactionIds.length > 0) {
+    return rejectSubmission('Faction unlocks cannot be submitted during planning.');
+  }
+
+  const draft = applyPlanningDraftChoices(projected, submission);
+  if (!draft.ok || !draft.projectedState) {
+    return draft;
+  }
+  return applyPlanningAssignments(draft.projectedState, submission);
+}
+
+export function validateAndApplyContestSubmission(
+  state: GameState,
+  playerId: ContestPlayerId,
+  submission: ContestMultiplayerSubmission,
+): ContestSubmissionValidationResult {
+  if (submission.kind !== 'contest-submission') {
+    return rejectSubmission('Unknown multiplayer submission type.');
+  }
+  if (state.gameMode !== 'contest') {
+    return rejectSubmission('Contest submissions can only be used in Contest rooms.');
+  }
+  if (submission.cycleNumber !== state.cycleNumber) {
+    return rejectSubmission('That submission is from an old cycle. Refresh the room and try again.');
+  }
+
+  const projected = projectContestStateForPlayer(state, playerId);
+  if (state.phase === 'opening_unlock') {
+    return applyOpeningSubmission(projected, submission);
+  }
+  if (state.phase === 'faction_unlock') {
+    return applyScheduledFactionSubmission(projected, submission);
+  }
+  if (state.phase === 'troop_type_unlock') {
+    return applyScheduledTroopTypeSubmission(projected, submission);
+  }
+  if (state.phase === 'planning') {
+    return applyPlanningSubmission(projected, submission);
+  }
+  return rejectSubmission('Submissions are not accepted in the current phase.');
 }
 
 function startSubmittedContest(state: GameState): GameState {

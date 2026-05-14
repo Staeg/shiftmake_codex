@@ -49,7 +49,8 @@
   import { describeTroopUnlock, getAvailableTroopUnlockIds } from '../engine/upgrades';
   import type { BattleRenderer as BattleRendererType, UnitPointerInfo } from '../rendering/BattleRenderer';
   import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisualAssets';
-  import { gameStore } from '../store/gameStore';
+  import { getConfiguredMultiplayerServerUrl, hasConfiguredMultiplayerServerUrl, inferShareableMultiplayerServerUrl, normalizeMultiplayerServerUrl } from '../config/multiplayer';
+  import { gameStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
   import type { SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
   import DebugToolsMenu from './DebugToolsMenu.svelte';
@@ -95,6 +96,7 @@
       };
 
   type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
+  type MainMenuView = 'home' | 'singleplayer' | 'multiplayer' | 'debug' | 'settings';
 
   type TroopDragState = {
     troopId: TroopId;
@@ -186,11 +188,14 @@
   let designTweaksByTarget: Record<string, DesignTweaks> = {};
   let uiDebugVisible = false;
   let abilityVerificationLabComponent: typeof import('./AbilityVerificationLab.svelte').default | null = null;
-  let multiplayerServerUrl = 'ws://localhost:8787';
+  let multiplayerServerUrl = getConfiguredMultiplayerServerUrl();
   let multiplayerRoomCode = '';
   let multiplayerPlayerName = 'Player';
+  let multiplayerCopyMessage: string | null = null;
   let multiplayerReadySubmitted = false;
   let multiplayerStatus: string | null = null;
+  let mainMenuView: MainMenuView = 'home';
+  const multiplayerDefaultServerConfigured = hasConfiguredMultiplayerServerUrl();
 
   function handleUiDebugKeydown(event: KeyboardEvent): void {
     if (!debugToolsEnabled) {
@@ -327,7 +332,10 @@
   }
 
   function getReplayProfileKeyForUnit(unitId: string): string | null {
-    const unit = replaySnapshot.find((entry) => entry.id === unitId);
+    const unit =
+      replaySnapshot.find((entry) => entry.id === unitId) ??
+      replay?.initial.units.find((entry) => entry.id === unitId) ??
+      replay?.steps.find((step) => step.snapshot.units.some((entry) => entry.id === unitId))?.snapshot.units.find((entry) => entry.id === unitId);
     return unit ? replayProfileKey(unit.side, unit.troopLabel) : null;
   }
 
@@ -889,7 +897,7 @@
 
   function createMultiplayerContest(): void {
     resetZoneState();
-    gameStore.connectMultiplayerContest(multiplayerServerUrl.trim() || 'ws://localhost:8787', undefined, multiplayerPlayerName);
+    gameStore.connectMultiplayerContest(normalizeMultiplayerServerUrl(multiplayerServerUrl), undefined, multiplayerPlayerName);
   }
 
   function joinMultiplayerContest(): void {
@@ -898,12 +906,79 @@
       return;
     }
     resetZoneState();
-    gameStore.connectMultiplayerContest(multiplayerServerUrl.trim() || 'ws://localhost:8787', roomId, multiplayerPlayerName);
+    gameStore.connectMultiplayerContest(normalizeMultiplayerServerUrl(multiplayerServerUrl), roomId, multiplayerPlayerName);
+  }
+
+  function reconnectMultiplayerContest(): void {
+    resetZoneState();
+    gameStore.reconnectMultiplayerContest(multiplayerPlayerName);
+  }
+
+  function cancelMultiplayerReady(): void {
+    gameStore.cancelMultiplayerReady();
+  }
+
+  function leaveMultiplayerContest(): void {
+    resetZoneState();
+    mainMenuView = 'multiplayer';
+    multiplayerCopyMessage = null;
+    gameStore.leaveMultiplayerContest();
+  }
+
+  function getShareRoomLink(): string {
+    if (typeof window === 'undefined' || !$gameStore.multiplayer?.roomId) {
+      return '';
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', $gameStore.multiplayer.roomId);
+    url.searchParams.set('server', inferShareableMultiplayerServerUrl($gameStore.multiplayer.serverUrl, window.location.href));
+    return url.toString();
+  }
+
+  async function copyTextToClipboard(value: string, successMessage: string): Promise<void> {
+    if (!value) {
+      return;
+    }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const input = document.createElement('textarea');
+        input.value = value;
+        input.setAttribute('readonly', 'true');
+        input.style.position = 'fixed';
+        input.style.top = '-1000px';
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(input);
+        if (!copied) {
+          throw new Error('Clipboard command failed.');
+        }
+      }
+      multiplayerCopyMessage = successMessage;
+    } catch {
+      multiplayerCopyMessage = 'Copy failed.';
+    }
+  }
+
+  function copyRoomCode(): void {
+    void copyTextToClipboard($gameStore.multiplayer?.roomId ?? '', 'Room code copied.');
+  }
+
+  function copyRoomLink(): void {
+    void copyTextToClipboard(getShareRoomLink(), 'Room link copied.');
   }
 
   function returnToMainMenu(): void {
     resetZoneState();
+    mainMenuView = 'home';
     gameStore.returnToMainMenu();
+  }
+
+  function showMainMenuView(view: MainMenuView): void {
+    mainMenuView = view;
+    multiplayerCopyMessage = null;
   }
 
   function beginOpeningCampaign(): void {
@@ -931,6 +1006,13 @@
       return 'Submit Ready';
     }
     return $gameStore.multiplayer.readiness[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'Submit Ready';
+  }
+
+  function playerConnectionLabel(playerId: 'human' | 'ai'): string {
+    if (!$gameStore.multiplayer?.connectedPlayers[playerId]) {
+      return 'Offline';
+    }
+    return $gameStore.multiplayer.readiness[playerId] ? 'Ready' : 'Choosing';
   }
 
   function setRiftCenterMode(): void {
@@ -1045,7 +1127,7 @@
       unitTypeId,
       troopDef.stats,
       troopDef.quantity,
-      `Opening unlock for ${getFaction(factionId).label}. Native recruits are available here; unusual faction and troop pairings come from Rift victories.`,
+      getFaction(factionId).description,
       troopDef.abilities,
     );
   }
@@ -1669,6 +1751,18 @@
     }
 
     gameStore.initialize();
+    multiplayerPlayerName = readLastMultiplayerPlayerName() ?? multiplayerPlayerName;
+    multiplayerServerUrl = readLastMultiplayerServerUrl() ?? multiplayerServerUrl;
+    const linkedParams = new URLSearchParams(window.location.search);
+    const linkedServer = linkedParams.get('server')?.trim() ?? '';
+    if (linkedServer) {
+      multiplayerServerUrl = normalizeMultiplayerServerUrl(linkedServer);
+    }
+    const linkedRoom = linkedParams.get('room')?.trim().toUpperCase() ?? '';
+    if (linkedRoom) {
+      multiplayerRoomCode = linkedRoom;
+      mainMenuView = 'multiplayer';
+    }
     void loadFactionUnitPortraitUrls()
       .then((loaded) => {
         portraits = loaded;
@@ -2092,23 +2186,12 @@
   {/if}
 {:else if $gameStore.screen === 'main_menu'}
   <main class="menu-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="menu-panel ui-debug-target" data-ui-name="Main menu panel">
+    <section class="menu-panel main-menu-shell ui-debug-target" data-ui-name="Main menu panel">
       <div class="menu-topline ui-debug-target" data-ui-name="Main menu header">
         <div class="menu-copy ui-debug-target" data-ui-name="Main menu intro">
           <p class="eyebrow">Shiftmake</p>
-          <h1>Choose A Save Slot</h1>
-          <p class="intro">Each slot keeps its own campaign and battle archive. Load one or start fresh.</p>
+          <h1>{mainMenuView === 'home' ? 'Shiftmake' : mainMenuView === 'singleplayer' ? 'Singleplayer' : mainMenuView === 'multiplayer' ? 'Multiplayer' : mainMenuView === 'debug' ? 'Debug' : 'Settings'}</h1>
         </div>
-
-        {#if debugToolsEnabled}
-          <DebugToolsMenu
-            selectedTroopId={selectedTroopId}
-            selectedReplayId={selectedReplayId}
-            selectedRiftId={selectedRiftId}
-            rendererDiagnostics={rendererDiagnostics}
-            onCampaignImport={handleCampaignReportImport}
-          />
-        {/if}
       </div>
 
       {#if $gameStore.systemMessage}
@@ -2118,76 +2201,140 @@
         </div>
       {/if}
 
-      <div class="slot-grid">
-        {#each $gameStore.slots as slot}
-          <article class="slot-card panel ui-debug-target" data-ui-name={`Save slot ${slot.slotId}`}>
-            <div class="slot-card-header">
-              <span class="slot-label">Slot {slot.slotId}</span>
-              <strong>{slot.status === 'occupied' ? 'Occupied' : 'Empty'}</strong>
-            </div>
-
-            {#if slot.status === 'occupied'}
-              <div class="slot-meta">
-                <span>{slotModeLabel(slot.gameMode)}</span>
-                <span>{slot.factionLabel ?? 'In progress'}</span>
-                <span>Cycle {slot.cycleNumber}</span>
-                <span>{slotPhaseLabel(slot.phase)}</span>
-                <span>{slot.lastPlayedAt ? new Date(slot.lastPlayedAt).toLocaleString() : 'No timestamp'}</span>
+      {#if mainMenuView === 'home'}
+        <div class="main-menu-actions ui-debug-target" data-ui-name="Main menu actions">
+          <button class="primary large" on:click={() => showMainMenuView('singleplayer')}>Singleplayer</button>
+          <button class="large" on:click={() => showMainMenuView('multiplayer')}>Multiplayer</button>
+          <button class="large" on:click={() => showMainMenuView('debug')}>Debug</button>
+          <button class="large" on:click={() => showMainMenuView('settings')}>Settings</button>
+        </div>
+      {:else if mainMenuView === 'singleplayer'}
+        <div class="slot-grid">
+          {#each $gameStore.slots as slot}
+            <article class="slot-card panel ui-debug-target" data-ui-name={`Save slot ${slot.slotId}`}>
+              <div class="slot-card-header">
+                <span class="slot-label">Slot {slot.slotId}</span>
+                <strong>{slot.status === 'occupied' ? 'Occupied' : 'Empty'}</strong>
               </div>
-            {:else}
-              <p>This slot is ready for a new run.</p>
-            {/if}
 
-            <div class="actions-grid">
-              <button class="primary ui-debug-target" data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
-                {slot.status === 'occupied' ? 'Load Slot' : 'Start Campaign'}
-              </button>
-              {#if slot.status === 'empty'}
-                <button class="ui-debug-target" data-ui-name={`Start Contest for save slot ${slot.slotId}`} on:click={() => startSlot(slot, 'contest')}>Start Contest</button>
+              {#if slot.status === 'occupied'}
+                <div class="slot-meta">
+                  <span>{slotModeLabel(slot.gameMode)}</span>
+                  <span>{slot.factionLabel ?? 'In progress'}</span>
+                  <span>Cycle {slot.cycleNumber}</span>
+                  <span>{slotPhaseLabel(slot.phase)}</span>
+                  <span>{slot.lastPlayedAt ? new Date(slot.lastPlayedAt).toLocaleString() : 'No timestamp'}</span>
+                </div>
               {:else}
-                <button class="ui-debug-target" data-ui-name={`Replace campaign for slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'campaign')}>Replace Campaign</button>
-                <button class="ui-debug-target" data-ui-name={`Replace contest for slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'contest')}>Replace Contest</button>
+                <p>Empty</p>
               {/if}
-            </div>
-          </article>
-        {/each}
-      </div>
 
-      <section class="multiplayer-menu panel ui-debug-target" data-ui-name="Multiplayer Contest panel">
-        <div>
-          <p class="eyebrow">Contest Multiplayer</p>
-          <h2>Play Contest Online</h2>
+              <div class="actions-grid">
+                <button class="primary ui-debug-target" data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
+                  {slot.status === 'occupied' ? 'Load Slot' : 'Start Campaign'}
+                </button>
+                {#if slot.status === 'empty'}
+                  <button class="ui-debug-target" data-ui-name={`Start Contest vs AI for save slot ${slot.slotId}`} on:click={() => startSlot(slot, 'contest')}>Contest vs AI</button>
+                {:else}
+                  <button class="ui-debug-target" data-ui-name={`Replace campaign for slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'campaign')}>Replace Campaign</button>
+                  <button class="ui-debug-target" data-ui-name={`Replace Contest vs AI for save slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'contest')}>Replace Contest vs AI</button>
+                {/if}
+              </div>
+            </article>
+          {/each}
         </div>
-        <div class="multiplayer-controls">
-          <label>
-            <span>Name</span>
-            <input bind:value={multiplayerPlayerName} maxlength="24" aria-label="Multiplayer player name" />
-          </label>
-          <label>
-            <span>Server</span>
-            <input bind:value={multiplayerServerUrl} aria-label="Multiplayer server URL" />
-          </label>
-          <label>
-            <span>Room</span>
-            <input bind:value={multiplayerRoomCode} aria-label="Multiplayer room code" on:input={() => (multiplayerRoomCode = multiplayerRoomCode.toUpperCase())} />
-          </label>
-          <button class="primary ui-debug-target" data-ui-name="Create multiplayer Contest room" on:click={createMultiplayerContest}>Create Room</button>
-          <button class="ui-debug-target" data-ui-name="Join multiplayer Contest room" on:click={joinMultiplayerContest} disabled={!multiplayerRoomCode.trim()}>Join Room</button>
-        </div>
-      </section>
+      {:else if mainMenuView === 'multiplayer'}
+        <section class="multiplayer-menu panel ui-debug-target" data-ui-name="Multiplayer Contest panel">
+          <div class="multiplayer-identity-controls">
+            <label>
+              <span>Name</span>
+              <input bind:value={multiplayerPlayerName} maxlength="24" aria-label="Multiplayer player name" />
+            </label>
+            {#if multiplayerDefaultServerConfigured}
+              <details class="multiplayer-server-details">
+                <summary>Server</summary>
+                <label>
+                  <span>Server</span>
+                  <input bind:value={multiplayerServerUrl} aria-label="Multiplayer server URL" />
+                </label>
+              </details>
+            {:else}
+              <label>
+                <span>Server</span>
+                <input bind:value={multiplayerServerUrl} aria-label="Multiplayer server URL" />
+              </label>
+            {/if}
+          </div>
+          <div class="multiplayer-room-choice">
+            <button class="primary ui-debug-target" data-ui-name="Create multiplayer Contest room" on:click={createMultiplayerContest}>Create Room</button>
+            <div class="join-room-box">
+              <label>
+                <span>Room Code</span>
+                <input bind:value={multiplayerRoomCode} aria-label="Multiplayer room code" on:input={() => (multiplayerRoomCode = multiplayerRoomCode.toUpperCase())} />
+              </label>
+              <button class="ui-debug-target" data-ui-name="Join multiplayer Contest room" on:click={joinMultiplayerContest} disabled={!multiplayerRoomCode.trim()}>Join Room</button>
+            </div>
+          </div>
+        </section>
+      {:else if mainMenuView === 'debug'}
+        <section class="debug-menu-panel panel">
+          {#if debugToolsEnabled}
+            <DebugToolsMenu
+              selectedTroopId={selectedTroopId}
+              selectedReplayId={selectedReplayId}
+              selectedRiftId={selectedRiftId}
+              rendererDiagnostics={rendererDiagnostics}
+              onCampaignImport={handleCampaignReportImport}
+            />
+          {:else}
+            <p>Debug tools are only available in development builds.</p>
+          {/if}
+        </section>
+      {:else if mainMenuView === 'settings'}
+        <section class="settings-menu-panel panel">
+          <p>None yet!</p>
+        </section>
+      {/if}
+
+      {#if mainMenuView !== 'home'}
+        <button class="menu-back-button" aria-label="Back to main menu" on:click={() => showMainMenuView('home')}>←</button>
+      {/if}
     </section>
   </main>
 {:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'opening_unlock'}
   <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
     <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Opening unlock screen">
-      <div class="draft-screen-header">
-        <p class="eyebrow">Opening Muster</p>
-        <h1>Choose Two Starting Factions</h1>
-        <p class="opening-instructions">Each faction brings its included starter troop. Other native troops are shown as later unlock potential.</p>
-        {#if multiplayerStatus}
+      {#if multiplayerStatus}
+        <div class="draft-screen-header opening-session-header">
           <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer opening status">{multiplayerStatus}</p>
-        {/if}
-      </div>
+          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer opening room tools">
+            <div class="multiplayer-room-card">
+              <span>Room</span>
+              <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
+              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
+              </button>
+            </div>
+            <div class="multiplayer-player-list">
+              <span>Current Players</span>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'human')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
+            </div>
+          </div>
+          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer opening actions">
+            {#if !$gameStore.multiplayer?.connected}
+              <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
+            {/if}
+            {#if multiplayerReadySubmitted}
+              <button type="button" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+            {/if}
+            <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
+            {#if multiplayerCopyMessage}
+              <span>{multiplayerCopyMessage}</span>
+            {/if}
+          </div>
+        </div>
+      {/if}
       <div class="draft-layout">
         <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Opening detail panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
@@ -2232,6 +2379,11 @@
                   <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
                 {/if}
               {/if}
+            </div>
+          {:else}
+            <div class="detail-panel opening-detail-panel opening-empty-detail">
+              <h2>Choose Two Starting Factions</h2>
+              <p>Each faction brings its included starter troop. Other native troops are shown as later unlock potential.</p>
             </div>
           {/if}
         </aside>
@@ -2327,7 +2479,7 @@
                       unitTypeId,
                       troopDef.stats,
                       troopDef.quantity,
-                      `Opening unlock for ${getFaction(factionId).label}. Native recruits are available here; unusual faction and troop pairings come from Rift victories.`,
+                      getFaction(factionId).description,
                       troopDef.abilities,
                     )}
                     {@const isIncludedStarter = troopUnlockId === group.starterTroopUnlockId}
@@ -2376,6 +2528,32 @@
         <p class="scheduled-unlock-instructions">Each candidate joins with its shown upgrades and included troop types already unlocked. Other troops show what can be unlocked later.</p>
         {#if multiplayerStatus}
           <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer faction unlock status">{multiplayerStatus}</p>
+          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer faction unlock room tools">
+            <div class="multiplayer-room-card">
+              <span>Room</span>
+              <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
+              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
+              </button>
+            </div>
+            <div class="multiplayer-player-list">
+              <span>Current Players</span>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'human')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
+            </div>
+          </div>
+          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer faction unlock actions">
+            {#if !$gameStore.multiplayer?.connected}
+              <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
+            {/if}
+            {#if multiplayerReadySubmitted}
+              <button type="button" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+            {/if}
+            <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
+            {#if multiplayerCopyMessage}
+              <span>{multiplayerCopyMessage}</span>
+            {/if}
+          </div>
         {/if}
       </div>
 
@@ -2566,6 +2744,32 @@
         <p>Pick one troop for the new faction. Remaining picks will follow immediately.</p>
         {#if multiplayerStatus}
           <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer troop unlock status">{multiplayerStatus}</p>
+          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer troop unlock room tools">
+            <div class="multiplayer-room-card">
+              <span>Room</span>
+              <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
+              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
+              </button>
+            </div>
+            <div class="multiplayer-player-list">
+              <span>Current Players</span>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'human')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
+            </div>
+          </div>
+          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer troop unlock actions">
+            {#if !$gameStore.multiplayer?.connected}
+              <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
+            {/if}
+            {#if multiplayerReadySubmitted}
+              <button type="button" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+            {/if}
+            <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
+            {#if multiplayerCopyMessage}
+              <span>{multiplayerCopyMessage}</span>
+            {/if}
+          </div>
         {/if}
       </div>
 
@@ -2655,6 +2859,21 @@
           </button>
         {/if}
         <button class="ui-debug-target" data-ui-name="Return to main menu" on:click={returnToMainMenu}>Main Menu</button>
+        {#if $gameStore.multiplayer}
+          <div class="topbar-room-card ui-debug-target" data-ui-name="Multiplayer room link">
+            <span>{$gameStore.multiplayer.roomId ?? '...'}</span>
+            <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer.roomId} aria-label="Copy room link" title="Copy room link">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
+            </button>
+          </div>
+          {#if !$gameStore.multiplayer.connected}
+            <button class="primary ui-debug-target" data-ui-name="Reconnect multiplayer room" on:click={reconnectMultiplayerContest}>Reconnect</button>
+          {/if}
+          {#if multiplayerReadySubmitted}
+            <button class="ui-debug-target" data-ui-name="Cancel multiplayer ready" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+          {/if}
+          <button class="ui-debug-target" data-ui-name="Leave multiplayer room" on:click={leaveMultiplayerContest}>Leave Room</button>
+        {/if}
         {#if debugToolsEnabled}
           <DebugToolsMenu
             mode="campaign-button"
@@ -3994,6 +4213,7 @@
                       <button
                         type="button"
                         class="replay-health-unit ui-debug-target"
+                        class:selected={lockedUnitId === entry.unit.id}
                         data-ui-name={`Health overview ${side.label} ${entry.unit.id}`}
                         title={`${entry.unit.troopLabel} ${entry.hpLabel}`}
                         aria-label={`${entry.unit.troopLabel} health ${entry.hpLabel}`}
@@ -4318,6 +4538,7 @@
 
   .opening-actions {
     justify-content: flex-end;
+    padding-top: 0.15rem;
   }
 
   .ui-debug-visible .ui-debug-target {
@@ -4376,6 +4597,8 @@
   .panel,
   .menu-panel,
   .draft-panel {
+    box-sizing: border-box;
+    min-width: 0;
     display: grid;
     gap: var(--ui-panel-gap);
     padding: var(--ui-panel-padding);
@@ -4389,6 +4612,20 @@
 
   .opening-shell {
     width: min(1240px, 100%);
+  }
+
+  .opening-shell:not(.scheduled-faction-shell) {
+    height: calc(100dvh - (2 * var(--ui-space-md)));
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .opening-shell:not(.scheduled-faction-shell):has(.opening-session-header) {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .opening-shell:not(.scheduled-faction-shell) .draft-layout {
+    overflow: hidden;
   }
 
   .rift-grid,
@@ -5086,10 +5323,6 @@
     color: #a7b8c8;
   }
 
-  .draft-screen-header .opening-instructions {
-    max-width: none;
-  }
-
   .draft-screen-header .multiplayer-status-line {
     max-width: none;
     width: fit-content;
@@ -5296,7 +5529,8 @@
 
   .menu-screen,
   .draft-screen {
-    min-height: 100vh;
+    min-height: 100dvh;
+    box-sizing: border-box;
     display: grid;
     justify-items: center;
     align-items: start;
@@ -5323,6 +5557,7 @@
 
   .menu-panel {
     max-width: 980px;
+    position: relative;
   }
 
   .menu-topline {
@@ -5335,6 +5570,7 @@
 
   .menu-copy {
     grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
     max-width: 36rem;
   }
 
@@ -5344,7 +5580,45 @@
   }
 
   .intro {
-    max-width: 28rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .main-menu-shell {
+    min-height: min(680px, calc(100vh - (2 * var(--ui-space-md))));
+    align-content: center;
+    padding-bottom: 4.5rem;
+  }
+
+  .main-menu-actions {
+    width: min(360px, 100%);
+    justify-self: center;
+    display: grid;
+    gap: var(--ui-space-sm);
+  }
+
+  .main-menu-actions button {
+    min-height: 3.3rem;
+    font-size: 1rem;
+  }
+
+  .menu-back-button {
+    position: absolute;
+    left: var(--ui-space-md);
+    bottom: var(--ui-space-md);
+    width: var(--ui-space-hit);
+    height: var(--ui-space-hit);
+    display: grid;
+    place-items: center;
+    padding: 0;
+    font-size: 0;
+    border-radius: 999px;
+  }
+
+  .menu-back-button::before {
+    content: '<';
+    font-size: 1.2rem;
+    line-height: 1;
   }
 
 
@@ -5399,10 +5673,12 @@
   }
 
   .slot-card .actions-grid {
+    flex-wrap: wrap;
     gap: var(--ui-space-sm);
   }
 
   .slot-card .actions-grid button {
+    flex: 1 1 10rem;
     min-height: var(--ui-space-hit);
   }
 
@@ -5412,20 +5688,31 @@
     padding: var(--ui-space-sm);
   }
 
-  .multiplayer-menu h2 {
-    margin: 0;
-    font-size: var(--ui-text-title);
-    line-height: var(--ui-line-title);
-  }
-
-  .multiplayer-controls {
+  .multiplayer-identity-controls,
+  .multiplayer-room-choice {
     display: grid;
-    grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.3fr) minmax(120px, 0.7fr) auto auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ui-space-sm);
     align-items: end;
   }
 
-  .multiplayer-controls label {
+  .multiplayer-room-choice {
+    grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr);
+    align-items: stretch;
+  }
+
+  .join-room-box {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--ui-space-sm);
+    padding: var(--ui-space-sm);
+    border: 1px solid rgba(213, 178, 116, 0.25);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(213, 178, 116, 0.06);
+  }
+
+  .multiplayer-identity-controls label,
+  .join-room-box label {
     display: grid;
     gap: 5px;
     color: var(--ui-color-text-dim);
@@ -5435,7 +5722,28 @@
     letter-spacing: 0;
   }
 
-  .multiplayer-controls input {
+  .multiplayer-server-details {
+    min-width: 0;
+  }
+
+  .multiplayer-server-details summary {
+    min-height: var(--ui-space-hit);
+    display: grid;
+    align-items: center;
+    padding: 0 0.75rem;
+    border: var(--ui-border-subtle);
+    border-radius: 6px;
+    color: var(--ui-color-text-dim);
+    cursor: pointer;
+  }
+
+  .multiplayer-server-details[open] summary {
+    margin-bottom: 5px;
+  }
+
+  .multiplayer-identity-controls input,
+  .join-room-box input {
+    box-sizing: border-box;
     min-width: 0;
     border: var(--ui-border-subtle);
     border-radius: 6px;
@@ -5444,11 +5752,96 @@
     background: rgba(255, 255, 255, 0.06);
   }
 
+  .multiplayer-room-tools {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.55fr) minmax(220px, 1fr);
+    gap: var(--ui-space-sm);
+  }
+
+  .multiplayer-room-card,
+  .multiplayer-player-list,
+  .topbar-room-card {
+    min-width: 0;
+    display: grid;
+    gap: 0.25rem;
+    padding: var(--ui-space-sm);
+    border: 1px solid rgba(124, 153, 176, 0.18);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(255, 255, 255, 0.055);
+  }
+
+  .multiplayer-room-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .multiplayer-room-card > span,
+  .multiplayer-player-list > span,
+  .topbar-room-card > span {
+    color: var(--ui-color-text-dim);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
+  .multiplayer-room-card strong {
+    grid-column: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .multiplayer-player-list strong {
+    font-size: var(--ui-text-small);
+    line-height: var(--ui-line-small);
+  }
+
+  .link-icon-button {
+    width: 2.35rem;
+    height: 2.35rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+
+  .link-icon-button svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: currentColor;
+  }
+
+  .topbar-room-card {
+    grid-template-columns: auto auto;
+    align-items: center;
+    padding: 0.25rem 0.35rem 0.25rem 0.65rem;
+  }
+
+  .multiplayer-session-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-xs);
+  }
+
+  .multiplayer-session-actions button {
+    min-height: 2.1rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .multiplayer-session-actions span {
+    color: var(--ui-color-text-dim);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+  }
+
   .draft-layout {
     min-height: 0;
     grid-template-columns: minmax(264px, 288px) minmax(0, 1fr);
     align-items: start;
     gap: 0.75rem;
+  }
+
+  .opening-shell:not(.scheduled-faction-shell) .draft-layout {
+    align-items: stretch;
   }
 
   .draft-section {
@@ -5460,6 +5853,11 @@
     min-height: 0;
     max-height: none;
     overflow: auto;
+  }
+
+  .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel,
+  .opening-shell:not(.scheduled-faction-shell) .draft-grid {
+    max-height: 100%;
   }
 
   .draft-icon-row {
@@ -5541,6 +5939,11 @@
 
   .opening-detail-panel {
     gap: 0.65rem;
+  }
+
+  .opening-empty-detail {
+    align-content: center;
+    min-height: 100%;
   }
 
   .opening-detail-panel h2,
@@ -6172,7 +6575,8 @@
   }
 
   .replay-health-unit:hover,
-  .replay-health-unit:focus-visible {
+  .replay-health-unit:focus-visible,
+  .replay-health-unit.selected {
     border-color: rgba(213, 178, 116, 0.55);
     background: rgba(35, 29, 21, 0.82);
   }
@@ -6547,6 +6951,14 @@
       grid-template-columns: 1fr;
     }
 
+    .opening-shell:not(.scheduled-faction-shell) .draft-layout {
+      grid-template-rows: minmax(8.5rem, 15rem) minmax(0, 1fr);
+    }
+
+    .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel {
+      min-height: 0;
+    }
+
     .draft-focus-panel.empty {
       display: none;
     }
@@ -6611,6 +7023,20 @@
       flex-direction: column;
     }
 
+    .multiplayer-identity-controls,
+    .multiplayer-room-choice,
+    .join-room-box,
+    .multiplayer-room-tools {
+      grid-template-columns: 1fr;
+    }
+
+    .multiplayer-room-choice button,
+    .join-room-box button {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: var(--ui-space-hit);
+    }
+
 
     .action-rail {
       grid-template-columns: 1fr;
@@ -6641,6 +7067,10 @@
     .shell,
     .replay-shell {
       padding: 0.75rem;
+    }
+
+    .menu-panel {
+      width: 100%;
     }
 
     .slot-meta,

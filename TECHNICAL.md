@@ -442,3 +442,35 @@ npm run build
 npm run test
 npm run preview
 ```
+
+## Multiplayer Hosting
+
+The browser client reads `VITE_MULTIPLAYER_SERVER_URL` at build/dev time. If it is unset or blank, the multiplayer panel defaults to `ws://localhost:8787` for local development. Keep the manual server field visible for LAN testing and custom deployments.
+
+For LAN testing, run the app server on an external interface:
+
+```bash
+npm run dev -- --host 0.0.0.0
+```
+
+Run the WebSocket room server on the desired port:
+
+```bash
+SHIFTMAKE_MULTIPLAYER_PORT=8787 npm run multiplayer:server
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:SHIFTMAKE_MULTIPLAYER_PORT = '8787'; npm run multiplayer:server
+```
+
+The WebSocket server listens on all interfaces by default. Set `SHIFTMAKE_MULTIPLAYER_HOST=0.0.0.0` when the host environment requires an explicit bind address.
+
+For internet deployment, serve the Vite app over HTTPS and set `VITE_MULTIPLAYER_SERVER_URL` to a `wss://` endpoint routed to the room server behind a reverse proxy.
+
+### Multiplayer Room Lifecycle
+
+Contest multiplayer rooms are authoritative in the WebSocket server process. A room snapshot keeps the shared game state, submitted player states, reconnect tokens, connected sockets, player names, and archived replay payload inputs in memory so short disconnects do not destroy an active game.
+
+Rooms track `createdAt`, `updatedAt`, and `lastEmptyAt`. Empty rooms are removed after the server TTL; rooms with at least one connected player are kept. Server restarts are currently allowed to lose active rooms, which matches the private-room target and avoids adding a disk or hosted key-value dependency before the protocol is hardened.
