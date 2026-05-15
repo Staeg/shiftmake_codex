@@ -167,6 +167,10 @@ function claimDefaultOpeningTroops(): void {
   gameStore.startOpeningCampaign();
 }
 
+function finishCycleResolutionAnimation(): void {
+  gameStore.finishCycleAnimation();
+}
+
 describe('persistReplayPayloadWrites', () => {
   it('evicts the oldest replay payload and retries when storage is full', () => {
     const oldestKey = 'shiftmake:replay:oldest';
@@ -284,6 +288,7 @@ describe('gameStore progression flow', () => {
 
     gameStore.assignTroopToRift(troopId!, riftId!);
     gameStore.endCycle(true);
+    finishCycleResolutionAnimation();
 
     const ended = currentStoreState<{
       game: {
@@ -313,6 +318,7 @@ describe('gameStore progression flow', () => {
 
     gameStore.assignTroopToRift(troopId!, riftId!);
     gameStore.endCycle(true);
+    finishCycleResolutionAnimation();
 
     const archived = currentStoreState<{ game: { replayIndex: ReplayIndexEntry[] } }>();
     const replayId = archived.game.replayIndex[0]?.replayId;
@@ -367,6 +373,7 @@ describe('gameStore progression flow', () => {
     const riftId = started.game.openRifts[0]?.id;
     gameStore.assignTroopToRift(troopId!, riftId!);
     gameStore.endCycle(true);
+    finishCycleResolutionAnimation();
 
     const uiContext: CampaignReportUiContext = {
       screen: 'overworld',

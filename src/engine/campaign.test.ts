@@ -18,8 +18,9 @@ import {
   startOpeningCampaign,
   startNewGame,
 } from './game';
-import { resolveEnemyCombatant } from './army';
+import { createTroopInstance, resolveEnemyCombatant } from './army';
 import { ALL_TROOP_UNLOCK_IDS, FACTION_UPGRADES, NATIVE_TROOP_UNLOCK_IDS, isNativeTroopUnlockId, TROOP_TYPE_UPGRADES } from './unitCatalog';
+import { upgradeAffectsTroop } from './upgrades';
 import type { BattleReplay, FactionId, GameState, RiftResolutionRecord, TroopUnlockId, UpgradeId } from './types';
 
 function makeReplay(recordId: string, riftId: string, outcome: 'victory' | 'defeat'): BattleReplay {
@@ -246,6 +247,34 @@ describe('campaign progression', () => {
     expect(offer?.optionUpgradeIds.every((upgradeId) => upgradeId in FACTION_UPGRADES || upgradeId in TROOP_TYPE_UPGRADES)).toBe(true);
   });
 
+  it('only treats faction upgrades as affecting troops when their effects can apply', () => {
+    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'champion'))).toBe(false);
+    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'beastmaster'))).toBe(false);
+    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'archer'))).toBe(true);
+    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'druid'))).toBe(true);
+    expect(upgradeAffectsTroop('elven-eyes', createTroopInstance('elf', 'champion'))).toBe(false);
+    expect(upgradeAffectsTroop('elven-eyes', createTroopInstance('elf', 'ranger'))).toBe(true);
+  });
+
+  it('does not offer upgrades that affect none of the controlled troops', () => {
+    const opened = finishOpeningWithPreferredFirst('elf/champion');
+    const meleeElfOnly = {
+      ...opened,
+      troops: [createTroopInstance('elf', 'champion'), createTroopInstance('elf', 'beastmaster')],
+      unlockedFactionIds: ['elf'],
+      essence: 2,
+      factionUpgradeIds: Object.values(FACTION_UPGRADES)
+        .filter((upgrade) => upgrade.factionId !== 'elf' || upgrade.id !== 'elf-long-shot-doctrine')
+        .map((upgrade) => upgrade.id),
+      troopTypeUpgradeIds: Object.values(TROOP_TYPE_UPGRADES)
+        .filter((upgrade) => !['champion', 'beastmaster'].includes(upgrade.unitTypeId))
+        .map((upgrade) => upgrade.id),
+    };
+    const state = revealEssenceDraft(meleeElfOnly);
+
+    expect(state.activeUpgradeOffer?.optionUpgradeIds).not.toContain('elf-long-shot-doctrine');
+  });
+
   it('persists active offers through save round-trips', () => {
     const offered = revealEssenceDraft(finishOpening(11, 'human/soldier'));
     const claimedUpgradeId = offered.activeUpgradeOffer!.optionUpgradeIds[0] as UpgradeId;
@@ -314,7 +343,7 @@ describe('campaign progression', () => {
     expect(ownedFactionIds.has(state.activeTroopOffer!.optionTroopUnlockIds[2]!.split('/')[0]!)).toBe(true);
   });
 
-  it('falls back to any remaining upgrade when least-upgraded allied troops have no remaining upgrades', () => {
+  it('does not fall back to upgrades that do not affect controlled troops', () => {
     const opened = finishOpening(102, 'human/soldier');
     const ownedFactionIds = new Set(opened.troops.map((troop) => troop.factionId));
     const ownedUnitTypeIds = new Set(opened.troops.map((troop) => troop.unitTypeId));
@@ -327,13 +356,12 @@ describe('campaign progression', () => {
         .filter((upgrade) => ownedUnitTypeIds.has(upgrade.unitTypeId))
         .map((upgrade) => upgrade.id),
     });
-    const fallbackUpgradeId = state.activeUpgradeOffer?.optionUpgradeIds[2]!;
+    const fallbackUpgradeId = state.activeUpgradeOffer?.optionUpgradeIds[2];
 
-    expect(ownedFactionIds.has(FACTION_UPGRADES[fallbackUpgradeId]?.factionId ?? '')).toBe(false);
-    expect(ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[fallbackUpgradeId]?.unitTypeId ?? '')).toBe(false);
+    expect(fallbackUpgradeId).toBeUndefined();
   });
 
-  it('spends one Essence for a one-sided draft after upgrades are exhausted', () => {
+  it('spends one Essence for a one-sided draft after relevant upgrades are exhausted', () => {
     const state = revealEssenceDraft({
       ...finishOpening(103, 'human/soldier'),
       essence: 1,
@@ -585,16 +613,17 @@ describe('campaign progression', () => {
     expect(state.contest?.opponentInfo).toBeNull();
   });
 
-  it('reveals Contest opponent info from the start of the previous cycle', () => {
+  it('reveals Contest opponent info from the end of the previous cycle', () => {
     const opened = finishContestOpening(301);
-    const startingAi = opened.contest!.players.ai;
     const resolution = resolveAssignedRifts(opened);
-    const result = applyCycleOutcomes(opened, resolution);
+    const prepared = resolution.preparedState ?? opened;
+    const result = applyCycleOutcomes(prepared, resolution);
     const opponentInfo = result.nextState.contest?.opponentInfo;
 
     expect(opponentInfo?.cycleNumber).toBe(1);
-    expect(opponentInfo?.ai.troops).toEqual(startingAi.troops);
-    expect(opponentInfo?.ai.essence).toBe(startingAi.essence);
+    expect(opponentInfo?.ai.troops).toEqual(result.nextState.contest?.players.ai.troops);
+    expect(opponentInfo?.ai.factionUpgradeIds).toEqual(result.nextState.contest?.players.ai.factionUpgradeIds);
+    expect(opponentInfo?.ai.troopTypeUpgradeIds).toEqual(result.nextState.contest?.players.ai.troopTypeUpgradeIds);
   });
 
   it('prevents Contest players from assigning troops to Rifts they already control', () => {

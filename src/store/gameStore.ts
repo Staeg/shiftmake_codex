@@ -38,6 +38,7 @@ import type {
   CampaignReportPayload,
   FactionId,
   CampaignReportUiContext,
+  CycleResolution,
   GameState,
   ReplayIndexEntry,
   ReplayPayloadWrite,
@@ -71,6 +72,12 @@ import { buildContestAiPlanKey, type ContestAiWorkerResponse } from './contestAi
 export type CenterMode = 'rifts' | 'troops' | 'contest';
 export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
 
+interface CycleAnimationState {
+  sourceGame: GameState;
+  resolution: CycleResolution;
+  activeSlotId: SaveSlotId;
+}
+
 interface StoreState {
   game: GameState;
   screen: ScreenMode;
@@ -88,6 +95,7 @@ interface StoreState {
   validationMessages: string[];
   systemMessage: string | null;
   cycleEndConfirmationPending: boolean;
+  cycleAnimation: CycleAnimationState | null;
 }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -329,6 +337,7 @@ function makeInitialState(): StoreState {
     validationMessages: [],
     systemMessage: null,
     cycleEndConfirmationPending: false,
+    cycleAnimation: null,
   };
 }
 
@@ -414,6 +423,48 @@ function buildUnlockedTroopMessage(troopUnlockIds: string[]): string | null {
   }
 
   return `New troop unlocks available: ${troopUnlockIds.map((troopUnlockId) => describeTroopUnlock(troopUnlockId)).join(', ')}.`;
+}
+
+function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState, resolution: CycleResolution, activeSlotId: SaveSlotId): StoreState {
+  const applied = applyCycleOutcomes(sourceGame, resolution);
+  applied.replayPayloadDeletes.forEach((entry) => removeSlotReplay(localStorage, activeSlotId, entry.replayId));
+  const replayWriteResult = persistReplayPayloadWrites(
+    localStorage,
+    applied.nextState.replayIndex,
+    applied.replayPayloadWrites,
+    slotReplayStorageKey(activeSlotId),
+  );
+  const nextGame =
+    replayWriteResult.replayIndex !== applied.nextState.replayIndex
+      ? { ...applied.nextState, replayIndex: replayWriteResult.replayIndex }
+      : applied.nextState;
+
+  const unlockedTroopMessage = buildUnlockedTroopMessage(applied.newlyUnlockedTroopUnlockIds);
+  let systemMessage: string | null = unlockedTroopMessage;
+  if (replayWriteResult.failedReplayIds.size > 0) {
+    systemMessage = unlockedTroopMessage
+      ? `${unlockedTroopMessage} Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.`
+      : 'Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.';
+  } else if (replayWriteResult.evictedReplayIds.length > 0) {
+    systemMessage =
+      replayWriteResult.evictedReplayIds.length === 1
+        ? `${unlockedTroopMessage ? `${unlockedTroopMessage} ` : ''}Replay storage was full, so the oldest saved battle was reduced to a summary to keep the latest replay.`
+        : `${unlockedTroopMessage ? `${unlockedTroopMessage} ` : ''}Replay storage was full, so ${replayWriteResult.evictedReplayIds.length} older saved battles were reduced to summaries to keep the latest replays.`;
+  } else if (replayWriteResult.quotaExceeded) {
+    systemMessage = unlockedTroopMessage
+      ? `${unlockedTroopMessage} Replay storage is nearly full, but the newest battle was saved.`
+      : 'Replay storage is nearly full, but the newest battle was saved.';
+  }
+
+  return saveActiveCampaign({
+    ...state,
+    activeSlotId,
+    game: nextGame,
+    validationMessages: [],
+    systemMessage,
+    cycleEndConfirmationPending: false,
+    cycleAnimation: null,
+  });
 }
 
 function collectReplayPayloadsForCampaign(state: Pick<StoreState, 'activeSlotId' | 'game'>): {
@@ -874,6 +925,9 @@ export const gameStore = (() => {
         return;
       }
       update((state) => {
+        if (state.cycleAnimation) {
+          return state;
+        }
         const validation = validateAssignments(state.game);
         const blockingIssues = validation.issues.filter((issue) => issue.kind !== 'no_assignments');
         const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_assignments');
@@ -902,50 +956,48 @@ export const gameStore = (() => {
         }
 
         const resolution = resolveAssignedRifts(state.game, getPreparedContestAiPlan(state.game));
-        try {
-          const applied = applyCycleOutcomes(state.game, resolution);
-          applied.replayPayloadDeletes.forEach((entry) => removeSlotReplay(localStorage, state.activeSlotId as SaveSlotId, entry.replayId));
-          const replayWriteResult = persistReplayPayloadWrites(
-            localStorage,
-            applied.nextState.replayIndex,
-            applied.replayPayloadWrites,
-            slotReplayStorageKey(state.activeSlotId),
-          );
-          const nextGame =
-            replayWriteResult.replayIndex !== applied.nextState.replayIndex
-              ? { ...applied.nextState, replayIndex: replayWriteResult.replayIndex }
-              : applied.nextState;
-
-          const unlockedTroopMessage = buildUnlockedTroopMessage(applied.newlyUnlockedTroopUnlockIds);
-          let systemMessage: string | null = unlockedTroopMessage;
-          if (replayWriteResult.failedReplayIds.size > 0) {
-            systemMessage = unlockedTroopMessage
-              ? `${unlockedTroopMessage} Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.`
-              : 'Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.';
-          } else if (replayWriteResult.evictedReplayIds.length > 0) {
-            systemMessage =
-              replayWriteResult.evictedReplayIds.length === 1
-                ? `${unlockedTroopMessage ? `${unlockedTroopMessage} ` : ''}Replay storage was full, so the oldest saved battle was reduced to a summary to keep the latest replay.`
-                : `${unlockedTroopMessage ? `${unlockedTroopMessage} ` : ''}Replay storage was full, so ${replayWriteResult.evictedReplayIds.length} older saved battles were reduced to summaries to keep the latest replays.`;
-          } else if (replayWriteResult.quotaExceeded) {
-            systemMessage = unlockedTroopMessage
-              ? `${unlockedTroopMessage} Replay storage is nearly full, but the newest battle was saved.`
-              : 'Replay storage is nearly full, but the newest battle was saved.';
-          }
-
-          return saveActiveCampaign({
+        if (resolution.records.length > 0) {
+          return {
             ...state,
-            game: nextGame,
+            game: resolution.preparedState ?? state.game,
             validationMessages: [],
-            systemMessage,
+            systemMessage: null,
             cycleEndConfirmationPending: false,
-          });
+            cycleAnimation: {
+              sourceGame: state.game,
+              resolution,
+              activeSlotId: state.activeSlotId,
+            },
+          };
+        }
+
+        try {
+          return applyResolvedCycleToStoreState(state, state.game, resolution, state.activeSlotId);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown storage error.';
           return {
             ...state,
             systemMessage: `Unable to end cycle: ${message}`,
             cycleEndConfirmationPending: false,
+          };
+        }
+      });
+    },
+    finishCycleAnimation() {
+      update((state) => {
+        if (!state.cycleAnimation) {
+          return state;
+        }
+        const { sourceGame, resolution, activeSlotId } = state.cycleAnimation;
+        try {
+          return applyResolvedCycleToStoreState(state, sourceGame, resolution, activeSlotId);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown storage error.';
+          return {
+            ...state,
+            systemMessage: `Unable to end cycle: ${message}`,
+            cycleEndConfirmationPending: false,
+            cycleAnimation: null,
           };
         }
       });

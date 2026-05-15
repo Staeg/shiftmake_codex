@@ -23,7 +23,7 @@ import {
   getUnitType,
   isNativeTroopUnlockId,
 } from './unitCatalog';
-import { getAvailableTroopUnlockIds, getOwnedTroopUnlockIds } from './upgrades';
+import { getAvailableTroopUnlockIds, getOwnedTroopUnlockIds, upgradeAffectsTroop } from './upgrades';
 import type {
   ApplyCycleOutcomeResult,
   CycleResolution,
@@ -31,7 +31,6 @@ import type {
   FactionUnlockOffer,
   ContestPlayerId,
   ContestPlayerState,
-  ContestOpponentInfoSnapshot,
   BattleSideParticipants,
   GameMode,
   GameState,
@@ -361,13 +360,6 @@ function withContestAi(state: GameState, ai: ContestPlayerState): GameState {
   };
 }
 
-function buildContestOpponentInfoSnapshot(state: GameState): ContestOpponentInfoSnapshot {
-  return {
-    cycleNumber: state.cycleNumber,
-    ai: getContestAi(state),
-  };
-}
-
 function chooseAiOpeningTroops(seed: number): ContestPlayerState {
   const openingFactionIds = getOpeningFactionOptionIds(seed);
   const starterTroopUnlockIds = getOpeningFactionStarterTroopUnlockIds(seed);
@@ -451,7 +443,12 @@ function getAvailableUpgradeIds(state: GameState): UpgradeId[] {
   return [
     ...Object.values(FACTION_UPGRADES).map((upgrade) => upgrade.id),
     ...Object.values(TROOP_TYPE_UPGRADES).map((upgrade) => upgrade.id),
-  ].filter((upgradeId) => !state.factionUpgradeIds.includes(upgradeId) && !state.troopTypeUpgradeIds.includes(upgradeId));
+  ].filter(
+    (upgradeId) =>
+      !state.factionUpgradeIds.includes(upgradeId) &&
+      !state.troopTypeUpgradeIds.includes(upgradeId) &&
+      state.troops.some((troop) => upgradeAffectsTroop(upgradeId, troop)),
+  );
 }
 
 function pickOfferOptions(seed: number, bucketOptions: string[][][], allOptions: string[]): string[] {
@@ -499,9 +496,7 @@ function buildTroopOffer(state: GameState): TroopDraftOffer | null {
 }
 
 function countExistingUpgradesAffectingTroop(state: GameState, troop: GameState['troops'][number]): number {
-  const factionUpgradeCount = state.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === troop.factionId).length;
-  const troopTypeUpgradeCount = state.troopTypeUpgradeIds.filter((upgradeId) => TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId === troop.unitTypeId).length;
-  return factionUpgradeCount + troopTypeUpgradeCount;
+  return [...state.factionUpgradeIds, ...state.troopTypeUpgradeIds].filter((upgradeId) => upgradeAffectsTroop(upgradeId, troop)).length;
 }
 
 function buildLeastUpgradedTroopUpgradeBucket(
@@ -522,8 +517,7 @@ function buildLeastUpgradedTroopUpgradeBucket(
     const bucket = availableUpgradeIds.filter(
       (upgradeId) =>
         !selected.has(upgradeId) &&
-        ((upgradeId in FACTION_UPGRADES && FACTION_UPGRADES[upgradeId]!.factionId === troop.factionId) ||
-          (upgradeId in TROOP_TYPE_UPGRADES && TROOP_TYPE_UPGRADES[upgradeId]!.unitTypeId === troop.unitTypeId)),
+        upgradeAffectsTroop(upgradeId, troop),
     );
     if (bucket.length > 0) {
       return bucket;
@@ -534,7 +528,6 @@ function buildLeastUpgradedTroopUpgradeBucket(
 }
 
 function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
-  const ownedFactionIds = new Set(state.unlockedFactionIds);
   const ownedUnitTypeIds = new Set(getOwnedUnitTypeIds(state));
   const availableUpgradeIds = getAvailableUpgradeIds(state);
 
@@ -546,7 +539,7 @@ function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
     (upgradeId) => upgradeId in TROOP_TYPE_UPGRADES && ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[upgradeId]!.unitTypeId),
   );
   const factionUpgradeBucket = availableUpgradeIds.filter(
-    (upgradeId) => upgradeId in FACTION_UPGRADES && ownedFactionIds.has(FACTION_UPGRADES[upgradeId]!.factionId),
+    (upgradeId) => upgradeId in FACTION_UPGRADES && state.troops.some((troop) => upgradeAffectsTroop(upgradeId, troop)),
   );
   const rng = createRng(deriveSeed(state.campaignSeed, state.cycleNumber * 20_003 + state.upgradeOfferRolls + 1));
   const selected = new Set<string>();
@@ -1732,7 +1725,10 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
     contest: nextState.contest
       ? {
           ...nextState.contest,
-          opponentInfo: resolution.contestOpponentInfoSnapshot ?? buildContestOpponentInfoSnapshot(state),
+          opponentInfo: {
+            cycleNumber: state.cycleNumber,
+            ai: nextState.contest.players.ai,
+          },
         }
       : nextState.contest,
   };
@@ -1782,7 +1778,6 @@ export function resolveAssignedRifts(state: GameState, preparedContestAi?: Conte
     return {
       ...resolveContestAssignedRifts(preparedState),
       preparedState,
-      contestOpponentInfoSnapshot: buildContestOpponentInfoSnapshot(state),
     };
   }
 

@@ -708,7 +708,6 @@ export interface RiftResolutionRecord {
 export interface CycleResolution {
   records: RiftResolutionRecord[];
   preparedState?: GameState;
-  contestOpponentInfoSnapshot?: ContestOpponentInfoSnapshot;
 }
 
 export interface ReplayPayloadWrite {
