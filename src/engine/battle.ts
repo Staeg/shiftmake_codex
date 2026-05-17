@@ -103,7 +103,7 @@ type InternalUnit = {
   resolvedAbilities: RuntimeAbilityState[];
   activeTimedEffects: ActiveTimedEffect[];
   committedBacklineTargetId: string | null;
-  challengedBy: Set<string>;
+  graveVigorBlockedSides: Set<SideId>;
   mercyBeforeDawnUsed: boolean;
   stonebloodUsed: boolean;
   fadeIntoShadowUsed: boolean;
@@ -158,6 +158,7 @@ interface InternalState {
   currentTurnUnitId: string | null;
   ensorcelTargetIds: Record<SideId, string | null>;
   changelingTriggeredSides: Set<SideId>;
+  pendingGraveVigorBlocks: Array<{ unitId: string; side: SideId }>;
 }
 
 interface SpawnContext {
@@ -626,7 +627,6 @@ function buildDamageExplanation(metadata: BattleStepMetadata): BattleDamageExpla
     finalDamage: metadata.damage,
     heartseekerMultiplier: typeof metadata.heartseekerMultiplier === 'number' ? metadata.heartseekerMultiplier : undefined,
     distanceBonus: typeof metadata.distanceBonus === 'number' ? metadata.distanceBonus : undefined,
-    challengePenalty: typeof metadata.challengePenalty === 'number' ? metadata.challengePenalty : undefined,
     armorBefore: typeof metadata.armorBefore === 'number' ? metadata.armorBefore : undefined,
     armorReduction: typeof metadata.armorReduction === 'number' ? metadata.armorReduction : undefined,
     armorApplied: typeof metadata.armorApplied === 'number' ? metadata.armorApplied : undefined,
@@ -845,7 +845,7 @@ function spawnGroup(
       resolvedAbilities: combatant.abilities.map(createRuntimeAbilityState),
       activeTimedEffects: [],
       committedBacklineTargetId: null,
-      challengedBy: new Set<string>(),
+      graveVigorBlockedSides: new Set<SideId>(),
       mercyBeforeDawnUsed: false,
       stonebloodUsed: false,
       fadeIntoShadowUsed: false,
@@ -1100,19 +1100,8 @@ function isRangedOrCaster(unit: InternalUnit): boolean {
   return unit.attributes.includes('ranged') || unit.attributes.includes('caster');
 }
 
-function hasAlliedUnitOnHexWithAbility(state: InternalState, target: InternalUnit, abilityId: string): boolean {
-  return getAliveUnits(state, target.side).some((ally) => equalsHex(ally.position, target.position) && hasAbility(ally, abilityId));
-}
-
 function shouldTubthump(target: InternalUnit, stat: 'speed' | 'damage', amount: number): boolean {
   return amount < 0 && hasAbility(target, 'tubthumping') && (stat === 'speed' || stat === 'damage');
-}
-
-function getIncomingDamageReduction(state: InternalState, target: InternalUnit, context: AttackContext): number {
-  if ((context.mode === 'ranged' || context.category === 'strike') && hasAlliedUnitOnHexWithAbility(state, target, 'shield-drill')) {
-    return 1;
-  }
-  return 0;
 }
 
 function findProtectingPriest(state: InternalState, target: InternalUnit): InternalUnit | null {
@@ -1141,18 +1130,55 @@ function saveUnitFromDeath(
   return true;
 }
 
+function healUnitToHp(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  runtime: RuntimeAbilityState,
+  targetHp: number,
+  message: string,
+  effectId: string,
+): boolean {
+  if (!target.alive || target.hp >= targetHp) {
+    return false;
+  }
+  const nextHp = fixedClamp(targetHp, 0, target.maxHp);
+  const actual = fixedSub(nextHp, target.hp);
+  target.hp = nextHp;
+  buildStep(state, 'heal', [actor.id], [target.id], message, {
+    amount: actual,
+    effect: effectId,
+    sourceAbilityId: runtime.definition.id,
+    sourceAbilityLabel: runtime.definition.label,
+  });
+  if (actual > 0) {
+    maybeApplyRowdyRegrowth(state, target);
+  }
+  maybeApplyBolsteringLight(state, actor, target, actual);
+  maybeApplyOverflowingGrace(state, actor, target, actual);
+  triggerUnitAbilities(state, actor, {
+    timing: 'onEffectApplied',
+    appliedEffect: {
+      effect: { kind: 'heal', amount: actual, mode: 'flat', disposition: 'beneficial' },
+      target,
+      disposition: 'beneficial',
+    },
+  });
+  return true;
+}
+
 function preventDeath(state: InternalState, actor: InternalUnit, target: InternalUnit): boolean {
   const protectingPriest = !target.mercyBeforeDawnUsed ? findProtectingPriest(state, target) : null;
   if (protectingPriest) {
     target.mercyBeforeDawnUsed = true;
-    return saveUnitFromDeath(
+    return healUnitToHp(
       state,
       protectingPriest,
       target,
+      createRuntimeAbilityState(getAbility('mercy-before-dawn')),
       1,
-      'mercyBeforeDawn',
       `${protectingPriest.troopLabel} preserves ${target.troopLabel} at 1 HP.`,
-      'mercy-before-dawn',
+      'mercyBeforeDawn',
     );
   }
 
@@ -1170,12 +1196,6 @@ function preventDeath(state: InternalState, actor: InternalUnit, target: Interna
   }
 
   return false;
-}
-
-function applyChallengeAccepted(actor: InternalUnit, target: InternalUnit): void {
-  if (hasAbility(actor, 'challenge-accepted')) {
-    target.challengedBy.add(actor.id);
-  }
 }
 
 function getDistanceDamageBonus(actor: InternalUnit, target: InternalUnit, context: AttackContext): { damage: number; initiative: number } {
@@ -1229,6 +1249,23 @@ function maybeApplyOverflowingGrace(state: InternalState, actor: InternalUnit, t
   });
 }
 
+function maybeApplyBolsteringLight(state: InternalState, actor: InternalUnit, target: InternalUnit, actualHeal: number): void {
+  if (!hasAbility(actor, 'bolstering-light') || actualHeal <= 0) {
+    return;
+  }
+  const runtime = createRuntimeAbilityState(getAbility('bolstering-light'));
+  if (target.hp >= target.maxHp) {
+    applyHaste(state, actor, target, runtime, { kind: 'haste', amount: 1, mode: 'flat', disposition: 'beneficial' });
+    applyRamp(state, actor, target, runtime, { kind: 'ramp', amount: 1, mode: 'flat', disposition: 'beneficial' });
+    return;
+  }
+  applyInitiativeDelta(state, actor, target, runtime, {
+    kind: 'initiativeDelta',
+    amount: 40,
+    disposition: 'beneficial',
+  });
+}
+
 function maybeGrantStaticCharge(state: InternalState, actor: InternalUnit, runtime: RuntimeAbilityState, target: InternalUnit, effect: AbilityEffectDefinition): void {
   if (!hasAbility(actor, 'static-charge') || effect.kind !== 'haste' || (runtime.definition.id !== 'enhance-1' && runtime.definition.id !== 'war-drums')) {
     return;
@@ -1244,6 +1281,45 @@ function maybeGrantStaticCharge(state: InternalState, actor: InternalUnit, runti
 
 function effectDisposition(effect: AbilityEffectDefinition): EffectDisposition {
   return effect.disposition ?? 'neutral';
+}
+
+function isGraveVigorBeneficialEffect(actor: InternalUnit, target: InternalUnit, effect: AbilityEffectDefinition): boolean {
+  return hasAbility(actor, 'grave-vigor') && actor.side === target.side && effectDisposition(effect) === 'beneficial';
+}
+
+function isBlockedByGraveVigor(actor: InternalUnit, target: InternalUnit, effect: AbilityEffectDefinition): boolean {
+  return isGraveVigorBeneficialEffect(actor, target, effect) && target.graveVigorBlockedSides.has(actor.side);
+}
+
+function markGraveVigorRecipient(state: InternalState, actor: InternalUnit, target: InternalUnit, effect: AbilityEffectDefinition): void {
+  if (isGraveVigorBeneficialEffect(actor, target, effect)) {
+    state.pendingGraveVigorBlocks.push({ unitId: target.id, side: actor.side });
+  }
+}
+
+function flushPendingGraveVigorBlocks(state: InternalState): void {
+  state.pendingGraveVigorBlocks.splice(0).forEach((entry) => {
+    state.units.get(entry.unitId)?.graveVigorBlockedSides.add(entry.side);
+  });
+}
+
+function applyPostEffectReactions(
+  state: InternalState,
+  actor: InternalUnit,
+  runtime: RuntimeAbilityState,
+  target: InternalUnit,
+  effect: AbilityEffectDefinition,
+): void {
+  maybeGrantStaticCharge(state, actor, runtime, target, effect);
+  markGraveVigorRecipient(state, actor, target, effect);
+  triggerUnitAbilities(state, actor, {
+    timing: 'onEffectApplied',
+    appliedEffect: {
+      effect,
+      target,
+      disposition: effectDisposition(effect),
+    },
+  });
 }
 
 function applyBolster(
@@ -1344,6 +1420,7 @@ function healUnit(
   if (actual > 0) {
     maybeApplyRowdyRegrowth(state, target);
   }
+  maybeApplyBolsteringLight(state, actor, target, actual);
   maybeApplyOverflowingGrace(state, actor, target, actual);
   return true;
 }
@@ -1908,7 +1985,9 @@ function resolveTargets(
   event: AbilityTriggerEvent,
 ): InternalUnit[] {
   const candidates = getTargetCandidates(state, actor, ability, effect, event).filter(
-    (candidate) => candidate.alive || (candidate.id === actor.id && event.timing === 'onDeath' && effect.kind === 'summon'),
+    (candidate) =>
+      (candidate.alive || (candidate.id === actor.id && event.timing === 'onDeath' && effect.kind === 'summon')) &&
+      !isBlockedByGraveVigor(actor, candidate, effect),
   );
   if (candidates.length === 0) {
     return [];
@@ -2069,7 +2148,7 @@ function summonUnit(
     resolvedAbilities: mergedAbilities.map(createRuntimeAbilityState),
     activeTimedEffects: [],
     committedBacklineTargetId: null,
-    challengedBy: new Set<string>(),
+    graveVigorBlockedSides: new Set<SideId>(),
     mercyBeforeDawnUsed: false,
     stonebloodUsed: false,
     fadeIntoShadowUsed: false,
@@ -2294,7 +2373,6 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
       return false;
     }
     createEngagement(state, actor, target);
-    applyChallengeAccepted(actor, target);
     buildStep(state, 'engage', [actor.id], [target.id], `${actor.troopLabel} redirects ${target.troopLabel}.`, {
       effect: 'redirect',
       sourceAbilityId: runtime.definition.id,
@@ -2335,6 +2413,9 @@ function executeAbilityEffect(
     if (!target.alive && !(target.id === actor.id && event.timing === 'onDeath' && effect.kind === 'summon') && effect.kind !== 'strike') {
       return;
     }
+    if (isBlockedByGraveVigor(actor, target, effect)) {
+      return;
+    }
     let appliedToTarget = false;
     if (
       runtime.definition.duration.kind === 'turns' &&
@@ -2348,29 +2429,14 @@ function executeAbilityEffect(
       appliedToTarget = applyTemporaryEffect(state, actor, target, runtime, effect);
       applied = appliedToTarget || applied;
       if (appliedToTarget) {
-        triggerUnitAbilities(state, actor, {
-          timing: 'onEffectApplied',
-          appliedEffect: {
-            effect,
-            target,
-            disposition: effectDisposition(effect),
-          },
-        });
+        applyPostEffectReactions(state, actor, runtime, target, effect);
       }
       return;
     }
     appliedToTarget = handler(state, actor, runtime, target, effect, event);
     applied = appliedToTarget || applied;
     if (appliedToTarget) {
-      maybeGrantStaticCharge(state, actor, runtime, target, effect);
-      triggerUnitAbilities(state, actor, {
-        timing: 'onEffectApplied',
-        appliedEffect: {
-          effect,
-          target,
-          disposition: effectDisposition(effect),
-        },
-      });
+      applyPostEffectReactions(state, actor, runtime, target, effect);
     }
   });
 
@@ -2403,6 +2469,7 @@ function triggerUnitAbilities(
       runtime.definition.effects.forEach((effect) => {
         applied = executeAbilityEffect(state, actor, runtime, effect, event) || applied;
       });
+      flushPendingGraveVigorBlocks(state);
     }
     if (applied && runtime.usesRemaining !== null) {
       runtime.usesRemaining -= 1;
@@ -2511,20 +2578,6 @@ function performBrace(state: InternalState, actor: InternalUnit): void {
   });
 }
 
-function performLeylineFocus(state: InternalState, actor: InternalUnit): void {
-  if (!hasAbility(actor, 'leyline-focus')) {
-    return;
-  }
-  if (getEnemyUnits(state, actor).some((enemy) => hexDistance(actor.position, enemy.position) <= 1)) {
-    return;
-  }
-  applyInitiativeDelta(state, actor, actor, createRuntimeAbilityState(getAbility('leyline-focus')), {
-    kind: 'initiativeDelta',
-    amount: 25,
-    disposition: 'beneficial',
-  });
-}
-
 function performLivingCircuit(state: InternalState, actor: InternalUnit): void {
   if (!hasAbility(actor, 'living-circuit')) {
     return;
@@ -2577,8 +2630,8 @@ function handleShapeshiftTriggers(state: InternalState, actor: InternalUnit, run
       sourceAbilityLabel: getAbility('bramble-snare').label,
     });
   }
-  if (hasAbility(actor, 'wild-call')) {
-    summonUnitsAtHex(state, actor, 'wild-call', 'wolf', 2, actor.position);
+  if (hasAbility(actor, 'wild-call') || hasAbility(actor, 'forest-friends')) {
+    summonUnitsAtHex(state, actor, hasAbility(actor, 'forest-friends') ? 'forest-friends' : 'wild-call', 'wolf', 2, actor.position);
   }
 }
 
@@ -2601,13 +2654,29 @@ function performPackmastersWhistle(state: InternalState, actor: InternalUnit): v
   });
 }
 
+function performForestFriends(state: InternalState, actor: InternalUnit): void {
+  if (!hasAbility(actor, 'forest-friends')) {
+    return;
+  }
+  const runtime = createRuntimeAbilityState(getAbility('forest-friends'));
+  const targets = [actor, ...getAliveUnits(state, actor.side).filter((unit) => unit.summonerUnitId === actor.id && hasAbility(unit, 'bonded'))];
+  targets.forEach((target) => {
+    healUnit(state, actor, target, runtime, { kind: 'heal', amount: 20, mode: 'flat', disposition: 'beneficial' });
+  });
+}
+
 function performWarDrums(state: InternalState, actor: InternalUnit): void {
   if (!hasAbility(actor, 'war-drums')) {
     return;
   }
+  const hasteEffect: Extract<AbilityEffectDefinition, { kind: 'haste' }> = { kind: 'haste', amount: 1, mode: 'flat', disposition: 'beneficial' };
+  const rampEffect: Extract<AbilityEffectDefinition, { kind: 'ramp' }> = { kind: 'ramp', amount: 1, mode: 'flat', disposition: 'beneficial' };
   const eligible = prioritizeCandidates(
     getAliveUnits(state, actor.side).filter(
-      (unit) => hexDistance(actor.position, unit.position) <= actor.resolvedStats.range && !hasMatchingIdentityTag(unit, ['caster']),
+      (unit) =>
+        hexDistance(actor.position, unit.position) <= actor.resolvedStats.range &&
+        !hasMatchingIdentityTag(unit, ['caster']) &&
+        (!isBlockedByGraveVigor(actor, unit, hasteEffect) || !isBlockedByGraveVigor(actor, unit, rampEffect)),
     ),
   );
   if (eligible.length === 0) {
@@ -2617,13 +2686,20 @@ function performWarDrums(state: InternalState, actor: InternalUnit): void {
   getAliveUnits(state, actor.side)
     .filter((unit) => equalsHex(unit.position, target.position))
     .forEach((unit) => {
-      applyHaste(state, actor, unit, createRuntimeAbilityState(getAbility('war-drums')), { kind: 'haste', amount: 1, mode: 'flat', disposition: 'beneficial' });
-      applyRamp(state, actor, unit, createRuntimeAbilityState(getAbility('war-drums')), { kind: 'ramp', amount: 1, mode: 'flat', disposition: 'beneficial' });
+      const runtime = createRuntimeAbilityState(getAbility('war-drums'));
+      if (!isBlockedByGraveVigor(actor, unit, hasteEffect) && applyHaste(state, actor, unit, runtime, hasteEffect)) {
+        applyPostEffectReactions(state, actor, runtime, unit, hasteEffect);
+      }
+      if (!isBlockedByGraveVigor(actor, unit, rampEffect) && applyRamp(state, actor, unit, runtime, rampEffect)) {
+        applyPostEffectReactions(state, actor, runtime, unit, rampEffect);
+      }
     });
+  flushPendingGraveVigorBlocks(state);
 }
 
 function executeEndOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
   performPackmastersWhistle(state, actor);
+  performForestFriends(state, actor);
   performWarDrums(state, actor);
   performLivingCircuit(state, actor);
   performThrillOfTheHunt(state, actor);
@@ -2632,7 +2708,6 @@ function executeEndOfTurnAbilities(state: InternalState, actor: InternalUnit): v
 
 function executeStartOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
   performBrace(state, actor);
-  performLeylineFocus(state, actor);
   triggerUnitAbilities(state, actor, { timing: 'startOfTurn' });
 }
 
@@ -2713,17 +2788,25 @@ function performLastWitness(state: InternalState, killer: InternalUnit, fallen: 
       if (!killer.alive || !equalsHex(killer.position, fallen.position)) {
         return;
       }
-      attack(state, unit, killer, 'melee', false, 2, 'strike');
+      attack(state, unit, killer, 'melee', false, 1, 'strike');
     });
 }
 
+function getScavengersHungerLimit(actor: InternalUnit): number {
+  if (hasAbility(actor, 'scavengers-hunger-2')) {
+    return 2;
+  }
+  return hasAbility(actor, 'scavengers-hunger') ? 3 : 0;
+}
+
 function performScavengersHunger(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
-  if (!hasAbility(actor, 'scavengers-hunger') || hasAbility(target, 'fading') || actor.scavengersHungerKills >= 3) {
+  const summonLimit = getScavengersHungerLimit(actor);
+  if (summonLimit <= 0 || hasAbility(target, 'fading') || actor.scavengersHungerKills >= summonLimit) {
     return;
   }
   actor.scavengersHungerKills += 1;
   state.corpses.delete(target.id);
-  summonUnitsAtHex(state, actor, 'scavengers-hunger', 'wolf', 1, target.position);
+  summonUnitsAtHex(state, actor, hasAbility(actor, 'scavengers-hunger-2') ? 'scavengers-hunger-2' : 'scavengers-hunger', 'wolf', 1, target.position);
 }
 
 function handleDeath(state: InternalState, actor: InternalUnit, target: InternalUnit, context: AttackContext = { mode: 'melee', category: 'normal' }): void {
@@ -2958,16 +3041,12 @@ function attack(
   }
   const distanceBonus = getDistanceDamageBonus(actor, target, attackContext);
   attackDamage = fixedAdd(attackDamage, distanceBonus.damage);
-  const armorReduction = getIncomingDamageReduction(state, target, attackContext);
+  const armorReduction = 0;
   const armorAfterMods = fixedSub(target.resolvedStats.armor, armorReduction);
-  const challengePenalty =
-    actor.challengedBy.size > 0 && [...actor.challengedBy].some((unitId) => actor.engagedWith.has(unitId)) ? 4 : 0;
-  if (challengePenalty > 0) {
-    attackDamage = fixedMax(fixedSub(attackDamage, challengePenalty), 0);
-  }
   const baseDamage = fixedSub(attackDamage, armorAfterMods);
   const modifiedDamage = mode === 'ranged' ? fixedMul(baseDamage, state.effects.rangedDamageMultiplier) : baseDamage;
-  const damage = fixedMax(modifiedDamage, 0);
+  const shieldDrillDamageCap = mode === 'ranged' && hasAbility(target, 'shield-drill') ? 1 : null;
+  const damage = fixedMax(shieldDrillDamageCap === null ? modifiedDamage : Math.min(modifiedDamage, shieldDrillDamageCap), 0);
   const damageRecipients = getStandAsOneRecipients(state, target, damage);
   const damagePerRecipient = damageRecipients.length > 1 ? fixed(damage / damageRecipients.length) : damage;
   const inflictedDamage = fixedSum(damageRecipients.map((recipient) => (canTakeDamage(recipient) ? damagePerRecipient : 0)));
@@ -2996,7 +3075,6 @@ function attack(
     attackDamageBeforeArmor: attackDamage,
     heartseekerMultiplier: heartseekerActive ? 2 : undefined,
     distanceBonus: distanceBonus.damage || undefined,
-    challengePenalty: challengePenalty || undefined,
     armorBefore: target.resolvedStats.armor,
     armorReduction: armorReduction || undefined,
     armorApplied: armorAfterMods,
@@ -3062,7 +3140,7 @@ function attack(
         handleDeath(state, target, actor, { mode: 'blast', category: 'strike' });
       }
     }
-    if (category === 'normal' && hasAbility(target, 'retaliate') && target.alive) {
+    if (category === 'normal' && hasAbility(target, 'retaliate') && target.alive && target.engagedWith.size > 0 && availableCapacity(state, target) === 0) {
       attack(state, target, actor, target.resolvedStats.range > 0 ? 'ranged' : 'melee', true, 0, 'retaliation');
     }
   }
@@ -3818,6 +3896,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     currentTurnUnitId: null,
     ensorcelTargetIds: { player: null, enemy: null },
     changelingTriggeredSides: new Set<SideId>(),
+    pendingGraveVigorBlocks: [],
   };
   state.units.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
 

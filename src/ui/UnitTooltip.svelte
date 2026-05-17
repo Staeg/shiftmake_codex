@@ -1,7 +1,7 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
   import type { BattleUnit, ExplainedStatKey, ReplayTroopProfile, StatBreakdown, StatBreakdownLine } from '../engine/types';
-  import { formatAbilityExact, formatRoleExact, statIcon } from './inspectText';
+  import { formatAbilityDescription, formatRoleExact, statIcon } from './inspectText';
   import GameIcon from './GameIcon.svelte';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
 
@@ -142,8 +142,8 @@
               <button
                 type="button"
                 class="ability-chip"
-                on:mouseenter={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityExact(ability) })}
-                on:focus={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityExact(ability) })}
+                on:mouseenter={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityDescription(ability) })}
+                on:focus={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityDescription(ability) })}
                 on:mouseleave={() => (hoveredAbilityText = null)}
                 on:blur={() => (hoveredAbilityText = null)}
               >

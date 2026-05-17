@@ -1,7 +1,7 @@
 import { formatFixed } from '../engine/fixed';
 import { getAbility } from '../engine/unitCatalog';
 import type { BattleStep, BattleStepExplanation, RoleIntentId } from '../engine/types';
-import { formatAbilityExact, formatRoleExact } from './inspectText';
+import { formatAbilityDescription, formatRoleExact } from './inspectText';
 
 export type ReplayStepExplanationSection = {
   title: string;
@@ -19,7 +19,7 @@ function getAbilityDetails(explanation: NonNullable<BattleStepExplanation['abili
     const ability = getAbility(explanation.abilityId);
     return {
       label: ability.label,
-      description: formatAbilityExact(ability),
+      description: formatAbilityDescription(ability),
     };
   } catch {
     return {
@@ -148,10 +148,6 @@ function buildDamageSection(explanation: NonNullable<BattleStepExplanation['dama
     lines.push(`Distance bonus: +${formatFixed(explanation.distanceBonus)} -> ${formatFixed(running)}.`);
   }
 
-  if (explanation.challengePenalty) {
-    running -= explanation.challengePenalty;
-    lines.push(`Challenge Accepted penalty: -${formatFixed(explanation.challengePenalty)} -> ${formatFixed(running)}.`);
-  }
 
   if (explanation.armorInteraction === 'ignored') {
     lines.push('Armor was ignored for this damage instance.');

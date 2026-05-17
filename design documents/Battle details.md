@@ -58,8 +58,9 @@ The battle engine also supports passive runtime hooks that are still replay-visi
 
 - receive-side modifiers such as doubled healing or stat gains
 - move-off-hex triggers such as `Sentinel Runes`
-- per-shapeshift triggers such as `Wild Call` and `Bramble Snare`
+- per-shapeshift triggers such as `Forest Friends` and `Bramble Snare`
 - side-wide summon synergies that can affect future wolves or elementals even if the original source troop type is absent from that specific battle
+- target gating such as `Grave Vigor`, which removes already affected allies from later beneficial targeting by Grave Vigor Shamans
 
 ## Combat rules
 
@@ -70,6 +71,8 @@ Normal attack damage is:
 If armor is negative, it increases incoming normal damage instead of reducing it.
 
 Ranged attacks are further multiplied by any active mutator effect, currently only `Heavy Air`.
+
+`Shield Drill` is a Soldier sidegrade: Soldiers have lower armor, but ranged attacks against Soldiers are capped at 1 damage after all other modifiers.
 
 Current mutator-specific battle rules include:
 
@@ -136,4 +139,4 @@ Every battle produces a deterministic replay containing:
 
 The renderer is only a replay consumer.
 
-Because replay steps carry source ability ids and labels, upgrade moments such as `Overflowing Grace`, `Living Circuit`, `Loot Frenzy`, `Sentinel Runes`, and `Thrill of the Hunt` can be audited directly from the log.
+Because replay steps carry source ability ids and labels, upgrade moments such as `Bolstering Light`, `Living Circuit`, `Loot Frenzy`, `Sentinel Runes`, and `Thrill of the Hunt` can be audited directly from the log.

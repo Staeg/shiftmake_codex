@@ -148,50 +148,34 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 ## Implemented troop-type upgrades
 
 - `Shield Drill`
-- `Shredding Arrows`
-- `Pinning Volley`
+- `Crippling Shots`
 - `Sevenfold`
-- `Blood Oath`
-- `Last Witness`
-- `Blood in the Water`
-- `Packmaster's Whistle`
+- `Witness`
+- `Bloodhounds`
 - `Thrill of the Hunt`
-- `Executioner`
-- `Anointed`
-- `Wild Growth`
+- `Anointed Executioner`
+- `Forest Friends`
 - `True Form`
-- `Thornhide`
-- `Bramble Snare`
-- `Wild Call`
-- `Arc Conductor`
-- `Mitosis`
+- `Ent's Visage`
+- `Crackling Mitosis`
 - `Living Circuit`
-- `Retaliate`
-- `Brace`
-- `Challenge Accepted`
+- `Dine in Hell`
 - `Sentinel Runes`
-- `Rabble Rush`
-- `Scurry`
+- `Rat Behavior`
 - `Dogpile`
-- `Alternate Fuel`
-- `Early Riser`
-- `Rising Tide`
-- `Carrion Choir`
-- `Zeal`
+- `Hemomancy`
+- `Explosion Corpse`
+- `Bolstering Light`
 - `Mercy Before Dawn`
-- `Overflowing Grace`
-- `Concussive Shots`
-- `Skirmisher's Step`
-- `Heartseeker`
-- `Scavenger's Hunger`
+- `On the Hunt`
+- `Shadow's Embrace`
 - `War Drums`
-- `Serve Once More`
-- `Static Charge`
-- `Storm`
+- `Grave Vigor`
+- `Storm Rods`
 - `Spell Echo`
-- `Leyline Focus`
-- `Lightning Rods`
 
-Removed upgrade:
+Removed upgrades:
 
 - `Just a bunch of guys`
+- `Challenge Accepted`
+- `Leyline Focus`

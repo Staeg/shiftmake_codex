@@ -39,9 +39,9 @@ Troop-type upgrades key off the primary unit `type`, not faction.
 
 Examples:
 
-- `Shredding Arrows` applies to all Archers
-- `Scurry` applies to all Militia
-- `Storm` applies to all Wizards
+- `Crippling Shots` applies to all Archers
+- `Rat Behavior` applies to all Militia
+- `Storm Rods` applies to all Wizards
 
 Faction upgrades key off faction only and can modify:
 

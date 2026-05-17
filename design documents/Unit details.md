@@ -29,8 +29,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: none
 - Cost: 20
 - Troop upgrades:
-  - `Shredding Arrows` (tier 2): on attack, reduce the target armor by 1 for the battle
-  - `Pinning Volley` (tier 2): on attack, reduce the target speed by 1 for the battle
+  - `Crippling Shots` (tier 3): on attack, reduce the target armor by 1 and speed by 1 for the battle
 
 ### Avenger
 
@@ -41,8 +40,7 @@ Summoned units do not have their own unlockable upgrades.
 - Cost: 40
 - Troop upgrades:
   - `Sevenfold` (tier 2): consume nearby corpses to summon skeletons, up to 7 times
-  - `Blood Oath` (tier 2): when a nearby ally falls, set initiative to 100
-  - `Last Witness` (tier 3): when an ally dies on the Avenger's hex, strike the killer twice if it is still there
+  - `Witness` (tier 3): when a nearby ally falls, set initiative to 100; when an ally dies on the Avenger's hex, strike the killer once if it is still there
 
 ### Beastmaster
 
@@ -52,8 +50,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Summon Wolf 2`
 - Cost: 60
 - Troop upgrades:
-  - `Blood in the Water` (tier 2): starting wolves summon more wolves on kills
-  - `Packmaster's Whistle` (tier 3): if engaged, a wolf on the Beastmaster's hex joins the fight and heals 10
+  - `Bloodhounds` (tier 3): starting wolves summon more wolves on kills; if engaged, a wolf on the Beastmaster's hex joins the fight and heals 10
   - `Thrill of the Hunt` (tier 3): wolves on the Beastmaster's hex gain 10 initiative at end of turn, and any wolf kill gives allies on that hex +2 damage for the battle
 
 ### Champion
@@ -64,8 +61,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Valor 20`
 - Cost: 60
 - Troop upgrades:
-  - `Executioner` (tier 2): target the lowest-HP legal enemy
-  - `Anointed` (tier 3): healing and positive stat gains affecting the Champion are doubled
+  - `Anointed Executioner` (tier 3): target the lowest-HP legal enemy; healing and positive stat gains affecting the Champion are doubled
 
 ### Druid
 
@@ -75,11 +71,9 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Shapeshift - Bear`
 - Cost: 30
 - Troop upgrades:
-  - `Wild Growth` (tier 2): end of turn, heal self for 60
+  - `Forest Friends` (tier 3): end of turn, heal self and all units Bonded to that specific Druid for 20; each shapeshift summons 2 wolves
   - `True Form` (tier 2): shapeshift can trigger a second time
-  - `Thornhide` (tier 3): after shapeshifting, normal attackers take 6 damage when they hit the Druid
-  - `Bramble Snare` (tier 3): each shapeshift empowers the Druid so its melee hits apply an additional battle-long `-2 speed`
-  - `Wild Call` (tier 3): each shapeshift summons 2 wolves
+  - `Ent's Visage` (tier 3): after shapeshifting, normal attackers take 6 damage when they hit the Druid; each shapeshift empowers the Druid so its melee hits apply an additional battle-long `-2 speed`
 
 ### Elemental
 
@@ -97,8 +91,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Charge 4 Summon Elemental`
 - Cost: 30
 - Troop upgrades:
-  - `Arc Conductor` (tier 2): when an allied elemental dies, blast its hex for 8
-  - `Mitosis` (tier 3): each summoned elemental can repeat the elemental summon once
+  - `Crackling Mitosis` (tier 3): when an allied elemental dies, blast its hex for 8; each summoned elemental can repeat the elemental summon once
   - `Living Circuit` (tier 3): end of turn, the Elementalist gains 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative
 
 ### Knight
@@ -109,9 +102,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Taunt`
 - Cost: 60
 - Troop upgrades:
-  - `Retaliate` (tier 2): answer normal attacks with one normal attack
-  - `Brace` (tier 2): start of turn, if engaged at full capacity, gain +5 armor until next turn
-  - `Challenge Accepted` (tier 3): enemies redirected by the Knight deal 4 less damage while engaged with it
+  - `Dine in Hell` (tier 3): start of turn, if engaged at full capacity, gain +5 armor until next turn; while engaged at full capacity, answer normal attacks with one normal attack
   - `Sentinel Runes` (tier 3): the first enemy to move off the Knight's hex causes 2 elementals to be summoned on its new hex; if unused, this triggers on death instead
 
 ### Militia
@@ -122,8 +113,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: none
 - Cost: 10
 - Troop upgrades:
-  - `Rabble Rush` (tier 2): start of turn, gain +1 initiative per other Militia on the same hex
-  - `Scurry` (tier 3): does not count toward allied saturation
+  - `Rat Behavior` (tier 3): start of turn, gain +1 initiative per other Militia on the same hex; does not count toward allied saturation
   - `Dogpile` (tier 3): attacks against enemies engaged by at least 3 allies strike 1 extra time
 
 ### Necromancer
@@ -134,10 +124,8 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Corpse Summon Skeleton`
 - Cost: 40
 - Troop upgrades:
-  - `Alternate Fuel` (tier 2): may spend 10 HP instead of consuming a corpse
-  - `Early Riser` (tier 2): summoned skeletons spawn with 100 initiative
-  - `Rising Tide` (tier 3): summoned skeletons heal allies on their own hex for 7 each turn
-  - `Carrion Choir` (tier 3): consuming a corpse makes nearby enemies lose 1 armor and 1 damage for the battle
+  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; summoned skeletons heal allies on their own hex for 7 each turn
+  - `Explosion Corpse` (tier 3): summoned skeletons spawn with 100 initiative; consuming a corpse makes enemies adjacent to that corpse lose 1 armor and 1 damage for the battle
 
 ### Priest
 
@@ -147,9 +135,8 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Mend 4`
 - Cost: 20
 - Troop upgrades:
-  - `Zeal` (tier 3): when a Priest heals a target, that target gains +1 speed and +1 damage for the battle
+  - `Bolstering Light` (tier 3): when a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle; otherwise, that target gains 40 initiative
   - `Mercy Before Dawn` (tier 3): the first time each battle an ally in range would die, it survives at 1 HP
-  - `Overflowing Grace` (tier 2): when a Priest heal brings an ally to full HP, that ally gains 40 initiative
 
 ### Ranger
 
@@ -159,10 +146,8 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Self Haste 2`
 - Cost: 60
 - Troop upgrades:
-  - `Concussive Shots` (tier 2): on attack, set the target initiative to 0
-  - `Skirmisher's Step` (tier 2): after ranged attacks, move to a safer hex that still keeps an enemy in range
-  - `Heartseeker` (tier 3): attacks against unengaged targets deal double damage
-  - `Scavenger's Hunger` (tier 3): the first 3 kills against non-`Fading` enemies consume the corpse and summon a wolf there
+  - `On the Hunt` (tier 3): on attack, set the target initiative to 0; the first 2 kills against non-`Fading` enemies consume the corpse and summon a wolf there
+  - `Shadow's Embrace` (tier 3): after ranged attacks, move to a safer hex that still keeps an enemy in range; attacks against unengaged targets deal double damage
 
 ### Shaman
 
@@ -173,8 +158,7 @@ Summoned units do not have their own unlockable upgrades.
 - Cost: 20
 - Troop upgrades:
   - `War Drums` (tier 2): `Enhance 1` affects all allies on the chosen allied hex
-  - `Serve Once More` (tier 3): beneficial effects also make the target summon a skeleton on death and leave no corpse
-  - `Static Charge` (tier 3): `Enhance` also gives affected allies 1 extra strike on their next normal attack
+  - `Grave Vigor` (tier 3): beneficial effects also make the target summon a skeleton on death and leave no corpse; `Enhance` gives affected allies 1 extra strike on their next normal attack; targets affected by any beneficial effect from a Grave Vigor Shaman ignore future beneficial effects and targeting from Grave Vigor Shamans
 
 ### Skeleton
 
@@ -192,7 +176,7 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: none
 - Cost: 24
 - Troop upgrade:
-  - `Shield Drill` (tier 2): allies on a Soldier's hex take 1 less damage from ranged attacks and strikes
+  - `Shield Drill` (tier 3): Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers
 
 ### Wizard
 
@@ -202,10 +186,8 @@ Summoned units do not have their own unlockable upgrades.
 - Abilities: `Blast 5`
 - Cost: 20
 - Troop upgrades:
-  - `Storm` (tier 2): every 4 turns, make 4 extra strikes against a random enemy in range
+  - `Storm Rods` (tier 3): every 4 turns, make 4 extra strikes against a random enemy in range; `Blast` deals +1 damage per elemental on the target hex, and Wizards summon 1 elemental at battle start
   - `Spell Echo` (tier 2): `Blast` chains to an adjacent hex that has not already been hit in that chain
-  - `Leyline Focus` (tier 2): start of turn, if no enemy is within 1 hex, gain 25 initiative
-  - `Lightning Rods` (tier 3): `Blast` deals +1 damage per elemental on the target hex, and Wizards summon 1 elemental at battle start
 
 ### Wolf
 

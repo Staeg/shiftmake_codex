@@ -41,7 +41,7 @@ export const REQUIRED_ABILITY_VERIFICATION_IDS = [
   'shapeshift-bear-2',
   'thornhide',
   'arc-conductor',
-  'challenge-accepted',
+  'retaliate',
   'rabble-rush',
   'early-riser',
   'carrion-choir',
@@ -95,7 +95,7 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     id: 'soldier-shield-drill',
     group: 'Protection And Redirects',
     label: 'Shield Drill',
-    summary: 'A Soldier should blunt ranged damage for allies sharing its hex.',
+    summary: 'A Soldier should cap ranged damage taken after accepting its armor sidegrade.',
     seed: 66,
     player: selection({
       'human/soldier': startCount('human/soldier'),
@@ -109,8 +109,8 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     coveredAbilityIds: ['shield-drill'],
     signals: [],
     manualChecks: [
-      'Use the attack log and board state together; this protection is expressed through reduced damage, not a separate buff event.',
-      'Confirm the allied backliner on the Soldier hex survives ranged focus longer than expected.',
+      'Use the attack log and board state together; this protection is expressed through capped ranged damage, not a separate buff event.',
+      'Confirm ranged attacks against Soldiers deal at most 1 damage after all modifiers.',
     ],
   },
   {
@@ -197,10 +197,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     manualChecks: ['Confirm the blast originates from the dead elemental hex and catches enemies there.'],
   },
   {
-    id: 'knight-challenge-accepted',
+    id: 'knight-dine-in-hell',
     group: 'Protection And Redirects',
-    label: 'Challenge Accepted',
-    summary: 'Redirected enemies should lose 4 damage while stuck on the upgraded Knight.',
+    label: 'Dine in Hell',
+    summary: 'A full-capacity Knight should brace and only retaliate against normal attacks while fully engaged.',
     seed: 84,
     player: selection({
       'human/knight': startCount('human/knight'),
@@ -208,14 +208,14 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 2) }),
     playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['knight-challenge-accepted'],
+    playerTroopTypeUpgradeIds: ['knight-dine-in-hell'],
     enemyFactionUpgradeIds: [],
     enemyTroopTypeUpgradeIds: [],
-    coveredAbilityIds: ['challenge-accepted'],
+    coveredAbilityIds: ['retaliate'],
     signals: [],
     manualChecks: [
-      'Confirm the penalty stays tied to enemies actually redirected onto that Knight.',
-      'Use repeated attack damage values against the Knight to verify the hidden -4 damage penalty, because this upgrade does not emit its own log line.',
+      'Confirm retaliation appears only while the Knight is engaged at full capacity.',
+      'Confirm retaliation steps are marked as retaliation and do not recursively retaliate.',
     ],
   },
   {

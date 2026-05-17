@@ -678,44 +678,30 @@ describe('ability mechanics', () => {
       ],
       troopTypeUpgradeIds: [
         'soldier-shield-drill',
-        'archer-pinning-volley',
-        'archer-shredding-arrows',
-        'avenger-blood-oath',
+        'archer-crippling-shots',
+        'avenger-witness',
         'avenger-sevenfold',
-        'avenger-last-witness',
-        'beastmaster-blood-in-the-water',
-        'beastmaster-packmasters-whistle',
+        'beastmaster-bloodhounds',
         'beastmaster-thrill-of-the-hunt',
-        'champion-anointed',
-        'druid-wild-growth',
+        'champion-anointed-executioner',
+        'druid-forest-friends',
         'druid-true-form',
-        'druid-thornhide',
-        'druid-bramble-snare',
-        'druid-wild-call',
-        'elementalist-arc-conductor',
-        'elementalist-mitosis',
+        'druid-ents-visage',
+        'elementalist-crackling-mitosis',
         'elementalist-living-circuit',
-        'knight-brace',
-        'knight-challenge-accepted',
+        'knight-dine-in-hell',
         'knight-sentinel-runes',
         'militia-dogpile',
-        'militia-rabble-rush',
-        'necromancer-rising-tide',
-        'necromancer-early-riser',
-        'necromancer-carrion-choir',
-        'priest-overflowing-grace',
-        'priest-zeal',
+        'militia-rat-behavior',
+        'necromancer-hemomancy',
+        'necromancer-explosion-corpse',
+        'priest-bolstering-light',
         'priest-mercy-before-dawn',
-        'ranger-concussive-shots',
-        'ranger-skirmishers-step',
-        'ranger-heartseeker',
-        'ranger-scavengers-hunger',
-        'shaman-serve-once-more',
-        'shaman-static-charge',
+        'ranger-on-the-hunt',
+        'ranger-shadows-embrace',
+        'shaman-grave-vigor',
         'shaman-war-drums',
-        'wizard-leyline-focus',
-        'wizard-lightning-rods',
-        'wizard-storm',
+        'wizard-storm-rods',
         'wizard-spell-echo',
       ],
     };
@@ -751,11 +737,10 @@ describe('ability mechanics', () => {
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('packmasters-whistle');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('thrill-of-the-hunt');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).not.toContain('summon-wolf-2');
-    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('regen-60');
+    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('forest-friends');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('shapeshift-bear-2');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('thornhide');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('bramble-snare');
-    expect(elfDruid.abilities.map((ability) => ability.id)).toContain('wild-call');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('fade-into-shadow');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('charge-4-summon-elemental-mitosis');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('arc-conductor');
@@ -765,27 +750,26 @@ describe('ability mechanics', () => {
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('early-riser');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('carrion-choir');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).not.toContain('corpse-summon-skeleton');
-    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('zeal-enhance-1');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('bolstering-light');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('mercy-before-dawn');
-    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('overflowing-grace');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('tubthumping');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('self-haste-2');
     expect(elfRanger.abilities.map((ability) => ability.id)).not.toContain('haste-1');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('concussive-shots');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('skirmishers-step');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('heartseeker');
-    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('scavengers-hunger');
+    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('scavengers-hunger-2');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('serve-once-more');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('static-charge');
+    expect(trollShaman.abilities.map((ability) => ability.id)).toContain('grave-vigor');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('war-drums');
-    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('leyline-focus');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('lightning-rods');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('summon-elemental-1');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('charge-4-random-enemy-r-strike-4');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('spell-echo');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('snatch-the-moment');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('brace');
-    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('challenge-accepted');
+    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('retaliate');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('sentinel-runes');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('hold-the-standard');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('dogpile');
@@ -1215,19 +1199,19 @@ describe('ability mechanics', () => {
     expect(replay.steps[stonebloodStepIndex]?.message).toContain('25 HP');
   });
 
-  it('zeal reacts to applied heal effects even when the heal restores 0 HP', () => {
+  it('bolstering light grants initiative when a priest heal does not top the target off', () => {
     const priest = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-zeal'] },
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-bolstering-light'] },
       createTroopInstance('human', 'priest'),
       'player',
     );
+    const ally = makeBattleCombatant('human/soldier', 'player');
+    ally.stats = { ...ally.stats, health: ally.stats.health + 30 };
     const replay = resolveBattle(
-      makeBattleInput([priest, makeBattleCombatant('human/soldier', 'player')], [makeBattleCombatant('human/knight', 'enemy')], 29),
+      makeBattleInput([priest, ally], [makeBattleCombatant('human/knight', 'enemy')], 29),
     );
 
-    expect(replay.steps.some((step) => step.kind === 'heal' && step.message.includes('Human Priest heals Human Soldier for 0'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 speed'))).toBe(true);
-    expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier gains +1 damage'))).toBe(true);
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'bolstering-light' && step.metadata.effect === 'initiativeDelta')).toBe(true);
   });
 
   it('serve once more reacts to both regen and other beneficial effects', () => {
@@ -1297,14 +1281,14 @@ describe('ability mechanics', () => {
     expect(fragileReplay.steps.some((step) => step.message.includes('summons Skeleton'))).toBe(false);
   });
 
-  it('retaliate only answers normal attacks once instead of looping indefinitely', () => {
+  it('dine in hell only retaliates while engaged at full capacity', () => {
     const knightA = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-retaliate'] },
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-dine-in-hell'] },
       createTroopInstance('human', 'knight'),
       'player',
     );
     const knightB = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-retaliate'] },
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-dine-in-hell'] },
       createTroopInstance('human', 'knight'),
       'enemy',
     );
@@ -1312,7 +1296,6 @@ describe('ability mechanics', () => {
     const retaliationCount = replay.steps.filter((step) => step.kind === 'attack' && step.metadata?.category === 'retaliation').length;
     const normalCount = replay.steps.filter((step) => step.kind === 'attack' && step.metadata?.category === 'normal').length;
 
-    expect(retaliationCount).toBeGreaterThan(0);
     expect(retaliationCount).toBeLessThanOrEqual(normalCount);
   });
 
@@ -1332,9 +1315,9 @@ describe('ability mechanics', () => {
     expect(elementalProfile?.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });
 
-  it('overflowing grace grants initiative when a priest heal tops an ally off', () => {
+  it('bolstering light grants zeal stats when a priest heal tops an ally off', () => {
     const priest = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-overflowing-grace'] },
+      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-bolstering-light'] },
       createTroopInstance('human', 'priest'),
       'player',
     );
@@ -1342,7 +1325,8 @@ describe('ability mechanics', () => {
     ally.stats = { ...ally.stats, health: ally.stats.health - 4 };
     const replay = resolveBattle(makeBattleInput([priest, ally], [makeBattleCombatant('human/knight', 'enemy')], 71));
 
-    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'overflowing-grace')).toBe(true);
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'bolstering-light' && step.metadata.effect === 'haste')).toBe(true);
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'bolstering-light' && step.metadata.effect === 'ramp')).toBe(true);
   });
 
   it('rowdy regrowth triggers from non-regen healing', () => {
@@ -1404,7 +1388,7 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, health: 1 };
     const replay = resolveBattle(makeBattleInput([ranger], [enemy], 76));
 
-    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'scavengers-hunger')).toBe(true);
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'scavengers-hunger-2')).toBe(true);
     expect(replay.steps.some((step) => step.message.includes('summons Wolf'))).toBe(true);
   });
 

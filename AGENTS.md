@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-**Shiftmake** is a browser-based, primarily singleplayer turn-based strategy game with light pixel art graphics. The design documents are in `design documents/Overview.md`, `design documents/Unit details.md`, `design documents/Battle details.md`, `design documents/Overworld.md`, and `design documents/Rifts.md`. The full technical spec is in `TECHNICAL.md` - read it before writing any code.
+**Shiftmake** is a browser-based, primarily singleplayer turn-based strategy game with light pixel art graphics. The design documents are in `design documents/Overview.md`, `design documents/Unit details.md`, `design documents/Battle details.md`, `design documents/Overworld.md`, and `design documents/Rifts.md`. The full technical spec is in `TECHNICAL.md` - read it before writing any code. After implementing any changes that contradict one of the markdown documents, update those documents.
 
 ### Core Concept
 

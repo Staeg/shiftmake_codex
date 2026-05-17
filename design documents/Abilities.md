@@ -98,7 +98,7 @@ Filters match against a unit's combined primary `type` plus `attributes`.
 ### Heal
 
 - restores HP immediately
-- still counts as a successful heal-effect application even when it restores `0` HP
+- Mercy Before Dawn uses the heal pipeline when it preserves a dying ally, so heal synergies and healing reductions apply to that save
 
 ### Ramp
 
@@ -149,7 +149,7 @@ Effects may be marked as:
 - `harmful`
 - `neutral`
 
-These dispositions are what `onEffectApplied` reactions filter on. This lets abilities like Shaman `Serve Once More` react to any future beneficial effects instead of hard-coding a specific source ability.
+These dispositions are what `onEffectApplied` reactions filter on. This lets effects inside `Grave Vigor` react to any future beneficial effects instead of hard-coding a specific source ability.
 
 ### Summon lineage
 
@@ -157,13 +157,13 @@ Summons can carry extra runtime abilities through the summon effect itself. If o
 
 This is how:
 
-- `Blood in the Water` propagates wolf replication
-- `Mitosis` propagates elemental splitting
-- `Rising Tide` propagates skeleton healing
+- `Bloodhounds` propagates wolf replication
+- `Crackling Mitosis` propagates elemental splitting
+- `Hemomancy` propagates skeleton healing
 
 ### Corpse substitution
 
-Corpse-consuming summon effects can be modified by passive abilities such as `Alternate Fuel`, which lets the actor spend health instead of requiring or consuming a corpse, but only if the payment is survivable.
+Corpse-consuming summon effects can be modified by passive abilities such as `Hemomancy`, which lets the actor spend health instead of requiring or consuming a corpse, but only if the payment is survivable.
 
 ### Attack categories
 
@@ -173,13 +173,13 @@ Attacks are classified at runtime as:
 - `retaliation`
 - `strike`
 
-`Retaliate` only answers `normal` attacks, which prevents retaliation loops while still allowing ordinary on-attack and on-kill logic to function.
+`Dine in Hell` retaliation only answers `normal` attacks while the Knight is engaged at full capacity, which prevents retaliation loops while still allowing ordinary on-attack and on-kill logic to function.
 
 ## Representative ability list
 
 The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and upgrade-facing abilities are also summarized in `Unit details.md`; this section calls out the main reusable ability patterns rather than every authored passive helper.
 
-### Alternate Fuel
+### Hemomancy
 
 - `passive`
 - Effect: corpse-consuming summon abilities may spend 10 HP instead of requiring or consuming a corpse, if that would not kill the actor
@@ -234,6 +234,11 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `target: default`
 - Effect: set the attacked target's initiative to 0
 
+### Bolstering Light
+
+- `passive`
+- Effect: if a heal brings the target to full HP, the target gains +1 speed and +1 damage for the battle; otherwise, the target gains 40 initiative
+
 ### Corpse Summon Skeleton
 
 - `onFallen`
@@ -241,12 +246,17 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `trigger modifier: fallen: { allegiance: all, radius: 0, radiusSource: 'selfRange' }`
 - Effect: consume a valid corpse in range to summon 1 skeleton
 
-### Corpse Summon Skeleton (Rising Tide)
+### Corpse Summon Skeleton (Hemomancy)
 
 - `onFallen`
 - battle
 - `trigger modifier: fallen: { allegiance: all, radius: 0, radiusSource: 'selfRange' }`
 - Effect: consume a valid corpse in range to summon 1 skeleton with `AoE Ally 0 Heal 7`
+
+### Explosion Corpse
+
+- `passive`
+- Effect: skeletons summoned by this unit spawn with 100 initiative; whenever this unit consumes a corpse, enemies adjacent to that corpse's hex lose 1 armor and 1 damage for the battle
 
 ### Enhance 1
 
@@ -294,6 +304,12 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - instant
 - `target: aoe ally R`
 - Effect: heal allies within this unit's range for 4
+
+### Grave Vigor
+
+- `passive`
+- Effect: after this unit beneficially affects an ally, that ally ignores future beneficial effects and targeting from units with `Grave Vigor`
+- With `War Drums`, every ally on the chosen hex receives the Grave Vigor bonuses first, then each becomes ineligible for later Grave Vigor targeting and beneficial effects
 
 ### On Death Summon Skeleton
 
@@ -346,17 +362,22 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `target: self`
 - Effect: heal self for 60
 
+### Forest Friends
+
+- `passive`
+- Effect: end of turn, heal self and all units Bonded to this specific unit for 20; whenever this unit shapeshifts, summon 2 wolves
+
 ### Retaliate
 
 - `passive`
-- Effect: when hit by a normal attack, make one normal retaliation attack
+- Effect: when hit by a normal attack while engaged at full capacity, make one normal retaliation attack
 
 ### Scurry
 
 - `passive`
 - Effect: ignore allied saturation limits for spawning and movement occupancy checks
 
-### Serve Once More
+### Grave Vigor Corpse Mark
 
 - `onEffectApplied`
 - battle
@@ -373,12 +394,12 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `trigger modifier: maxUses: 1`
 - Effects: +100 health, +5 speed, +20 damage, set range to 0, set role to frontline
 
-### Shredding Arrows
+### Crippling Shots
 
 - `onAttack`
 - battle
 - `target: default`
-- Effect: reduce the attacked target armor by 1 for the battle
+- Effect: reduce the attacked target armor by 1 and speed by 1 for the battle
 
 ### Summon Wolf 2
 
@@ -387,7 +408,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `target: self`
 - Effect: summon 2 wolves
 
-### Summon Wolf 2 (Blood in the Water)
+### Summon Wolf 2 (Bloodhounds)
 
 - `startOfBattle`
 - battle
@@ -438,11 +459,3 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `trigger modifier: fallen: { allegiance: ally, radius: 0 }`
 - `target: self`
 - Effect: gain +3 speed and +3 damage
-
-### Zeal
-
-- `onEffectApplied`
-- battle
-- `trigger modifier: effectApplication: { effectKinds: ['heal'] }`
-- `target: default`
-- Effect: after this unit successfully applies a heal effect, the same target gains +1 speed and +1 damage

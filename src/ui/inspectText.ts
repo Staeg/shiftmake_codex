@@ -116,6 +116,10 @@ export function formatAbilityExact(ability: AbilityDefinition): string {
   return `${trigger}. Target: ${target}. Effect: ${effects} ${duration}.`;
 }
 
+export function formatAbilityDescription(ability: AbilityDefinition): string {
+  return ability.shortText;
+}
+
 export function formatRoleExact(role: RoleId): string {
   return {
     frontline:

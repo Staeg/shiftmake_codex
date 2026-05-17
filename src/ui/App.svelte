@@ -60,7 +60,7 @@
   import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
   import EventLog from './EventLog.svelte';
   import GameIcon from './GameIcon.svelte';
-  import { displayIcon, formatAbilityExact, statIcon } from './inspectText';
+  import { displayIcon, formatAbilityDescription, statIcon } from './inspectText';
   import ReplayStepExplanation from './ReplayStepExplanation.svelte';
   import { buildReplayStepExplanationView } from './replayStepExplanation';
   import { getRiftVisual } from './riftVisuals';
@@ -637,7 +637,7 @@
 
     faction.abilityIds.forEach((abilityId) => {
       const ability = getAbility(abilityId);
-      parts.push(`${ability.label}: ${formatAbilityExact(ability)}`);
+      parts.push(`${ability.label}: ${formatAbilityDescription(ability)}`);
     });
 
     return parts.length > 0 ? parts : ['No special modifiers.'];
@@ -648,7 +648,7 @@
     const nonStatModifiers = [
       ...faction.abilityIds.map((abilityId) => {
         const ability = getAbility(abilityId);
-        return `${ability.label}: ${formatAbilityExact(ability)}`;
+        return `${ability.label}: ${formatAbilityDescription(ability)}`;
       }),
     ];
     const stats = (['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'] as ExplainedStatKey[])
@@ -716,7 +716,7 @@
       abilities: abilities.map((ability) => ({
         id: ability.id,
         label: ability.label,
-        description: ability.shortText ?? formatAbilityExact(ability),
+        description: formatAbilityDescription(ability),
       })),
     };
   }
@@ -1417,7 +1417,7 @@
   function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
     hoveredAbilityTooltip = {
       label: ability.label,
-      description: 'shortText' in ability ? ability.shortText ?? formatAbilityExact(ability) : ability.description,
+      description: 'shortText' in ability ? formatAbilityDescription(ability) : ability.description,
     };
   }
 

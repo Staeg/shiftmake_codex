@@ -363,7 +363,6 @@ export interface BattleDamageExplanation {
   finalDamage: number;
   heartseekerMultiplier?: number;
   distanceBonus?: number;
-  challengePenalty?: number;
   armorBefore?: number;
   armorReduction?: number;
   armorApplied?: number;

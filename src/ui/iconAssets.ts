@@ -22,6 +22,24 @@ const iconModules = import.meta.glob('../../assets/icons/final/**/*.{png,svg}', 
 }) as Record<string, string>;
 
 const iconUrls = new Map<string, string>();
+const upgradeIconAliases: Record<string, string[]> = {
+  'archer-crippling-shots': ['archer-shredding-arrows', 'archer-pinning-volley'],
+  'avenger-witness': ['avenger-last-witness', 'avenger-blood-oath'],
+  'beastmaster-bloodhounds': ['beastmaster-blood-in-the-water', 'beastmaster-packmasters-whistle'],
+  'champion-anointed-executioner': ['champion-anointed', 'champion-executioner'],
+  'druid-forest-friends': ['druid-wild-call', 'druid-wild-growth'],
+  'druid-ents-visage': ['druid-thornhide', 'druid-bramble-snare'],
+  'elementalist-crackling-mitosis': ['elementalist-mitosis', 'elementalist-arc-conductor'],
+  'knight-dine-in-hell': ['knight-retaliate', 'knight-brace'],
+  'militia-rat-behavior': ['militia-scurry', 'militia-rabble-rush'],
+  'necromancer-hemomancy': ['necromancer-alternate-fuel', 'necromancer-rising-tide'],
+  'necromancer-explosion-corpse': ['necromancer-carrion-choir', 'necromancer-early-riser'],
+  'priest-bolstering-light': ['priest-zeal', 'priest-overflowing-grace'],
+  'ranger-on-the-hunt': ['ranger-concussive-shots', 'ranger-scavengers-hunger'],
+  'ranger-shadows-embrace': ['ranger-heartseeker', 'ranger-skirmishers-step'],
+  'shaman-grave-vigor': ['shaman-serve-once-more', 'shaman-static-charge'],
+  'wizard-storm-rods': ['wizard-storm', 'wizard-lightning-rods'],
+};
 
 Object.entries(iconModules).forEach(([path, url]) => {
   const normalized = path.replace(/\\/g, '/').replace('../../assets/icons/final/', 'assets/icons/final/');
@@ -54,7 +72,12 @@ export function getAbilityIconUrl(abilityId: AbilityId): string {
 }
 
 export function getUpgradeIconUrl(upgradeId: UpgradeId): string {
-  return iconUrl('faction_upgrade', upgradeId) || iconUrl('troop_type_upgrade', upgradeId);
+  return (
+    iconUrl('faction_upgrade', upgradeId) ||
+    iconUrl('troop_type_upgrade', upgradeId) ||
+    (upgradeIconAliases[upgradeId] ?? []).map((id) => iconUrl('troop_type_upgrade', id)).find(Boolean) ||
+    ''
+  );
 }
 
 export function getMutatorIconUrl(mutatorId: MutatorId): string {
