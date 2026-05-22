@@ -1,4 +1,4 @@
-import { fixed, fixedClamp } from './fixed';
+import { fixed, fixedClamp, formatFixed } from './fixed';
 import {
   applyStatModifier,
   clampStat,
@@ -6,6 +6,7 @@ import {
   getAbility,
   getFaction,
   getFactionUpgrade,
+  getTroopQuantityForCost,
   getTroopTypeUpgrade,
   getTroopUnlockId,
   getUnitType,
@@ -354,6 +355,33 @@ export function getResolvedStatBreakdowns(
     troopTypeDetailed.statContributions,
     factionDetailed.statContributions,
   );
+}
+
+export function getTroopQuantityBreakdown(troop: Pick<TroopInstance, 'factionId' | 'unitTypeId'>): StatBreakdown {
+  const faction = getFaction(troop.factionId);
+  const unitType = getUnitType(troop.unitTypeId);
+  const baseQuantity = getTroopQuantityForCost(unitType.cost);
+  const base = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+  const lines: StatBreakdownLine[] = [{ label: `${unitType.label} base cost ${formatFixed(unitType.cost)}`, value: baseQuantity, kind: 'base' }];
+
+  const costMultiplier = faction.statAdjustments.cost?.multiplier ?? 1;
+  const costFlat = faction.statAdjustments.cost?.flat ?? 0;
+  if (costMultiplier !== 1 || costFlat !== 0) {
+    const costText = costMultiplier !== 1
+      ? `Cost x${formatFixed(costMultiplier)}`
+      : `Cost ${costFlat > 0 ? '+' : ''}${formatFixed(costFlat)}`;
+    lines.push({
+      label: `${faction.label} ${costText} -> quantity x${formatFixed(base.quantity / baseQuantity)}`,
+      value: fixed(base.quantity - baseQuantity),
+      kind: 'delta',
+    });
+  }
+
+  return {
+    stat: 'quantity',
+    finalValue: base.quantity,
+    lines,
+  };
 }
 
 export function getEnemyStatBreakdowns(

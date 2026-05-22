@@ -1,4 +1,5 @@
 import type { AbilityDefinition, AbilityEffectDefinition, AbilityTargetDefinition, AbilityTiming, ExplainedStatKey, RoleId } from '../engine/types';
+import { getUnitType } from '../engine/unitCatalog';
 
 export const STAT_ICONS: Record<ExplainedStatKey, string> = {
   health: '❤️',
@@ -117,7 +118,13 @@ export function formatAbilityExact(ability: AbilityDefinition): string {
 }
 
 export function formatAbilityDescription(ability: AbilityDefinition): string {
-  return ability.shortText;
+  const summonDescriptions = ability.effects
+    .filter((effect): effect is Extract<AbilityEffectDefinition, { kind: 'summon' }> => effect.kind === 'summon')
+    .map((effect) => {
+      const unitType = getUnitType(effect.unitTypeId);
+      return `Summoned ${unitType.label}: ${unitType.role} troop with ${unitType.quantity} bodies, ${unitType.stats.health} health, ${unitType.stats.damage} damage, ${unitType.stats.speed} speed.`;
+    });
+  return [ability.shortText, ...summonDescriptions].join(' ');
 }
 
 export function formatRoleExact(role: RoleId): string {

@@ -521,10 +521,10 @@ export class BattleRenderer {
   }
 
   private drawTargetMarker(marker: Graphics): void {
-    const red = 0xe73731;
-    const darkRed = 0x7f1010;
+    const silver = 0xd7dde6;
+    const darkSilver = 0x596777;
     marker.clear();
-    marker.lineStyle(2, darkRed, 0.26);
+    marker.lineStyle(2, darkSilver, 0.34);
     marker.drawCircle(0, 0, 4.3);
     marker.moveTo(-9, 0);
     marker.lineTo(-5, 0);
@@ -535,7 +535,7 @@ export class BattleRenderer {
     marker.moveTo(0, 5);
     marker.lineTo(0, 9);
 
-    marker.lineStyle(0.95, red, 0.92);
+    marker.lineStyle(0.95, silver, 0.94);
     marker.drawCircle(0, 0, 4.3);
     marker.moveTo(-9, 0);
     marker.lineTo(-5, 0);

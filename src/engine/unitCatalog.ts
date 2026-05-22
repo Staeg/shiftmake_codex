@@ -1887,6 +1887,44 @@ export function composeSummonedTroopDefinition(factionId: FactionId, unitTypeId:
   };
 }
 
+export interface SummonedUnitPreview {
+  sourceAbilityId: AbilityId;
+  unitTypeId: UnitTypeId;
+  count: number;
+  consumesCorpse: boolean;
+  initialInitiative?: number;
+  grantedAbilityIds: AbilityId[];
+  troop: TroopDefinition;
+}
+
+export function getSummonedUnitPreviews(ability: AbilityDefinition, summonerFactionId: FactionId): SummonedUnitPreview[] {
+  return ability.effects
+    .filter((effect): effect is Extract<AbilityEffectDefinition, { kind: 'summon' }> => effect.kind === 'summon')
+    .map((effect) => {
+      const troop = composeSummonedTroopDefinition(summonerFactionId, effect.unitTypeId);
+      const grantedAbilities = (effect.grantedAbilityIds ?? []).map(getAbility);
+      const abilities = [...troop.abilities];
+      grantedAbilities.forEach((grantedAbility) => {
+        if (!abilities.some((abilityEntry) => abilityEntry.id === grantedAbility.id)) {
+          abilities.push(grantedAbility);
+        }
+      });
+
+      return {
+        sourceAbilityId: ability.id,
+        unitTypeId: effect.unitTypeId,
+        count: effect.count,
+        consumesCorpse: effect.consumeFallenUnitCorpse === true,
+        initialInitiative: effect.initialInitiative,
+        grantedAbilityIds: effect.grantedAbilityIds ? [...effect.grantedAbilityIds] : [],
+        troop: {
+          ...troop,
+          abilities,
+        },
+      };
+    });
+}
+
 export const TROOP_CATALOG = Object.values(FACTIONS).reduce<Record<string, TroopDefinition>>((acc, faction) => {
   Object.keys(UNIT_TYPES).forEach((unitTypeId) => {
     acc[`${faction.id}/${unitTypeId}`] = composeBaseTroopDefinition(faction.id, unitTypeId);

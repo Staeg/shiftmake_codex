@@ -31,7 +31,7 @@ export function getRiftVisual(rift: Pick<RiftInstance, 'seed' | 'tier'>): RiftVi
   const saturation = 3.5 + random() * 2.75;
   const brightness = 0.95 + random() * 0.3;
   const contrast = 1.05 + random() * 0.35;
-  const rotationDeg = -14 + random() * 28;
+  const rotationDeg = -180 + random() * 360;
   const glowAlpha = 0.28 + random() * 0.18;
   const tint = `hsl(${hue} 93% 64%)`;
   const glow = `hsla(${hue} 100% 68% / ${glowAlpha.toFixed(2)})`;

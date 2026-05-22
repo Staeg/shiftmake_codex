@@ -378,6 +378,8 @@ export interface BattleStepExplanation {
 }
 
 export interface BattleStepMetadata {
+  activeUnitId?: string;
+  secondaryUnitIds?: string[];
   roleIntent?: RoleIntentId;
   reasonCode?: string;
   targetRole?: RoleId;
@@ -395,7 +397,7 @@ export interface BattleStepMetadata {
   toQ?: number;
   toR?: number;
   explanation?: BattleStepExplanation;
-  [key: string]: number | string | boolean | BattleStepExplanation | undefined;
+  [key: string]: number | string | string[] | boolean | BattleStepExplanation | undefined;
 }
 
 export interface BattleStep {
@@ -441,7 +443,7 @@ export interface StatBreakdownLine {
 }
 
 export interface StatBreakdown {
-  stat: ExplainedStatKey;
+  stat: ExplainedStatKey | 'quantity';
   finalValue: number;
   lines: StatBreakdownLine[];
 }
@@ -546,6 +548,7 @@ export interface CampaignReportPayload {
 export interface ReplayIndexEntry {
   id: string;
   riftId: string | null;
+  riftLabel?: string;
   cycleNumber: number;
   battleSeed: number;
   outcome: BattleOutcome;
@@ -673,13 +676,17 @@ export interface ValidationIssue {
     | 'duplicate_assignment'
     | 'same_faction_conflict'
     | 'same_type_conflict'
-    | 'no_assignments'
+    | 'no_troops_assigned'
+    | 'idle_troops_remaining'
+    | 'holding_only_no_new_attack'
     | 'invalid_phase'
     | 'unknown_troop'
     | 'unknown_rift'
-    | 'own_rift';
+    | 'own_rift'
+    | 'holding_troop_locked';
   message: string;
   troopId?: TroopId;
+  conflictTroopId?: TroopId;
   riftId?: string;
 }
 

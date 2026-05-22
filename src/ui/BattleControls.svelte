@@ -29,9 +29,9 @@
 
 <section class="panel">
   <div class="controls">
+    <button class="play-button" on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Play'}</button>
     <button on:click={onJumpStart} disabled={currentStep < 0}>Reset Replay</button>
     <button on:click={onStepBack} disabled={currentStep < 0}>Previous Step</button>
-    <button on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Play'}</button>
     <button on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>Next Step</button>
   </div>
 
@@ -81,6 +81,16 @@
 
   button {
     cursor: pointer;
+  }
+
+  .play-button {
+    background: linear-gradient(135deg, #f3ce73, #da8f32);
+    border-color: rgba(255, 230, 160, 0.82);
+    color: #161008;
+    font-weight: 800;
+    box-shadow:
+      0 0 0 1px rgba(255, 238, 183, 0.18),
+      0 8px 18px rgba(0, 0, 0, 0.26);
   }
 
   button:disabled {

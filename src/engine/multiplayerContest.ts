@@ -472,8 +472,10 @@ function applyPlanningAssignments(projected: GameState, submission: ContestMulti
   }
 
   const assignmentValidation = validateAssignments(next);
-  if (!assignmentValidation.ok && next.troops.some((troop) => troop.assignmentRiftId !== null)) {
-    return rejectSubmission(assignmentValidation.issues[0]?.message ?? 'Submitted assignments are not legal.');
+  const softIssueKinds = new Set(['no_troops_assigned', 'idle_troops_remaining', 'holding_only_no_new_attack']);
+  const blockingIssue = assignmentValidation.issues.find((issue) => !softIssueKinds.has(issue.kind));
+  if (blockingIssue && next.troops.some((troop) => troop.assignmentRiftId !== null)) {
+    return rejectSubmission(blockingIssue.message);
   }
   return { ok: true, projectedState: next };
 }

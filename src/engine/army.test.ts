@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createTroopInstance, getResolvedStatBreakdowns, resolveEnemyCombatant, resolveTroopCombatant } from './army';
-import { composeBaseTroopDefinition, getFactionNativeTroopUnlockIds, getTroopQuantityForCost, isNativeTroopUnlockId } from './unitCatalog';
+import { createTroopInstance, getResolvedStatBreakdowns, getTroopQuantityBreakdown, resolveEnemyCombatant, resolveTroopCombatant } from './army';
+import { composeBaseTroopDefinition, getAbility, getFactionNativeTroopUnlockIds, getSummonedUnitPreviews, getTroopQuantityForCost, isNativeTroopUnlockId } from './unitCatalog';
 
 describe('troop composition', () => {
   it('derives troop quantity from 120 divided by resolved troop cost', () => {
@@ -24,6 +24,25 @@ describe('troop composition', () => {
     expect(composeBaseTroopDefinition('elf', 'soldier').cost).toBe(24);
     expect(composeBaseTroopDefinition('troll', 'soldier').cost).toBe(24);
     expect(composeBaseTroopDefinition('goblin', 'soldier').cost).toBe(12);
+  });
+
+  it('explains goblin quantity as a cost-to-quantity modifier', () => {
+    const breakdown = getTroopQuantityBreakdown(createTroopInstance('goblin', 'druid'));
+
+    expect(breakdown.finalValue).toBe(composeBaseTroopDefinition('goblin', 'druid').quantity);
+    expect(breakdown.lines.map((line) => line.label)).toContain('Goblins Cost x0.5 -> quantity x2');
+  });
+
+  it('maps summon abilities to inspectable summoned profiles including upgraded grants', () => {
+    const wolf = getSummonedUnitPreviews(getAbility('summon-wolf-2'), 'goblin')[0]!;
+    const bloodWolf = getSummonedUnitPreviews(getAbility('summon-wolf-2-blood'), 'goblin')[0]!;
+    const skeleton = getSummonedUnitPreviews(getAbility('corpse-summon-skeleton-rising'), 'troll')[0]!;
+    const elemental = getSummonedUnitPreviews(getAbility('charge-4-summon-elemental-mitosis'), 'elf')[0]!;
+
+    expect(wolf.troop.unitTypeId).toBe('wolf');
+    expect(bloodWolf.troop.abilities.map((ability) => ability.id)).toContain('onkill-summon-wolf-1');
+    expect(skeleton.troop.abilities.map((ability) => ability.id)).toContain('heal-ally-0-7');
+    expect(elemental.troop.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });
 
   it('does not include Troll Soldiers in the Troll native troop pool', () => {

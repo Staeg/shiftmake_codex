@@ -402,7 +402,7 @@ function buildStep(
   message: string,
   metadata?: BattleStepMetadata,
 ): void {
-  const enrichedMetadata = enrichStepMetadata(state, kind, actorIds, metadata);
+  const enrichedMetadata = enrichStepMetadata(state, kind, actorIds, targetIds, metadata);
   const formattedMessage = appendSourceContext(state, actorIds, message, enrichedMetadata);
   const previous = state.steps[state.steps.length - 1];
   if (previous && tryMergeStep(state, previous, kind, actorIds, targetIds, formattedMessage, enrichedMetadata)) {
@@ -558,7 +558,7 @@ function tryMergeStep(
   }
   previousMetadata.batchCount = ((typeof previousMetadata.batchCount === 'number' ? previousMetadata.batchCount : 1) + 1);
   previous.snapshot = cloneSnapshot(state.units);
-  previous.metadata = enrichStepMetadata(state, previous.kind, previous.actorIds, previousMetadata);
+  previous.metadata = enrichStepMetadata(state, previous.kind, previous.actorIds, previous.targetIds, previousMetadata);
   previous.message = rebuildBatchedMessage(state, previous);
   return true;
 }
@@ -639,14 +639,23 @@ function enrichStepMetadata(
   state: InternalState,
   kind: BattleStepKind,
   actorIds: string[],
+  targetIds: string[],
   metadata?: BattleStepMetadata,
 ): BattleStepMetadata | undefined {
   if (!metadata) {
     return undefined;
   }
 
+  const activeUnitId = metadata.activeUnitId ?? actorIds[0] ?? targetIds[0];
+  const secondaryUnitIds = metadata.secondaryUnitIds ?? [...new Set([...actorIds, ...targetIds].filter((id) => id !== activeUnitId))];
+  const participationMetadata = {
+    ...metadata,
+    activeUnitId,
+    secondaryUnitIds,
+  };
+
   if (metadata.explanation) {
-    return metadata;
+    return participationMetadata;
   }
 
   const actor = actorIds.length === 1 ? state.units.get(actorIds[0]!) ?? null : null;
@@ -681,7 +690,7 @@ function enrichStepMetadata(
     }
   }
 
-  return Object.keys(explanation).length > 0 ? { ...metadata, explanation } : metadata;
+  return Object.keys(explanation).length > 0 ? { ...participationMetadata, explanation } : participationMetadata;
 }
 
 function emitRoleIntentStep(

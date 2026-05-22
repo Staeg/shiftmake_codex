@@ -9,6 +9,8 @@
     name?: string;
     description?: string;
     value: string;
+    comparisonDelta?: string;
+    comparisonDirection?: 'positive' | 'negative';
     breakdown: StatBreakdown | null;
     action?: {
       label: string;
@@ -94,7 +96,12 @@
       >
         <span class="stat-head">
           <span>{stat.label}</span>
-          <strong>{stat.value}</strong>
+          <span class="stat-values">
+            <strong>{stat.value}</strong>
+            {#if stat.comparisonDelta && stat.comparisonDirection}
+              <small class={`stat-delta ${stat.comparisonDirection}`}>{stat.comparisonDelta}</small>
+            {/if}
+          </span>
         </span>
       </button>
       {#if stat.action}
@@ -199,9 +206,32 @@
     font-size: 0.7rem;
   }
 
-  .stat-head > strong {
+  .stat-values {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .stat-values > strong {
     font-size: 0.95rem;
     line-height: 1;
+  }
+
+  .stat-delta {
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .stat-delta.positive {
+    color: #69d26b;
+  }
+
+  .stat-delta.negative {
+    color: #f07178;
   }
 
   .stat-action {

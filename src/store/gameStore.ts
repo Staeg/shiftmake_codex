@@ -370,7 +370,9 @@ function slotReplayStorageKey(slotId: SaveSlotId): (replayId: string) => string 
 }
 
 function blockingValidationMessages(state: GameState): string[] {
-  return validateAssignments(state).issues.filter((issue) => issue.kind !== 'no_assignments').map((issue) => issue.message);
+  return validateAssignments(state).issues
+    .filter((issue) => issue.kind !== 'no_troops_assigned' && issue.kind !== 'holding_only_no_new_attack' && issue.kind !== 'idle_troops_remaining')
+    .map((issue) => issue.message);
 }
 
 function isQuotaExceeded(error: unknown): boolean {
@@ -403,7 +405,16 @@ function getOldestReplayCandidate(
   return null;
 }
 
-function buildEndCycleWarning(hasNoAssignments: boolean, hasUnspentEssence: boolean): string {
+function buildEndCycleWarning(hasNoAssignments: boolean, hasHoldingOnly: boolean, hasIdleTroops: boolean, hasUnspentEssence: boolean): string {
+  if (hasIdleTroops) {
+    return 'Some ready troops are still idle. End the cycle anyway?';
+  }
+  if (hasHoldingOnly && hasUnspentEssence) {
+    return 'Your troops are only holding existing Rifts and you still have unspent Essence. End the cycle anyway?';
+  }
+  if (hasHoldingOnly) {
+    return 'Your troops are only holding existing Rifts. End the cycle anyway?';
+  }
   if (hasNoAssignments && hasUnspentEssence) {
     return 'No troops are assigned and you still have unspent Essence. End the cycle anyway?';
   }
@@ -929,8 +940,11 @@ export const gameStore = (() => {
           return state;
         }
         const validation = validateAssignments(state.game);
-        const blockingIssues = validation.issues.filter((issue) => issue.kind !== 'no_assignments');
-        const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_assignments');
+        const softIssueKinds = new Set(['no_troops_assigned', 'holding_only_no_new_attack', 'idle_troops_remaining']);
+        const blockingIssues = validation.issues.filter((issue) => !softIssueKinds.has(issue.kind));
+        const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_troops_assigned');
+        const hasHoldingOnly = validation.issues.some((issue) => issue.kind === 'holding_only_no_new_attack');
+        const hasIdleTroops = validation.issues.some((issue) => issue.kind === 'idle_troops_remaining');
         const hasUnspentEssence = state.game.essence > 0;
 
         if (blockingIssues.length > 0) {
@@ -942,11 +956,11 @@ export const gameStore = (() => {
           };
         }
 
-        if (!force && (hasNoAssignments || hasUnspentEssence)) {
+        if (!force && (hasNoAssignments || hasHoldingOnly || hasIdleTroops || hasUnspentEssence)) {
           return {
             ...state,
             validationMessages: [],
-            systemMessage: buildEndCycleWarning(hasNoAssignments, hasUnspentEssence),
+            systemMessage: buildEndCycleWarning(hasNoAssignments, hasHoldingOnly, hasIdleTroops, hasUnspentEssence),
             cycleEndConfirmationPending: true,
           };
         }

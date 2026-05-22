@@ -51,7 +51,8 @@ import type {
 } from './types';
 
 const OPENING_FACTION_OPTION_COUNT = 4;
-const CONTEST_FINAL_CYCLE = 8;
+export const CAMPAIGN_FINAL_CYCLE = 10;
+export const CONTEST_FINAL_CYCLE = 8;
 const AI_MIN_ESTIMATED_WIN_MARGIN = -20;
 
 export interface ContestAiPlannerOptions {
@@ -129,24 +130,36 @@ function buildReplayIndexEntry(
   estimatedBytes: number,
   encounterLabel?: string,
   sideParticipants?: BattleSideParticipants,
+  riftLabel?: string,
+  outcomeOverride?: ReplayIndexEntry['outcome'],
 ): ReplayIndexEntry {
+  const outcome = outcomeOverride ?? replay.outcome;
   return {
     id: replay.id,
     replayId: replay.id,
     riftId: replay.riftId,
+    riftLabel,
     cycleNumber,
     battleSeed: replay.seed,
-    outcome: replay.outcome,
+    outcome,
     encounterLabel,
     sideParticipants,
     playerTroopLabels: replay.summary.playerTroops,
     enemyTroopLabels: replay.summary.enemyTroops,
     mutatorIds: replay.mutatorIds,
-    summary: `${replay.outcome.toUpperCase()} ${replay.summary.finalPlayerAlive}-${replay.summary.finalEnemyAlive}`,
+    summary: `${outcome.toUpperCase()} ${replay.summary.finalPlayerAlive}-${replay.summary.finalEnemyAlive}`,
     estimatedBytes,
     finalPlayerAlive: replay.summary.finalPlayerAlive,
     finalEnemyAlive: replay.summary.finalEnemyAlive,
   };
+}
+
+function formatRiftLabel(riftId: string | null): string | undefined {
+  if (!riftId) {
+    return undefined;
+  }
+  const match = /^cycle-(\d+)-rift-(\d+)$/i.exec(riftId);
+  return match ? `C${match[1]}R${match[2]}` : riftId;
 }
 
 function buildStoredReplayPayload(record: CycleResolution['records'][number]): StoredReplayPayload {
@@ -788,9 +801,21 @@ export function validateAssignments(state: GameState): ValidationResult {
       : [],
   );
   const assignedTroops = state.troops.filter((troop) => troop.assignmentRiftId !== null && !occupiedHumanTroopIds.has(troop.id));
+  const readyTroops = state.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
 
   if (assignedTroops.length === 0) {
-    issues.push({ kind: 'no_assignments', message: 'Assign at least one troop before ending the cycle.' });
+    issues.push({
+      kind: occupiedHumanTroopIds.size > 0 ? 'holding_only_no_new_attack' : 'no_troops_assigned',
+      message:
+        occupiedHumanTroopIds.size > 0
+          ? 'Your holding troops will stay on their Rifts, but no ready troop is assigned to a new attack.'
+          : 'Assign at least one troop before ending the cycle.',
+    });
+  } else if (readyTroops.length > 0) {
+    issues.push({
+      kind: 'idle_troops_remaining',
+      message: `${readyTroops.length} ready ${readyTroops.length === 1 ? 'troop is' : 'troops are'} still idle.`,
+    });
   }
 
   const seenTroops = new Set<string>();
@@ -819,18 +844,24 @@ export function validateAssignments(state: GameState): ValidationResult {
       troops.forEach((troop) => groupedTypes.set(troop.unitTypeId, (groupedTypes.get(troop.unitTypeId) ?? 0) + 1));
       grouped.forEach((count, factionId) => {
         if (count > 1 && !isFactionUnited(state, factionId)) {
+          const conflictingTroops = troops.filter((troop) => troop.factionId === factionId);
           issues.push({
             kind: 'same_faction_conflict',
             riftId: rift.id,
+            troopId: conflictingTroops[0]?.id,
+            conflictTroopId: conflictingTroops[1]?.id,
             message: `${getFaction(factionId).label} cannot send multiple troops into the same Rift yet.`,
           });
         }
       });
       groupedTypes.forEach((count, unitTypeId) => {
         if (count > 1) {
+          const conflictingTroops = troops.filter((troop) => troop.unitTypeId === unitTypeId);
           issues.push({
             kind: 'same_type_conflict',
             riftId: rift.id,
+            troopId: conflictingTroops[0]?.id,
+            conflictTroopId: conflictingTroops[1]?.id,
             message: `Only one ${getUnitType(unitTypeId).label} troop can enter the same Rift.`,
           });
         }
@@ -858,6 +889,18 @@ function getAssignmentIssue(state: GameState, troopId: TroopId, riftId: string):
     };
   }
 
+  const heldRift = state.gameMode === 'contest'
+    ? state.openRifts.find((rift) => rift.controller === 'human' && (rift.occupyingTroopIds ?? []).includes(troop.id))
+    : null;
+  if (heldRift) {
+    return {
+      kind: 'holding_troop_locked',
+      troopId,
+      riftId: heldRift.id,
+      message: `${getFaction(troop.factionId).singularLabel} ${getUnitType(troop.unitTypeId).label} is holding ${formatRiftLabel(heldRift.id)} and cannot be reassigned.`,
+    };
+  }
+
   const rift = state.openRifts.find((entry) => entry.id === riftId);
   if (!rift || rift.state !== 'discovered') {
     return { kind: 'unknown_rift', riftId, message: `Rift ${riftId} is not available for assignment.` };
@@ -873,6 +916,8 @@ function getAssignmentIssue(state: GameState, troopId: TroopId, riftId: string):
   if (sameFactionTroop && !isFactionUnited(state, troop.factionId)) {
     return {
       kind: 'same_faction_conflict',
+      troopId,
+      conflictTroopId: sameFactionTroop.id,
       riftId,
       message: `${getFaction(troop.factionId).label} cannot send multiple troops into the same Rift yet.`,
     };
@@ -884,6 +929,8 @@ function getAssignmentIssue(state: GameState, troopId: TroopId, riftId: string):
   if (sameTypeTroop) {
     return {
       kind: 'same_type_conflict',
+      troopId,
+      conflictTroopId: sameTypeTroop.id,
       riftId,
       message: `Only one ${getUnitType(troop.unitTypeId).label} troop can enter the same Rift.`,
     };
@@ -921,6 +968,13 @@ export function assignTroopToRift(state: GameState, troopId: TroopId, riftId: st
 
 export function clearTroopAssignment(state: GameState, troopId: TroopId): GameState {
   if (state.phase !== 'planning' || !state.troops.some((troop) => troop.id === troopId)) {
+    return state;
+  }
+
+  if (
+    state.gameMode === 'contest' &&
+    state.openRifts.some((rift) => rift.controller === 'human' && (rift.occupyingTroopIds ?? []).includes(troopId))
+  ) {
     return state;
   }
 
@@ -1560,6 +1614,20 @@ function getContestEncounterLabel(record: RiftResolutionRecord): string {
   return record.contest?.kind === 'guardian' ? 'Neutral Guardians' : 'Rival';
 }
 
+function getHumanVisibleContestOutcome(record: RiftResolutionRecord): ReplayIndexEntry['outcome'] {
+  const winnerId = record.contest?.winnerId;
+  if (winnerId === 'human') {
+    return 'victory';
+  }
+  if (winnerId === 'ai') {
+    return 'defeat';
+  }
+  if (record.contest?.kind === 'guardian' && record.contest.attackerId === 'human') {
+    return record.outcome;
+  }
+  return record.replay.outcome;
+}
+
 function clearContestTroopAssignments(progress: ContestPlayerState, occupiedByRift: Map<string, Set<TroopId>>): ContestPlayerState {
   return {
     ...progress,
@@ -1746,7 +1814,15 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
   visibleRecords.forEach((record) => {
     const payload = writes.find((entry) => entry.replayId === record.replay.id);
     nextState.replayIndex = [
-      buildReplayIndexEntry(state.cycleNumber, record.replay, payload?.estimatedBytes ?? 0, getContestEncounterLabel(record), record.battleInput.sideParticipants),
+      buildReplayIndexEntry(
+        state.cycleNumber,
+        record.replay,
+        payload?.estimatedBytes ?? 0,
+        getContestEncounterLabel(record),
+        record.battleInput.sideParticipants,
+        formatRiftLabel(record.riftId),
+        getHumanVisibleContestOutcome(record),
+      ),
       ...nextState.replayIndex,
     ];
   });
@@ -1899,7 +1975,14 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
   resolution.records.forEach((record) => {
     const payload = writes.find((entry) => entry.replayId === record.replay.id);
     nextState.replayIndex = [
-      buildReplayIndexEntry(unlockedState.cycleNumber, record.replay, payload?.estimatedBytes ?? 0, undefined, record.battleInput.sideParticipants),
+      buildReplayIndexEntry(
+        unlockedState.cycleNumber,
+        record.replay,
+        payload?.estimatedBytes ?? 0,
+        undefined,
+        record.battleInput.sideParticipants,
+        formatRiftLabel(record.riftId),
+      ),
       ...nextState.replayIndex,
     ];
     if (record.outcome === 'victory') {
@@ -1907,7 +1990,7 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
     }
   });
 
-  nextState.phase = unlockedState.cycleNumber === 10 && !unlockedState.postgameDismissed ? 'game_over' : 'planning';
+  nextState.phase = unlockedState.cycleNumber === CAMPAIGN_FINAL_CYCLE && !unlockedState.postgameDismissed ? 'game_over' : 'planning';
   nextState.openRifts = [...nextState.openRifts, ...generateCycleRifts(nextState)];
   nextState = applyScheduledCycleUnlock(nextState);
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
-  import type { BattleUnit, ExplainedStatKey, ReplayTroopProfile, StatBreakdown, StatBreakdownLine } from '../engine/types';
+  import { getSummonedUnitPreviews } from '../engine/unitCatalog';
+  import type { AbilityDefinition, BattleUnit, ExplainedStatKey, ReplayTroopProfile, StatBreakdown, StatBreakdownLine } from '../engine/types';
   import { formatAbilityDescription, formatRoleExact, statIcon } from './inspectText';
   import GameIcon from './GameIcon.svelte';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
@@ -20,11 +21,11 @@
   export let liveBuffLines: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> = {};
   let hoveredRoleText: { label: string; description: string } | null = null;
   let hoveredAbilityText: { label: string; description: string } | null = null;
+  let hoveredSummonProfile: ReplayTroopProfile | null = null;
 
   $: display = unit || profile
     ? {
         troopLabel: unit?.troopLabel ?? profile?.troopLabel ?? '',
-        id: unit?.id ?? null,
         hp: unit?.hp ?? profile?.stats.health ?? 0,
         maxHp: unit?.maxHp ?? profile?.stats.health ?? 0,
         initiative: unit ? unit.initiative : null,
@@ -85,6 +86,39 @@
   function resolveUnitPortrait(unit: BattleUnit): string {
     return getUnitPortraitUrl?.(unit) ?? '';
   }
+
+  function summonFactionId(): string {
+    return profile?.factionId ?? unit?.factionId ?? 'human';
+  }
+
+  function buildSummonProfile(ability: AbilityDefinition, unitTypeId: string, grantedKey: string): ReplayTroopProfile | null {
+    if (!display) {
+      return null;
+    }
+    const preview = getSummonedUnitPreviews(ability, summonFactionId())
+      .find((entry) => entry.unitTypeId === unitTypeId && entry.grantedAbilityIds.join(',') === grantedKey);
+    if (!preview) {
+      return null;
+    }
+    const statBreakdowns = Object.fromEntries(
+      (['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'] as const).map((stat) => [
+        stat,
+        { stat, finalValue: preview.troop.stats[stat], lines: [{ label: 'Summoned', value: preview.troop.stats[stat], kind: 'base' as const }] },
+      ]),
+    ) as ReplayTroopProfile['statBreakdowns'];
+    return {
+      side: display.side,
+      troopLabel: preview.troop.label,
+      unitTypeId: preview.troop.unitTypeId,
+      factionId: preview.troop.factionId,
+      role: preview.troop.role,
+      type: preview.troop.type,
+      attributes: preview.troop.attributes,
+      stats: preview.troop.stats,
+      abilities: preview.troop.abilities,
+      statBreakdowns,
+    };
+  }
 </script>
 
 {#if display}
@@ -94,9 +128,6 @@
         <p>{display.side === 'player' ? 'Player Unit' : 'Enemy Unit'}</p>
         <strong>{display.troopLabel}</strong>
       </div>
-      {#if display.id}
-        <small>{display.id}</small>
-      {/if}
     </header>
 
     <div class="rows">
@@ -139,6 +170,7 @@
         {:else}
           <div class="ability-chips">
             {#each display.abilities as ability}
+              {@const summonPreviews = getSummonedUnitPreviews(ability, summonFactionId())}
               <button
                 type="button"
                 class="ability-chip"
@@ -149,6 +181,18 @@
               >
                 <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
               </button>
+              {#each summonPreviews as summon}
+                <button
+                  type="button"
+                  class="ability-chip summon-preview-chip"
+                  on:mouseenter={() => (hoveredSummonProfile = buildSummonProfile(ability, summon.unitTypeId, summon.grantedAbilityIds.join(',')))}
+                  on:focus={() => (hoveredSummonProfile = buildSummonProfile(ability, summon.unitTypeId, summon.grantedAbilityIds.join(',')))}
+                  on:mouseleave={() => (hoveredSummonProfile = null)}
+                  on:blur={() => (hoveredSummonProfile = null)}
+                >
+                  <span>{summon.count} {summon.troop.label}</span>
+                </button>
+              {/each}
             {/each}
           </div>
         {/if}
@@ -162,7 +206,23 @@
       </div>
     {/if}
 
-    {#if display.id}
+    {#if hoveredSummonProfile}
+      <div class="inspect-tooltip summon-profile">
+        <strong>{hoveredSummonProfile.troopLabel}</strong>
+        <p>{hoveredSummonProfile.role} summoned unit.</p>
+        <StatBreakdownGrid
+          stats={[
+            { key: 'health', label: statIcon('health'), value: formatFixed(hoveredSummonProfile.stats.health), breakdown: hoveredSummonProfile.statBreakdowns.health },
+            { key: 'damage', label: statIcon('damage'), value: formatFixed(hoveredSummonProfile.stats.damage), breakdown: hoveredSummonProfile.statBreakdowns.damage },
+            { key: 'speed', label: statIcon('speed'), value: formatFixed(hoveredSummonProfile.stats.speed), breakdown: hoveredSummonProfile.statBreakdowns.speed },
+            { key: 'armor', label: statIcon('armor'), value: formatFixed(hoveredSummonProfile.stats.armor), breakdown: hoveredSummonProfile.statBreakdowns.armor },
+          ]}
+          columns={2}
+        />
+      </div>
+    {/if}
+
+    {#if unit}
       <div class="engaged">
         <span>Engaged With ({engagedUnits.length})</span>
         {#if engagedUnits.length === 0}
@@ -181,7 +241,6 @@
 
     {#if locked}
       <div class="action-nav">
-        <span>Locked Actions</span>
         <div class="action-buttons">
           <button
             type="button"
@@ -189,7 +248,7 @@
             disabled={lastActionStep === null}
             on:click={() => onGoToLastAction?.()}
           >
-            Last action
+            &lt;- Unit's Previous Action
           </button>
           <button
             type="button"
@@ -197,11 +256,10 @@
             disabled={nextActionStep === null}
             on:click={() => onGoToNextAction?.()}
           >
-            Next action
+            Unit's Next Action -&gt;
           </button>
         </div>
       </div>
-      <footer>Locked selection (click unit again to unlock)</footer>
     {/if}
   </aside>
 {/if}
@@ -246,11 +304,6 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: #9cb0bf;
-  }
-
-  header small {
-    color: #90a2b4;
-    font-size: 0.72rem;
   }
 
   .rows {
@@ -391,6 +444,12 @@
     --game-icon-raster-scale: 1.45;
   }
 
+  .summon-preview-chip {
+    border-color: rgba(215, 221, 230, 0.34);
+    background: rgba(28, 34, 42, 0.82);
+    color: #d7dde6;
+  }
+
   .inspect-tooltip {
     display: grid;
     gap: 0.25rem;
@@ -409,9 +468,4 @@
     margin-bottom: 0.28rem;
   }
 
-  footer {
-    margin-top: 0.24rem;
-    font-size: 0.66rem;
-    color: #95a5b5;
-  }
 </style>

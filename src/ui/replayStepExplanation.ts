@@ -11,6 +11,8 @@ export type ReplayStepExplanationSection = {
 export type ReplayStepExplanationView = {
   eyebrow: string;
   title: string;
+  activeUnitId: string | null;
+  secondaryUnitIds: string[];
   sections: ReplayStepExplanationSection[];
 };
 
@@ -199,6 +201,10 @@ export function buildReplayStepExplanationView(step: BattleStep): ReplayStepExpl
   return {
     eyebrow: `${step.kind.toUpperCase()} EXPLANATION`,
     title: step.message,
+    activeUnitId: typeof step.metadata?.activeUnitId === 'string' ? step.metadata.activeUnitId : step.actorIds[0] ?? step.targetIds[0] ?? null,
+    secondaryUnitIds: Array.isArray(step.metadata?.secondaryUnitIds)
+      ? step.metadata.secondaryUnitIds
+      : [...new Set([...step.actorIds, ...step.targetIds].filter((id) => id !== (step.actorIds[0] ?? step.targetIds[0])))],
     sections,
   };
 }
