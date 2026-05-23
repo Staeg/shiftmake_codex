@@ -229,6 +229,59 @@ describe('gameStore progression flow', () => {
     gameStore.initialize();
   });
 
+  it('does not enter tutorial mode from persisted progress on main-menu initialization', () => {
+    gameStore.startTutorial();
+
+    gameStore.initialize();
+
+    expect(
+      currentStoreState<{
+        screen: string;
+        activeSlotId: string | null;
+        tutorialProgress: unknown;
+      }>(),
+    ).toMatchObject({
+      screen: 'main_menu',
+      activeSlotId: null,
+      tutorialProgress: null,
+    });
+  });
+
+  it('exits tutorial mode and clears persisted tutorial progress', () => {
+    gameStore.startTutorial();
+    gameStore.recordTutorialAction('watch-battle');
+
+    gameStore.exitTutorial();
+    expect(
+      currentStoreState<{
+        screen: string;
+        activeSlotId: string | null;
+        tutorialProgress: unknown;
+        systemMessage: string | null;
+      }>(),
+    ).toMatchObject({
+      screen: 'main_menu',
+      activeSlotId: null,
+      tutorialProgress: null,
+      systemMessage: 'Tutorial exited.',
+    });
+
+    gameStore.resumeTutorial();
+
+    expect(
+      currentStoreState<{
+        screen: string;
+        activeSlotId: string | null;
+        tutorialProgress: { step: string; signals: string[] } | null;
+        systemMessage: string | null;
+      }>(),
+    ).toMatchObject({
+      screen: 'overworld',
+      activeSlotId: 'tutorial',
+      tutorialProgress: { step: 'watch-battle', signals: [] },
+    });
+  });
+
   it('warns before ending a cycle with unspent Essence and requires confirmation', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();

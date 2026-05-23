@@ -3,7 +3,7 @@
 </svelte:head>
 
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import {
     createTroopInstance,
     getFactionTroops,
@@ -57,6 +57,7 @@
   import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisualAssets';
   import { getConfiguredMultiplayerServerUrl, hasConfiguredMultiplayerServerUrl, inferShareableMultiplayerServerUrl, normalizeMultiplayerServerUrl } from '../config/multiplayer';
   import { gameStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
+  import { getTutorialStepCenterMode, getTutorialStepSurface, type TutorialStepId } from '../store/tutorial';
   import type { SaveSlotSummary } from '../store/saveSlots';
   import BattleControls from './BattleControls.svelte';
   import DebugToolsMenu from './DebugToolsMenu.svelte';
@@ -121,6 +122,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
   type MainMenuView = 'home' | 'singleplayer' | 'tutorial' | 'multiplayer' | 'debug' | 'settings';
   type CycleRecord = RiftResolutionRecord;
+  type AbilityTooltipState = { label: string; description: string; ownerDetailKey: string | null };
 
   type RiftBattleAnimationSide = {
     label: string;
@@ -203,7 +205,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   let selectedReplayId: string | null = null;
   let hoveredDetail: DetailCard | null = null;
   let pinnedDetail: DetailCard | null = null;
-  let hoveredAbilityTooltip: { label: string; description: string } | null = null;
+  let hoveredAbilityTooltip: AbilityTooltipState | null = null;
+  let pinnedAbilityTooltip: AbilityTooltipState | null = null;
+  let activeAbilityTooltip: AbilityTooltipState | null = null;
+  let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
   let battleHost: HTMLDivElement | null = null;
   let renderer: BattleRendererType | null = null;
@@ -263,26 +268,94 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     }
   }
 
-  function previousTutorialStep(): void {
-    const currentStep = $gameStore.tutorialProgress?.step ?? null;
-    gameStore.previousTutorialStep();
-    if (currentStep === 'game-start') {
-      gameStore.resumeTutorial();
-      const replayId = $gameStore.game.replayIndex[0]?.replayId ?? null;
-      if (replayId) {
-        gameStore.openReplay(replayId);
-        gameStore.jumpTo(Number.MAX_SAFE_INTEGER);
+  function getTutorialReplayId(): string | null {
+    return $gameStore.game.replayIndex[0]?.replayId ?? null;
+  }
+
+  function navigateToTutorialStepView(step: TutorialStepId): void {
+    const surface = getTutorialStepSurface(step);
+    const replayId = getTutorialReplayId();
+    resetZoneState();
+    tutorialScenePrompt = false;
+
+    if (surface === 'archive') {
+      if ($gameStore.screen === 'replay') {
+        gameStore.closeReplay();
       }
+      gameStore.setCenterMode('rifts');
+      selectedReplayId = replayId;
+      replayEventLogCollapsed = true;
+      mainMenuView = 'home';
       return;
     }
-    if (currentStep === 'opening') {
+
+    if (surface === 'replay') {
+      if (replayId && $gameStore.loadedReplay?.id !== replayId) {
+        gameStore.openReplay(replayId);
+      }
+      if (step === 'finish-replay') {
+        gameStore.jumpTo(Number.MAX_SAFE_INTEGER);
+      }
+      replayEventLogCollapsed = !['timeline-event', 'manual-steps', 'unit-actions', 'engagement', 'roles', 'ability'].includes(step);
+      return;
+    }
+
+    if (surface === 'main-menu') {
+      gameStore.returnToMainMenu();
+      mainMenuView = 'home';
+      return;
+    }
+
+    if (surface === 'singleplayer') {
       gameStore.returnToMainMenu();
       mainMenuView = 'singleplayer';
+      return;
+    }
+
+    if (surface === 'opening') {
+      mainMenuView = 'home';
+      return;
+    }
+
+    gameStore.setCenterMode(getTutorialStepCenterMode(step));
+    mainMenuView = 'home';
+  }
+
+  async function resumeTutorial(): Promise<void> {
+    gameStore.resumeTutorial();
+    await tick();
+    const step = $gameStore.tutorialProgress?.step;
+    if (step) {
+      navigateToTutorialStepView(step);
+    }
+  }
+
+  async function previousTutorialStep(): Promise<void> {
+    const currentStep = $gameStore.tutorialProgress?.step;
+    if (currentStep === 'confirm-openers') {
+      pendingOpeningTroopUnlockId = null;
+      selectedOpeningTroopUnlockIds.forEach((troopUnlockId) => gameStore.unclaimOpeningTroop(troopUnlockId));
+    }
+    gameStore.previousTutorialStep();
+    await tick();
+    const step = $gameStore.tutorialProgress?.step;
+    if (step) {
+      navigateToTutorialStepView(step);
     }
   }
 
   function tutorialSceneLockActive(): boolean {
-    return !!$gameStore.tutorialProgress && !$gameStore.tutorialProgress.completed;
+    return $gameStore.activeSlotId === 'tutorial' && !!$gameStore.tutorialProgress && !$gameStore.tutorialProgress.completed;
+  }
+
+  function exitTutorial(): void {
+    mainMenuView = 'home';
+    tutorialScenePrompt = false;
+    if (tutorialScenePromptTimer) {
+      window.clearTimeout(tutorialScenePromptTimer);
+      tutorialScenePromptTimer = null;
+    }
+    gameStore.exitTutorial();
   }
 
   function showTutorialScenePrompt(): void {
@@ -298,6 +371,30 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   function guardTutorialSceneChange(action: () => void): void {
     if (tutorialSceneLockActive()) {
+      showTutorialScenePrompt();
+      return;
+    }
+    action();
+  }
+
+  function tutorialCanUseAction(step: string): boolean {
+    return $gameStore.tutorialProgress?.step === step;
+  }
+
+  function guardTutorialStep(step: string, action: () => void): void {
+    if (tutorialSceneLockActive() && !tutorialCanUseAction(step)) {
+      showTutorialScenePrompt();
+      return;
+    }
+    action();
+  }
+
+  function tutorialCanSwitchCenterMode(mode: 'rifts' | 'troops' | 'contest'): boolean {
+    return !!$gameStore.tutorialProgress && getTutorialStepCenterMode($gameStore.tutorialProgress.step) === mode;
+  }
+
+  function guardTutorialCenterMode(mode: 'rifts' | 'troops' | 'contest', action: () => void): void {
+    if (tutorialSceneLockActive() && !tutorialCanSwitchCenterMode(mode)) {
       showTutorialScenePrompt();
       return;
     }
@@ -935,12 +1032,20 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     if (!pinnedDetail) {
       hoveredDetail = detail;
     }
+    if (detail.kind === 'mutator') {
+      signalTutorial('mutator-hover');
+    }
   }
 
   function togglePinnedDetail(detail: DetailCard): void {
+    const wasPinned = pinnedDetail?.detailKey === detail.detailKey;
     pinnedDetail = pinnedDetail?.detailKey === detail.detailKey ? null : detail;
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
+    if (detail.detailKey.startsWith('enemy:')) {
+      signalTutorial(wasPinned ? 'rift-enemy-unlock' : 'rift-enemy-lock');
+    }
   }
 
   function pinComparisonDetail(detail: DetailCard): void {
@@ -962,6 +1067,27 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     hoveredAbilityTooltip = null;
   }
 
+  function clearAbilityTooltip(): void {
+    hoveredAbilityTooltip = null;
+  }
+
+  function buildAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): AbilityTooltipState {
+    return {
+      label: ability.label,
+      description: 'shortText' in ability ? formatAbilityDescription(ability) : ability.description,
+      ownerDetailKey: currentAbilityOwnerKey,
+    };
+  }
+
+  function togglePinnedAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
+    const tooltip = buildAbilityTooltip(ability);
+    pinnedAbilityTooltip =
+      pinnedAbilityTooltip?.ownerDetailKey === tooltip.ownerDetailKey && pinnedAbilityTooltip.label === tooltip.label
+        ? null
+        : tooltip;
+    hoveredAbilityTooltip = null;
+  }
+
   function restoreOpeningFactionDetail(event: MouseEvent, factionDetail: DetailCard): void {
     const card = (event.currentTarget as HTMLElement).closest('.opening-faction-card');
     const nextTarget = event.relatedTarget;
@@ -977,6 +1103,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     hoveredDetail = null;
     pinnedDetail = null;
     hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
     selectedTroopOfferUnlockId = null;
     selectedUpgradeOfferId = null;
     selectedScheduledFactionId = null;
@@ -1133,6 +1260,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   function runManualReplayAction(action: () => void): void {
     gameStore.setAutoPlay(false);
+    pinnedReplayExplanationIndex = null;
     action();
   }
 
@@ -1164,6 +1292,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function openSlot(slot: SaveSlotSummary): void {
+    if (tutorialSceneLockActive()) {
+      showTutorialScenePrompt();
+      return;
+    }
     resetZoneState();
     if (slot.status === 'occupied') {
       gameStore.loadSlot(slot.slotId);
@@ -1173,20 +1305,30 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function startSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
-    resetZoneState();
     if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
+      resetZoneState();
       gameStore.startTutorialOpening();
       return;
     }
+    if (tutorialSceneLockActive()) {
+      showTutorialScenePrompt();
+      return;
+    }
+    resetZoneState();
     gameStore.startNewCampaign(slot.slotId, gameMode);
   }
 
   function restartSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
-    resetZoneState();
     if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
+      resetZoneState();
       gameStore.startTutorialOpening();
       return;
     }
+    if (tutorialSceneLockActive()) {
+      showTutorialScenePrompt();
+      return;
+    }
+    resetZoneState();
     gameStore.startNewCampaign(slot.slotId, gameMode);
   }
 
@@ -1272,11 +1414,27 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function showMainMenuView(view: MainMenuView): void {
+    if (tutorialSceneLockActive()) {
+      if ($gameStore.tutorialProgress?.step === 'game-start' && view === 'singleplayer') {
+        mainMenuView = view;
+        multiplayerCopyMessage = null;
+        signalTutorial('singleplayer');
+        return;
+      }
+      if (view !== mainMenuView) {
+        showTutorialScenePrompt();
+      }
+      return;
+    }
     mainMenuView = view;
     multiplayerCopyMessage = null;
   }
 
   function beginOpeningCampaign(): void {
+    if (tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'begin') {
+      showTutorialScenePrompt();
+      return;
+    }
     resetZoneState();
     pendingOpeningTroopUnlockId = null;
     gameStore.startOpeningCampaign();
@@ -1309,7 +1467,8 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     if ($gameStore.centerMode !== 'rifts') {
       gameStore.setCenterMode('rifts');
     }
-    gameStore.endCycle($gameStore.cycleEndConfirmationPending);
+    gameStore.endCycle($gameStore.tutorialProgress?.step === 'end-cycle' || $gameStore.cycleEndConfirmationPending);
+    signalTutorial('end-cycle');
   }
 
   function multiplayerReadyLabel(): string {
@@ -1330,15 +1489,18 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   function setRiftCenterMode(): void {
     resetZoneState();
     gameStore.setCenterMode('rifts');
+    signalTutorial('rifts-view');
   }
 
   function setTroopCenterMode(): void {
     resetZoneState();
     gameStore.setCenterMode('troops');
+    signalTutorial('essence-view');
   }
 
   function focusEssenceDraft(): void {
-    gameStore.setCenterMode('rifts');
+    gameStore.setCenterMode('troops');
+    signalTutorial('essence-view');
     essenceDraftHighlighted = true;
     if (essenceDraftHighlightTimer) {
       window.clearTimeout(essenceDraftHighlightTimer);
@@ -1349,9 +1511,15 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     }, 2400);
   }
 
+  function revealEssenceDraft(): void {
+    gameStore.revealEssenceDraft();
+    signalTutorial('reveal-draft');
+  }
+
   function setContestCenterMode(): void {
     resetZoneState();
     gameStore.setCenterMode('contest');
+    signalTutorial('rival-info');
   }
 
   function selectFaction(factionId: FactionId): void {
@@ -1659,6 +1827,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       }
       assignmentConflict = null;
       gameStore.assignTroopToRift(troopId, dropTarget.riftId);
+      signalTutorial('assign-troop');
     }
   }
 
@@ -1721,14 +1890,26 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     selectedReplayId = selectedReplayId === replayId ? null : replayId;
     hoveredDetail = null;
     pinnedDetail = null;
+    signalTutorial('archive-inspect');
   }
 
   function openSelectedReplay(): void {
     if (selectedReplayEntry) {
+      if (tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'watch-battle') {
+        showTutorialScenePrompt();
+        return;
+      }
       resetZoneState();
       gameStore.openReplay(selectedReplayEntry.replayId);
       signalTutorial('watch-battle');
     }
+  }
+
+  function openReplayFromArchive(replayId: string): void {
+    guardTutorialStep('watch-battle', () => {
+      gameStore.openReplay(replayId);
+      signalTutorial('watch-battle');
+    });
   }
 
   function closeReplayToArchive(): void {
@@ -1741,10 +1922,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
-    hoveredAbilityTooltip = {
-      label: ability.label,
-      description: 'shortText' in ability ? formatAbilityDescription(ability) : ability.description,
-    };
+    hoveredAbilityTooltip = buildAbilityTooltip(ability);
   }
 
   function selectTroopOfferUnlock(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
@@ -1753,6 +1931,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       pinnedDetail = null;
       hoveredDetail = null;
       hoveredAbilityTooltip = null;
+      pinnedAbilityTooltip = null;
       return;
     }
 
@@ -1760,6 +1939,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     pinnedDetail = detail;
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
   }
 
   function confirmTroopOfferUnlock(): void {
@@ -1769,10 +1949,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
     confirmedTroopOfferUnlockId = selectedTroopOfferUnlockId;
     gameStore.claimTroopOffer(selectedTroopOfferUnlockId);
+    signalTutorial('draft-troop');
     selectedTroopOfferUnlockId = null;
     pinnedDetail = null;
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
   }
 
   function selectUpgradeOffer(upgradeId: UpgradeId, detail: DetailCard): void {
@@ -1781,6 +1963,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       pinnedDetail = null;
       hoveredDetail = null;
       hoveredAbilityTooltip = null;
+      pinnedAbilityTooltip = null;
       return;
     }
 
@@ -1788,6 +1971,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     pinnedDetail = detail;
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
   }
 
   function confirmUpgradeOffer(): void {
@@ -1797,10 +1981,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
     confirmedUpgradeOfferId = selectedUpgradeOfferId;
     gameStore.claimUpgradeOffer(selectedUpgradeOfferId);
+    signalTutorial('draft-upgrade');
     selectedUpgradeOfferId = null;
     pinnedDetail = null;
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
   }
 
   function showMutatorDetail(mutatorId: string): void {
@@ -2369,6 +2555,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     }
   }
 
+  $: if ($gameStore.tutorialProgress?.step === 'contest-results' && !$gameStore.cycleAnimation && $gameStore.game.replayIndex.length > 0) {
+    signalTutorial('cycle-animation-finished');
+  }
+
   $: uiDebugVisible = debugToolsEnabled && (showUiDebugNames || designModeEnabled);
   $: if (
     selectedTroopOfferUnlockId &&
@@ -2476,6 +2666,16 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     }
   }
   $: activeDetail = pinnedDetail ?? hoveredDetail;
+  $: currentAbilityOwnerKey =
+    activeDetail?.kind === 'unit'
+      ? activeDetail.detailKey
+      : selectedTroop && selectedTroopDefinition
+        ? `selected-troop:${selectedTroop.id}`
+        : null;
+  $: if (pinnedAbilityTooltip && pinnedAbilityTooltip.ownerDetailKey !== currentAbilityOwnerKey) {
+    pinnedAbilityTooltip = null;
+  }
+  $: activeAbilityTooltip = pinnedAbilityTooltip ?? hoveredAbilityTooltip;
   $: if (renderer && $gameStore.screen === 'replay') {
     activeDetail;
     pinnedReplayExplanationIndex;
@@ -2559,6 +2759,18 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     if ($gameStore.game.troops.length === 2) {
       signalTutorial('opening-confirmed');
     }
+  }
+
+  function unconfirmOpeningTroop(troopUnlockId: TroopUnlockId): void {
+    if (!isOpeningTroopSelected(troopUnlockId)) {
+      return;
+    }
+    if (pinnedDetail?.detailKey === `opening:${troopUnlockId}`) {
+      pinnedDetail = null;
+    }
+    hoveredDetail = null;
+    pendingOpeningTroopUnlockId = null;
+    gameStore.unclaimOpeningTroop(troopUnlockId);
   }
 
   function toggleOpeningFutureDetail(detail: DetailCard): void {
@@ -2663,7 +2875,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
   $: if ($gameStore.tutorialProgress?.step === 'game-start' && $gameStore.screen === 'replay') {
     gameStore.returnToMainMenu();
-    mainMenuView = 'singleplayer';
+    mainMenuView = 'home';
   }
   $: replaySnapshot = replay ? currentSnapshot(replay) : [];
   $: replayHealthRoster = replay ? buildReplayHealthRoster(replay) : [];
@@ -2867,11 +3079,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
       {#if mainMenuView === 'home'}
         <div class="main-menu-actions ui-debug-target" data-ui-name="Main menu actions">
-          <button class="primary large" on:click={() => showMainMenuView('singleplayer')}>Singleplayer</button>
-          <button class="large" on:click={() => showMainMenuView('tutorial')}>Tutorial</button>
-          <button class="large" on:click={() => showMainMenuView('multiplayer')}>Multiplayer</button>
-          <button class="large" on:click={() => showMainMenuView('debug')}>Debug</button>
-          <button class="large" on:click={() => showMainMenuView('settings')}>Settings</button>
+          <button class="primary large" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'game-start'} data-ui-name="Main menu Singleplayer" on:click={() => showMainMenuView('singleplayer')}>Singleplayer</button>
+          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('tutorial')}>Tutorial</button>
+          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('multiplayer')}>Multiplayer</button>
+          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('debug')}>Debug</button>
+          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('settings')}>Settings</button>
         </div>
       {:else if mainMenuView === 'singleplayer'}
         <div class="slot-grid">
@@ -2895,14 +3107,14 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
               {/if}
 
               <div class="actions-grid">
-                <button class="primary ui-debug-target" data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
+                <button class="primary ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
                   {slot.status === 'occupied' ? 'Load Slot' : 'Start Campaign'}
                 </button>
                 {#if slot.status === 'empty'}
-                  <button class="ui-debug-target" data-ui-name={`Start Contest vs AI for save slot ${slot.slotId}`} on:click={() => startSlot(slot, 'contest')}>Contest vs AI</button>
+                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest'} data-ui-name={`Start Contest vs AI for save slot ${slot.slotId}`} on:click={() => startSlot(slot, 'contest')}>Contest vs AI</button>
                 {:else}
-                  <button class="ui-debug-target" data-ui-name={`Replace campaign for slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'campaign')}>Replace Campaign</button>
-                  <button class="ui-debug-target" data-ui-name={`Replace Contest vs AI for save slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'contest')}>Replace Contest vs AI</button>
+                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Replace campaign for slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'campaign')}>Replace Campaign</button>
+                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest'} data-ui-name={`Replace Contest vs AI for save slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'contest')}>Replace Contest vs AI</button>
                 {/if}
               </div>
             </article>
@@ -2913,11 +3125,13 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           {#if gameStore.hasTutorialSave()}
             <p>The tutorial save can resume its guided steps or restart from the fixed tutorial state.</p>
             <div class="actions-grid">
-              <button class="primary" on:click={() => gameStore.resumeTutorial()}>Resume Tutorial</button>
+              <button class="primary" on:click={resumeTutorial}>Resume Tutorial</button>
               <button on:click={() => gameStore.restartTutorial()}>Restart Tutorial</button>
             </div>
           {:else}
-            <p>The tutorial starts from a fixed Contest vs AI state.</p>
+            <p>Shiftmake is a strategy game about building a mixed-faction army and sending it through Rifts — portals to contested worlds. Each cycle, you inspect open Rifts, assign ready troops, and end the cycle to resolve all battles automatically.</p>
+            <p>Skill lives in preparation, not in the fight itself. Rifts are fully previewable before you commit: you can see the enemy composition, modifiers that change battle rules, and the reward tier. Battles play out on their own, but you can replay each one in full detail afterward.</p>
+            <p>A run lasts 10 cycles. You score Victory Points by winning Rifts, spend Essence to draft new troops and upgrades, and gradually expand your roster by unlocking new factions. The tutorial walks through these mechanics using a fixed Contest vs AI run.</p>
             <button class="primary" on:click={() => gameStore.startTutorial()}>Start Tutorial</button>
           {/if}
         </section>
@@ -2975,7 +3189,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       {/if}
 
       {#if mainMenuView !== 'home'}
-        <button class="menu-back-button" aria-label="Back to main menu" on:click={() => showMainMenuView('home')}>←</button>
+        <button class="menu-back-button" class:tutorial-scene-locked={tutorialSceneLockActive()} aria-label="Back to main menu" on:click={() => showMainMenuView('home')}>←</button>
       {/if}
     </section>
   </main>
@@ -3040,18 +3254,19 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                           class="mutator-chip ability-chip"
                           on:mouseenter={() => showAbilityTooltip(ability)}
                           on:focus={() => showAbilityTooltip(ability)}
-                          on:mouseleave={() => (hoveredAbilityTooltip = null)}
-                          on:blur={() => (hoveredAbilityTooltip = null)}
+                          on:mouseleave={clearAbilityTooltip}
+                          on:blur={clearAbilityTooltip}
+                          on:click={() => togglePinnedAbilityTooltip(ability)}
                         >
                           <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                         </button>
                       {/each}
                     {/if}
                   </div>
-                  {#if hoveredAbilityTooltip}
+                  {#if activeAbilityTooltip}
                     <div class="ability-hover-tooltip">
-                      <strong>{hoveredAbilityTooltip.label}</strong>
-                      <p>{hoveredAbilityTooltip.description}</p>
+                      <strong>{activeAbilityTooltip.label}</strong>
+                      <p>{activeAbilityTooltip.description}</p>
                     </div>
                   {/if}
                 </div>
@@ -3123,7 +3338,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     on:focus={() => previewDetail(factionDetail)}
                     on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
                     on:blur={clearDetail}
-                    on:click|stopPropagation={() => togglePinnedDetail(factionDetail)}
+                    on:click|stopPropagation={() => toggleOpeningFaction(starterTroopUnlockId)}
                   >
                     <img class="faction-name-art" src={getFactionPortrait(group.factionId)} alt="" aria-hidden="true" />
                   </button>
@@ -3205,10 +3420,17 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           <div class="opening-selected-factions ui-debug-target" data-ui-name="Selected opening factions" aria-label="Selected factions">
             {#each selectedOpeningFactionSummaries as selectedFaction}
               {@const [, selectedUnitTypeId] = parseTroopUnlockId(selectedFaction.starterTroopUnlockId)}
-              <span class="opening-selected-faction" aria-label={`${selectedFaction.label} ${getUnitType(selectedUnitTypeId).label}`}>
+              <button
+                type="button"
+                class="opening-selected-faction"
+                aria-label={`Un-confirm ${selectedFaction.label} ${getUnitType(selectedUnitTypeId).label}`}
+                title={`Un-confirm ${selectedFaction.label}`}
+                on:click={() => unconfirmOpeningTroop(selectedFaction.starterTroopUnlockId)}
+              >
                 <img src={getFactionPortrait(selectedFaction.factionId)} alt="" aria-hidden="true" />
                 <img src={getFactionUnitPortrait(selectedFaction.factionId, selectedUnitTypeId)} alt="" aria-hidden="true" />
-              </span>
+                <span>Un-confirm</span>
+              </button>
             {/each}
           </div>
         {/if}
@@ -3228,6 +3450,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         <button
           type="button"
           class="primary large ui-debug-target"
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'begin'}
           data-ui-name="Begin campaign button"
           on:click={beginOpeningCampaign}
           disabled={$gameStore.game.troops.length !== 2 || multiplayerReadySubmitted}
@@ -3310,18 +3533,19 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                           class="mutator-chip ability-chip"
                           on:mouseenter={() => showAbilityTooltip(ability)}
                           on:focus={() => showAbilityTooltip(ability)}
-                          on:mouseleave={() => (hoveredAbilityTooltip = null)}
-                          on:blur={() => (hoveredAbilityTooltip = null)}
+                          on:mouseleave={clearAbilityTooltip}
+                          on:blur={clearAbilityTooltip}
+                          on:click={() => togglePinnedAbilityTooltip(ability)}
                         >
                           <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                         </button>
                       {/each}
                     {/if}
                   </div>
-                  {#if hoveredAbilityTooltip}
+                  {#if activeAbilityTooltip}
                     <div class="ability-hover-tooltip">
-                      <strong>{hoveredAbilityTooltip.label}</strong>
-                      <p>{hoveredAbilityTooltip.description}</p>
+                      <strong>{activeAbilityTooltip.label}</strong>
+                      <p>{activeAbilityTooltip.description}</p>
                     </div>
                   {/if}
                 </div>
@@ -3551,6 +3775,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           type="button"
           class="resource-counter resource-essence ui-debug-target info-target"
           data-ui-name="Essence counter"
+          data-tutorial-target="essence-counter"
           on:mouseenter={() => showTopbarTooltip('Essence', 'Essence reveals troop and upgrade drafts.')}
           on:focus={() => showTopbarTooltip('Essence', 'Essence reveals troop and upgrade drafts.')}
           on:mouseleave={clearTopbarTooltip}
@@ -3600,25 +3825,28 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       <div class="mode-toggle ui-debug-target" data-ui-name="Top bar actions">
         <button
           class="ui-debug-target"
-          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'rifts'}
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'rifts' && !tutorialCanSwitchCenterMode('rifts')}
           data-ui-name="Show rifts view"
           class:selected={$gameStore.centerMode === 'rifts'}
-          on:click={() => ($gameStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialSceneChange(setRiftCenterMode))}
+          data-tutorial-target="rifts-view-button"
+          on:click={() => ($gameStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialCenterMode('rifts', setRiftCenterMode))}
         >Rifts</button>
         <button
           class="ui-debug-target"
-          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'troops'}
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'troops' && !tutorialCanSwitchCenterMode('troops')}
           data-ui-name="Show factions and troops view"
           class:selected={$gameStore.centerMode === 'troops'}
-          on:click={() => ($gameStore.centerMode === 'troops' ? setTroopCenterMode() : guardTutorialSceneChange(setTroopCenterMode))}
+          data-tutorial-target="troops-view-button"
+          on:click={() => ($gameStore.centerMode === 'troops' ? setTroopCenterMode() : guardTutorialCenterMode('troops', setTroopCenterMode))}
         >Factions & Troops</button>
         {#if $gameStore.game.gameMode === 'contest'}
           <button
             class="ui-debug-target"
-            class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'contest'}
+            class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'contest' && !tutorialCanSwitchCenterMode('contest')}
             data-ui-name="Show opponent info view"
             class:selected={$gameStore.centerMode === 'contest'}
-            on:click={() => ($gameStore.centerMode === 'contest' ? setContestCenterMode() : guardTutorialSceneChange(setContestCenterMode))}
+            data-tutorial-target="rival-info-button"
+            on:click={() => ($gameStore.centerMode === 'contest' ? setContestCenterMode() : guardTutorialCenterMode('contest', setContestCenterMode))}
           >
             {$gameStore.multiplayer ? `${getOpponentPlayerName()} Info` : 'Rival Info'}
           </button>
@@ -3692,8 +3920,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         class="mutator-chip ability-chip"
                         on:mouseenter={() => showAbilityTooltip(ability)}
                         on:focus={() => showAbilityTooltip(ability)}
-                        on:mouseleave={() => (hoveredAbilityTooltip = null)}
-                        on:blur={() => (hoveredAbilityTooltip = null)}
+                        on:mouseleave={clearAbilityTooltip}
+                        on:blur={clearAbilityTooltip}
+                        on:click={() => togglePinnedAbilityTooltip(ability)}
                       >
                         <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                       </button>
@@ -3714,10 +3943,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     {/each}
                   {/if}
                 </div>
-                {#if hoveredAbilityTooltip}
+                {#if activeAbilityTooltip}
                   <div class="ability-hover-tooltip">
-                    <strong>{hoveredAbilityTooltip.label}</strong>
-                    <p>{hoveredAbilityTooltip.description}</p>
+                    <strong>{activeAbilityTooltip.label}</strong>
+                    <p>{activeAbilityTooltip.description}</p>
                   </div>
                 {/if}
               </div>
@@ -3920,8 +4149,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     class="mutator-chip ability-chip"
                     on:mouseenter={() => showAbilityTooltip(ability)}
                     on:focus={() => showAbilityTooltip(ability)}
-                    on:mouseleave={() => (hoveredAbilityTooltip = null)}
-                    on:blur={() => (hoveredAbilityTooltip = null)}
+                    on:mouseleave={clearAbilityTooltip}
+                    on:blur={clearAbilityTooltip}
+                    on:click={() => togglePinnedAbilityTooltip(ability)}
                   >
                     <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                   </button>
@@ -3942,10 +4172,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                 {/each}
               {/if}
             </div>
-            {#if hoveredAbilityTooltip}
+            {#if activeAbilityTooltip}
               <div class="ability-hover-tooltip">
-                <strong>{hoveredAbilityTooltip.label}</strong>
-                <p>{hoveredAbilityTooltip.description}</p>
+                <strong>{activeAbilityTooltip.label}</strong>
+                <p>{activeAbilityTooltip.description}</p>
               </div>
             {/if}
           </div>
@@ -4044,6 +4274,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
               class:contest-ai-held={$gameStore.game.gameMode === 'contest' && rift.controller === 'ai'}
               class:archive-highlighted={selectedRiftId === rift.id}
               data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
+              data-tutorial-target="rift-card"
               class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
               class:drop-target-blocked={!!getRiftDropValidationMessage(rift.id)}
               data-rift-drop-target={rift.id}
@@ -4067,6 +4298,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                       <button
                         class="mutator-chip rift-mutator-chip ui-debug-target"
                         data-ui-name={`Mutator ${getMutator(mutatorId).label} on ${formatRiftDisplayId(rift.id)}`}
+                        data-tutorial-target="rift-mutator"
                         on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
                         on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
                         on:mouseleave={clearDetail}
@@ -4108,6 +4340,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     <button
                       class="unit-tile enemy-tile ui-debug-target"
                       data-ui-name={`Enemy troop ${enemy.label} on ${formatRiftDisplayId(rift.id)}`}
+                      data-tutorial-target="rift-enemy"
                       class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
                       on:mouseenter={() => previewDetail(enemyDetail)}
                       on:focus={() => previewDetail(enemyDetail)}
@@ -4430,9 +4663,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         on:blur={clearDetail}
                         on:click={() => togglePinnedDetail(troopDetail)}
                       >
-                        <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
+                        <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                           {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-button-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                            <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                           {/each}
                         </span>
                       </button>
@@ -4594,18 +4827,19 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                       class="mutator-chip ability-chip"
                       on:mouseenter={() => showAbilityTooltip(ability)}
                       on:focus={() => showAbilityTooltip(ability)}
-                      on:mouseleave={() => (hoveredAbilityTooltip = null)}
-                      on:blur={() => (hoveredAbilityTooltip = null)}
+                      on:mouseleave={clearAbilityTooltip}
+                      on:blur={clearAbilityTooltip}
+                      on:click={() => togglePinnedAbilityTooltip(ability)}
                     >
                       <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                     </button>
                   {/each}
                 {/if}
               </div>
-              {#if hoveredAbilityTooltip}
+              {#if activeAbilityTooltip}
                 <div class="ability-hover-tooltip">
-                  <strong>{hoveredAbilityTooltip.label}</strong>
-                  <p>{hoveredAbilityTooltip.description}</p>
+                  <strong>{activeAbilityTooltip.label}</strong>
+                  <p>{activeAbilityTooltip.description}</p>
                 </div>
               {/if}
             </div>
@@ -4807,6 +5041,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                   <button
                     class="archive-card ui-debug-target"
                     data-ui-name={`Archive entry ${replayEntry.summary}`}
+                    data-tutorial-target="archive-card"
                     class:selected={selectedReplayId === replayEntry.replayId}
                     style={getArchiveCardStyle(replayEntry)}
                     on:mouseenter={() => previewArchiveRift(replayEntry)}
@@ -4837,10 +5072,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     aria-label={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId) ? 'Replay unavailable' : 'Watch Battle'}
                     title={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId) ? 'Replay unavailable' : 'Watch Battle'}
                     disabled={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId)}
-                    on:click={() => {
-                      gameStore.openReplay(replayEntry.replayId);
-                      signalTutorial('watch-battle');
-                    }}
+                    on:click={() => openReplayFromArchive(replayEntry.replayId)}
                   >
                     👁️
                     <svg class="archive-watch-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -4863,7 +5095,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       {/if}
     </section>
 
-    <footer class="action-rail">
+    <footer class="action-rail" class:empty-action-rail={$gameStore.centerMode === 'contest' && !$gameStore.systemMessage}>
       {#if $gameStore.centerMode === 'rifts' && selectedReplayEntry}
         <div class="archive-actions-stack">
           <button class="large ui-debug-target" data-ui-name="Back to archive" on:click={() => (selectedReplayId = null)}>Back to Archive</button>
@@ -4874,7 +5106,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             {#if !essenceDraftActive && !confirmedTroopOfferUnlockId && !confirmedUpgradeOfferId}
               <p class="draft-helper-copy">Spend Essence to reveal linked troop and upgrade packs.</p>
               <div class="actions-grid">
-                <button class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted} disabled={essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost} on:click={() => gameStore.revealEssenceDraft()}>
+                <button class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted} data-tutorial-target="reveal-draft-button" disabled={essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost} on:click={revealEssenceDraft}>
                   <span>{essenceDraftButtonLabel}</span>
                   {#if essenceDraftCost}
                     <span class="essence-cost"><i class="resource-icon essence"></i><strong>{essenceDraftCost}</strong></span>
@@ -4902,6 +5134,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         )}
                         <button
                           class="draft-option troop-icon-option"
+                          data-tutorial-target="draft-troop-option"
                           class:selected={selectedTroopOfferUnlockId === troopUnlockId}
                           class:upgrade-affected={isUpgradeAffectingDraftTroop(troopUnlockId)}
                           aria-label={`Inspect troop unlock ${troopDef.label}`}
@@ -4922,7 +5155,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         </button>
                       {/each}
                     </div>
-                    <button type="button" class="primary" disabled={!selectedTroopOfferUnlockId} on:click={confirmTroopOfferUnlock}>Confirm Troop</button>
+                    <button type="button" class="primary" data-tutorial-target="confirm-draft-troop" disabled={!selectedTroopOfferUnlockId} on:click={confirmTroopOfferUnlock}>Confirm Troop</button>
                   {:else if confirmedTroopOfferUnlockId}
                     {@const [factionId, unitTypeId] = parseTroopUnlockId(confirmedTroopOfferUnlockId)}
                     <div class="locked-draft-card">
@@ -4949,6 +5182,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         {@const affectedDraftTroops = getAffectedDraftTroopsForUpgrade(upgradeId)}
                         <button
                           class="list-button draft-upgrade-option"
+                          data-tutorial-target="draft-upgrade-option"
                           class:selected={selectedUpgradeOfferId === upgradeId}
                           on:mouseenter={() => { hoveredUpgradeOfferId = upgradeId; previewDetail(upgradeDetail); }}
                           on:focus={() => { hoveredUpgradeOfferId = upgradeId; previewDetail(upgradeDetail); }}
@@ -4964,14 +5198,20 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                               {/each}
                               {#each affectedDraftTroops as troopUnlockId}
                                 {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
-                                <img class="draft-affected" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden="true" />
+                                <img
+                                  class="draft-affected"
+                                  class:selected-draft-target={selectedTroopOfferUnlockId === troopUnlockId}
+                                  src={getFactionUnitPortrait(factionId, unitTypeId)}
+                                  alt=""
+                                  aria-hidden="true"
+                                />
                               {/each}
                             </span>
                           {/if}
                         </button>
                       {/each}
                     </div>
-                    <button type="button" class="primary" disabled={!selectedUpgradeOfferId} on:click={confirmUpgradeOffer}>Confirm Upgrade</button>
+                    <button type="button" class="primary" data-tutorial-target="confirm-draft-upgrade" disabled={!selectedUpgradeOfferId} on:click={confirmUpgradeOffer}>Confirm Upgrade</button>
                   {:else if confirmedUpgradeOfferId}
                     <div class="locked-draft-card">
                       <GameIcon kind="upgrade" id={confirmedUpgradeOfferId} label={getUpgradeDetails(confirmedUpgradeOfferId).label} />
@@ -5040,6 +5280,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     <button
                       class="unit-tile ready-troop-tile draggable-troop-tile ui-debug-target"
                       data-ui-name={`Ready troop ${troopDef.label}`}
+                      data-tutorial-target="ready-troop"
                       class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
                       class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
                       class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
@@ -5082,6 +5323,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           <button
             class="primary large end-cycle-button ui-debug-target"
             data-ui-name="End cycle button"
+            data-tutorial-target="end-cycle-button"
             on:click={handleEndCycle}
             disabled={multiplayerReadySubmitted || !!$gameStore.cycleAnimation}
           >
@@ -5384,6 +5626,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         class:active-highlight={replayStrongHighlightId === entry.unit.id}
                         class:secondary-highlight={replayEventAffectedUnitIds.has(entry.unit.id)}
                         data-ui-name={`Health overview ${side.label} ${entry.unit.id}`}
+                        data-tutorial-has-abilities={(replayProfilesByKey.get(replayProfileKey(entry.unit.side, entry.unit.troopLabel))?.abilities.length ?? 0) > 0 ? 'true' : undefined}
                         aria-label={`${entry.unit.troopLabel} health ${entry.hpLabel}`}
                         on:mouseenter={(event) => previewReplayUnit(entry.unit, event)}
                         on:focus={(event) => previewReplayUnit(entry.unit, event)}
@@ -5542,10 +5785,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   $gameStore.activeSlotId === 'tutorial' &&
   ($gameStore.screen !== 'main_menu' || $gameStore.tutorialProgress.step === 'game-start' || $gameStore.tutorialProgress.step === 'start-contest')
 }
+  <button class="exit-tutorial-button" type="button" on:click={exitTutorial}>Exit Tutorial</button>
   <TutorialPopup
     progress={$gameStore.tutorialProgress}
     onBack={previousTutorialStep}
     onContinue={() => gameStore.continueTutorial()}
+    onFinish={exitTutorial}
   />
 {/if}
 {#if tutorialScenePrompt}
@@ -5818,6 +6063,14 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     text-transform: uppercase;
   }
 
+  button.opening-selected-faction:hover,
+  button.opening-selected-faction:focus-visible {
+    border-color: rgba(255, 222, 154, 0.74);
+    background:
+      linear-gradient(145deg, rgba(61, 40, 16, 0.86), rgba(20, 26, 35, 0.94)),
+      radial-gradient(circle at top left, rgba(236, 196, 123, 0.2), transparent 44%);
+  }
+
   .opening-selected-faction img {
     width: 1.35rem;
     height: 1.35rem;
@@ -5854,6 +6107,24 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     cursor: not-allowed;
     filter: grayscale(1);
     opacity: 0.48;
+  }
+
+  .exit-tutorial-button {
+    position: fixed;
+    z-index: 43;
+    left: 0.75rem;
+    top: 0.75rem;
+    min-height: 2rem;
+    padding: 0.32rem 0.68rem;
+    border: 1px solid rgba(237, 197, 111, 0.78);
+    border-radius: 6px;
+    background: rgba(11, 16, 24, 0.96);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+    color: #ffe1a1;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
   }
 
   .tutorial-scene-prompt {
@@ -7879,6 +8150,16 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   .affected-troop-strip .draft-affected {
     border-color: rgba(128, 196, 255, 0.58);
+    filter: grayscale(1) brightness(0.62);
+    opacity: 0.42;
+    transition:
+      filter 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .affected-troop-strip .draft-affected.selected-draft-target {
+    filter: none;
+    opacity: 1;
   }
 
   .essence-draft-panel .primary {
@@ -7942,6 +8223,13 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   .action-rail:has(.footer-essence-draft-panel) {
     min-height: 6.4rem;
+  }
+
+  .action-rail.empty-action-rail {
+    display: none;
+    min-height: 0;
+    padding: 0;
+    gap: 0;
   }
 
   .action-rail > button:only-child {
@@ -8578,7 +8866,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   .opponent-troop-chip {
     display: grid;
-    place-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    place-items: stretch;
     width: var(--troop-icon-box-size, 3.8rem);
     height: var(--troop-icon-box-size, 3.8rem);
     min-height: 0;

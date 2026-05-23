@@ -758,7 +758,6 @@ export const gameStore = (() => {
       set({
         ...makeInitialState(),
         slots,
-        tutorialProgress: readTutorialProgress(localStorage),
       });
     },
     connectMultiplayerContest,
@@ -771,7 +770,6 @@ export const gameStore = (() => {
       set({
         ...makeInitialState(),
         slots: listSaveSlots(localStorage),
-        tutorialProgress: readTutorialProgress(localStorage),
         systemMessage: 'Left multiplayer room.',
       });
     },
@@ -791,7 +789,7 @@ export const gameStore = (() => {
         screen: 'overworld',
         activeSlotId: slotId,
         slots: listSaveSlots(localStorage),
-        tutorialProgress: readTutorialProgress(localStorage),
+        tutorialProgress: slotId === TUTORIAL_SAVE_ID ? readTutorialProgress(localStorage) : null,
         game,
         systemMessage:
           verification.changedCount > 0
@@ -850,6 +848,14 @@ export const gameStore = (() => {
     },
     restartTutorial() {
       this.startTutorial();
+    },
+    exitTutorial() {
+      writeTutorialProgress(localStorage, null);
+      set({
+        ...makeInitialState(),
+        slots: listSaveSlots(localStorage),
+        systemMessage: 'Tutorial exited.',
+      });
     },
     startTutorialOpening() {
       const game = buildTutorialOpeningGame();
@@ -1346,10 +1352,11 @@ export const gameStore = (() => {
         if (!state.loadedReplay) {
           return state;
         }
+        const currentStep = nextPlayableStep(state.currentStep, state.loadedReplay);
         return {
           ...state,
-          currentStep: nextPlayableStep(state.currentStep, state.loadedReplay),
-          selectedEvent: null,
+          currentStep,
+          selectedEvent: currentStep >= 0 ? currentStep : null,
         };
       });
     },
@@ -1358,10 +1365,11 @@ export const gameStore = (() => {
         if (!state.loadedReplay) {
           return state;
         }
+        const currentStep = previousPlayableStep(state.currentStep, state.loadedReplay);
         return {
           ...state,
-          currentStep: previousPlayableStep(state.currentStep, state.loadedReplay),
-          selectedEvent: null,
+          currentStep,
+          selectedEvent: currentStep >= 0 ? currentStep : null,
         };
       });
     },

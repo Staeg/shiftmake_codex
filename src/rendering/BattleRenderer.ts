@@ -472,6 +472,10 @@ export class BattleRenderer {
       tutorialTarget.className = 'battle-tutorial-unit-target';
       tutorialTarget.dataset.tutorialTarget = 'battlefield-unit';
       tutorialTarget.dataset.unitId = unit.id;
+      const profile = this.replay?.troopProfiles.find((entry) => entry.side === unit.side && entry.troopLabel === unit.troopLabel);
+      if ((profile?.abilities.length ?? 0) > 0) {
+        tutorialTarget.dataset.tutorialHasAbilities = 'true';
+      }
       this.tutorialUnitTargetLayer.appendChild(tutorialTarget);
       this.tutorialUnitTargets.set(unit.id, tutorialTarget);
 

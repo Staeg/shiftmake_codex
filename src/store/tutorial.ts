@@ -34,6 +34,7 @@ export type TutorialAction =
   | 'unit-previous-action'
   | 'ability-hover'
   | 'replay-end'
+  | 'singleplayer'
   | 'start-contest'
   | 'faction-select'
   | 'faction-deselect'
@@ -41,13 +42,26 @@ export type TutorialAction =
   | 'future-deselect'
   | 'starter-pending'
   | 'opening-confirmed'
-  | 'begin';
+  | 'begin'
+  | 'essence-view'
+  | 'reveal-draft'
+  | 'draft-troop'
+  | 'draft-upgrade'
+  | 'rifts-view'
+  | 'rift-enemy-lock'
+  | 'rift-enemy-unlock'
+  | 'mutator-hover'
+  | 'assign-troop'
+  | 'end-cycle'
+  | 'cycle-animation-finished'
+  | 'archive-inspect'
+  | 'rival-info';
 
 export type TutorialStepId =
   | 'watch-battle'
+  | 'battle-layout'
   | 'unit-hover'
   | 'unit-lock'
-  | 'stats'
   | 'speed'
   | 'initiative'
   | 'play'
@@ -70,7 +84,20 @@ export type TutorialStepId =
   | 'starter'
   | 'confirm-openers'
   | 'begin'
+  | 'essence'
+  | 'reveal-draft'
+  | 'choose-draft'
+  | 'return-rifts'
+  | 'rift-enemies'
+  | 'modifiers'
+  | 'assign-rift'
+  | 'end-cycle'
+  | 'contest-results'
+  | 'archive-inspect'
+  | 'rival-info'
   | 'complete';
+
+export type TutorialSurface = 'archive' | 'replay' | 'main-menu' | 'singleplayer' | 'opening' | 'overworld';
 
 export interface TutorialProgress {
   step: TutorialStepId;
@@ -88,9 +115,9 @@ const TUTORIAL_PROGRESS_KEY = 'shiftmake:tutorial:progress:v1';
 
 const STEP_ORDER: TutorialStepId[] = [
   'watch-battle',
+  'battle-layout',
   'unit-hover',
   'unit-lock',
-  'stats',
   'speed',
   'initiative',
   'play',
@@ -113,10 +140,71 @@ const STEP_ORDER: TutorialStepId[] = [
   'starter',
   'confirm-openers',
   'begin',
+  'essence',
+  'reveal-draft',
+  'choose-draft',
+  'return-rifts',
+  'rift-enemies',
+  'modifiers',
+  'assign-rift',
+  'end-cycle',
+  'contest-results',
+  'archive-inspect',
+  'rival-info',
   'complete',
 ];
 
-const CONTINUE_STEPS = new Set<TutorialStepId>(['stats', 'initiative', 'overview', 'engagement', 'roles', 'game-start', 'opening']);
+const CONTINUE_STEPS = new Set<TutorialStepId>([
+  'battle-layout',
+  'initiative',
+  'overview',
+  'engagement',
+  'roles',
+  'opening',
+  'contest-results',
+  'complete',
+]);
+
+const REPLAY_STEPS = new Set<TutorialStepId>([
+  'battle-layout',
+  'unit-hover',
+  'unit-lock',
+  'speed',
+  'initiative',
+  'play',
+  'overview',
+  'pause-resume',
+  'speed-change',
+  'timeline-show',
+  'timeline-event',
+  'manual-steps',
+  'unit-actions',
+  'engagement',
+  'roles',
+  'ability',
+  'finish-replay',
+]);
+
+const OPENING_STEPS = new Set<TutorialStepId>([
+  'opening',
+  'faction-toggle',
+  'future-toggle',
+  'starter',
+  'confirm-openers',
+  'begin',
+]);
+
+const TROOPS_VIEW_STEPS = new Set<TutorialStepId>(['reveal-draft', 'choose-draft']);
+
+const RIFTS_VIEW_STEPS = new Set<TutorialStepId>([
+  'return-rifts',
+  'rift-enemies',
+  'modifiers',
+  'assign-rift',
+  'end-cycle',
+  'contest-results',
+  'archive-inspect',
+]);
 
 function nextStep(step: TutorialStepId): TutorialStepId {
   return STEP_ORDER[Math.min(STEP_ORDER.indexOf(step) + 1, STEP_ORDER.length - 1)] ?? step;
@@ -124,6 +212,42 @@ function nextStep(step: TutorialStepId): TutorialStepId {
 
 function previousStep(step: TutorialStepId): TutorialStepId {
   return STEP_ORDER[Math.max(STEP_ORDER.indexOf(step) - 1, 0)] ?? step;
+}
+
+export function getPreviousTutorialStep(step: TutorialStepId): TutorialStepId {
+  return previousStep(step);
+}
+
+export function getTutorialStepSurface(step: TutorialStepId): TutorialSurface {
+  if (step === 'watch-battle') {
+    return 'archive';
+  }
+  if (REPLAY_STEPS.has(step)) {
+    return 'replay';
+  }
+  if (step === 'game-start') {
+    return 'main-menu';
+  }
+  if (step === 'start-contest') {
+    return 'singleplayer';
+  }
+  if (OPENING_STEPS.has(step)) {
+    return 'opening';
+  }
+  return 'overworld';
+}
+
+export function getTutorialStepCenterMode(step: TutorialStepId): 'rifts' | 'troops' | 'contest' {
+  if (TROOPS_VIEW_STEPS.has(step)) {
+    return 'troops';
+  }
+  if (step === 'rival-info') {
+    return 'contest';
+  }
+  if (RIFTS_VIEW_STEPS.has(step)) {
+    return 'rifts';
+  }
+  return 'rifts';
 }
 
 function withAction(progress: TutorialProgress, action: TutorialAction): TutorialProgress {
@@ -203,41 +327,65 @@ export function recordTutorialAction(progress: TutorialProgress, action: Tutoria
     case 'watch-battle':
       return action === 'watch-battle' ? advance(next) : next;
     case 'unit-hover':
-      return actionSatisfied(next, 'unit-hover', 'unit-unhover') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'unit-hover', 'unit-unhover') ? advance(next) : next;
     case 'unit-lock':
-      return actionSatisfied(next, 'unit-lock', 'unit-unlock') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'unit-lock', 'unit-unlock') ? advance(next) : next;
     case 'speed':
-      return action === 'speed-hover' ? { ...next, ready: true } : next;
+      return action === 'speed-hover' ? advance(next) : next;
     case 'play':
-      return action === 'play' ? { ...next, ready: true } : next;
+      return action === 'play' ? advance(next) : next;
     case 'pause-resume':
-      return actionSatisfied(next, 'pause', 'resume') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'pause', 'resume') ? advance(next) : next;
     case 'speed-change':
-      return action === 'speed-change' ? { ...next, ready: true } : next;
+      return action === 'speed-change' ? advance(next) : next;
     case 'timeline-show':
-      return action === 'event-log-show' ? { ...next, ready: true } : next;
+      return action === 'event-log-show' ? advance(next) : next;
     case 'timeline-event':
-      return action === 'event-select' ? { ...next, ready: true } : next;
+      return action === 'event-select' ? advance(next) : next;
     case 'manual-steps':
-      return actionSatisfied(next, 'step-next', 'step-previous') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'step-next', 'step-previous') ? advance(next) : next;
     case 'unit-actions':
-      return actionSatisfied(next, 'unit-next-action', 'unit-previous-action') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'unit-next-action', 'unit-previous-action') ? advance(next) : next;
     case 'ability':
-      return action === 'ability-hover' ? { ...next, ready: true } : next;
+      return action === 'ability-hover' ? advance(next) : next;
     case 'finish-replay':
       return action === 'replay-end' ? advance(next) : next;
+    case 'game-start':
+      return action === 'singleplayer' ? advance(next) : next;
     case 'start-contest':
       return action === 'start-contest' ? advance(next) : next;
     case 'faction-toggle':
-      return actionSatisfied(next, 'faction-select', 'faction-deselect') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'faction-select', 'faction-deselect') ? advance(next) : next;
     case 'future-toggle':
-      return actionSatisfied(next, 'future-select', 'future-deselect') ? { ...next, ready: true } : next;
+      return actionSatisfied(next, 'future-select', 'future-deselect') ? advance(next) : next;
     case 'starter':
-      return action === 'starter-pending' ? { ...next, ready: true } : next;
+      return action === 'starter-pending' ? advance(next) : next;
     case 'confirm-openers':
-      return action === 'opening-confirmed' ? { ...next, ready: true } : next;
+      return action === 'opening-confirmed' ? advance(next) : next;
     case 'begin':
       return action === 'begin' ? advance(next) : next;
+    case 'essence':
+      return action === 'essence-view' ? advance(next) : next;
+    case 'reveal-draft':
+      return action === 'reveal-draft' ? advance(next) : next;
+    case 'choose-draft':
+      return actionSatisfied(next, 'draft-troop', 'draft-upgrade') ? advance(next) : next;
+    case 'return-rifts':
+      return action === 'rifts-view' ? advance(next) : next;
+    case 'rift-enemies':
+      return actionSatisfied(next, 'rift-enemy-lock', 'rift-enemy-unlock') ? advance(next) : next;
+    case 'modifiers':
+      return action === 'mutator-hover' ? advance(next) : next;
+    case 'assign-rift':
+      return action === 'assign-troop' ? advance(next) : next;
+    case 'end-cycle':
+      return action === 'end-cycle' ? advance(next) : next;
+    case 'contest-results':
+      return action === 'cycle-animation-finished' ? { ...next, ready: true } : next;
+    case 'archive-inspect':
+      return action === 'archive-inspect' ? advance(next) : next;
+    case 'rival-info':
+      return action === 'rival-info' ? advance(next) : next;
     default:
       return next;
   }

@@ -1496,7 +1496,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'beastmaster',
     label: 'Bloodhounds',
     tier: 3,
-    description: 'Start-of-battle wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.',
+    description: 'Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }, { kind: 'addAbility', abilityId: 'packmasters-whistle' }],
   },
   'beastmaster-thrill-of-the-hunt': {
@@ -1560,7 +1560,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'elementalist',
     label: 'Crackling Mitosis',
     tier: 3,
-    description: 'When an allied elemental dies, blast its hex for 8. Every 4 turns, each Elementalist summons 1 elemental, and each summoned elemental can repeat that summon once after 4 turns.',
+    description: 'When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.',
     effects: [{ kind: 'addAbility', abilityId: 'arc-conductor' }, { kind: 'replaceAbility', removeAbilityId: 'charge-4-summon-elemental', addAbilityId: 'charge-4-summon-elemental-mitosis' }],
   },
   'elementalist-living-circuit': {

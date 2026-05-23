@@ -3,6 +3,9 @@ import {
   buildTutorialOpeningGame,
   buildTutorialReplayFixture,
   continueTutorial,
+  getTutorialStepCenterMode,
+  getPreviousTutorialStep,
+  getTutorialStepSurface,
   makeTutorialProgress,
   recordTutorialAction,
   rewindTutorial,
@@ -11,33 +14,69 @@ import {
 } from './tutorial';
 
 describe('tutorial progress', () => {
-  it('gates multi-action replay steps behind Continue', () => {
+  it('auto-advances multi-action replay steps when all signals are received', () => {
     let progress = recordTutorialAction(makeTutorialProgress(), 'watch-battle');
+    expect(progress.step).toBe('battle-layout');
+    progress = continueTutorial(progress);
     expect(progress.step).toBe('unit-hover');
 
     progress = recordTutorialAction(progress, 'unit-hover');
-    expect(progress.ready).toBe(false);
+    expect(progress.step).toBe('unit-hover');
 
     progress = recordTutorialAction(progress, 'unit-unhover');
-    expect(progress.ready).toBe(true);
-    expect(continueTutorial(progress).step).toBe('unit-lock');
+    expect(progress.step).toBe('unit-lock');
   });
 
   it('rewinds to the previous step with cleared signals', () => {
     const progressed = continueTutorial({
-      step: 'stats',
-      ready: true,
-      signals: ['unit-hover'],
-      completed: false,
-    });
-
-    expect(progressed.step).toBe('speed');
-    expect(rewindTutorial(progressed)).toEqual({
-      step: 'stats',
+      step: 'initiative',
       ready: true,
       signals: [],
       completed: false,
     });
+
+    expect(progressed.step).toBe('play');
+    expect(rewindTutorial(progressed)).toEqual({
+      step: 'initiative',
+      ready: true,
+      signals: [],
+      completed: false,
+    });
+  });
+
+  it('maps tutorial steps to the view they need', () => {
+    expect(getPreviousTutorialStep('game-start')).toBe('finish-replay');
+    expect(getTutorialStepSurface('watch-battle')).toBe('archive');
+    expect(getTutorialStepSurface('unit-actions')).toBe('replay');
+    expect(getTutorialStepSurface('game-start')).toBe('main-menu');
+    expect(getTutorialStepSurface('start-contest')).toBe('singleplayer');
+    expect(getTutorialStepSurface('confirm-openers')).toBe('opening');
+    expect(getTutorialStepSurface('choose-draft')).toBe('overworld');
+    expect(getTutorialStepCenterMode('choose-draft')).toBe('troops');
+    expect(getTutorialStepCenterMode('rift-enemies')).toBe('rifts');
+    expect(getTutorialStepCenterMode('rival-info')).toBe('contest');
+  });
+
+  it('gates overworld tutorial steps behind their requested actions', () => {
+    let progress = {
+      step: 'essence' as const,
+      ready: false,
+      signals: [],
+      completed: false,
+    };
+
+    progress = recordTutorialAction(progress, 'essence-view');
+    expect(progress.step).toBe('reveal-draft');
+
+    progress = recordTutorialAction(progress, 'reveal-draft');
+    expect(progress.step).toBe('choose-draft');
+    expect(progress.ready).toBe(false);
+
+    progress = recordTutorialAction(progress, 'draft-troop');
+    expect(progress.step).toBe('choose-draft');
+
+    progress = recordTutorialAction(progress, 'draft-upgrade');
+    expect(progress.step).toBe('return-rifts');
   });
 });
 
