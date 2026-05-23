@@ -29,10 +29,10 @@
 
 <section class="panel">
   <div class="controls">
-    <button class="play-button" on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Play'}</button>
-    <button on:click={onJumpStart} disabled={currentStep < 0}>Reset Replay</button>
-    <button on:click={onStepBack} disabled={currentStep < 0}>Previous Step</button>
-    <button on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>Next Step</button>
+    <button class="play-button" data-tutorial-target="replay-play" on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Play'}</button>
+    <button data-tutorial-target="replay-reset" on:click={onJumpStart} disabled={currentStep < 0}>Reset Replay</button>
+    <button data-tutorial-target="replay-previous-step" on:click={onStepBack} disabled={currentStep < 0}>Previous Step</button>
+    <button data-tutorial-target="replay-next-step" on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>Next Step</button>
   </div>
 
   <div class="meta">
@@ -42,7 +42,7 @@
     </div>
     <label>
       <span>Speed</span>
-      <select bind:value={speedSelection} on:change={handleSpeedChange}>
+      <select data-tutorial-target="replay-speed" bind:value={speedSelection} on:change={handleSpeedChange}>
         {#each SPEED_PRESETS as preset}
           <option value={String(preset.ms)}>{preset.label}</option>
         {/each}

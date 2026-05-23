@@ -7,6 +7,7 @@ This document describes the current campaign layer.
 The app has:
 
 - a main menu with 3 save slots
+- a main-menu tutorial entry with a dedicated fixed tutorial save that does not occupy a normal save slot
 - an overworld screen
 - a replay viewer
 

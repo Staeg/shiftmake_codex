@@ -59,15 +59,30 @@ import {
   readSlotReplay,
   readSlotReplayPayload,
   removeSlotReplay,
+  clearSaveSlot,
   type SaveSlotId,
   type SaveSlotSummary,
   saveToSlot,
   verifyReplayIndexAgainstStoredPayloads,
+  writeSlotReplay,
 } from './saveSlots';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 import { describeTroopUnlock } from '../engine/upgrades';
 import { buildContestMultiplayerSubmission, DEFAULT_CONTEST_PLAYER_NAMES, type ContestPlayerNames } from '../engine/multiplayerContest';
 import { buildContestAiPlanKey, type ContestAiWorkerResponse } from './contestAiPlanner';
+import {
+  buildTutorialOpeningGame,
+  buildTutorialReplayFixture,
+  continueTutorial,
+  makeTutorialProgress,
+  readTutorialProgress,
+  recordTutorialAction,
+  rewindTutorial,
+  TUTORIAL_SAVE_ID,
+  type TutorialAction,
+  type TutorialProgress,
+  writeTutorialProgress,
+} from './tutorial';
 
 export type CenterMode = 'rifts' | 'troops' | 'contest';
 export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
@@ -83,6 +98,7 @@ interface StoreState {
   screen: ScreenMode;
   activeSlotId: SaveSlotId | null;
   slots: SaveSlotSummary[];
+  tutorialProgress: TutorialProgress | null;
   multiplayer: MultiplayerSession | null;
   centerMode: CenterMode;
   loadedReplay: BattleReplay | null;
@@ -325,6 +341,7 @@ function makeInitialState(): StoreState {
     screen: 'main_menu',
     activeSlotId: null,
     slots: [],
+    tutorialProgress: null,
     multiplayer: null,
     centerMode: 'rifts',
     loadedReplay: null,
@@ -363,6 +380,21 @@ function saveActiveCampaign(state: StoreState): StoreState {
     ...state,
     slots: listSaveSlots(localStorage),
   };
+}
+
+function persistTutorialProgress(state: StoreState, progress: TutorialProgress | null): StoreState {
+  writeTutorialProgress(localStorage, progress);
+  return { ...state, tutorialProgress: progress };
+}
+
+function writeTutorialFixture(): ReturnType<typeof buildTutorialReplayFixture> {
+  const fixture = buildTutorialReplayFixture();
+  clearSaveSlot(localStorage, TUTORIAL_SAVE_ID);
+  saveToSlot(localStorage, TUTORIAL_SAVE_ID, fixture.game);
+  fixture.replayWrites.forEach((write) => {
+    writeSlotReplay(localStorage, TUTORIAL_SAVE_ID, write.replayId, JSON.stringify(write.replay));
+  });
+  return fixture;
 }
 
 function slotReplayStorageKey(slotId: SaveSlotId): (replayId: string) => string {
@@ -726,6 +758,7 @@ export const gameStore = (() => {
       set({
         ...makeInitialState(),
         slots,
+        tutorialProgress: readTutorialProgress(localStorage),
       });
     },
     connectMultiplayerContest,
@@ -738,6 +771,7 @@ export const gameStore = (() => {
       set({
         ...makeInitialState(),
         slots: listSaveSlots(localStorage),
+        tutorialProgress: readTutorialProgress(localStorage),
         systemMessage: 'Left multiplayer room.',
       });
     },
@@ -757,6 +791,7 @@ export const gameStore = (() => {
         screen: 'overworld',
         activeSlotId: slotId,
         slots: listSaveSlots(localStorage),
+        tutorialProgress: readTutorialProgress(localStorage),
         game,
         systemMessage:
           verification.changedCount > 0
@@ -776,6 +811,88 @@ export const gameStore = (() => {
         game,
       });
       scheduleContestAiPlanning(game);
+    },
+    hasTutorialSave() {
+      return loadSaveSlot(localStorage, TUTORIAL_SAVE_ID) !== null;
+    },
+    startTutorial() {
+      const fixture = writeTutorialFixture();
+      const tutorialProgress = makeTutorialProgress();
+      writeTutorialProgress(localStorage, tutorialProgress);
+      set({
+        ...makeInitialState(),
+        screen: 'overworld',
+        activeSlotId: TUTORIAL_SAVE_ID,
+        slots: listSaveSlots(localStorage),
+        tutorialProgress,
+        game: fixture.game,
+        centerMode: 'rifts',
+      });
+      scheduleContestAiPlanning(fixture.game);
+    },
+    resumeTutorial() {
+      const game = loadSaveSlot(localStorage, TUTORIAL_SAVE_ID);
+      if (!game) {
+        this.startTutorial();
+        return;
+      }
+      const tutorialProgress = readTutorialProgress(localStorage) ?? makeTutorialProgress();
+      set({
+        ...makeInitialState(),
+        screen: 'overworld',
+        activeSlotId: TUTORIAL_SAVE_ID,
+        slots: listSaveSlots(localStorage),
+        tutorialProgress,
+        game,
+        centerMode: 'rifts',
+      });
+      scheduleContestAiPlanning(game);
+    },
+    restartTutorial() {
+      this.startTutorial();
+    },
+    startTutorialOpening() {
+      const game = buildTutorialOpeningGame();
+      saveToSlot(localStorage, TUTORIAL_SAVE_ID, game);
+      update((state) => {
+        const tutorialProgress = state.tutorialProgress
+          ? recordTutorialAction(state.tutorialProgress, 'start-contest')
+          : null;
+        if (tutorialProgress) {
+          writeTutorialProgress(localStorage, tutorialProgress);
+        }
+        return {
+          ...state,
+          screen: 'overworld',
+          activeSlotId: TUTORIAL_SAVE_ID,
+          loadedReplay: null,
+          loadedReplayPayload: null,
+          loadedBattleReport: null,
+          currentStep: -1,
+          selectedEvent: null,
+          autoPlay: false,
+          tutorialProgress,
+          game,
+        };
+      });
+      scheduleContestAiPlanning(game);
+    },
+    recordTutorialAction(action: TutorialAction) {
+      update((state) =>
+        state.tutorialProgress
+          ? persistTutorialProgress(state, recordTutorialAction(state.tutorialProgress, action))
+          : state,
+      );
+    },
+    continueTutorial() {
+      update((state) =>
+        state.tutorialProgress ? persistTutorialProgress(state, continueTutorial(state.tutorialProgress)) : state,
+      );
+    },
+    previousTutorialStep() {
+      update((state) =>
+        state.tutorialProgress ? persistTutorialProgress(state, rewindTutorial(state.tutorialProgress)) : state,
+      );
     },
     returnToMainMenu() {
       update((state) => ({

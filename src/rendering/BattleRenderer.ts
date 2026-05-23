@@ -141,6 +141,10 @@ export class BattleRenderer {
 
   private unitSprites = new Map<string, Sprite>();
 
+  private tutorialUnitTargetLayer: HTMLDivElement;
+
+  private tutorialUnitTargets = new Map<string, HTMLSpanElement>();
+
   private unitBaseScales = new Map<string, number>();
 
   private unitAlive = new Map<string, boolean>();
@@ -199,6 +203,10 @@ export class BattleRenderer {
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     container.appendChild(canvas);
+    this.tutorialUnitTargetLayer = document.createElement('div');
+    this.tutorialUnitTargetLayer.className = 'battle-tutorial-unit-targets';
+    this.tutorialUnitTargetLayer.setAttribute('aria-hidden', 'true');
+    container.appendChild(this.tutorialUnitTargetLayer);
     this.worldLayer.addChild(this.boardLayer, this.unitLayer, this.effectLayer);
     this.app.stage.addChild(this.worldLayer);
     this.app.stage.eventMode = 'static';
@@ -264,6 +272,7 @@ export class BattleRenderer {
     this.app.stage.off('pointermove', this.handlePointerMove);
     this.app.stage.off('pointerup', this.handlePointerUp);
     this.app.stage.off('pointerupoutside', this.handlePointerUp);
+    this.tutorialUnitTargetLayer.remove();
     this.app.destroy(true, { children: true, texture: false, baseTexture: false });
   }
 
@@ -365,6 +374,8 @@ export class BattleRenderer {
     this.boardLayer.removeChildren();
     this.unitLayer.removeChildren();
     this.unitSprites.clear();
+    this.tutorialUnitTargetLayer.replaceChildren();
+    this.tutorialUnitTargets.clear();
     this.unitBaseScales.clear();
     this.unitAlive.clear();
     this.unitOutlines.clear();
@@ -457,6 +468,12 @@ export class BattleRenderer {
       this.unitLayer.addChild(sprite);
       this.unitSprites.set(unit.id, sprite);
       this.unitBaseScales.set(unit.id, baseScale);
+      const tutorialTarget = document.createElement('span');
+      tutorialTarget.className = 'battle-tutorial-unit-target';
+      tutorialTarget.dataset.tutorialTarget = 'battlefield-unit';
+      tutorialTarget.dataset.unitId = unit.id;
+      this.tutorialUnitTargetLayer.appendChild(tutorialTarget);
+      this.tutorialUnitTargets.set(unit.id, tutorialTarget);
 
       const outline = this.createUnitOutline(texture);
       this.unitLayer.addChildAt(outline, Math.max(0, this.unitLayer.getChildIndex(sprite)));
@@ -521,10 +538,10 @@ export class BattleRenderer {
   }
 
   private drawTargetMarker(marker: Graphics): void {
-    const silver = 0xd7dde6;
-    const darkSilver = 0x596777;
+    const targetRed = 0xff6056;
+    const darkRed = 0x6f1d1b;
     marker.clear();
-    marker.lineStyle(2, darkSilver, 0.34);
+    marker.lineStyle(2, darkRed, 0.46);
     marker.drawCircle(0, 0, 4.3);
     marker.moveTo(-9, 0);
     marker.lineTo(-5, 0);
@@ -535,7 +552,7 @@ export class BattleRenderer {
     marker.moveTo(0, 5);
     marker.lineTo(0, 9);
 
-    marker.lineStyle(0.95, silver, 0.94);
+    marker.lineStyle(0.95, targetRed, 0.98);
     marker.drawCircle(0, 0, 4.3);
     marker.moveTo(-9, 0);
     marker.lineTo(-5, 0);
@@ -649,6 +666,24 @@ export class BattleRenderer {
       sprite.alpha = 1;
       sprite.scale.set(xScale, yScale);
       this.setOutlineScale(outline, xScale, yScale);
+    });
+    this.syncTutorialUnitTargets();
+  }
+
+  private syncTutorialUnitTargets(): void {
+    this.tutorialUnitTargets.forEach((target, unitId) => {
+      const sprite = this.unitSprites.get(unitId);
+      if (!sprite || !this.unitAlive.get(unitId)) {
+        target.hidden = true;
+        return;
+      }
+
+      const bounds = sprite.getBounds();
+      target.hidden = false;
+      target.style.left = `${bounds.x}px`;
+      target.style.top = `${bounds.y}px`;
+      target.style.width = `${bounds.width}px`;
+      target.style.height = `${bounds.height}px`;
     });
   }
 
@@ -1272,6 +1307,7 @@ export class BattleRenderer {
       this.app.screen.width / 2 + this.cameraOffset.x,
       this.app.screen.height / 2 + this.cameraOffset.y,
     );
+    this.syncTutorialUnitTargets();
   }
 
   private clampCameraOffset(): void {

@@ -3,10 +3,11 @@ import { deserializeGameState, serializeGameState, startNewGame } from '../engin
 import { resolveBattle } from '../engine/battle';
 import type { BattleReplay, BattleOutcome, CampaignPhase, CampaignReportPayload, GameMode, GameState, ReplayIndexEntry, StoredReplayPayload } from '../engine/types';
 
-export type SaveSlotId = 1 | 2 | 3;
+export type NormalSaveSlotId = 1 | 2 | 3;
+export type SaveSlotId = NormalSaveSlotId | 'tutorial';
 
 export interface SaveSlotSummary {
-  slotId: SaveSlotId;
+  slotId: NormalSaveSlotId;
   status: 'empty' | 'occupied';
   gameMode: GameMode | null;
   cycleNumber: number | null;
@@ -21,7 +22,7 @@ interface SlotMetaRecord {
 
 type SlotMetaIndex = Partial<Record<SaveSlotId, SlotMetaRecord>>;
 
-const SLOT_IDS: SaveSlotId[] = [1, 2, 3];
+const SLOT_IDS: NormalSaveSlotId[] = [1, 2, 3];
 const SLOT_META_KEY = 'shiftmake:slots:v3';
 const REPLAY_STORAGE_VERSION = 'v3.19';
 const LEGACY_SAVE_KEY = 'shiftmake:save:v1';

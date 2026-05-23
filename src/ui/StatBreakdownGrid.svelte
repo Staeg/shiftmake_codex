@@ -23,6 +23,7 @@
   }> = [];
 
   export let columns = 3;
+  export let onHoverStat: ((key: string) => void) | null = null;
 
   let hoveredKey: string | null = null;
   let tooltipStyle = '';
@@ -55,6 +56,7 @@
     }
 
     hoveredKey = stat.key;
+    onHoverStat?.(stat.key);
     const width = Math.min(220, Math.max(180, window.innerWidth - 24));
     const estimatedHeight = 96 + (stat.breakdown?.lines.length ?? 0) * 26;
     const rect = target.getBoundingClientRect();

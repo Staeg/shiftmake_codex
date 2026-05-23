@@ -60,6 +60,8 @@ The app has three UI screens:
 - `overworld`: opening unlock, planning, draft offers, VP display, archive
 - `replay`: Pixi replay viewer with event log, tooltips, and recap
 
+The main menu also has a guided tutorial entry. Tutorial progress and its deterministic Contest vs AI save use dedicated local-storage keys outside the three normal save slots. The current tutorial starts from an overworld archive replay, teaches replay inspection and playback, then restarts its fixed tutorial run at the opening unlock screen.
+
 Campaign phases are:
 
 - `opening_unlock`: free opening picks for two factions; each faction option grants one preselected native starting troop and shows its other native troop types as later unlock potential
@@ -373,6 +375,7 @@ Base recovery is now:
 `src/store/gameStore.ts` owns:
 
 - save-slot loading and saving
+- dedicated tutorial save loading, restart, and tutorial-step persistence
 - replay payload persistence
 - cycle-end confirmation state
 - screen mode and replay navigation state

@@ -19,6 +19,10 @@
   export let onGoToNextAction: (() => void) | null = null;
   export let docked = false;
   export let liveBuffLines: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> = {};
+  export let onHoverStat: ((key: string) => void) | null = null;
+  export let onHoverAbility: (() => void) | null = null;
+  export let onPreviousAction: (() => void) | null = null;
+  export let onNextAction: (() => void) | null = null;
   let hoveredRoleText: { label: string; description: string } | null = null;
   let hoveredAbilityText: { label: string; description: string } | null = null;
   let hoveredSummonProfile: ReplayTroopProfile | null = null;
@@ -143,7 +147,7 @@
         <b>{display.role}</b>
       </button>
       {#if display.initiative !== null}
-        <div><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
+        <div title="Units act when initiative reaches 100; when no unit can act, each unit gains initiative equal to Speed."><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
       {/if}
     </div>
 
@@ -155,7 +159,7 @@
     {/if}
 
     {#if display.stats}
-      <StatBreakdownGrid stats={statEntries} columns={2} />
+      <StatBreakdownGrid stats={statEntries} columns={2} {onHoverStat} />
     {/if}
 
     <div class="meta">
@@ -174,8 +178,14 @@
               <button
                 type="button"
                 class="ability-chip"
-                on:mouseenter={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityDescription(ability) })}
-                on:focus={() => (hoveredAbilityText = { label: ability.label, description: formatAbilityDescription(ability) })}
+                on:mouseenter={() => {
+                  hoveredAbilityText = { label: ability.label, description: formatAbilityDescription(ability) };
+                  onHoverAbility?.();
+                }}
+                on:focus={() => {
+                  hoveredAbilityText = { label: ability.label, description: formatAbilityDescription(ability) };
+                  onHoverAbility?.();
+                }}
                 on:mouseleave={() => (hoveredAbilityText = null)}
                 on:blur={() => (hoveredAbilityText = null)}
               >
@@ -245,16 +255,24 @@
           <button
             type="button"
             class="action-button"
+            data-tutorial-target="unit-previous-action"
             disabled={lastActionStep === null}
-            on:click={() => onGoToLastAction?.()}
+            on:click={() => {
+              onGoToLastAction?.();
+              onPreviousAction?.();
+            }}
           >
             &lt;- Unit's Previous Action
           </button>
           <button
             type="button"
             class="action-button"
+            data-tutorial-target="unit-next-action"
             disabled={nextActionStep === null}
-            on:click={() => onGoToNextAction?.()}
+            on:click={() => {
+              onGoToNextAction?.();
+              onNextAction?.();
+            }}
           >
             Unit's Next Action -&gt;
           </button>

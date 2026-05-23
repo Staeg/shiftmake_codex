@@ -7,6 +7,7 @@
   export let currentStep = -1;
   export let showTitle = true;
   export let pinnedExplanationIndex: number | null = null;
+  export let tutorialTargetIndex: number | null = null;
   export let onSelect: (index: number) => void;
   export let onPinExplanation: (index: number | null) => void = () => {};
 
@@ -43,12 +44,15 @@
     onPinExplanation(index);
   }
 
-  $: scrollTarget = selected ?? (currentStep >= 0 ? currentStep : null);
+  $: scrollTarget = tutorialTargetIndex ?? selected ?? (currentStep >= 0 ? currentStep : null);
 
   $: if (logEl && scrollTarget !== null) {
     tick().then(() => {
       const target = logEl.querySelector(`button[data-step='${scrollTarget}']`) as HTMLButtonElement | null;
-      target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      target?.scrollIntoView({
+        block: tutorialTargetIndex !== null ? 'center' : 'nearest',
+        behavior: tutorialTargetIndex !== null ? 'auto' : 'smooth',
+      });
     });
   }
 </script>

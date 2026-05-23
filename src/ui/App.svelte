@@ -69,6 +69,7 @@
   import { getRiftVisual } from './riftVisuals';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
+  import TutorialPopup from './TutorialPopup.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
 import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEssenceDraftCost, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
 
@@ -118,7 +119,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       };
 
   type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
-  type MainMenuView = 'home' | 'singleplayer' | 'multiplayer' | 'debug' | 'settings';
+  type MainMenuView = 'home' | 'singleplayer' | 'tutorial' | 'multiplayer' | 'debug' | 'settings';
   type CycleRecord = RiftResolutionRecord;
 
   type RiftBattleAnimationSide = {
@@ -252,7 +253,56 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   let multiplayerStatus: string | null = null;
   let mainMenuView: MainMenuView = 'home';
   let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let tutorialScenePrompt = false;
+  let tutorialScenePromptTimer: ReturnType<typeof window.setTimeout> | null = null;
   const multiplayerDefaultServerConfigured = hasConfiguredMultiplayerServerUrl();
+
+  function signalTutorial(action: Parameters<typeof gameStore.recordTutorialAction>[0]): void {
+    if ($gameStore.tutorialProgress) {
+      gameStore.recordTutorialAction(action);
+    }
+  }
+
+  function previousTutorialStep(): void {
+    const currentStep = $gameStore.tutorialProgress?.step ?? null;
+    gameStore.previousTutorialStep();
+    if (currentStep === 'game-start') {
+      gameStore.resumeTutorial();
+      const replayId = $gameStore.game.replayIndex[0]?.replayId ?? null;
+      if (replayId) {
+        gameStore.openReplay(replayId);
+        gameStore.jumpTo(Number.MAX_SAFE_INTEGER);
+      }
+      return;
+    }
+    if (currentStep === 'opening') {
+      gameStore.returnToMainMenu();
+      mainMenuView = 'singleplayer';
+    }
+  }
+
+  function tutorialSceneLockActive(): boolean {
+    return !!$gameStore.tutorialProgress && !$gameStore.tutorialProgress.completed;
+  }
+
+  function showTutorialScenePrompt(): void {
+    tutorialScenePrompt = true;
+    if (tutorialScenePromptTimer) {
+      window.clearTimeout(tutorialScenePromptTimer);
+    }
+    tutorialScenePromptTimer = window.setTimeout(() => {
+      tutorialScenePrompt = false;
+      tutorialScenePromptTimer = null;
+    }, 1800);
+  }
+
+  function guardTutorialSceneChange(action: () => void): void {
+    if (tutorialSceneLockActive()) {
+      showTutorialScenePrompt();
+      return;
+    }
+    action();
+  }
 
   function handleUiDebugKeydown(event: KeyboardEvent): void {
     if (!debugToolsEnabled) {
@@ -396,6 +446,30 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     return unit ? replayProfileKey(unit.side, unit.troopLabel) : null;
   }
 
+  function getReplayStepPrimaryUnitId(step: BattleStep | null): string | null {
+    return step?.metadata?.activeUnitId ?? step?.actorIds[0] ?? step?.targetIds[0] ?? null;
+  }
+
+  function getReplayStepAffectedUnitIds(step: BattleStep | null): string[] {
+    if (!step) {
+      return [];
+    }
+
+    return [
+      step.metadata?.activeUnitId,
+      ...(step.metadata?.secondaryUnitIds ?? []),
+      ...step.actorIds,
+      ...step.targetIds,
+    ].filter((id, index, ids): id is string => Boolean(id) && ids.indexOf(id) === index);
+  }
+
+  function clearPinnedReplayEvent(): void {
+    pinnedReplayExplanationIndex = null;
+    if ($gameStore.selectedEvent !== null) {
+      gameStore.selectEvent(null);
+    }
+  }
+
   function getReplayUnitPortraitUrl(unit: BattleUnit): string {
     return getFactionUnitPortrait(unit.factionId, unit.unitTypeId);
   }
@@ -424,6 +498,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function setReplayUnitLock(unitId: string, options?: { toggle?: boolean; pointer?: UnitPointerInfo | null; profileKey?: string | null }): void {
+    clearPinnedReplayEvent();
     const nextProfileKey = options?.profileKey ?? getReplayProfileKeyForUnit(unitId);
     const sameUnitLocked = options?.toggle && lockedUnitId === unitId;
 
@@ -433,6 +508,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       if (nextProfileKey) {
         selectedReplayProfileKey = nextProfileKey;
       }
+      signalTutorial('unit-unlock');
       syncRenderer();
       return;
     }
@@ -442,11 +518,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     if (nextProfileKey) {
       selectedReplayProfileKey = nextProfileKey;
     }
+    signalTutorial('unit-lock');
     syncRenderer();
   }
 
   function previewReplayUnit(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
-    if (lockedUnitId) {
+    if (lockedUnitId || pinnedReplayExplanationIndex !== null) {
       return;
     }
     const target = event.currentTarget as HTMLElement;
@@ -457,15 +534,17 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       y: rect.top,
     };
     selectedReplayProfileKey = replayProfileKey(unit.side, unit.troopLabel);
+    signalTutorial('unit-hover');
     syncRenderer();
   }
 
   function clearReplayUnitPreview(unitId: string): void {
-    if (lockedUnitId) {
+    if (lockedUnitId || pinnedReplayExplanationIndex !== null) {
       return;
     }
     if (hoverInfo?.unitId === unitId) {
       hoverInfo = null;
+      signalTutorial('unit-unhover');
       syncRenderer();
     }
   }
@@ -968,8 +1047,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     nextRenderer.setDiagnosticHandler(rememberRendererDiagnostic);
     nextRenderer.setInteractionHandlers({
       onUnitHover: (info) => {
-        if (!lockedUnitId) {
+        if (!lockedUnitId && pinnedReplayExplanationIndex === null) {
           hoverInfo = info;
+          signalTutorial(info ? 'unit-hover' : 'unit-unhover');
+          syncRenderer();
         }
       },
       onUnitClick: (info) => {
@@ -1029,32 +1110,18 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       renderedStep = $gameStore.currentStep;
     }
 
-    const highlightStepIndex = $gameStore.selectedEvent ?? ($gameStore.currentStep >= 0 ? $gameStore.currentStep : null);
-    const highlightedStep = highlightStepIndex !== null ? $gameStore.loadedReplay.steps[highlightStepIndex] ?? null : null;
-
-    let strongIds = $gameStore.autoPlay ? [] : highlightedStep ? [highlightedStep.metadata?.activeUnitId ?? highlightedStep.actorIds[0] ?? highlightedStep.targetIds[0]].filter((id): id is string => Boolean(id)) : [];
-    let faintIds = $gameStore.autoPlay
+    const currentStep = $gameStore.currentStep >= 0 ? $gameStore.loadedReplay.steps[$gameStore.currentStep] ?? null : null;
+    const pinnedEventStep =
+      pinnedReplayExplanationIndex !== null ? $gameStore.loadedReplay.steps[pinnedReplayExplanationIndex] ?? null : null;
+    const strongIds = pinnedEventStep || activeDetail
       ? []
-      : highlightedStep
-        ? (highlightedStep.metadata?.secondaryUnitIds ?? [...highlightedStep.actorIds.slice(1), ...highlightedStep.targetIds]).filter((id) => !strongIds.includes(id))
-        : [];
+      : [lockedUnitId ?? hoverInfo?.unitId ?? (!$gameStore.autoPlay ? getReplayStepPrimaryUnitId(currentStep) : null)]
+          .filter((id): id is string => Boolean(id));
+    const eventMarkerIds = activeDetail ? [] : getReplayStepAffectedUnitIds(pinnedEventStep);
 
-    if (!$gameStore.autoPlay && lockedUnitId) {
-      if (highlightedStep?.actorIds.includes(lockedUnitId)) {
-        strongIds = [lockedUnitId];
-        faintIds = highlightedStep.targetIds.filter((id) => id !== lockedUnitId);
-      } else if (highlightedStep?.targetIds.includes(lockedUnitId)) {
-        strongIds = [lockedUnitId];
-        faintIds = highlightedStep.actorIds.filter((id) => id !== lockedUnitId);
-      } else {
-        strongIds = [lockedUnitId];
-        faintIds = [];
-      }
-    }
-
-    const highlightKey = `${$gameStore.autoPlay ? 'autoplay' : 'manual'}::${strongIds.join('|')}::${faintIds.join('|')}`;
+    const highlightKey = `${$gameStore.autoPlay ? 'autoplay' : 'manual'}::${strongIds.join('|')}::${eventMarkerIds.join('|')}`;
     if (highlightKey !== renderedHighlightKey) {
-      renderer.setHighlights(strongIds, faintIds);
+      renderer.setHighlights(strongIds, eventMarkerIds);
       renderedHighlightKey = highlightKey;
     }
   }
@@ -1067,6 +1134,21 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   function runManualReplayAction(action: () => void): void {
     gameStore.setAutoPlay(false);
     action();
+  }
+
+  function toggleReplayAutoPlay(): void {
+    const nextAutoPlay = !$gameStore.autoPlay;
+    gameStore.setAutoPlay(nextAutoPlay);
+    if ($gameStore.tutorialProgress?.step === 'play' && nextAutoPlay) {
+      signalTutorial('play');
+    } else if ($gameStore.tutorialProgress?.step === 'pause-resume') {
+      signalTutorial(nextAutoPlay ? 'resume' : 'pause');
+    }
+  }
+
+  function setReplaySpeed(speedMs: number): void {
+    gameStore.setSpeedMs(speedMs);
+    signalTutorial('speed-change');
   }
 
   function zoomReplayIn(): void {
@@ -1092,11 +1174,19 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   function startSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
     resetZoneState();
+    if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
+      gameStore.startTutorialOpening();
+      return;
+    }
     gameStore.startNewCampaign(slot.slotId, gameMode);
   }
 
   function restartSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
     resetZoneState();
+    if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
+      gameStore.startTutorialOpening();
+      return;
+    }
     gameStore.startNewCampaign(slot.slotId, gameMode);
   }
 
@@ -1190,6 +1280,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     resetZoneState();
     pendingOpeningTroopUnlockId = null;
     gameStore.startOpeningCampaign();
+    signalTutorial('begin');
   }
 
   function chooseFactionUnlock(factionId: FactionId): void {
@@ -1636,6 +1727,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     if (selectedReplayEntry) {
       resetZoneState();
       gameStore.openReplay(selectedReplayEntry.replayId);
+      signalTutorial('watch-battle');
     }
   }
 
@@ -1981,8 +2073,19 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     });
   }
 
+  function gameModeLabel(mode: GameMode | null): string {
+    if (!mode) {
+      return 'Campaign';
+    }
+
+    return mode
+      .split(/[_-]+/)
+      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+      .join(' ');
+  }
+
   function slotModeLabel(mode: GameMode | null): string {
-    return mode === 'contest' ? 'Contest' : 'Campaign';
+    return gameModeLabel(mode);
   }
 
   function getLocalPlayerName(): string {
@@ -2373,6 +2476,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     }
   }
   $: activeDetail = pinnedDetail ?? hoveredDetail;
+  $: if (renderer && $gameStore.screen === 'replay') {
+    activeDetail;
+    pinnedReplayExplanationIndex;
+    syncRenderer();
+  }
   $: statusCounts = getTroopStatusCounts($gameStore.game);
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
   $: essenceDraftButtonLabel = essenceDraftCost === 1 ? 'Reveal One Unlock' : essenceDraftCost === 2 ? 'Reveal Unlock Draft' : 'Draft Unavailable';
@@ -2394,7 +2502,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }));
   $: selectedOpeningFactionSummaries = starterGroups
     .filter((group) => selectedOpeningFactionIds.has(group.factionId))
-    .map((group) => ({ factionId: group.factionId, label: group.label }));
+    .map((group) => ({
+      factionId: group.factionId,
+      label: group.label,
+      starterTroopUnlockId: group.starterTroopUnlockId,
+    }));
 
   function isOpeningTroopSelected(troopUnlockId: TroopUnlockId): boolean {
     return selectedOpeningTroopUnlockIds.has(troopUnlockId);
@@ -2423,14 +2535,17 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       }
       gameStore.unclaimOpeningTroop(troopUnlockId);
       pendingOpeningTroopUnlockId = null;
+      signalTutorial('faction-deselect');
     } else {
       pendingOpeningTroopUnlockId = pendingOpeningTroopUnlockId === troopUnlockId ? null : troopUnlockId;
+      signalTutorial(pendingOpeningTroopUnlockId ? 'faction-select' : 'faction-deselect');
     }
   }
 
   function lockOpeningTroopPreview(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
     pendingOpeningTroopUnlockId = isOpeningTroopSelected(troopUnlockId) ? null : troopUnlockId;
     togglePinnedDetail(detail);
+    signalTutorial('starter-pending');
   }
 
   function confirmOpeningTroop(): void {
@@ -2441,6 +2556,15 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     pendingOpeningTroopUnlockId = null;
     pinnedDetail = null;
     hoveredDetail = null;
+    if ($gameStore.game.troops.length === 2) {
+      signalTutorial('opening-confirmed');
+    }
+  }
+
+  function toggleOpeningFutureDetail(detail: DetailCard): void {
+    const isPinned = pinnedDetail?.detailKey === detail.detailKey;
+    togglePinnedDetail(detail);
+    signalTutorial(isPinned ? 'future-deselect' : 'future-select');
   }
 
   function getScheduledFactionRosterUnlockIds(factionId: FactionId): TroopUnlockId[] {
@@ -2524,6 +2648,23 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     : [];
 
   $: replay = $gameStore.loadedReplay;
+  $: if ($gameStore.tutorialProgress?.step === 'play' && $gameStore.speedMs !== 500) {
+    gameStore.setSpeedMs(500);
+  }
+  $: if ($gameStore.tutorialProgress?.step === 'timeline-event' && $gameStore.autoPlay) {
+    gameStore.setAutoPlay(false);
+  }
+  $: if (
+    $gameStore.tutorialProgress?.step === 'finish-replay' &&
+    replay &&
+    $gameStore.currentStep >= replay.steps.length - 1
+  ) {
+    signalTutorial('replay-end');
+  }
+  $: if ($gameStore.tutorialProgress?.step === 'game-start' && $gameStore.screen === 'replay') {
+    gameStore.returnToMainMenu();
+    mainMenuView = 'singleplayer';
+  }
   $: replaySnapshot = replay ? currentSnapshot(replay) : [];
   $: replayHealthRoster = replay ? buildReplayHealthRoster(replay) : [];
   $: replayHealthOverview = replay
@@ -2531,15 +2672,16 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     : [];
   $: currentUnitById = new Map(replaySnapshot.map((unit) => [unit.id, unit]));
   $: replayProfilesByKey = new Map((replay?.troopProfiles ?? []).map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
-  $: replayHighlightedStepIndex = replay ? $gameStore.selectedEvent ?? ($gameStore.currentStep >= 0 ? $gameStore.currentStep : null) : null;
+  $: replayHighlightedStepIndex = replay && $gameStore.currentStep >= 0 ? $gameStore.currentStep : null;
   $: replayHighlightedStep = replay && replayHighlightedStepIndex !== null ? replay.steps[replayHighlightedStepIndex] ?? null : null;
-  $: replayActiveHighlightId = replayHighlightedStep?.metadata?.activeUnitId ?? replayHighlightedStep?.actorIds[0] ?? replayHighlightedStep?.targetIds[0] ?? null;
-  $: replaySecondaryHighlightIds = new Set(
-    replayHighlightedStep
-      ? replayHighlightedStep.metadata?.secondaryUnitIds ?? [...replayHighlightedStep.actorIds.slice(1), ...replayHighlightedStep.targetIds]
-      : [],
-  );
-  $: inspectedUnitId = lockedUnitId ?? hoverInfo?.unitId ?? null;
+  $: replayActiveHighlightId = getReplayStepPrimaryUnitId(replayHighlightedStep);
+  $: replayPinnedEventStep = replay && pinnedReplayExplanationIndex !== null ? replay.steps[pinnedReplayExplanationIndex] ?? null : null;
+  $: replayEventAffectedUnitIds = new Set(activeDetail ? [] : getReplayStepAffectedUnitIds(replayPinnedEventStep));
+  $: replayStrongHighlightId =
+    pinnedReplayExplanationIndex === null && !activeDetail
+      ? lockedUnitId ?? hoverInfo?.unitId ?? (!$gameStore.autoPlay ? replayActiveHighlightId : null)
+      : null;
+  $: inspectedUnitId = replayStrongHighlightId;
   $: inspectedUnit = inspectedUnitId ? replaySnapshot.find((unit) => unit.id === inspectedUnitId) ?? null : null;
   $: inspectedProfile =
     replay && inspectedUnit
@@ -2603,24 +2745,15 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function selectReplayEvent(index: number): void {
-    const step = replay?.steps[index] ?? null;
-    const snapshotUnits = step?.snapshot.units ?? replay?.initial.units ?? [];
-    const focusUnitId = step?.actorIds[0] ?? step?.targetIds[0] ?? null;
-
-    pinnedReplayExplanationIndex = null;
+    lockedUnitId = null;
+    hoverInfo = null;
+    selectedReplayProfileKey = null;
+    pinnedReplayExplanationIndex = index;
     gameStore.setAutoPlay(false);
     gameStore.selectEvent(index);
-
-    if (!focusUnitId) {
-      lockedUnitId = null;
-      hoverInfo = null;
-      return;
+    if ($gameStore.tutorialProgress?.step !== 'timeline-event' || index === 100) {
+      signalTutorial('event-select');
     }
-
-    const focusUnit = snapshotUnits.find((unit) => unit.id === focusUnitId) ?? null;
-    setReplayUnitLock(focusUnitId, {
-      profileKey: focusUnit ? replayProfileKey(focusUnit.side, focusUnit.troopLabel) : null,
-    });
   }
 
   function goToReplayUnitActionStep(stepIndex: number | null): void {
@@ -2629,11 +2762,24 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     }
 
     gameStore.setAutoPlay(false);
-    selectReplayEvent(stepIndex);
+    gameStore.selectEvent(stepIndex);
+    pinnedReplayExplanationIndex = null;
+    syncRenderer();
   }
 
   function pinReplayExplanation(index: number | null): void {
+    if (index === null) {
+      clearPinnedReplayEvent();
+      syncRenderer();
+      return;
+    }
+
+    lockedUnitId = null;
+    hoverInfo = null;
+    selectedReplayProfileKey = null;
+    gameStore.selectEvent(index);
     pinnedReplayExplanationIndex = index;
+    syncRenderer();
   }
 
   function getReplayRecapTroopProfile(side: SideId, troopLabel: string) {
@@ -2708,7 +2854,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       <div class="menu-topline ui-debug-target" data-ui-name="Main menu header">
         <div class="menu-copy ui-debug-target" data-ui-name="Main menu intro">
           <p class="eyebrow">Shiftmake</p>
-          <h1>{mainMenuView === 'home' ? 'Shiftmake' : mainMenuView === 'singleplayer' ? 'Singleplayer' : mainMenuView === 'multiplayer' ? 'Multiplayer' : mainMenuView === 'debug' ? 'Debug' : 'Settings'}</h1>
+          <h1>{mainMenuView === 'home' ? 'Shiftmake' : mainMenuView === 'singleplayer' ? 'Singleplayer' : mainMenuView === 'tutorial' ? 'Tutorial' : mainMenuView === 'multiplayer' ? 'Multiplayer' : mainMenuView === 'debug' ? 'Debug' : 'Settings'}</h1>
         </div>
       </div>
 
@@ -2722,6 +2868,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       {#if mainMenuView === 'home'}
         <div class="main-menu-actions ui-debug-target" data-ui-name="Main menu actions">
           <button class="primary large" on:click={() => showMainMenuView('singleplayer')}>Singleplayer</button>
+          <button class="large" on:click={() => showMainMenuView('tutorial')}>Tutorial</button>
           <button class="large" on:click={() => showMainMenuView('multiplayer')}>Multiplayer</button>
           <button class="large" on:click={() => showMainMenuView('debug')}>Debug</button>
           <button class="large" on:click={() => showMainMenuView('settings')}>Settings</button>
@@ -2761,6 +2908,19 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             </article>
           {/each}
         </div>
+      {:else if mainMenuView === 'tutorial'}
+        <section class="tutorial-menu panel ui-debug-target" data-ui-name="Tutorial menu">
+          {#if gameStore.hasTutorialSave()}
+            <p>The tutorial save can resume its guided steps or restart from the fixed tutorial state.</p>
+            <div class="actions-grid">
+              <button class="primary" on:click={() => gameStore.resumeTutorial()}>Resume Tutorial</button>
+              <button on:click={() => gameStore.restartTutorial()}>Restart Tutorial</button>
+            </div>
+          {:else}
+            <p>The tutorial starts from a fixed Contest vs AI state.</p>
+            <button class="primary" on:click={() => gameStore.startTutorial()}>Start Tutorial</button>
+          {/if}
+        </section>
       {:else if mainMenuView === 'multiplayer'}
         <section class="multiplayer-menu panel ui-debug-target" data-ui-name="Multiplayer Contest panel">
           <div class="multiplayer-identity-controls">
@@ -2993,7 +3153,6 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                       <img class="unit-button-art" src={getFactionUnitPortrait(starterFactionId, starterUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
                   </span>
-                  <span>{getUnitType(starterUnitTypeId).label}</span>
                 </button>
               </div>
 
@@ -3025,14 +3184,13 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         on:focus={() => previewDetail(troopDetail)}
                         on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
                         on:blur={clearDetail}
-                        on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
+                        on:click|stopPropagation={() => toggleOpeningFutureDetail(troopDetail)}
                       >
                         <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                           {#each unitIconCopies(troopDef.quantity) as copy}
                             <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                           {/each}
                         </span>
-                        <span>{getUnitType(unitTypeId).label}</span>
                       </button>
                     {/if}
                   {/each}
@@ -3046,21 +3204,25 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         {#if selectedOpeningFactionSummaries.length > 0}
           <div class="opening-selected-factions ui-debug-target" data-ui-name="Selected opening factions" aria-label="Selected factions">
             {#each selectedOpeningFactionSummaries as selectedFaction}
-              <span class="opening-selected-faction">
+              {@const [, selectedUnitTypeId] = parseTroopUnlockId(selectedFaction.starterTroopUnlockId)}
+              <span class="opening-selected-faction" aria-label={`${selectedFaction.label} ${getUnitType(selectedUnitTypeId).label}`}>
                 <img src={getFactionPortrait(selectedFaction.factionId)} alt="" aria-hidden="true" />
-                <span>{selectedFaction.label}</span>
+                <img src={getFactionUnitPortrait(selectedFaction.factionId, selectedUnitTypeId)} alt="" aria-hidden="true" />
               </span>
             {/each}
           </div>
         {/if}
         {#if pendingOpeningTroopUnlockId}
+          {@const [pendingFactionId, pendingUnitTypeId] = parseTroopUnlockId(pendingOpeningTroopUnlockId)}
           <button
             type="button"
-            class="primary large ui-debug-target"
+            class="primary large opening-confirm-troop-button ui-debug-target"
             data-ui-name="Confirm opening faction button"
             on:click={confirmOpeningTroop}
           >
-            Confirm {TROOP_CATALOG[pendingOpeningTroopUnlockId].label}
+            <img class="opening-action-art" src={getFactionPortrait(pendingFactionId)} alt="" aria-hidden="true" />
+            <span>Confirm {TROOP_CATALOG[pendingOpeningTroopUnlockId].label}</span>
+            <img class="opening-action-art" src={getFactionUnitPortrait(pendingFactionId, pendingUnitTypeId)} alt="" aria-hidden="true" />
           </button>
         {/if}
         <button
@@ -3070,7 +3232,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           on:click={beginOpeningCampaign}
           disabled={$gameStore.game.troops.length !== 2 || multiplayerReadySubmitted}
         >
-          {$gameStore.multiplayer ? multiplayerReadyLabel() : 'Begin Campaign'}
+          {$gameStore.multiplayer ? multiplayerReadyLabel() : `Begin ${gameModeLabel($gameStore.game.gameMode)}`}
         </button>
       </div>
     </section>
@@ -3436,14 +3598,37 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       {/if}
 
       <div class="mode-toggle ui-debug-target" data-ui-name="Top bar actions">
-        <button class="ui-debug-target" data-ui-name="Show rifts view" class:selected={$gameStore.centerMode === 'rifts'} on:click={setRiftCenterMode}>Rifts</button>
-        <button class="ui-debug-target" data-ui-name="Show factions and troops view" class:selected={$gameStore.centerMode === 'troops'} on:click={setTroopCenterMode}>Factions & Troops</button>
+        <button
+          class="ui-debug-target"
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'rifts'}
+          data-ui-name="Show rifts view"
+          class:selected={$gameStore.centerMode === 'rifts'}
+          on:click={() => ($gameStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialSceneChange(setRiftCenterMode))}
+        >Rifts</button>
+        <button
+          class="ui-debug-target"
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'troops'}
+          data-ui-name="Show factions and troops view"
+          class:selected={$gameStore.centerMode === 'troops'}
+          on:click={() => ($gameStore.centerMode === 'troops' ? setTroopCenterMode() : guardTutorialSceneChange(setTroopCenterMode))}
+        >Factions & Troops</button>
         {#if $gameStore.game.gameMode === 'contest'}
-          <button class="ui-debug-target" data-ui-name="Show opponent info view" class:selected={$gameStore.centerMode === 'contest'} on:click={setContestCenterMode}>
+          <button
+            class="ui-debug-target"
+            class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'contest'}
+            data-ui-name="Show opponent info view"
+            class:selected={$gameStore.centerMode === 'contest'}
+            on:click={() => ($gameStore.centerMode === 'contest' ? setContestCenterMode() : guardTutorialSceneChange(setContestCenterMode))}
+          >
             {$gameStore.multiplayer ? `${getOpponentPlayerName()} Info` : 'Rival Info'}
           </button>
         {/if}
-        <button class="ui-debug-target" data-ui-name="Return to main menu" on:click={returnToMainMenu}>Main Menu</button>
+        <button
+          class="ui-debug-target"
+          class:tutorial-scene-locked={tutorialSceneLockActive()}
+          data-ui-name="Return to main menu"
+          on:click={() => guardTutorialSceneChange(returnToMainMenu)}
+        >Main Menu</button>
         {#if $gameStore.multiplayer}
           <div class="topbar-room-card ui-debug-target" data-ui-name="Multiplayer room link">
             <span>{$gameStore.multiplayer.roomId ?? '...'}</span>
@@ -4652,7 +4837,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                     aria-label={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId) ? 'Replay unavailable' : 'Watch Battle'}
                     title={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId) ? 'Replay unavailable' : 'Watch Battle'}
                     disabled={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId)}
-                    on:click={() => gameStore.openReplay(replayEntry.replayId)}
+                    on:click={() => {
+                      gameStore.openReplay(replayEntry.replayId);
+                      signalTutorial('watch-battle');
+                    }}
                   >
                     👁️
                     <svg class="archive-watch-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -4959,7 +5147,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         </div>
 
         <div class="replay-actions replay-header-actions">
-          <button class="replay-exit-button ui-debug-target" data-ui-name="Return to overworld" on:click={() => gameStore.closeReplay()}>Return to Overworld</button>
+          <button
+            class="replay-exit-button ui-debug-target"
+            class:tutorial-scene-locked={tutorialSceneLockActive()}
+            data-ui-name="Return to overworld"
+            on:click={() => guardTutorialSceneChange(() => gameStore.closeReplay())}
+          >Return to Overworld</button>
           <button class="replay-exit-button replay-recap-button ui-debug-target" data-ui-name="Toggle battle recap" on:click={toggleReplayRecap}>
             {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
           </button>
@@ -4993,10 +5186,16 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         autoPlay={$gameStore.autoPlay}
         speedMs={$gameStore.speedMs}
         onJumpStart={() => runManualReplayAction(() => gameStore.jumpTo(-1))}
-        onStepBack={() => runManualReplayAction(() => gameStore.stepBackward())}
-        onStepForward={() => runManualReplayAction(() => gameStore.stepForward())}
-        onToggleAuto={() => gameStore.setAutoPlay(!$gameStore.autoPlay)}
-        onSetSpeed={(speedMs) => gameStore.setSpeedMs(speedMs)}
+        onStepBack={() => {
+          runManualReplayAction(() => gameStore.stepBackward());
+          signalTutorial('step-previous');
+        }}
+        onStepForward={() => {
+          runManualReplayAction(() => gameStore.stepForward());
+          signalTutorial('step-next');
+        }}
+        onToggleAuto={toggleReplayAutoPlay}
+        onSetSpeed={setReplaySpeed}
       />
 
       <section class="panel focus-panel ui-debug-target" data-ui-name="Replay focus panel">
@@ -5031,6 +5230,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             onGoToNextAction={() => goToReplayUnitActionStep(lockedUnitNextActionStep)}
             docked={true}
             liveBuffLines={inspectedUnitLiveStatLines}
+            onHoverStat={(key) => key === 'speed' && signalTutorial('speed-hover')}
+            onHoverAbility={() => signalTutorial('ability-hover')}
+            onPreviousAction={() => signalTutorial('unit-previous-action')}
+            onNextAction={() => signalTutorial('unit-next-action')}
           />
         {:else}
           <div class="focus-empty">
@@ -5054,7 +5257,13 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     </section>
 
     <section class="right replay-right ui-debug-target" data-ui-name="Replay right sidebar">
-      <button class="replay-exit-button sidebar-back-button ui-debug-target" data-ui-name="Back to archive from replay" aria-label="Back to archive" on:click={closeReplayToArchive}>
+      <button
+        class="replay-exit-button sidebar-back-button ui-debug-target"
+        class:tutorial-scene-locked={tutorialSceneLockActive()}
+        data-ui-name="Back to archive from replay"
+        aria-label="Back to archive"
+        on:click={() => guardTutorialSceneChange(closeReplayToArchive)}
+      >
         <span aria-hidden="true">&larr;</span> Back to Archive
       </button>
       <section class="panel collapsible-panel ui-debug-target" data-ui-name="Deprecated alive counts panel" hidden>
@@ -5133,7 +5342,16 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       </section>
 
       <section class="collapsible-stack ui-debug-target" data-ui-name="Replay event log stack" class:collapsed={replayEventLogCollapsed}>
-        <button class="panel panel-toggle event-log-toggle ui-debug-target" data-ui-name="Toggle event log" on:click={() => (replayEventLogCollapsed = !replayEventLogCollapsed)}>
+        <button
+          class="panel panel-toggle event-log-toggle ui-debug-target"
+          data-ui-name="Toggle event log"
+          on:click={() => {
+            replayEventLogCollapsed = !replayEventLogCollapsed;
+            if (!replayEventLogCollapsed) {
+              signalTutorial('event-log-show');
+            }
+          }}
+        >
           <div>
             <p class="eyebrow">Event Log</p>
             <strong>{replayEventLogCollapsed ? 'Collapsed' : 'Live Timeline'}</strong>
@@ -5163,8 +5381,8 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                         type="button"
                         class="replay-health-unit ui-debug-target"
                         class:selected={lockedUnitId === entry.unit.id}
-                        class:active-highlight={replayActiveHighlightId === entry.unit.id}
-                        class:secondary-highlight={replaySecondaryHighlightIds.has(entry.unit.id)}
+                        class:active-highlight={replayStrongHighlightId === entry.unit.id}
+                        class:secondary-highlight={replayEventAffectedUnitIds.has(entry.unit.id)}
                         data-ui-name={`Health overview ${side.label} ${entry.unit.id}`}
                         aria-label={`${entry.unit.troopLabel} health ${entry.hpLabel}`}
                         on:mouseenter={(event) => previewReplayUnit(entry.unit, event)}
@@ -5198,6 +5416,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
               selected={$gameStore.selectedEvent}
               currentStep={$gameStore.currentStep}
               pinnedExplanationIndex={pinnedReplayExplanationIndex}
+              tutorialTargetIndex={$gameStore.tutorialProgress?.step === 'timeline-event' ? 100 : null}
               showTitle={false}
               onSelect={selectReplayEvent}
               onPinExplanation={pinReplayExplanation}
@@ -5316,6 +5535,21 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     onDeselect={() => (selectedDesignTargetName = null)}
     onResetAll={resetAllDesignTweaks}
   />
+{/if}
+
+{#if
+  $gameStore.tutorialProgress &&
+  $gameStore.activeSlotId === 'tutorial' &&
+  ($gameStore.screen !== 'main_menu' || $gameStore.tutorialProgress.step === 'game-start' || $gameStore.tutorialProgress.step === 'start-contest')
+}
+  <TutorialPopup
+    progress={$gameStore.tutorialProgress}
+    onBack={previousTutorialStep}
+    onContinue={() => gameStore.continueTutorial()}
+  />
+{/if}
+{#if tutorialScenePrompt}
+  <div class="tutorial-scene-prompt" role="status">Follow the tutorial!</div>
 {/if}
 
 <style>
@@ -5572,7 +5806,6 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     display: inline-flex;
     align-items: center;
     gap: 0.42rem;
-    max-width: 11rem;
     padding: 0.3rem 0.55rem;
     border: 1px solid rgba(237, 197, 111, 0.42);
     border-radius: var(--ui-panel-radius-tight);
@@ -5593,15 +5826,50 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     image-rendering: pixelated;
   }
 
-  .opening-selected-faction span {
+  .opening-confirm-troop-button {
+    display: inline-grid;
+    grid-template-columns: 2rem minmax(0, auto) 2rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+  }
+
+  .opening-confirm-troop-button span {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+
+  .opening-action-art {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
   }
 
   .ui-debug-visible .ui-debug-target {
     position: relative;
+  }
+
+  button.tutorial-scene-locked {
+    cursor: not-allowed;
+    filter: grayscale(1);
+    opacity: 0.48;
+  }
+
+  .tutorial-scene-prompt {
+    position: fixed;
+    z-index: 42;
+    left: 50%;
+    top: 1rem;
+    transform: translateX(-50%);
+    border: 1px solid rgba(237, 197, 111, 0.8);
+    border-radius: 8px;
+    background: rgba(8, 12, 18, 0.96);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+    color: #ffe1a1;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 800;
   }
 
   .ui-debug-visible .ui-debug-target::after {
@@ -6101,9 +6369,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   .opening-starter-tile {
-    grid-template-columns: auto minmax(0, 1fr);
-    justify-items: start;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    align-items: stretch;
     min-height: 4.2rem;
     text-align: left;
     border-color: rgba(213, 178, 116, 0.48);
@@ -6133,10 +6401,39 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   .opening-future-tile {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    align-items: stretch;
     min-height: 0;
     border-style: dashed;
     background: rgba(16, 25, 35, 0.68);
     color: #c4d2df;
+  }
+
+  .opening-starter-tile .chip-unit-cluster .unit-button-art,
+  .opening-future-tile .chip-unit-cluster .unit-button-art {
+    width: min(2.15rem, 92%) !important;
+    height: min(2.15rem, 92%) !important;
+  }
+
+  .opening-starter-tile .chip-unit-cluster.density-4 .unit-button-art,
+  .opening-future-tile .chip-unit-cluster.density-4 .unit-button-art {
+    width: min(1.36rem, 72%) !important;
+    height: min(1.36rem, 72%) !important;
+  }
+
+  .opening-starter-tile .chip-unit-cluster.density-6 .unit-button-art,
+  .opening-future-tile .chip-unit-cluster.density-6 .unit-button-art,
+  .opening-starter-tile .chip-unit-cluster.density-9 .unit-button-art,
+  .opening-future-tile .chip-unit-cluster.density-9 .unit-button-art {
+    width: min(1.18rem, 66%) !important;
+    height: min(1.18rem, 66%) !important;
+  }
+
+  .opening-starter-tile .chip-unit-cluster.density-12 .unit-button-art,
+  .opening-future-tile .chip-unit-cluster.density-12 .unit-button-art {
+    width: min(1.02rem, 58%) !important;
+    height: min(1.02rem, 58%) !important;
   }
 
   .rift-card {
@@ -8573,6 +8870,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   .viewport {
     display: block;
+    position: relative;
     width: 100%;
     height: 100%;
     min-height: clamp(340px, 50vh, 560px);
@@ -8582,6 +8880,18 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       radial-gradient(circle at 50% 20%, rgba(46, 70, 89, 0.9), transparent 42%),
       linear-gradient(180deg, #10202c, #08101a 62%, #06090f);
     box-shadow: inset 0 0 0 1px rgba(201, 171, 124, 0.06);
+  }
+
+  .viewport :global(.battle-tutorial-unit-targets) {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .viewport :global(.battle-tutorial-unit-target) {
+    position: absolute;
+    pointer-events: none;
   }
 
   .focus-panel {
