@@ -348,7 +348,7 @@ The battle engine uses this for side-wide rules that must keep working for futur
 
 Assignment rule: no more than one troop of a given faction can enter the same Rift unless that faction has `United`, and no more than one troop of a given unit type can enter the same Rift.
 
-Important current rule: ending a cycle with no assignments and/or unspent Essence is allowed, but the store surfaces a confirmation warning before advancing.
+Important current rule: ending a cycle with no assignments and/or only holding existing Contest Rifts is allowed after confirmation, but spendable Essence is not. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer readiness can be submitted.
 
 ### Recovery
 

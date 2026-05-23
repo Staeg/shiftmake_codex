@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignTroopToRift, claimOpeningTroop, getOpeningFactionStarterTroopUnlockIds, revealEssenceDraft, startNewGame } from './game';
+import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffer, getOpeningFactionStarterTroopUnlockIds, revealEssenceDraft, startNewGame } from './game';
 import {
   advanceContestMultiplayerRoom,
   buildStoredReplayPayloadMap,
@@ -15,6 +15,19 @@ import type { GameState, TroopUnlockId } from './types';
 function chooseFirstTwoOpeningTroops(state: GameState): GameState {
   const starters = Object.values(getOpeningFactionStarterTroopUnlockIds(state)) as TroopUnlockId[];
   return starters.slice(0, 2).reduce((next, troopUnlockId) => claimOpeningTroop(next, troopUnlockId), state);
+}
+
+function spendProjectedEssence(state: GameState): GameState {
+  let next = revealEssenceDraft(state);
+  const troopUnlockId = next.activeTroopOffer?.optionTroopUnlockIds[0];
+  const upgradeId = next.activeUpgradeOffer?.optionUpgradeIds[0];
+  if (troopUnlockId) {
+    next = claimTroopOffer(next, troopUnlockId);
+  }
+  if (upgradeId) {
+    next = claimUpgradeOffer(next, upgradeId);
+  }
+  return next;
 }
 
 describe('multiplayer Contest rooms', () => {
@@ -123,6 +136,49 @@ describe('multiplayer Contest rooms', () => {
     expect(aiGuardianEntry?.encounterLabel).toBe('Neutral Guardians');
   });
 
+  it('derives projected archive outcomes from the localized player-side final counts', () => {
+    const projectedIndex = projectReplayIndexForPlayer(
+      [
+        {
+          id: 'replay-1',
+          replayId: 'replay-1',
+          riftId: 'cycle-1-rift-1',
+          cycleNumber: 1,
+          battleSeed: 1,
+          outcome: 'defeat',
+          playerTroopLabels: ['Guest Wizards'],
+          enemyTroopLabels: ['Neutral Guardians'],
+          mutatorIds: [],
+          summary: 'DEFEAT 5-0',
+          estimatedBytes: 1,
+          finalPlayerAlive: 5,
+          finalEnemyAlive: 0,
+        },
+      ],
+      {
+        'replay-1': {
+          version: 1,
+          input: {
+            seed: 1,
+            riftId: 'cycle-1-rift-1',
+            tier: 1,
+            mutatorIds: [],
+            playerCombatants: [{ label: 'Guest Wizards' } as never],
+            enemyCombatants: [{ label: 'Neutral Guardians' } as never],
+            sideParticipants: {
+              player: { kind: 'player', label: 'Guest', playerId: 'ai' },
+              enemy: { kind: 'neutral', label: 'Neutral Guardians' },
+            },
+          },
+        },
+      },
+    );
+
+    expect(projectedIndex[0]?.outcome).toBe('victory');
+    expect(projectedIndex[0]?.summary).toBe('VICTORY 5-0');
+    expect(projectedIndex[0]?.encounterLabel).toBe('Neutral Guardians');
+  });
+
   it('generates different scheduled faction unlock offers for both players', () => {
     const room = startNewGame(789, 'contest');
     let state = advanceContestMultiplayerRoom(room, {
@@ -183,6 +239,48 @@ describe('multiplayer Contest rooms', () => {
     expect(result.error).toContain('draft choices');
   });
 
+  it('rejects planning submissions until Essence is spent and active drafts are finished', () => {
+    const room = startNewGame(456, 'contest');
+    const opened = advanceContestMultiplayerRoom(room, {
+      human: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')),
+      ai: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'ai')),
+    }).state;
+
+    const result = validateAndApplyContestSubmission(opened, 'human', buildContestMultiplayerSubmission(projectContestStateForPlayer(opened, 'human')));
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Spend all Essence');
+  });
+
+  it('accepts a held controlled Rift troop as an existing occupation, not a new assignment', () => {
+    const room = startNewGame(456, 'contest');
+    const opened = advanceContestMultiplayerRoom(room, {
+      human: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')),
+      ai: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'ai')),
+    }).state;
+    const heldRiftId = opened.openRifts[0]!.id;
+    const heldTroopId = opened.troops[0]!.id;
+    const controlled: GameState = {
+      ...opened,
+      openRifts: [
+        {
+          ...opened.openRifts[0]!,
+          controller: 'human',
+          occupyingPlayerId: 'human',
+          occupyingTroopIds: [heldTroopId],
+        },
+        ...opened.openRifts.slice(1),
+      ],
+      troops: opened.troops.map((troop, index) => (index === 0 ? { ...troop, assignmentRiftId: heldRiftId } : troop)),
+    };
+    const projected = spendProjectedEssence(projectContestStateForPlayer(controlled, 'human'));
+
+    const result = validateAndApplyContestSubmission(controlled, 'human', buildContestMultiplayerSubmission(projected));
+
+    expect(result.ok).toBe(true);
+    expect(result.projectedState?.troops.find((troop) => troop.id === heldTroopId)?.assignmentRiftId).toBe(heldRiftId);
+  });
+
   it('rejects illegal assignments to already controlled Rifts', () => {
     const room = startNewGame(456, 'contest');
     const opened = advanceContestMultiplayerRoom(room, {
@@ -201,7 +299,7 @@ describe('multiplayer Contest rooms', () => {
         ...opened.openRifts.slice(1),
       ],
     };
-    const projected = projectContestStateForPlayer(controlled, 'human');
+    const projected = spendProjectedEssence(projectContestStateForPlayer(controlled, 'human'));
     const submission = buildContestMultiplayerSubmission({
       ...projected,
       troops: projected.troops.map((troop, index) => (index === 1 ? { ...troop, assignmentRiftId: projected.openRifts[0]!.id } : troop)),

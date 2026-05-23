@@ -72,7 +72,7 @@
   import UnitTooltip from './UnitTooltip.svelte';
   import TutorialPopup from './TutorialPopup.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
-import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEssenceDraftCost, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
+  import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEssenceDraftCost, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
 
   type StatEntry = {
     key: string;
@@ -123,6 +123,13 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   type MainMenuView = 'home' | 'singleplayer' | 'tutorial' | 'multiplayer' | 'debug' | 'settings';
   type CycleRecord = RiftResolutionRecord;
   type AbilityTooltipState = { label: string; description: string; ownerDetailKey: string | null };
+  type ReplayAbilityTooltipState = { side: SideId; label: string; description: string };
+  type ReplaySideAbility = {
+    ability: AbilityDefinition;
+    side: SideId;
+    ownerLabels: string[];
+    active: boolean;
+  };
 
   type RiftBattleAnimationSide = {
     label: string;
@@ -141,6 +148,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   type RiftBattleAnimationView = {
     riftId: string;
     phases: RiftBattleAnimationPhase[];
+  };
+
+  type RiftAnimationCombatantGroup = {
+    phaseClass: 'phase-now' | 'phase-late' | 'phase-static';
+    combatants: ResolvedCombatantDefinition[];
   };
 
   type ForceLossTiming = 'now' | 'late' | null;
@@ -208,6 +220,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   let hoveredAbilityTooltip: AbilityTooltipState | null = null;
   let pinnedAbilityTooltip: AbilityTooltipState | null = null;
   let activeAbilityTooltip: AbilityTooltipState | null = null;
+  let replayAbilityTooltip: ReplayAbilityTooltipState | null = null;
   let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
   let battleHost: HTMLDivElement | null = null;
@@ -254,10 +267,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   let multiplayerRoomCode = '';
   let multiplayerPlayerName = 'Player';
   let multiplayerCopyMessage: string | null = null;
+  let multiplayerCopyMessageTimer: ReturnType<typeof window.setTimeout> | null = null;
   let multiplayerReadySubmitted = false;
   let multiplayerStatus: string | null = null;
   let mainMenuView: MainMenuView = 'home';
   let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let lastDraftGameKey = '';
   let tutorialScenePrompt = false;
   let tutorialScenePromptTimer: ReturnType<typeof window.setTimeout> | null = null;
   const multiplayerDefaultServerConfigured = hasConfiguredMultiplayerServerUrl();
@@ -993,26 +1008,42 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     };
   }
 
+  function unitIconCount(quantity: number): number {
+    return Math.max(1, Math.round(quantity));
+  }
+
   function unitIconCopies(quantity: number): number[] {
-    return Array.from({ length: Math.max(1, Math.min(12, Math.floor(quantity))) }, (_, index) => index);
+    return Array.from({ length: unitIconCount(quantity) }, (_, index) => index);
   }
 
   function unitIconColumns(quantity: number): number {
-    const count = Math.max(1, Math.min(12, Math.floor(quantity)));
+    const count = unitIconCount(quantity);
     if (count <= 1) {
       return 1;
     }
     if (count <= 4) {
-      return 2;
+      return count;
     }
-    if (count <= 9) {
+    if (count <= 6) {
       return 3;
     }
-    return 4;
+    if (count <= 12) {
+      return 4;
+    }
+    if (count <= 20) {
+      return 5;
+    }
+    return 6;
   }
 
   function unitIconDensityClass(quantity: number): string {
-    const count = Math.max(1, Math.min(12, Math.floor(quantity)));
+    const count = unitIconCount(quantity);
+    if (count > 20) {
+      return 'density-24';
+    }
+    if (count > 12) {
+      return 'density-20';
+    }
     if (count >= 10) {
       return 'density-12';
     }
@@ -1393,10 +1424,21 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           throw new Error('Clipboard command failed.');
         }
       }
-      multiplayerCopyMessage = successMessage;
+      setMultiplayerCopyMessage(successMessage);
     } catch {
-      multiplayerCopyMessage = 'Copy failed.';
+      setMultiplayerCopyMessage('Copy failed.');
     }
+  }
+
+  function setMultiplayerCopyMessage(message: string): void {
+    multiplayerCopyMessage = message;
+    if (multiplayerCopyMessageTimer) {
+      window.clearTimeout(multiplayerCopyMessageTimer);
+    }
+    multiplayerCopyMessageTimer = window.setTimeout(() => {
+      multiplayerCopyMessage = null;
+      multiplayerCopyMessageTimer = null;
+    }, 1800);
   }
 
   function copyRoomCode(): void {
@@ -1464,6 +1506,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   function handleEndCycle(): void {
+    if (mustSpendEssenceBeforeCycleEnd) {
+      focusEssenceDraft();
+      return;
+    }
     if ($gameStore.centerMode !== 'rifts') {
       gameStore.setCenterMode('rifts');
     }
@@ -2191,10 +2237,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   function archiveEntryMatchupLabel(entry: { sideParticipants?: StoredReplayPayload['input']['sideParticipants']; encounterLabel?: string }): string | null {
     if (entry.sideParticipants) {
       const { player, enemy } = entry.sideParticipants;
-      if (player.kind === 'player' || enemy.kind === 'player') {
-        return `${player.label} vs ${enemy.label}`;
-      }
-      return null;
+      return `${player.label} vs ${enemy.label}`;
     }
     return entry.encounterLabel ? `Player vs ${entry.encounterLabel}` : null;
   }
@@ -2236,6 +2279,37 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       combatant.abilities,
       combatant.statBreakdowns,
     );
+  }
+
+  function getArchiveCombatants(side: SideId): ResolvedCombatantDefinition[] {
+    const payloadCombatants =
+      side === 'player'
+        ? selectedArchivePayload?.input.playerCombatants ?? []
+        : selectedArchivePayload?.input.enemyCombatants ?? [];
+    if (payloadCombatants.length > 0) {
+      return payloadCombatants;
+    }
+    if (!selectedArchiveReplay) {
+      return [];
+    }
+    return selectedArchiveReplay.troopProfiles
+      .filter((profile) => profile.side === side)
+      .map((profile) => ({
+        combatantId: `${side}:${profile.troopLabel}`,
+        factionId: profile.factionId,
+        unitTypeId: profile.unitTypeId,
+        troopInstanceId: null,
+        label: profile.troopLabel,
+        role: profile.role,
+        type: profile.type,
+        attributes: profile.attributes,
+        stats: profile.stats,
+        abilities: profile.abilities,
+        quantity: selectedArchiveReplay.initial.units.filter((unit) => unit.side === side && unit.troopLabel === profile.troopLabel).length,
+        cost: 0,
+        side,
+        statBreakdowns: profile.statBreakdowns,
+      }));
   }
 
   function getRelevantArchiveUpgradeIds(payload: StoredReplayPayload | null, replay: BattleReplay | null, side: SideId): UpgradeId[] {
@@ -2367,6 +2441,35 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       return null;
     }
     return losingPhase.delayClass === 'phase-late' ? 'late' : 'now';
+  }
+
+  function getAnimationCombatantsForSide(phase: RiftBattleAnimationPhase, side: 'left' | 'right'): ResolvedCombatantDefinition[] {
+    const record = $gameStore.cycleAnimation?.resolution.records.find((entry) => entry.replay.id === phase.replayId);
+    if (!record) {
+      return [];
+    }
+    const phaseSide = phase[side];
+    const participants = record.battleInput.sideParticipants;
+    if (participants?.player.kind === phaseSide.kind && participants.player.label === phaseSide.label) {
+      return record.battleInput.playerCombatants;
+    }
+    if (participants?.enemy.kind === phaseSide.kind && participants.enemy.label === phaseSide.label) {
+      return record.battleInput.enemyCombatants;
+    }
+    return [];
+  }
+
+  function getAnimationLeftCombatantGroups(rift: RiftInstance, animation: RiftBattleAnimationView | null): RiftAnimationCombatantGroup[] {
+    if (animation?.phases.length) {
+      const groups = animation.phases.map((phase) => ({
+        phaseClass: phase.delayClass,
+        combatants: getAnimationCombatantsForSide(phase, 'left'),
+      })).filter((group) => group.combatants.length > 0);
+      if (groups.length > 0) {
+        return groups;
+      }
+    }
+    return [{ phaseClass: 'phase-static', combatants: getVisibleRiftDefenders(rift) }];
   }
 
   function getAnimationLeftCombatants(rift: RiftInstance, animation: RiftBattleAnimationView | null): ResolvedCombatantDefinition[] {
@@ -2507,6 +2610,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         window.clearTimeout(essenceDraftHighlightTimer);
         essenceDraftHighlightTimer = null;
       }
+      if (multiplayerCopyMessageTimer) {
+        window.clearTimeout(multiplayerCopyMessageTimer);
+        multiplayerCopyMessageTimer = null;
+      }
       window.removeEventListener('resize', handleResize);
       teardownRenderer();
     };
@@ -2579,6 +2686,25 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     !$gameStore.game.activeUpgradeOffer?.optionUpgradeIds.includes(selectedUpgradeOfferId)
   ) {
     selectedUpgradeOfferId = null;
+  }
+
+  $: {
+    const draftGameKey = [
+      $gameStore.activeSlotId ?? 'multiplayer',
+      $gameStore.multiplayer?.roomId ?? 'local',
+      $gameStore.game.gameMode,
+      $gameStore.game.campaignSeed,
+      $gameStore.game.cycleNumber,
+      $gameStore.game.phase,
+    ].join('|');
+    if (lastDraftGameKey && draftGameKey !== lastDraftGameKey) {
+      selectedTroopOfferUnlockId = null;
+      selectedUpgradeOfferId = null;
+      confirmedTroopOfferUnlockId = null;
+      confirmedUpgradeOfferId = null;
+      hoveredUpgradeOfferId = null;
+    }
+    lastDraftGameKey = draftGameKey;
   }
 
   $: if ($gameStore.game.activeTroopOffer) {
@@ -2685,6 +2811,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
   $: essenceDraftButtonLabel = essenceDraftCost === 1 ? 'Reveal One Unlock' : essenceDraftCost === 2 ? 'Reveal Unlock Draft' : 'Draft Unavailable';
   $: essenceDraftActive = !!($gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
+  $: mustSpendEssenceBeforeCycleEnd =
+    $gameStore.game.phase === 'planning' &&
+    (($gameStore.game.essence > 0 && essenceDraftCost !== null) || $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
   $: finalCycle = $gameStore.game.gameMode === 'contest' ? CONTEST_FINAL_CYCLE : CAMPAIGN_FINAL_CYCLE;
   $: cycleProgressLabel = $gameStore.game.cycleNumber > finalCycle ? `Postgame cycle ${$gameStore.game.cycleNumber}` : `Cycle ${$gameStore.game.cycleNumber} / ${finalCycle}`;
   $: archiveEntriesPerPage = Math.max(4, Math.min(12, Math.floor((viewportHeight - 350) / 52)));
@@ -2736,9 +2865,15 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       gameStore.unclaimOpeningTroop(troopUnlockId);
       pendingOpeningTroopUnlockId = null;
       signalTutorial('faction-deselect');
-    } else {
-      pendingOpeningTroopUnlockId = pendingOpeningTroopUnlockId === troopUnlockId ? null : troopUnlockId;
-      signalTutorial(pendingOpeningTroopUnlockId ? 'faction-select' : 'faction-deselect');
+      return;
+    }
+
+    if (canClaimOpeningTroop(troopUnlockId)) {
+      gameStore.claimOpeningTroop(troopUnlockId);
+      pendingOpeningTroopUnlockId = null;
+      pinnedDetail = null;
+      hoveredDetail = null;
+      signalTutorial($gameStore.game.troops.length === 2 ? 'opening-confirmed' : 'faction-select');
     }
   }
 
@@ -2886,6 +3021,8 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   $: replayProfilesByKey = new Map((replay?.troopProfiles ?? []).map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
   $: replayHighlightedStepIndex = replay && $gameStore.currentStep >= 0 ? $gameStore.currentStep : null;
   $: replayHighlightedStep = replay && replayHighlightedStepIndex !== null ? replay.steps[replayHighlightedStepIndex] ?? null : null;
+  $: replayPlayerAbilities = replay || replaySnapshot || replayHighlightedStep ? buildReplaySideAbilities('player') : [];
+  $: replayEnemyAbilities = replay || replaySnapshot || replayHighlightedStep ? buildReplaySideAbilities('enemy') : [];
   $: replayActiveHighlightId = getReplayStepPrimaryUnitId(replayHighlightedStep);
   $: replayPinnedEventStep = replay && pinnedReplayExplanationIndex !== null ? replay.steps[pinnedReplayExplanationIndex] ?? null : null;
   $: replayEventAffectedUnitIds = new Set(activeDetail ? [] : getReplayStepAffectedUnitIds(replayPinnedEventStep));
@@ -2996,6 +3133,63 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   function getReplayRecapTroopProfile(side: SideId, troopLabel: string) {
     return replayProfilesByKey.get(replayProfileKey(side, troopLabel)) ?? null;
+  }
+
+  function getStepAbilityId(step: BattleStep | null): string | null {
+    if (!step) {
+      return null;
+    }
+    return (
+      (typeof step.metadata?.sourceAbilityId === 'string' ? step.metadata.sourceAbilityId : null) ??
+      (typeof step.metadata?.explanation?.ability?.abilityId === 'string' ? step.metadata.explanation.ability.abilityId : null)
+    );
+  }
+
+  function getStepActorSide(step: BattleStep | null): SideId | null {
+    const actorId = step?.actorIds[0];
+    if (!actorId) {
+      return null;
+    }
+    return (replaySnapshot.find((unit) => unit.id === actorId) ?? replay?.initial.units.find((unit) => unit.id === actorId))?.side ?? null;
+  }
+
+  function buildReplaySideAbilities(side: SideId): ReplaySideAbility[] {
+    const activeAbilityId = getStepAbilityId(replayHighlightedStep);
+    const activeSide = getStepActorSide(replayHighlightedStep);
+    const abilities = new Map<string, ReplaySideAbility>();
+    (replay?.troopProfiles ?? [])
+      .filter((profile) => profile.side === side)
+      .forEach((profile) => {
+        profile.abilities.forEach((ability) => {
+          const existing = abilities.get(ability.id);
+          if (existing) {
+            if (!existing.ownerLabels.includes(profile.troopLabel)) {
+              existing.ownerLabels.push(profile.troopLabel);
+            }
+            return;
+          }
+          abilities.set(ability.id, {
+            ability,
+            side,
+            ownerLabels: [profile.troopLabel],
+            active: activeSide === side && activeAbilityId === ability.id,
+          });
+        });
+      });
+    return [...abilities.values()].sort((left, right) => left.ability.label.localeCompare(right.ability.label));
+  }
+
+  function showReplayAbilityTooltip(entry: ReplaySideAbility): void {
+    replayAbilityTooltip = {
+      side: entry.side,
+      label: entry.ability.label,
+      description: `${formatAbilityDescription(entry.ability)} ${entry.ownerLabels.join(', ')}.`,
+    };
+    signalTutorial('ability-hover');
+  }
+
+  function clearReplayAbilityTooltip(): void {
+    replayAbilityTooltip = null;
   }
 
   function getReplayRecapUnitState(unitId: string): BattleUnit | null {
@@ -3222,7 +3416,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             {/if}
             <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
             {#if multiplayerCopyMessage}
-              <span>{multiplayerCopyMessage}</span>
+              <span class="multiplayer-copy-indicator" role="status">{multiplayerCopyMessage}</span>
             {/if}
           </div>
         </div>
@@ -3235,7 +3429,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
                 <div class="hover-unit-detail">
-                  <span class="unit-icon-cluster detail-unit-cluster" style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
+                  <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
@@ -3416,9 +3610,10 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         </div>
       </div>
       <div class="opening-actions actions-grid">
-        {#if selectedOpeningFactionSummaries.length > 0}
-          <div class="opening-selected-factions ui-debug-target" data-ui-name="Selected opening factions" aria-label="Selected factions">
-            {#each selectedOpeningFactionSummaries as selectedFaction}
+        <div class="opening-selected-factions ui-debug-target" data-ui-name="Selected opening factions" aria-label="Selected factions">
+          {#each [0, 1] as slotIndex}
+            {@const selectedFaction = selectedOpeningFactionSummaries[slotIndex]}
+            {#if selectedFaction}
               {@const [, selectedUnitTypeId] = parseTroopUnlockId(selectedFaction.starterTroopUnlockId)}
               <button
                 type="button"
@@ -3431,22 +3626,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                 <img src={getFactionUnitPortrait(selectedFaction.factionId, selectedUnitTypeId)} alt="" aria-hidden="true" />
                 <span>Un-confirm</span>
               </button>
-            {/each}
-          </div>
-        {/if}
-        {#if pendingOpeningTroopUnlockId}
-          {@const [pendingFactionId, pendingUnitTypeId] = parseTroopUnlockId(pendingOpeningTroopUnlockId)}
-          <button
-            type="button"
-            class="primary large opening-confirm-troop-button ui-debug-target"
-            data-ui-name="Confirm opening faction button"
-            on:click={confirmOpeningTroop}
-          >
-            <img class="opening-action-art" src={getFactionPortrait(pendingFactionId)} alt="" aria-hidden="true" />
-            <span>Confirm {TROOP_CATALOG[pendingOpeningTroopUnlockId].label}</span>
-            <img class="opening-action-art" src={getFactionUnitPortrait(pendingFactionId, pendingUnitTypeId)} alt="" aria-hidden="true" />
-          </button>
-        {/if}
+            {:else}
+              <div class="opening-selected-faction opening-selected-placeholder" aria-label={`Opening faction slot ${slotIndex + 1} empty`}></div>
+            {/if}
+          {/each}
+        </div>
         <button
           type="button"
           class="primary large ui-debug-target"
@@ -3492,7 +3676,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             {/if}
             <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
             {#if multiplayerCopyMessage}
-              <span>{multiplayerCopyMessage}</span>
+              <span class="multiplayer-copy-indicator" role="status">{multiplayerCopyMessage}</span>
             {/if}
           </div>
         {/if}
@@ -3514,7 +3698,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
                 <div class="hover-unit-detail">
-                  <span class="unit-icon-cluster detail-unit-cluster" style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
+                  <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
@@ -3692,7 +3876,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             {/if}
             <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
             {#if multiplayerCopyMessage}
-              <span>{multiplayerCopyMessage}</span>
+              <span class="multiplayer-copy-indicator" role="status">{multiplayerCopyMessage}</span>
             {/if}
           </div>
         {/if}
@@ -3737,7 +3921,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           <h2>{activeDetail.label}</h2>
           {#if activeDetail.kind === 'unit'}
             <div class="hover-unit-detail">
-                  <span class="unit-icon-cluster detail-unit-cluster" style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
+                  <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
@@ -3871,6 +4055,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             <button class="ui-debug-target" data-ui-name="Cancel multiplayer ready" on:click={cancelMultiplayerReady}>Cancel Ready</button>
           {/if}
           <button class="ui-debug-target" data-ui-name="Leave multiplayer room" on:click={leaveMultiplayerContest}>Leave Room</button>
+          {#if multiplayerCopyMessage}
+            <span class="multiplayer-copy-indicator topbar-copy-indicator" role="status">{multiplayerCopyMessage}</span>
+          {/if}
         {/if}
         {#if debugToolsEnabled}
           <DebugToolsMenu
@@ -3900,7 +4087,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             {#if activeDetail.kind === 'unit'}
               <div class="hover-unit-detail">
-                <span class="unit-icon-cluster detail-unit-cluster" style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
+                <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                   {#each unitIconCopies(activeDetail.quantity) as copy}
                     <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                   {/each}
@@ -4110,7 +4297,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           <p class="eyebrow">Troop Inspector</p>
           <h2>{selectedTroopDefinition.label}</h2>
           <div class="hover-unit-detail">
-            <span class="unit-icon-cluster detail-unit-cluster" style={`--unit-cluster-columns:${unitIconColumns(selectedTroopDefinition.quantity)}`} aria-label={`${selectedTroopDefinition.quantity} units in troop`}>
+            <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(selectedTroopDefinition.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(selectedTroopDefinition.quantity)}`} aria-label={`${selectedTroopDefinition.quantity} units in troop`}>
               {#each unitIconCopies(selectedTroopDefinition.quantity) as copy}
                 <img class="hover-unit-art" src={getFactionUnitPortrait(selectedTroop.factionId, selectedTroop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
               {/each}
@@ -4325,35 +4512,39 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
               <div class="rift-battle-lane">
                 <div class="assigned-strip enemy-strip rift-force-side rift-force-left" class:force-loses-now={leftForceLoss === 'now'} class:force-loses-late={leftForceLoss === 'late'}>
-                  {#each getAnimationLeftCombatants(rift, battleAnimation) as enemy}
-                    {@const enemyDetail = buildResolvedUnitDetail(
-                      `enemy:${rift.id}:${enemy.combatantId}`,
-                      enemy.label,
-                      enemy.factionId,
-                      enemy.unitTypeId,
-                      enemy.stats,
-                      enemy.quantity,
-                      'Enemy troop',
-                      enemy.abilities,
-                      enemy.statBreakdowns,
-                    )}
-                    <button
-                      class="unit-tile enemy-tile ui-debug-target"
-                      data-ui-name={`Enemy troop ${enemy.label} on ${formatRiftDisplayId(rift.id)}`}
-                      data-tutorial-target="rift-enemy"
-                      class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
-                      on:mouseenter={() => previewDetail(enemyDetail)}
-                      on:focus={() => previewDetail(enemyDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(enemyDetail)}
-                    >
-                      <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(enemy.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(enemy.quantity)}`} aria-label={`${enemy.quantity} ${enemy.label} units`}>
-                        {#each unitIconCopies(enemy.quantity) as copy}
-                          <img class="unit-tile-art" src={getFactionUnitPortrait(enemy.factionId, enemy.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                        {/each}
-                      </span>
-                    </button>
+                  {#each getAnimationLeftCombatantGroups(rift, battleAnimation) as group}
+                    <div class={`rift-force-combatant-group ${group.phaseClass}`}>
+                      {#each group.combatants as enemy}
+                        {@const enemyDetail = buildResolvedUnitDetail(
+                          `enemy:${rift.id}:${enemy.combatantId}`,
+                          enemy.label,
+                          enemy.factionId,
+                          enemy.unitTypeId,
+                          enemy.stats,
+                          enemy.quantity,
+                          'Enemy troop',
+                          enemy.abilities,
+                          enemy.statBreakdowns,
+                        )}
+                        <button
+                          class="unit-tile enemy-tile ui-debug-target"
+                          data-ui-name={`Enemy troop ${enemy.label} on ${formatRiftDisplayId(rift.id)}`}
+                          data-tutorial-target="rift-enemy"
+                          class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
+                          on:mouseenter={() => previewDetail(enemyDetail)}
+                          on:focus={() => previewDetail(enemyDetail)}
+                          on:mouseleave={clearDetail}
+                          on:blur={clearDetail}
+                          on:click={() => togglePinnedDetail(enemyDetail)}
+                        >
+                          <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(enemy.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(enemy.quantity)}`} aria-label={`${enemy.quantity} ${enemy.label} units`}>
+                            {#each unitIconCopies(enemy.quantity) as copy}
+                              <img class="unit-tile-art" src={getFactionUnitPortrait(enemy.factionId, enemy.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                            {/each}
+                          </span>
+                        </button>
+                      {/each}
+                    </div>
                   {/each}
                 </div>
 
@@ -4567,7 +4758,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       {:else}
         <div class="opponent-info-board">
           {#if !opponentInfo || !opponentInfoAi}
-            <div class="opponent-empty-state ui-debug-target" data-ui-name="Opponent info unknown"></div>
+            <div class="opponent-empty-state panel ui-debug-target" data-ui-name="Opponent info unknown">
+              <p class="eyebrow">Rival Info</p>
+              <h2>No Intel Yet</h2>
+              <p>Contest details appear after the rival has completed a cycle.</p>
+            </div>
           {:else}
             {#if opponentInfoAi.troopTypeUpgradeIds.length > 0}
               <section class="panel opponent-upgrades-panel ui-debug-target" data-ui-name="Opponent troop type upgrades">
@@ -4808,7 +5003,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           <h2>{activeDetail.label}</h2>
           {#if activeDetail.kind === 'unit'}
             <div class="hover-unit-detail">
-              <span class="unit-icon-cluster detail-unit-cluster" style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
+              <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                 {#each unitIconCopies(activeDetail.quantity) as copy}
                   <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                 {/each}
@@ -4917,11 +5112,11 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             </div>
           {/if}
 
-          {#if selectedArchivePayload}
+          {#if selectedArchivePayload || selectedArchiveReplay}
             <div class="archive-force-block">
               <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('player').kind)}`}>{getArchiveForcesLabel('player')}</span>
               <div class="assigned-strip archive-force-strip">
-                {#each selectedArchivePayload.input.playerCombatants as combatant}
+                {#each getArchiveCombatants('player') as combatant}
                   {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'player')}
                   <button
                     class="unit-tile assigned-summary-tile ui-debug-target"
@@ -4964,7 +5159,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
             <div class="archive-force-block">
               <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('enemy').kind)}`}>{getArchiveForcesLabel('enemy')}</span>
               <div class="assigned-strip enemy-strip archive-force-strip">
-                {#each selectedArchivePayload.input.enemyCombatants as combatant}
+                {#each getArchiveCombatants('enemy') as combatant}
                   {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'enemy')}
                   <button
                     class="unit-tile enemy-tile ui-debug-target"
@@ -5322,12 +5517,12 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
         {#if $gameStore.centerMode === 'rifts'}
           <button
             class="primary large end-cycle-button ui-debug-target"
-            data-ui-name="End cycle button"
+            data-ui-name={mustSpendEssenceBeforeCycleEnd ? 'Spend essence button' : 'End cycle button'}
             data-tutorial-target="end-cycle-button"
             on:click={handleEndCycle}
             disabled={multiplayerReadySubmitted || !!$gameStore.cycleAnimation}
           >
-            {$gameStore.cycleAnimation ? 'Battles Resolving' : $gameStore.multiplayer ? multiplayerReadyLabel() : $gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
+            {$gameStore.cycleAnimation ? 'Battles Resolving' : mustSpendEssenceBeforeCycleEnd ? 'Spend Essence' : $gameStore.multiplayer ? multiplayerReadyLabel() : $gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
           </button>
         {/if}
       {/if}
@@ -5495,6 +5690,52 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
           <button class="replay-reset-button ui-debug-target" data-ui-name="Reset zoom button" type="button" aria-label="Reset Zoom" title="Reset Zoom" on:click={resetReplayZoom}>Reset Zoom</button>
         </div>
         <div class="viewport ui-debug-target" data-ui-name="Battlefield canvas" bind:this={battleHost}></div>
+        {#if replayPlayerAbilities.length > 0 || replayEnemyAbilities.length > 0}
+          <div class="replay-ability-rails" aria-label="Replay side abilities">
+            <div class="replay-ability-rail player">
+              {#each replayPlayerAbilities as entry (entry.ability.id)}
+                <button
+                  type="button"
+                  class="replay-ability-button ui-debug-target"
+                  class:active={entry.active}
+                  data-ui-name={`Replay player ability ${entry.ability.label}`}
+                  aria-label={`${entry.ability.label}: ${formatAbilityDescription(entry.ability)}`}
+                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.speedMs * 1.5))}ms;`}
+                  on:mouseenter={() => showReplayAbilityTooltip(entry)}
+                  on:focus={() => showReplayAbilityTooltip(entry)}
+                  on:mouseleave={clearReplayAbilityTooltip}
+                  on:blur={clearReplayAbilityTooltip}
+                >
+                  <GameIcon kind="ability" id={entry.ability.id} label={entry.ability.label} />
+                </button>
+              {/each}
+            </div>
+            <div class="replay-ability-rail enemy">
+              {#each replayEnemyAbilities as entry (entry.ability.id)}
+                <button
+                  type="button"
+                  class="replay-ability-button ui-debug-target"
+                  class:active={entry.active}
+                  data-ui-name={`Replay enemy ability ${entry.ability.label}`}
+                  aria-label={`${entry.ability.label}: ${formatAbilityDescription(entry.ability)}`}
+                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.speedMs * 1.5))}ms;`}
+                  on:mouseenter={() => showReplayAbilityTooltip(entry)}
+                  on:focus={() => showReplayAbilityTooltip(entry)}
+                  on:mouseleave={clearReplayAbilityTooltip}
+                  on:blur={clearReplayAbilityTooltip}
+                >
+                  <GameIcon kind="ability" id={entry.ability.id} label={entry.ability.label} />
+                </button>
+              {/each}
+            </div>
+            {#if replayAbilityTooltip}
+              <div class={`replay-ability-tooltip ${replayAbilityTooltip.side}`} role="tooltip">
+                <strong>{replayAbilityTooltip.label}</strong>
+                <span>{replayAbilityTooltip.description}</span>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     </section>
 
@@ -5708,7 +5949,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                             <img class="replay-recap-art" src={getFactionUnitPortrait(troopProfile.factionId, troopProfile.unitTypeId)} alt="" aria-hidden="true" />
                           {/if}
                           <div class="replay-recap-main">
-                            <strong>Troop group</strong>
+                            <strong>{troop.troopLabel}</strong>
                             <small>{expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel) ? 'Hide units' : 'Show units'}</small>
                             <div class="replay-recap-bars">
                               <div class="replay-recap-bar damage">
@@ -5735,7 +5976,7 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
                                   <img class="replay-recap-art small" src={getFactionUnitPortrait(troopProfile.factionId, troopProfile.unitTypeId)} alt="" aria-hidden="true" />
                                 {/if}
                                 <div class="replay-recap-main">
-                                  <strong>Unit</strong>
+                                  <strong>{unit.unitLabel}</strong>
                                   <small>{unitState?.alive ? 'Alive at this step' : 'Dead at this step'}</small>
                                   <div class="replay-recap-bars">
                                     <div class="replay-recap-bar damage">
@@ -6052,6 +6293,8 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     align-items: center;
     gap: 0.42rem;
     padding: 0.3rem 0.55rem;
+    min-width: 9rem;
+    min-height: 2.55rem;
     border: 1px solid rgba(237, 197, 111, 0.42);
     border-radius: var(--ui-panel-radius-tight);
     background:
@@ -6061,6 +6304,23 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
+  }
+
+  .opening-selected-placeholder {
+    justify-content: center;
+    border-style: dashed;
+    opacity: 0.74;
+    background:
+      linear-gradient(135deg, rgba(237, 197, 111, 0.1), transparent 48%),
+      rgba(16, 24, 34, 0.54);
+  }
+
+  .opening-selected-placeholder::before {
+    content: "";
+    width: 2rem;
+    height: 1.35rem;
+    border: 1px dashed rgba(237, 197, 111, 0.46);
+    border-radius: var(--ui-panel-radius-tight);
   }
 
   button.opening-selected-faction:hover,
@@ -6681,30 +6941,9 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     color: #c4d2df;
   }
 
-  .opening-starter-tile .chip-unit-cluster .unit-button-art,
-  .opening-future-tile .chip-unit-cluster .unit-button-art {
-    width: min(2.15rem, 92%) !important;
-    height: min(2.15rem, 92%) !important;
-  }
-
-  .opening-starter-tile .chip-unit-cluster.density-4 .unit-button-art,
-  .opening-future-tile .chip-unit-cluster.density-4 .unit-button-art {
-    width: min(1.36rem, 72%) !important;
-    height: min(1.36rem, 72%) !important;
-  }
-
-  .opening-starter-tile .chip-unit-cluster.density-6 .unit-button-art,
-  .opening-future-tile .chip-unit-cluster.density-6 .unit-button-art,
-  .opening-starter-tile .chip-unit-cluster.density-9 .unit-button-art,
-  .opening-future-tile .chip-unit-cluster.density-9 .unit-button-art {
-    width: min(1.18rem, 66%) !important;
-    height: min(1.18rem, 66%) !important;
-  }
-
-  .opening-starter-tile .chip-unit-cluster.density-12 .unit-button-art,
-  .opening-future-tile .chip-unit-cluster.density-12 .unit-button-art {
-    width: min(1.02rem, 58%) !important;
-    height: min(1.02rem, 58%) !important;
+  .opening-starter-tile .chip-unit-cluster,
+  .opening-future-tile .chip-unit-cluster {
+    --unit-cluster-icon-size: min(2.85rem, 78%);
   }
 
   .rift-card {
@@ -6761,6 +7000,26 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     gap: 0.28rem;
     min-width: 0;
     padding: 0.45rem;
+  }
+
+  .rift-force-combatant-group {
+    display: contents;
+  }
+
+  .rift-force-combatant-group.phase-now,
+  .rift-force-combatant-group.phase-late {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.28rem;
+  }
+
+  .rift-force-combatant-group.phase-now {
+    animation: rift-force-group-now 7.6s ease-in-out both;
+  }
+
+  .rift-force-combatant-group.phase-late {
+    opacity: 0;
+    animation: rift-force-group-late 7.6s ease-in-out both;
   }
 
   .rift-force-left {
@@ -6916,6 +7175,32 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       opacity: 0;
       transform: translateY(0.35rem) scale(0.86);
       filter: grayscale(1) brightness(0.68);
+    }
+  }
+
+  @keyframes rift-force-group-now {
+    0%,
+    48% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    60%,
+    100% {
+      opacity: 0;
+      transform: translateY(0.2rem) scale(0.88);
+    }
+  }
+
+  @keyframes rift-force-group-late {
+    0%,
+    48% {
+      opacity: 0;
+      transform: translateY(-0.15rem) scale(0.9);
+    }
+    58%,
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   }
 
@@ -7375,8 +7660,15 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
 
   .unit-icon-cluster {
     --unit-cluster-columns: 1;
+    --unit-cluster-icon-size: min(2.7rem, 78%);
+    --unit-cluster-gap: 0.18rem;
     position: relative;
-    display: block;
+    display: grid;
+    grid-template-columns: repeat(var(--unit-cluster-columns), minmax(0, var(--unit-cluster-icon-size)));
+    grid-auto-rows: var(--unit-cluster-icon-size);
+    gap: var(--unit-cluster-gap);
+    place-content: center;
+    place-items: center;
     width: 100%;
     height: 100%;
     justify-self: stretch;
@@ -7394,119 +7686,89 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   .tile-unit-cluster .unit-tile-art,
-  .chip-unit-cluster .unit-button-art {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: min(1.55rem, 86%) !important;
-    height: min(1.55rem, 86%) !important;
+  .chip-unit-cluster .unit-button-art,
+  .detail-unit-cluster .hover-unit-art {
+    position: static;
+    width: 100% !important;
+    height: 100% !important;
     margin: 0 !important;
-    transform: translate(-50%, -50%);
+    transform: none;
+  }
+
+  .tile-unit-cluster.density-1,
+  .chip-unit-cluster.density-1,
+  .detail-unit-cluster.density-1 {
+    --unit-cluster-icon-size: min(3.2rem, 82%);
+  }
+
+  .tile-unit-cluster.density-4,
+  .chip-unit-cluster.density-4,
+  .detail-unit-cluster.density-4 {
+    --unit-cluster-icon-size: min(2.25rem, 42%);
+    --unit-cluster-gap: 0.22rem;
   }
 
   .tile-unit-cluster.density-4 .unit-tile-art,
-  .chip-unit-cluster.density-4 .unit-button-art {
-    width: min(1.05rem, 64%) !important;
-    height: min(1.05rem, 64%) !important;
+  .chip-unit-cluster.density-4 .unit-button-art,
+  .detail-unit-cluster.density-4 .hover-unit-art {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .tile-unit-cluster.density-6,
+  .chip-unit-cluster.density-6,
+  .detail-unit-cluster.density-6 {
+    --unit-cluster-icon-size: min(1.55rem, 29%);
+    --unit-cluster-gap: 0.16rem;
   }
 
   .tile-unit-cluster.density-6 .unit-tile-art,
-  .chip-unit-cluster.density-6 .unit-button-art {
-    width: min(0.98rem, 58%) !important;
-    height: min(0.98rem, 58%) !important;
+  .chip-unit-cluster.density-6 .unit-button-art,
+  .detail-unit-cluster.density-6 .hover-unit-art {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .tile-unit-cluster.density-9,
+  .chip-unit-cluster.density-9,
+  .detail-unit-cluster.density-9 {
+    --unit-cluster-icon-size: min(1.28rem, 26%);
+    --unit-cluster-gap: 0.13rem;
   }
 
   .tile-unit-cluster.density-9 .unit-tile-art,
-  .chip-unit-cluster.density-9 .unit-button-art {
-    width: min(0.94rem, 56%) !important;
-    height: min(0.94rem, 56%) !important;
+  .chip-unit-cluster.density-9 .unit-button-art,
+  .detail-unit-cluster.density-9 .hover-unit-art {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .tile-unit-cluster.density-12,
+  .chip-unit-cluster.density-12,
+  .detail-unit-cluster.density-12 {
+    --unit-cluster-icon-size: min(1.05rem, 22%);
+    --unit-cluster-gap: 0.1rem;
   }
 
   .tile-unit-cluster.density-12 .unit-tile-art,
-  .chip-unit-cluster.density-12 .unit-button-art {
-    width: min(0.86rem, 50%) !important;
-    height: min(0.86rem, 50%) !important;
+  .chip-unit-cluster.density-12 .unit-button-art,
+  .detail-unit-cluster.density-12 .hover-unit-art {
+    width: 100% !important;
+    height: 100% !important;
   }
 
-  .tile-unit-cluster img:nth-child(1),
-  .chip-unit-cluster img:nth-child(1) {
-    left: 35%;
-    top: 35%;
+  .tile-unit-cluster.density-20,
+  .chip-unit-cluster.density-20,
+  .detail-unit-cluster.density-20 {
+    --unit-cluster-icon-size: min(0.82rem, 17%);
+    --unit-cluster-gap: 0.07rem;
   }
 
-  .tile-unit-cluster.density-1 img:nth-child(1),
-  .chip-unit-cluster.density-1 img:nth-child(1) {
-    left: 50%;
-    top: 50%;
-  }
-
-  .tile-unit-cluster img:nth-child(2),
-  .chip-unit-cluster img:nth-child(2) {
-    left: 50%;
-    top: 35%;
-  }
-
-  .tile-unit-cluster img:nth-child(3),
-  .chip-unit-cluster img:nth-child(3) {
-    left: 65%;
-    top: 35%;
-  }
-
-  .tile-unit-cluster img:nth-child(4),
-  .chip-unit-cluster img:nth-child(4) {
-    left: 35%;
-    top: 50%;
-  }
-
-  .tile-unit-cluster img:nth-child(5),
-  .chip-unit-cluster img:nth-child(5) {
-    left: 50%;
-    top: 50%;
-  }
-
-  .tile-unit-cluster img:nth-child(6),
-  .chip-unit-cluster img:nth-child(6) {
-    left: 65%;
-    top: 50%;
-  }
-
-  .tile-unit-cluster img:nth-child(7),
-  .chip-unit-cluster img:nth-child(7) {
-    left: 35%;
-    top: 65%;
-  }
-
-  .tile-unit-cluster img:nth-child(8),
-  .chip-unit-cluster img:nth-child(8) {
-    left: 50%;
-    top: 65%;
-  }
-
-  .tile-unit-cluster img:nth-child(9),
-  .chip-unit-cluster img:nth-child(9) {
-    left: 65%;
-    top: 65%;
-  }
-
-  .tile-unit-cluster img:nth-child(10),
-  .chip-unit-cluster img:nth-child(10) {
-    left: 42%;
-    top: 76%;
-  }
-
-  .tile-unit-cluster img:nth-child(11),
-  .chip-unit-cluster img:nth-child(11) {
-    left: 58%;
-    top: 76%;
-  }
-
-  .tile-unit-cluster img:nth-child(12),
-  .chip-unit-cluster img:nth-child(12) {
-    left: 50%;
-    top: 50%;
-    z-index: 1;
-    width: min(1.05rem, 62%) !important;
-    height: min(1.05rem, 62%) !important;
+  .tile-unit-cluster.density-24,
+  .chip-unit-cluster.density-24,
+  .detail-unit-cluster.density-24 {
+    --unit-cluster-icon-size: min(0.68rem, 14%);
+    --unit-cluster-gap: 0.055rem;
   }
 
   .detail-unit-cluster {
@@ -7519,8 +7781,8 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
   }
 
   .detail-unit-cluster .hover-unit-art {
-    width: min(1.45rem, 100%);
-    height: min(1.45rem, 100%);
+    width: 100%;
+    height: 100%;
   }
 
   .faction-name-art {
@@ -8563,6 +8825,41 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
     line-height: var(--ui-line-label);
   }
 
+  .multiplayer-session-actions .multiplayer-copy-indicator,
+  .topbar-copy-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    min-height: 2.1rem;
+    padding: 0.35rem 0.62rem;
+    border: 1px solid rgba(91, 165, 116, 0.45);
+    border-radius: 999px;
+    color: #c9f2d3;
+    background: rgba(42, 99, 60, 0.34);
+    box-shadow: 0 0 0 1px rgba(91, 165, 116, 0.12), 0 0 18px rgba(91, 165, 116, 0.18);
+    animation: copy-indicator-pop 220ms ease-out both;
+  }
+
+  .multiplayer-copy-indicator::before {
+    content: '';
+    width: 0.52rem;
+    height: 0.32rem;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg) translateY(-1px);
+  }
+
+  @keyframes copy-indicator-pop {
+    from {
+      opacity: 0;
+      transform: translateY(0.18rem) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
   .draft-layout {
     min-height: 0;
     grid-template-columns: minmax(264px, 288px) minmax(0, 1fr);
@@ -9170,6 +9467,108 @@ import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEss
       radial-gradient(circle at 50% 20%, rgba(46, 70, 89, 0.9), transparent 42%),
       linear-gradient(180deg, #10202c, #08101a 62%, #06090f);
     box-shadow: inset 0 0 0 1px rgba(201, 171, 124, 0.06);
+  }
+
+  .replay-ability-rails {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .replay-ability-rail {
+    position: absolute;
+    bottom: 0.55rem;
+    display: grid;
+    grid-auto-rows: 1.9rem;
+    gap: 0.28rem;
+    max-height: min(38vh, 18rem);
+    overflow: visible;
+    pointer-events: auto;
+  }
+
+  .replay-ability-rail.player {
+    left: 0.55rem;
+  }
+
+  .replay-ability-rail.enemy {
+    right: 0.55rem;
+  }
+
+  .replay-ability-button {
+    width: 1.9rem;
+    height: 1.9rem;
+    min-height: 1.9rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid rgba(128, 157, 181, 0.26);
+    background: rgba(7, 11, 18, 0.72);
+    backdrop-filter: blur(8px);
+  }
+
+  .replay-ability-button :global(.game-icon) {
+    --game-icon-size: 1.18rem;
+  }
+
+  .replay-ability-button :global(.game-icon.raster-icon) {
+    --game-icon-raster-scale: 1.42;
+  }
+
+  .replay-ability-button.active {
+    animation: replay-ability-flash var(--replay-ability-flash-ms, 750ms) ease-out both;
+  }
+
+  .replay-ability-tooltip {
+    position: absolute;
+    bottom: 0.55rem;
+    width: min(20rem, 38vw);
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.58rem 0.68rem;
+    border: 1px solid rgba(213, 178, 116, 0.34);
+    border-radius: 8px;
+    color: #edf4fb;
+    background: rgba(8, 12, 18, 0.9);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+    pointer-events: none;
+  }
+
+  .replay-ability-tooltip.player {
+    left: 2.85rem;
+  }
+
+  .replay-ability-tooltip.enemy {
+    right: 2.85rem;
+  }
+
+  .replay-ability-tooltip strong {
+    color: var(--ui-color-accent);
+    font-size: 0.88rem;
+    line-height: 1.1;
+  }
+
+  .replay-ability-tooltip span {
+    color: #c9d6e2;
+    font-size: 0.78rem;
+    line-height: 1.25;
+  }
+
+  @keyframes replay-ability-flash {
+    0% {
+      border-color: rgba(255, 235, 174, 0.9);
+      box-shadow: 0 0 0 0 rgba(255, 219, 133, 0.72), 0 0 22px rgba(255, 219, 133, 0.45);
+      transform: scale(1);
+    }
+    45% {
+      transform: scale(1.16);
+    }
+    100% {
+      border-color: rgba(128, 157, 181, 0.26);
+      box-shadow: 0 0 0 0.55rem rgba(255, 219, 133, 0);
+      transform: scale(1);
+    }
   }
 
   .viewport :global(.battle-tutorial-unit-targets) {

@@ -26,7 +26,7 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 - Only one troop of a given troop type may enter a given Rift.
 - Rifts are fully previewable before commitment.
 - Battles are not player-controlled, so skill expression is in preparation and assignment.
-- Unspent Essence carries over, but ending a cycle while holding Essence triggers a warning.
+- Spendable Essence must be used before ending a cycle. If no draft can be revealed, leftover Essence can carry forward.
 
 ## Current progression actions
 

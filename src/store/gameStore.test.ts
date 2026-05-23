@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
 import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, startNewGame, startOpeningCampaign } from '../engine/game';
-import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId } from '../engine/types';
+import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId, UpgradeId } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
 
 class MemoryStorage implements Storage {
@@ -167,6 +167,24 @@ function claimDefaultOpeningTroops(): void {
   gameStore.startOpeningCampaign();
 }
 
+function spendAllEssence(): void {
+  gameStore.revealEssenceDraft();
+  const state = currentStoreState<{
+    game: {
+      activeTroopOffer: { optionTroopUnlockIds: TroopUnlockId[] } | null;
+      activeUpgradeOffer: { optionUpgradeIds: string[] } | null;
+    };
+  }>();
+  const troopUnlockId = state.game.activeTroopOffer?.optionTroopUnlockIds[0];
+  const upgradeId = state.game.activeUpgradeOffer?.optionUpgradeIds[0];
+  if (troopUnlockId) {
+    gameStore.claimTroopOffer(troopUnlockId);
+  }
+  if (upgradeId) {
+    gameStore.claimUpgradeOffer(upgradeId as UpgradeId);
+  }
+}
+
 function finishCycleResolutionAnimation(): void {
   gameStore.finishCycleAnimation();
 }
@@ -282,20 +300,24 @@ describe('gameStore progression flow', () => {
     });
   });
 
-  it('warns before ending a cycle with unspent Essence and requires confirmation', () => {
+  it('blocks ending a cycle until Essence is spent', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();
 
     gameStore.endCycle();
     let state = currentStoreState<{
       game: { cycleNumber: number };
+      centerMode: string;
       cycleEndConfirmationPending: boolean;
       systemMessage: string | null;
     }>();
 
-    expect(state.cycleEndConfirmationPending).toBe(true);
-    expect(state.systemMessage).toBe('No troops are assigned and you still have unspent Essence. End the cycle anyway?');
+    expect(state.game.cycleNumber).toBe(1);
+    expect(state.centerMode).toBe('troops');
+    expect(state.cycleEndConfirmationPending).toBe(false);
+    expect(state.systemMessage).toBe('Spend all Essence before ending the cycle.');
 
+    spendAllEssence();
     gameStore.endCycle(true);
     state = currentStoreState<{
       game: { cycleNumber: number };
@@ -326,6 +348,7 @@ describe('gameStore progression flow', () => {
   it('adds resolved battles to the archive index when a cycle ends', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();
+    spendAllEssence();
 
     const started = currentStoreState<{
       game: {
@@ -359,6 +382,7 @@ describe('gameStore progression flow', () => {
   it('creates and imports exact battle reports for archived replays', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();
+    spendAllEssence();
 
     const started = currentStoreState<{
       game: {
@@ -415,6 +439,7 @@ describe('gameStore progression flow', () => {
   it('exports and imports campaign reports into a chosen save slot', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();
+    spendAllEssence();
 
     const started = currentStoreState<{
       game: {

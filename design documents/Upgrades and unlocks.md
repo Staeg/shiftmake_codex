@@ -13,7 +13,7 @@ Current rules:
 - revealing a combined troop-and-upgrade draft costs `2` Essence when both sides still have options
 - a one-sided draft fallback costs `1` Essence if only troop unlocks or only upgrade unlocks remain
 - claiming options from a revealed draft costs no additional Essence
-- unused Essence carries over between cycles
+- spendable Essence must be used before ending a cycle; leftover Essence only carries over when no Essence draft can be revealed
 
 Removed from the progression model:
 

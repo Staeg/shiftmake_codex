@@ -1,7 +1,7 @@
 import { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
-import { assignTroopToRift, claimOpeningTroop, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
+import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffer, getOpeningFactionStarterTroopUnlockIds, revealEssenceDraft } from '../engine/game';
 import { buildContestMultiplayerSubmission } from '../engine/multiplayerContest';
 import type { ContestPlayerId, GameState, StoredReplayPayload, TroopUnlockId } from '../engine/types';
 import { contestMultiplayerServerInternals, startContestMultiplayerServer } from './contestMultiplayerServer';
@@ -145,6 +145,19 @@ function assignFirstTroopToFirstRift(state: GameState): GameState {
   return next;
 }
 
+function spendEssenceDraft(state: GameState): GameState {
+  let next = revealEssenceDraft(state);
+  const troopUnlockId = next.activeTroopOffer?.optionTroopUnlockIds[0];
+  const upgradeId = next.activeUpgradeOffer?.optionUpgradeIds[0];
+  if (troopUnlockId) {
+    next = claimTroopOffer(next, troopUnlockId);
+  }
+  if (upgradeId) {
+    next = claimUpgradeOffer(next, upgradeId);
+  }
+  return next;
+}
+
 function findLocalPlayerReplayPayload(snapshot: SnapshotMessage, expectedLabel: string): StoredReplayPayload | undefined {
   return Object.values(snapshot.replayPayloads).find(
     (payload) => payload.input.sideParticipants?.player.kind === 'player' && payload.input.sideParticipants.player.label === expectedLabel,
@@ -204,8 +217,8 @@ describe('Contest multiplayer two-client smoke suite', () => {
     expect(hostPlanning.playerId).toBe('human');
     expect(guestPlanning.playerId).toBe('ai');
 
-    host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(hostPlanning.game)) });
-    guest.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(guestPlanning.game)) });
+    host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(hostPlanning.game))) });
+    guest.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(guestPlanning.game))) });
 
     const hostResolved = await host.waitForSnapshot((message) => message.game.cycleNumber === 2 && Object.keys(message.replayPayloads).length > 0);
     const guestResolved = await guest.waitForSnapshot((message) => message.game.cycleNumber === 2 && Object.keys(message.replayPayloads).length > 0);

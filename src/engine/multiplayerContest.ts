@@ -10,6 +10,7 @@ import {
   claimUpgradeOffer,
   clearTroopAssignment,
   extractContestPlayerProgress,
+  getEssenceDraftCost,
   getContestPlayerProgress,
   revealEssenceDraft,
   resolveAssignedRifts,
@@ -190,6 +191,26 @@ export function projectStoredReplayPayloadMapForPlayer(
   return Object.fromEntries(Object.entries(replayPayloads).map(([replayId, replay]) => [replayId, projectReplayPayloadForPlayer(replay, playerId, playerNames)]));
 }
 
+function outcomeFromFinalAliveCounts(
+  finalPlayerAlive: number | undefined,
+  finalEnemyAlive: number | undefined,
+  fallback: ReplayIndexEntry['outcome'],
+): ReplayIndexEntry['outcome'] {
+  if (finalPlayerAlive === undefined || finalEnemyAlive === undefined) {
+    return fallback;
+  }
+  if (finalPlayerAlive > 0 && finalEnemyAlive <= 0) {
+    return 'victory';
+  }
+  if (finalEnemyAlive > 0 && finalPlayerAlive <= 0) {
+    return 'defeat';
+  }
+  if (finalPlayerAlive <= 0 && finalEnemyAlive <= 0) {
+    return 'draw';
+  }
+  return fallback;
+}
+
 function getEncounterLabelFromParticipants(sideParticipants: BattleSideParticipants | undefined): string | undefined {
   if (!sideParticipants) {
     return undefined;
@@ -217,9 +238,13 @@ export function projectReplayIndexForPlayer(
     const playerTroopLabels = replayPayload.input.playerCombatants.map((combatant) => combatant.label);
     const enemyTroopLabels = replayPayload.input.enemyCombatants.map((combatant) => combatant.label);
     const swapped = entry.playerTroopLabels.join('|') !== playerTroopLabels.join('|') && entry.enemyTroopLabels?.join('|') === playerTroopLabels.join('|');
-    const outcome = swapped ? (entry.outcome === 'victory' ? 'defeat' : entry.outcome === 'defeat' ? 'victory' : entry.outcome) : entry.outcome;
     const finalPlayerAlive = swapped ? entry.finalEnemyAlive : entry.finalPlayerAlive;
     const finalEnemyAlive = swapped ? entry.finalPlayerAlive : entry.finalEnemyAlive;
+    const outcome = outcomeFromFinalAliveCounts(
+      finalPlayerAlive,
+      finalEnemyAlive,
+      swapped ? (entry.outcome === 'victory' ? 'defeat' : entry.outcome === 'defeat' ? 'victory' : entry.outcome) : entry.outcome,
+    );
     return {
       ...entry,
       outcome,
@@ -449,7 +474,15 @@ function applyPlanningDraftChoices(projected: GameState, submission: ContestMult
 }
 
 function applyPlanningAssignments(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
-  let next = projected.troops.reduce((current, troop) => (troop.assignmentRiftId ? clearTroopAssignment(current, troop.id) : current), projected);
+  const heldTroopIds = new Set(
+    projected.openRifts
+      .filter((rift) => rift.controller === 'human')
+      .flatMap((rift) => rift.occupyingTroopIds ?? []),
+  );
+  let next = projected.troops.reduce(
+    (current, troop) => (troop.assignmentRiftId && !heldTroopIds.has(troop.id) ? clearTroopAssignment(current, troop.id) : current),
+    projected,
+  );
   const knownTroopIds = new Set(next.troops.map((troop) => troop.id));
   const submittedTroopIds = new Set<TroopId>();
 
@@ -463,6 +496,12 @@ function applyPlanningAssignments(projected: GameState, submission: ContestMulti
     submittedTroopIds.add(assignment.troopId);
     if (!assignment.riftId) {
       continue;
+    }
+    if (heldTroopIds.has(assignment.troopId)) {
+      const heldTroop = next.troops.find((troop) => troop.id === assignment.troopId);
+      if (heldTroop?.assignmentRiftId === assignment.riftId) {
+        continue;
+      }
     }
     const applied = assignTroopToRift(next, assignment.troopId, assignment.riftId);
     if (applied === next) {
@@ -492,6 +531,13 @@ function applyPlanningSubmission(projected: GameState, submission: ContestMultip
   const draft = applyPlanningDraftChoices(projected, submission);
   if (!draft.ok || !draft.projectedState) {
     return draft;
+  }
+  if (
+    (draft.projectedState.essence > 0 && getEssenceDraftCost(draft.projectedState) !== null) ||
+    draft.projectedState.activeTroopOffer ||
+    draft.projectedState.activeUpgradeOffer
+  ) {
+    return rejectSubmission('Spend all Essence and finish the active draft before submitting ready.');
   }
   return applyPlanningAssignments(draft.projectedState, submission);
 }

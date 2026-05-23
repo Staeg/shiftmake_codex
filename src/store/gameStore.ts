@@ -10,6 +10,7 @@ import {
   claimUpgradeOffer,
   clearTroopAssignment,
   continuePlaying,
+  getEssenceDraftCost,
   resolveAssignedRifts,
   revealEssenceDraft,
   startOpeningCampaign,
@@ -254,6 +255,15 @@ function persistMultiplayerPreferences(serverUrl: string, playerName?: string): 
 function isMultiplayerSubmitted(state: StoreState): boolean {
   const playerId = state.multiplayer?.playerId;
   return !!playerId && !!state.multiplayer?.readiness[playerId];
+}
+
+function isBenignMultiplayerStatusMessage(message: string | null): boolean {
+  return (
+    message === 'Ready submitted. Waiting for the other player.' ||
+    message === 'Ready canceled.' ||
+    message === 'Both players submitted. Cycle resolved.' ||
+    message === 'Both players submitted. Contest updated.'
+  );
 }
 
 function canEditGame(state: StoreState): boolean {
@@ -672,7 +682,7 @@ export const gameStore = (() => {
           playerNames: message.playerNames,
           message: message.message,
         },
-        systemMessage: message.message,
+        systemMessage: isBenignMultiplayerStatusMessage(message.message) ? null : message.message,
         cycleEndConfirmationPending: false,
       }));
     };
@@ -702,6 +712,19 @@ export const gameStore = (() => {
     if (isMultiplayerSubmitted(snapshot)) {
       return;
     }
+    if (
+      snapshot.game.phase === 'planning' &&
+      ((snapshot.game.essence > 0 && getEssenceDraftCost(snapshot.game) !== null) ||
+        snapshot.game.activeTroopOffer ||
+        snapshot.game.activeUpgradeOffer)
+    ) {
+      update((state) => ({
+        ...state,
+        centerMode: 'troops',
+        systemMessage: 'Spend all Essence and finish the active draft before submitting ready.',
+      }));
+      return;
+    }
     multiplayerSocket.send(JSON.stringify({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(snapshot.game) }));
     const playerId = snapshot.multiplayer.playerId;
     update((state) => ({
@@ -714,7 +737,7 @@ export const gameStore = (() => {
               message: 'Ready submitted. Waiting for the other player.',
             }
           : state.multiplayer,
-      systemMessage: 'Ready submitted. Waiting for the other player.',
+      systemMessage: null,
     }));
   }
 
@@ -738,7 +761,7 @@ export const gameStore = (() => {
               message: 'Ready canceled.',
             }
           : state.multiplayer,
-      systemMessage: 'Ready canceled.',
+      systemMessage: null,
     }));
   }
 
@@ -1069,12 +1092,26 @@ export const gameStore = (() => {
         const hasHoldingOnly = validation.issues.some((issue) => issue.kind === 'holding_only_no_new_attack');
         const hasIdleTroops = validation.issues.some((issue) => issue.kind === 'idle_troops_remaining');
         const hasUnspentEssence = state.game.essence > 0;
+        const hasSpendableEssence = state.game.essence > 0 && getEssenceDraftCost(state.game) !== null;
+        const hasUnfinishedDraft = !!state.game.activeTroopOffer || !!state.game.activeUpgradeOffer;
 
         if (blockingIssues.length > 0) {
           return {
             ...state,
             validationMessages: blockingIssues.map((issue) => issue.message),
             systemMessage: null,
+            cycleEndConfirmationPending: false,
+          };
+        }
+
+        if (hasSpendableEssence || hasUnfinishedDraft) {
+          return {
+            ...state,
+            centerMode: 'troops',
+            validationMessages: [],
+            systemMessage: hasUnfinishedDraft
+              ? 'Finish the active Essence draft before ending the cycle.'
+              : 'Spend all Essence before ending the cycle.',
             cycleEndConfirmationPending: false,
           };
         }

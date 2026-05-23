@@ -53,7 +53,7 @@ The campaign phases inside the overworld are:
 - If only troop options or only upgrade options remain, the one-sided draft costs 1 Essence.
 - Claim one troop option and one upgrade option from a revealed draft without spending additional Essence.
 - Troop draft candidates are limited to unlocked factions; defeating an enemy from a locked faction records the combination latently until that faction is later unlocked.
-- Unused Essence carries over between cycles.
+- Spendable Essence must be used before ending the cycle. If no draft can be revealed, leftover Essence carries over.
 
 ### Rift planning
 
@@ -111,5 +111,5 @@ The implemented overworld UI currently has:
 ## Confirmations and warnings
 
 - Ending a cycle with no assignments is allowed, but prompts for confirmation.
-- Ending a cycle with unspent Essence is allowed, but prompts for confirmation.
+- Ending a cycle is blocked while an Essence draft can be revealed or a revealed draft still has unclaimed choices.
 - If both are true, the warning combines both conditions into one confirmation message.

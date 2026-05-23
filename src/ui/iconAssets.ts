@@ -2,17 +2,11 @@ import type { AbilityId, MutatorId, UpgradeId } from '../engine/types';
 import { ABILITIES } from '../engine/unitCatalog';
 
 type IconKind = 'ability' | 'faction_upgrade' | 'troop_type_upgrade' | 'rift_mutator';
-type IconEffectKind = 'blast' | 'bolster' | 'haste' | 'heal' | 'ramp' | 'strike' | 'summon' | 'redirect';
-
-const effectIconCandidates: Partial<Record<IconEffectKind, string[]>> = {
-  blast: ['blast', 'blast-5'],
-  bolster: ['bolster'],
-  haste: ['haste', 'haste-1'],
-  heal: ['heal', 'mend-4', 'regen-5'],
-  ramp: ['ramp', 'ramp-1'],
-  strike: ['strike'],
-  summon: ['summon'],
-  redirect: ['redirect', 'taunt'],
+export type AbilityFallbackIconShape = 'heart' | 'self' | 'single' | 'aoe' | 'plus';
+export type AbilityFallbackIconTone = 'positive' | 'negative' | 'neutral';
+export type AbilityFallbackIcon = {
+  shape: AbilityFallbackIconShape;
+  tone: AbilityFallbackIconTone;
 };
 
 const iconModules = import.meta.glob('../../assets/icons/final/**/*.{png,svg}', {
@@ -22,6 +16,7 @@ const iconModules = import.meta.glob('../../assets/icons/final/**/*.{png,svg}', 
 }) as Record<string, string>;
 
 const iconUrls = new Map<string, string>();
+const GENERIC_ABILITY_RASTER_IDS = new Set<AbilityId>(['blast', 'blast-5']);
 const upgradeIconAliases: Record<string, string[]> = {
   'archer-crippling-shots': ['archer-shredding-arrows', 'archer-pinning-volley'],
   'avenger-witness': ['avenger-last-witness', 'avenger-blood-oath'],
@@ -51,24 +46,67 @@ function iconUrl(kind: IconKind, id: string): string {
   return iconUrls.get(`${basePath}.png`) ?? iconUrls.get(`${basePath}.svg`) ?? '';
 }
 
-function abilityBaseIconCandidates(abilityId: AbilityId): string[] {
-  const ability = ABILITIES[abilityId];
-  if (!ability) {
-    return [];
+export function getAbilityIconUrl(abilityId: AbilityId): string {
+  // The generated SVG set is intentionally ignored for abilities: those files are generic colored badges.
+  // Ability icons should use the rule-based fallback unless a future bespoke raster asset is added.
+  if (GENERIC_ABILITY_RASTER_IDS.has(abilityId)) {
+    return '';
   }
-
-  return [
-    ...new Set(
-      ability.effects.flatMap((effect) => {
-        const candidates = effectIconCandidates[effect.kind as IconEffectKind] ?? [];
-        return candidates.filter((candidateId) => candidateId !== abilityId);
-      }),
-    ),
-  ];
+  const basePath = `assets/icons/final/ability/${abilityId}`;
+  return iconUrls.get(`${basePath}.png`) ?? '';
 }
 
-export function getAbilityIconUrl(abilityId: AbilityId): string {
-  return iconUrl('ability', abilityId) || abilityBaseIconCandidates(abilityId).map((id) => iconUrl('ability', id)).find(Boolean) || '';
+function abilityTone(abilityId: AbilityId): AbilityFallbackIconTone {
+  const ability = ABILITIES[abilityId];
+  if (!ability) {
+    return 'neutral';
+  }
+  if (ability.effects.some((effect) => effect.kind === 'summon')) {
+    return 'neutral';
+  }
+  if (ability.effects.some((effect) => effect.disposition === 'harmful' || effect.kind === 'blast' || effect.kind === 'redirect')) {
+    return 'negative';
+  }
+  if (
+    ability.effects.some(
+      (effect) =>
+        effect.disposition === 'beneficial' ||
+        effect.kind === 'heal' ||
+        effect.kind === 'bolster' ||
+        effect.kind === 'haste' ||
+        effect.kind === 'ramp' ||
+        (effect.kind === 'statDelta' && effect.amount > 0),
+    )
+  ) {
+    return 'positive';
+  }
+  if (ability.target?.allegiance === 'enemy') {
+    return 'negative';
+  }
+  if (ability.target?.allegiance === 'ally' || ability.target?.mode === 'self') {
+    return 'positive';
+  }
+  return 'neutral';
+}
+
+export function getAbilityFallbackIcon(abilityId: AbilityId): AbilityFallbackIcon {
+  const ability = ABILITIES[abilityId];
+  if (!ability) {
+    return { shape: 'single', tone: 'neutral' };
+  }
+  if (ability.effects.some((effect) => effect.kind === 'summon')) {
+    return { shape: 'plus', tone: 'neutral' };
+  }
+  if (ability.effects.some((effect) => effect.kind === 'blast' || effect.kind === 'heal')) {
+    return { shape: 'heart', tone: abilityTone(abilityId) };
+  }
+  if (ability.target?.mode === 'self') {
+    return { shape: 'self', tone: abilityTone(abilityId) };
+  }
+  if (ability.target?.mode === 'aoe') {
+    return { shape: 'aoe', tone: abilityTone(abilityId) };
+  }
+  return { shape: 'single', tone: abilityTone(abilityId) };
 }
 
 export function getUpgradeIconUrl(upgradeId: UpgradeId): string {

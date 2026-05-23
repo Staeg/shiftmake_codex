@@ -1615,15 +1615,15 @@ function getContestEncounterLabel(record: RiftResolutionRecord): string {
 }
 
 function getHumanVisibleContestOutcome(record: RiftResolutionRecord): ReplayIndexEntry['outcome'] {
+  if (record.contest?.kind === 'guardian') {
+    return record.outcome;
+  }
   const winnerId = record.contest?.winnerId;
   if (winnerId === 'human') {
     return 'victory';
   }
   if (winnerId === 'ai') {
     return 'defeat';
-  }
-  if (record.contest?.kind === 'guardian' && record.contest.attackerId === 'human') {
-    return record.outcome;
   }
   return record.replay.outcome;
 }

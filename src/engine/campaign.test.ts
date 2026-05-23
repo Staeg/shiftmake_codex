@@ -1047,6 +1047,8 @@ describe('campaign progression', () => {
     expect(result.replayPayloadWrites.map((write) => write.replayId)).toEqual(['hidden-ai-guardian', 'visible-human-guardian', 'visible-pvp']);
     expect(result.nextState.replayIndex.map((entry) => entry.replayId)).toEqual(['visible-pvp', 'visible-human-guardian', 'hidden-ai-guardian']);
     expect(result.nextState.replayIndex.map((entry) => entry.encounterLabel)).toEqual(['Rival', 'Neutral Guardians', 'Rival vs Neutral Guardians']);
+    expect(result.nextState.replayIndex.find((entry) => entry.replayId === 'hidden-ai-guardian')?.outcome).toBe('victory');
+    expect(result.nextState.replayIndex.find((entry) => entry.replayId === 'hidden-ai-guardian')?.summary.startsWith('VICTORY')).toBe(true);
   });
 
   it('keeps the bug report seed auditable when the Contest AI plans its cycle-one expedition', () => {
@@ -1065,6 +1067,14 @@ describe('campaign progression', () => {
     expect(aiRecord?.riftId).toBe('contest-cycle-1-rift-1');
     expect(aiRecord?.assignedTroopIds).toEqual(['dwarf/elementalist', 'orc/militia']);
     expect(aiRecord?.outcome).toBe('victory');
-    expect(result.nextState.replayIndex.some((entry) => entry.riftId === 'contest-cycle-1-rift-1' && entry.encounterLabel === 'Rival vs Neutral Guardians')).toBe(true);
+    expect(
+      result.nextState.replayIndex.some(
+        (entry) =>
+          entry.riftId === 'contest-cycle-1-rift-1' &&
+          entry.encounterLabel === 'Rival vs Neutral Guardians' &&
+          entry.outcome === 'victory' &&
+          entry.summary.startsWith('VICTORY'),
+      ),
+    ).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ import {
 import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/types';
 
 import projectileUrl from '../assets/sprites/projectile.svg';
+import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../ui/iconAssets';
 import { loadFactionUnitTextures } from './unitVisuals';
 import type { BattleReportDiagnostic } from '../engine/types';
 
@@ -35,7 +36,7 @@ type LayoutResult = {
   densityScales: Map<string, number>;
 };
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
-type EffectIndicatorKind = 'positive' | 'negative';
+type EffectIndicatorKind = 'positive' | 'negative' | 'neutral';
 
 export type UnitPointerInfo = {
   unitId: string;
@@ -300,7 +301,7 @@ export class BattleRenderer {
       return;
     }
 
-    this.zoom = this.baseFitZoom;
+    this.zoom = this.clampZoom(this.baseFitZoom / ZOOM_STEP_FACTOR);
     this.cameraOffset = { x: 0, y: 0 };
     this.applyCameraTransform();
   }
@@ -713,14 +714,14 @@ export class BattleRenderer {
 
       if (effect === 'summon') {
         step.targetIds.forEach((targetId) => {
-          this.stopEffects.push(this.showSummonBurst(targetId));
+          this.stopEffects.push(this.showSummonBurst(targetId, step));
         });
         return;
       }
 
       const indicatorKind = this.buffEffectIndicatorKind(step);
       step.targetIds.forEach((targetId) => {
-        this.stopEffects.push(this.showBuffIndicator(targetId, indicatorKind));
+        this.stopEffects.push(this.showBuffIndicator(targetId, this.abilityIconForStep(step, indicatorKind)));
       });
       return;
     }
@@ -755,7 +756,7 @@ export class BattleRenderer {
 
     if (step.kind === 'heal') {
       step.targetIds.forEach((targetId) => {
-        this.stopEffects.push(this.showEffectIndicator(targetId, 'positive'));
+        this.stopEffects.push(this.showEffectIndicator(targetId, this.abilityIconForStep(step, 'heal')));
       });
       return;
     }
@@ -956,32 +957,71 @@ export class BattleRenderer {
     };
   }
 
-  private showSummonBurst(unitId: string): () => void {
+  private drawFallbackAbilityIcon(icon: AbilityFallbackIcon, size = 20): Graphics {
+    const graphic = new Graphics();
+    const fill = icon.tone === 'positive' ? 0x4279c9 : icon.tone === 'negative' ? 0xb83e43 : 0x8d98a6;
+    const stroke = icon.tone === 'positive' ? 0xb7d7ff : icon.tone === 'negative' ? 0xffc2c4 : 0xe2e7ed;
+    const drawShape = (shape: AbilityFallbackIconShape) => {
+      graphic.clear();
+      graphic.lineStyle(2, stroke, 0.95);
+      graphic.beginFill(fill, 0.94);
+      if (shape === 'heart') {
+        graphic.moveTo(0, size * 0.42);
+        graphic.bezierCurveTo(-size * 0.56, size * 0.05, -size * 0.34, -size * 0.42, 0, -size * 0.16);
+        graphic.bezierCurveTo(size * 0.34, -size * 0.42, size * 0.56, size * 0.05, 0, size * 0.42);
+      } else if (shape === 'self') {
+        graphic.moveTo(0, size * 0.42);
+        graphic.lineTo(-size * 0.46, -size * 0.34);
+        graphic.lineTo(size * 0.46, -size * 0.34);
+        graphic.closePath();
+      } else if (shape === 'single') {
+        graphic.endFill();
+        graphic.drawCircle(0, 0, size * 0.42);
+        graphic.beginFill(fill, 0.94);
+        graphic.drawCircle(0, 0, size * 0.13);
+      } else if (shape === 'aoe') {
+        graphic.drawCircle(0, 0, size * 0.42);
+      } else {
+        graphic.drawRoundedRect(-size * 0.42, -size * 0.12, size * 0.84, size * 0.24, 2);
+        graphic.drawRoundedRect(-size * 0.12, -size * 0.42, size * 0.24, size * 0.84, 2);
+      }
+      graphic.endFill();
+    };
+    drawShape(icon.shape);
+    return graphic;
+  }
+
+  private abilityIconForStep(step: BattleStep, fallbackEffect?: string | null): AbilityFallbackIcon {
+    const sourceAbilityId = typeof step.metadata?.sourceAbilityId === 'string' ? step.metadata.sourceAbilityId : null;
+    if (sourceAbilityId && sourceAbilityId !== 'battle-resolution') {
+      return getAbilityFallbackIcon(sourceAbilityId);
+    }
+    if (fallbackEffect === 'heal') {
+      return { shape: 'heart', tone: 'positive' };
+    }
+    if (fallbackEffect === 'summon') {
+      return { shape: 'plus', tone: 'neutral' };
+    }
+    return { shape: fallbackEffect === 'buff' ? 'aoe' : 'heart', tone: fallbackEffect === 'negative' ? 'negative' : 'positive' };
+  }
+
+  private showSummonBurst(unitId: string, step: BattleStep): () => void {
     const sprite = this.unitSprites.get(unitId);
     if (!sprite) {
       return () => {};
     }
 
-    const ring = new Graphics();
-    ring.lineStyle(3, 0xb7f57d, 0.95);
-    ring.drawCircle(0, 0, 10);
-    ring.position.set(sprite.x, sprite.y);
-    this.effectLayer.addChild(ring);
+    const smoke = new Graphics();
+    smoke.position.set(sprite.x, sprite.y);
+    this.effectLayer.addChild(smoke);
 
-    const glow = new Graphics();
-    glow.beginFill(0xb7f57d, 0.22);
-    glow.drawCircle(0, 0, 9);
-    glow.endFill();
-    glow.position.set(sprite.x, sprite.y);
-    this.effectLayer.addChild(glow);
-
-    const arrow = this.createEffectArrow('positive');
-    arrow.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.62);
-    this.effectLayer.addChild(arrow);
+    const icon = this.drawFallbackAbilityIcon(this.abilityIconForStep(step, 'summon'), 18);
+    icon.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.66);
+    this.effectLayer.addChild(icon);
 
     const startRadius = 10;
-    const endRadius = 28;
-    const startY = arrow.y;
+    const endRadius = 34;
+    const startY = icon.y;
 
     let cleaned = false;
     const cleanup = () => {
@@ -989,7 +1029,7 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      [ring, glow, arrow].forEach((node) => {
+      [smoke, icon].forEach((node) => {
         if (node.parent) {
           node.parent.removeChild(node);
         }
@@ -1001,17 +1041,18 @@ export class BattleRenderer {
       620,
       (t) => {
         const radius = startRadius + (endRadius - startRadius) * t;
-        ring.clear();
-        ring.lineStyle(3, 0xb7f57d, 0.95 * (1 - t));
-        ring.drawCircle(0, 0, radius);
+        smoke.clear();
+        [0, 1, 2, 3].forEach((index) => {
+          const angle = index * Math.PI * 0.5 + t * 0.5;
+          const drift = radius * (0.25 + index * 0.08);
+          smoke.beginFill(0xc7cbd1, 0.22 * (1 - t));
+          smoke.drawCircle(Math.cos(angle) * drift, Math.sin(angle) * drift * 0.65, 8 + 9 * t);
+          smoke.endFill();
+        });
 
-        glow.clear();
-        glow.beginFill(0xb7f57d, 0.24 * (1 - t));
-        glow.drawCircle(0, 0, radius * 0.72);
-        glow.endFill();
-
-        arrow.y = startY - 14 * t;
-        arrow.alpha = 1 - t;
+        icon.y = startY - 12 * t;
+        icon.alpha = 1 - t;
+        icon.scale.set(1 + 0.12 * Math.sin(Math.PI * t));
       },
       cleanup,
       cleanup,
@@ -1096,43 +1137,18 @@ export class BattleRenderer {
     };
   }
 
-  private createEffectArrow(kind: EffectIndicatorKind): Graphics {
-    const arrow = new Graphics();
-    const isPositive = kind === 'positive';
-    const fill = isPositive ? 0x58e37a : 0xf0524b;
-    const stroke = isPositive ? 0x12351d : 0x3d1010;
-
-    arrow.lineStyle(2, stroke, 0.95);
-    arrow.beginFill(fill, 0.96);
-    arrow.drawRoundedRect(-1.8, isPositive ? -1 : -7, 3.6, 8, 1.4);
-    arrow.endFill();
-
-    arrow.lineStyle(2, stroke, 0.95);
-    arrow.beginFill(fill, 0.96);
-    arrow.moveTo(0, isPositive ? -9 : 9);
-    arrow.lineTo(5.5, isPositive ? -2.5 : 2.5);
-    arrow.lineTo(2.4, isPositive ? -2.5 : 2.5);
-    arrow.lineTo(2.4, isPositive ? -1 : 1);
-    arrow.lineTo(-2.4, isPositive ? -1 : 1);
-    arrow.lineTo(-2.4, isPositive ? -2.5 : 2.5);
-    arrow.lineTo(-5.5, isPositive ? -2.5 : 2.5);
-    arrow.closePath();
-    arrow.endFill();
-    return arrow;
-  }
-
-  private showEffectIndicator(unitId: string, kind: EffectIndicatorKind): () => void {
+  private showEffectIndicator(unitId: string, icon: AbilityFallbackIcon): () => void {
     const sprite = this.unitSprites.get(unitId);
     if (!sprite) {
       return () => {};
     }
 
-    const arrow = this.createEffectArrow(kind);
-    arrow.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.62);
-    this.effectLayer.addChild(arrow);
+    const indicator = this.drawFallbackAbilityIcon(icon, 20);
+    indicator.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.62);
+    this.effectLayer.addChild(indicator);
 
-    const startY = arrow.y;
-    const floatDistance = kind === 'positive' ? -22 : 22;
+    const startY = indicator.y;
+    const floatDistance = icon.tone === 'negative' ? 22 : -22;
 
     let cleaned = false;
     const cleanup = () => {
@@ -1140,18 +1156,18 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      if (arrow.parent) {
-        arrow.parent.removeChild(arrow);
+      if (indicator.parent) {
+        indicator.parent.removeChild(indicator);
       }
-      arrow.destroy();
+      indicator.destroy();
     };
 
     const stop = animate(
       800,
       (t) => {
-        arrow.y = startY + floatDistance * t;
-        arrow.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
-        arrow.scale.set(1 + 0.15 * Math.sin(Math.PI * t));
+        indicator.y = startY + floatDistance * t;
+        indicator.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+        indicator.scale.set(1 + 0.15 * Math.sin(Math.PI * t));
       },
       cleanup,
       cleanup,
@@ -1162,25 +1178,25 @@ export class BattleRenderer {
     };
   }
 
-  private showBuffIndicator(unitId: string, kind: EffectIndicatorKind): () => void {
+  private showBuffIndicator(unitId: string, icon: AbilityFallbackIcon): () => void {
     const sprite = this.unitSprites.get(unitId);
     if (!sprite) {
       return () => {};
     }
 
-    const arrow = this.createEffectArrow(kind);
-    arrow.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
-    this.effectLayer.addChild(arrow);
+    const indicator = this.drawFallbackAbilityIcon(icon, 20);
+    indicator.position.set(sprite.x, sprite.y - UNIT_PIXEL_SIZE * 0.55);
+    this.effectLayer.addChild(indicator);
 
     const halo = new Graphics();
-    const haloColor = kind === 'positive' ? 0x58e37a : 0xf0524b;
+    const haloColor = icon.tone === 'positive' ? 0x4279c9 : icon.tone === 'negative' ? 0xb83e43 : 0x8d98a6;
     halo.lineStyle(2, haloColor, 0.85);
     halo.drawCircle(0, 0, 12);
     halo.position.set(sprite.x, sprite.y);
     this.effectLayer.addChild(halo);
 
-    const startY = arrow.y;
-    const floatDistance = kind === 'positive' ? -12 : 12;
+    const startY = indicator.y;
+    const floatDistance = icon.tone === 'negative' ? 12 : -12;
 
     let cleaned = false;
     const cleanup = () => {
@@ -1188,7 +1204,7 @@ export class BattleRenderer {
         return;
       }
       cleaned = true;
-      [arrow, halo].forEach((node) => {
+      [indicator, halo].forEach((node) => {
         if (node.parent) {
           node.parent.removeChild(node);
         }
@@ -1199,9 +1215,9 @@ export class BattleRenderer {
     const stop = animate(
       540,
       (t) => {
-        arrow.y = startY + floatDistance * t;
-        arrow.alpha = 1 - t;
-        arrow.scale.set(1 + 0.12 * Math.sin(Math.PI * t));
+        indicator.y = startY + floatDistance * t;
+        indicator.alpha = 1 - t;
+        indicator.scale.set(1 + 0.12 * Math.sin(Math.PI * t));
 
         halo.clear();
         halo.lineStyle(2, haloColor, 0.85 * (1 - t));
@@ -1279,7 +1295,7 @@ export class BattleRenderer {
 
   private resetCameraToFit(): void {
     this.recalculateZoomBounds();
-    this.zoom = this.baseFitZoom;
+    this.zoom = this.clampZoom(this.baseFitZoom / ZOOM_STEP_FACTOR);
     this.cameraOffset = { x: 0, y: 0 };
     this.applyCameraTransform();
   }
