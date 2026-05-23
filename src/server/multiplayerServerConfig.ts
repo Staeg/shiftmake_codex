@@ -34,7 +34,7 @@ export function parseAllowedOrigins(value: string | undefined): string[] {
 
 export function getMultiplayerServerConfig(env: NodeJS.ProcessEnv = process.env): MultiplayerServerConfig {
   return {
-    port: parseMultiplayerPort(env.SHIFTMAKE_MULTIPLAYER_PORT),
+    port: parseMultiplayerPort(env.SHIFTMAKE_MULTIPLAYER_PORT ?? env.PORT),
     host: parseMultiplayerHost(env.SHIFTMAKE_MULTIPLAYER_HOST),
     allowedOrigins: parseAllowedOrigins(env.SHIFTMAKE_MULTIPLAYER_ALLOWED_ORIGINS),
   };

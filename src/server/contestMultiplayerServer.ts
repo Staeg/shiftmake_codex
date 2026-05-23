@@ -199,6 +199,19 @@ function isRateLimited(socket: WebSocket, now = Date.now()): boolean {
   return !socketResult.allowed || !ipResult.allowed;
 }
 
+function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function getRequestClientAddress(request: IncomingMessage): string {
+  const forwardedFor = firstHeaderValue(request.headers['x-forwarded-for']);
+  const forwardedClient = forwardedFor
+    ?.split(',')
+    .map((address) => address.trim())
+    .find(Boolean);
+  return forwardedClient || firstHeaderValue(request.headers['x-real-ip'])?.trim() || request.socket.remoteAddress || 'unknown';
+}
+
 function isOriginAllowed(origin: string | undefined, allowedOrigins = serverConfig.allowedOrigins): boolean {
   if (allowedOrigins.length === 0) {
     return true;
@@ -526,7 +539,7 @@ export function startContestMultiplayerServer(config: MultiplayerServerConfig = 
 
   server.on('connection', (socket, request: IncomingMessage) => {
     markSocketAlive(socket);
-    socketRemoteAddresses.set(socket, request.socket.remoteAddress ?? 'unknown');
+    socketRemoteAddresses.set(socket, getRequestClientAddress(request));
     socket.on('pong', () => markSocketAlive(socket));
     socket.on('message', (message) => handleMessage(socket, message));
     socket.on('close', () => handleSocketClose(socket));
@@ -561,6 +574,7 @@ export const contestMultiplayerServerInternals = {
   handleMessage,
   handleSocketClose,
   isOriginAllowed,
+  getRequestClientAddress,
   markSocketAlive,
   checkSocketHeartbeat,
   normalizeRoomId,

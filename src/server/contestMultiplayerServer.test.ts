@@ -333,6 +333,35 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(contestMultiplayerServerInternals.isOriginAllowed(undefined, ['https://shiftmake.example'])).toBe(false);
   });
 
+  it('uses forwarded client addresses before proxy socket addresses', () => {
+    const request = {
+      headers: {
+        'x-forwarded-for': '203.0.113.10, 10.0.0.1',
+        'x-real-ip': '198.51.100.20',
+      },
+      socket: {
+        remoteAddress: '10.0.0.2',
+      },
+    };
+
+    expect(contestMultiplayerServerInternals.getRequestClientAddress(request as never)).toBe('203.0.113.10');
+  });
+
+  it('falls back through real-ip and socket addresses', () => {
+    expect(
+      contestMultiplayerServerInternals.getRequestClientAddress({
+        headers: { 'x-real-ip': '198.51.100.20' },
+        socket: { remoteAddress: '10.0.0.2' },
+      } as never),
+    ).toBe('198.51.100.20');
+    expect(
+      contestMultiplayerServerInternals.getRequestClientAddress({
+        headers: {},
+        socket: { remoteAddress: '10.0.0.2' },
+      } as never),
+    ).toBe('10.0.0.2');
+  });
+
   it('cleans up idle sockets when heartbeat fails', () => {
     const playerOne = new FakeSocket();
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM13', seed: 13, playerName: 'One' });

@@ -22,6 +22,15 @@ describe('multiplayer server config', () => {
     });
   });
 
+  it('uses Render-style PORT when no Shiftmake port is configured', () => {
+    expect(getMultiplayerServerConfig({ PORT: '10000' })).toMatchObject({
+      port: 10000,
+    });
+    expect(getMultiplayerServerConfig({ SHIFTMAKE_MULTIPLAYER_PORT: '9090', PORT: '10000' })).toMatchObject({
+      port: 9090,
+    });
+  });
+
   it('rejects invalid WebSocket server ports', () => {
     expect(() => parseMultiplayerPort('0')).toThrow('1 to 65535');
     expect(() => parseMultiplayerPort('70000')).toThrow('1 to 65535');
