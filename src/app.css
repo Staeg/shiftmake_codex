@@ -1,5 +1,7 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Alegreya+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+
 :root {
   color-scheme: dark;
   font-family: 'Alegreya Sans SC', sans-serif;
@@ -7,6 +9,7 @@
   color: #f1f4f8;
 
   --ui-font-heading: 'Alegreya Sans SC', sans-serif;
+  --ui-font-readable: 'Atkinson Hyperlegible', system-ui, sans-serif;
   --ui-font-mono: 'IBM Plex Mono', monospace;
   --ui-font-weight-body: 400;
   --ui-font-weight-strong: 600;

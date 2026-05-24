@@ -103,7 +103,6 @@ Faction upgrades:
 ## Orcs
 
 - Added attributes: `orc`
-- Health: +10%
 - Damage: +25%
 - Speed: +10%
 - Armor: -1

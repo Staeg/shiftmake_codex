@@ -1165,7 +1165,6 @@ export const FACTIONS: Record<FactionId, FactionDefinition> = {
     singularLabel: 'Orc',
     addedAttributes: ['orc'],
     statAdjustments: {
-      health: { multiplier: 1.1 },
       damage: { multiplier: 1.25 },
       speed: { multiplier: 1.1 },
       armor: { flat: -1 },

@@ -134,6 +134,7 @@
   type RiftBattleAnimationSide = {
     label: string;
     kind: BattleParticipantKind;
+    playerId?: ContestPlayerId;
     loses: boolean;
   };
 
@@ -154,9 +155,8 @@
     phaseClass: 'phase-now' | 'phase-late' | 'phase-static';
     combatants: ResolvedCombatantDefinition[];
     participant: RiftBattleAnimationSide | null;
+    lossClass: 'force-loses-now' | 'force-loses-late' | null;
   };
-
-  type ForceLossTiming = 'now' | 'late' | null;
 
   type TroopDragState = {
     troopId: TroopId;
@@ -2228,10 +2228,29 @@
     return `archive-${kind}`;
   }
 
-  function getArchiveCardStyle(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): string {
-    const fallbackLeft = entry.encounterLabel?.includes(' vs Neutral Guardians') ? 'opponent' : 'player';
-    const left = entry.sideParticipants?.player?.kind ?? fallbackLeft;
-    const right = entry.sideParticipants?.enemy?.kind ?? 'neutral';
+  function getArchiveFightingPartyKind(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): BattleParticipantKind {
+    if (entry.sideParticipants?.enemy.kind === 'player') {
+      return 'player';
+    }
+    return entry.sideParticipants?.player?.kind ?? (entry.encounterLabel?.includes(' vs Neutral Guardians') ? 'opponent' : 'player');
+  }
+
+  function isArchiveOpponentBattle(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): boolean {
+    return getArchiveFightingPartyKind(entry) === 'opponent';
+  }
+
+  function getArchiveCardStyle(entry: { outcome: BattleOutcome; encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): string {
+    const result = entry.outcome === 'victory' ? 'victory' : entry.outcome === 'defeat' ? 'defeat' : 'draw';
+    if (entry.sideParticipants?.player.kind === 'opponent' && entry.sideParticipants.enemy.kind === 'player') {
+      return `--archive-left-color: var(--archive-${result}); --archive-right-color: var(--archive-${result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw'});`;
+    }
+    if (entry.sideParticipants?.player.kind === 'player' && entry.sideParticipants.enemy.kind === 'opponent') {
+      return `--archive-left-color: var(--archive-${result}); --archive-right-color: var(--archive-${result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw'});`;
+    }
+    const foughtNeutral = entry.sideParticipants?.enemy?.kind === 'neutral' || (!entry.sideParticipants && entry.encounterLabel?.includes('Neutral Guardians'));
+    const opponentBattle = isArchiveOpponentBattle(entry);
+    const left = foughtNeutral && opponentBattle ? 'neutral' : result;
+    const right = foughtNeutral && !opponentBattle ? 'neutral' : result;
     return `--archive-left-color: var(--archive-${left}); --archive-right-color: var(--archive-${right});`;
   }
 
@@ -2412,6 +2431,7 @@
     return {
       label: participant.label,
       kind: participant.kind,
+      playerId: participant.playerId,
       loses,
     };
   }
@@ -2426,7 +2446,8 @@
   function buildRecordBattlePhase(record: CycleRecord, delayClass: RiftBattleAnimationPhase['delayClass'], key: string): RiftBattleAnimationPhase {
     const playerSide = getBattleAnimationSide(record, 'player', outcomeLoser(record.outcome, 'player'), 'player', 'Player');
     const enemySide = getBattleAnimationSide(record, 'enemy', outcomeLoser(record.outcome, 'enemy'), 'neutral', 'Neutral Guardians');
-    const playerIsRight = isHumanBattleSide(record, 'player');
+    const neutralIsEnemy = enemySide.kind === 'neutral';
+    const playerIsRight = isHumanBattleSide(record, 'player') || neutralIsEnemy;
     return {
       key,
       replayId: record.replay.id,
@@ -2436,12 +2457,11 @@
     };
   }
 
-  function getAnimationForceLossTiming(animation: RiftBattleAnimationView | null, side: 'left' | 'right'): ForceLossTiming {
-    const losingPhase = animation?.phases.find((phase) => phase[side].loses) ?? null;
-    if (!losingPhase) {
-      return null;
+  function battleParticipantKey(participant: RiftBattleAnimationSide | null): string {
+    if (!participant) {
+      return 'static';
     }
-    return losingPhase.delayClass === 'phase-late' ? 'late' : 'now';
+    return participant.playerId ? `player:${participant.playerId}` : `${participant.kind}:${participant.label}`;
   }
 
   function getAnimationCombatantsForSide(phase: RiftBattleAnimationPhase, side: 'left' | 'right'): ResolvedCombatantDefinition[] {
@@ -2470,11 +2490,28 @@
     side: 'left' | 'right',
   ): RiftAnimationCombatantGroup[] {
     if (animation?.phases.length) {
-      const groups = animation.phases.map((phase) => ({
-        phaseClass: phase.delayClass,
-        combatants: getAnimationCombatantsForSide(phase, side),
-        participant: phase[side],
-      })).filter((group) => group.combatants.length > 0);
+      const groups: RiftAnimationCombatantGroup[] = [];
+      animation.phases.forEach((phase) => {
+        const participant = phase[side];
+        const combatants = getAnimationCombatantsForSide(phase, side);
+        if (combatants.length === 0) {
+          return;
+        }
+        const key = battleParticipantKey(participant);
+        let group = groups.find((entry) => battleParticipantKey(entry.participant) === key);
+        if (!group) {
+          group = {
+            phaseClass: phase.delayClass,
+            combatants,
+            participant,
+            lossClass: null,
+          };
+          groups.push(group);
+        }
+        if (participant.loses) {
+          group.lossClass = phase.delayClass === 'phase-late' ? 'force-loses-late' : 'force-loses-now';
+        }
+      });
       if (groups.length > 0) {
         return groups;
       }
@@ -2484,6 +2521,7 @@
         phaseClass: 'phase-static',
         combatants: side === 'left' ? getVisibleRiftDefenders(rift) : getAssignedRiftCombatants(rift),
         participant: null,
+        lossClass: null,
       },
     ];
   }
@@ -2917,10 +2955,6 @@
     const offer = $gameStore.game.activeFactionUnlockOffer;
     const offered = offer?.troopUnlockIdsByFactionId[factionId] ?? [];
     return [...new Set([...getFactionNativeTroopUnlockIds(factionId), ...offered])];
-  }
-
-  function getTroopUnlockSourceLabel(troopUnlockId: TroopUnlockId): string {
-    return isNativeTroopUnlockId(troopUnlockId) ? 'Native' : 'Rift-discovered';
   }
 
   function getAvailableFactionTroopUnlockIds(factionId: FactionId): TroopUnlockId[] {
@@ -3751,7 +3785,19 @@
             {@const grantedUpgradeIds = $gameStore.game.activeFactionUnlockOffer.upgradeIdsByFactionId[factionId] ?? []}
             {@const grantedTroopUnlockIds = $gameStore.game.activeFactionUnlockOffer.troopUnlockIdsByFactionId?.[factionId] ?? []}
             {@const rosterTroopUnlockIds = getScheduledFactionRosterUnlockIds(factionId)}
-            <article class="draft-card panel faction-unlock-card ui-debug-target" class:selected={selectedScheduledFactionId === factionId} data-ui-name={`Faction unlock option ${faction.label}`}>
+            <article
+              class="draft-card panel faction-unlock-card ui-debug-target"
+              class:selected={selectedScheduledFactionId === factionId}
+              data-ui-name={`Faction unlock option ${faction.label}`}
+            >
+              <button
+                type="button"
+                class="faction-card-select-button"
+                class:selected={selectedScheduledFactionId === factionId}
+                aria-label={`Select ${faction.label}`}
+                aria-pressed={selectedScheduledFactionId === factionId}
+                on:click={() => selectScheduledFactionUnlock(factionId)}
+              ></button>
               <header class="draft-card-header">
                 <div class="draft-card-title">
                   <strong>{faction.label}</strong>
@@ -3764,12 +3810,43 @@
                     on:focus={() => previewDetail(factionDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(factionDetail)}
+                    on:click|stopPropagation={() => selectScheduledFactionUnlock(factionId)}
                   >
                     <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
                   </button>
                 </div>
               </header>
+
+              <div class="draft-section scheduled-included-section">
+                <span class="draft-section-label">Included troops</span>
+                <div class="draft-icon-row troop-preview-row included-troop-row">
+                  {#each grantedTroopUnlockIds as troopUnlockId}
+                    {@const [includedFactionId, includedUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                    {@const troopDetail = buildScheduledTroopDetail(
+                      troopUnlockId,
+                      grantedUpgradeIds,
+                      `Included troop unlocked immediately when ${getFaction(includedFactionId).label} joins.`,
+                    )}
+                    <button
+                      type="button"
+                      class="draft-troop-icon troop-preview included-troop-preview"
+                      class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                      aria-label={`Inspect included troop ${troopDetail.label}`}
+                      on:mouseenter={() => previewDetail(troopDetail)}
+                      on:focus={() => previewDetail(troopDetail)}
+                      on:mouseleave={clearDetail}
+                      on:blur={clearDetail}
+                      on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
+                    >
+                      <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
+                        {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
+                          <img class="unit-button-art" src={getFactionUnitPortrait(includedFactionId, includedUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        {/each}
+                      </span>
+                    </button>
+                  {/each}
+                </div>
+              </div>
 
               <div class="draft-section">
                 <span class="draft-section-label">Granted upgrades</span>
@@ -3784,7 +3861,7 @@
                       on:focus={() => previewDetail(upgradeDetail)}
                       on:mouseleave={clearDetail}
                       on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(upgradeDetail)}
+                      on:click|stopPropagation={() => selectScheduledFactionUnlock(factionId)}
                     >
                       <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
                     </button>
@@ -3798,40 +3875,37 @@
                   {#each rosterTroopUnlockIds as troopUnlockId}
                     {@const [rosterFactionId, rosterUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
                     {@const isGrantedTroop = grantedTroopUnlockIds.includes(troopUnlockId)}
-                    {@const sourceLabel = getTroopUnlockSourceLabel(troopUnlockId)}
                     {@const troopDetail = buildScheduledTroopDetail(
                       troopUnlockId,
                       grantedUpgradeIds,
                       isGrantedTroop
-                        ? `Included ${sourceLabel.toLowerCase()} troop unlocked immediately when ${getFaction(rosterFactionId).label} joins.`
-                        : `${sourceLabel} ${getFaction(rosterFactionId).singularLabel} recruit shown as later unlock potential.`,
+                        ? `Included troop unlocked immediately when ${getFaction(rosterFactionId).label} joins.`
+                        : `${getFaction(rosterFactionId).singularLabel} recruit shown as later unlock potential.`,
                     )}
-                    <button
-                      type="button"
-                      class="draft-troop-icon troop-preview"
-                      class:native={isNativeTroopUnlockId(troopUnlockId)}
-                      class:future={!isNativeTroopUnlockId(troopUnlockId)}
-                      class:selected={isGrantedTroop || activeDetail?.detailKey === troopDetail.detailKey}
-                      aria-label={`Inspect ${troopDetail.label}`}
-                      on:mouseenter={() => previewDetail(troopDetail)}
-                      on:focus={() => previewDetail(troopDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(troopDetail)}
-                    >
-                      <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
-                        {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
-                          <img class="unit-button-art" src={getFactionUnitPortrait(rosterFactionId, rosterUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                        {/each}
-                      </span>
-                      <span>{getUnitType(rosterUnitTypeId).label}</span>
-                      <small>{sourceLabel}{isGrantedTroop ? ' included' : ''}</small>
-                    </button>
+                    {#if !isGrantedTroop}
+                      <button
+                        type="button"
+                        class="draft-troop-icon troop-preview"
+                        class:future={!isNativeTroopUnlockId(troopUnlockId)}
+                        class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                        aria-label={`Inspect ${troopDetail.label}`}
+                        title={getUnitType(rosterUnitTypeId).label}
+                        on:mouseenter={() => previewDetail(troopDetail)}
+                        on:focus={() => previewDetail(troopDetail)}
+                        on:mouseleave={clearDetail}
+                        on:blur={clearDetail}
+                        on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
+                      >
+                        <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
+                          {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
+                            <img class="unit-button-art" src={getFactionUnitPortrait(rosterFactionId, rosterUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                          {/each}
+                        </span>
+                      </button>
+                    {/if}
                   {/each}
                 </div>
               </div>
-
-              <button class:selected={selectedScheduledFactionId === factionId} on:click={() => selectScheduledFactionUnlock(factionId)}>Select {faction.label}</button>
             </article>
           {/each}
         </div>
@@ -4451,8 +4525,6 @@
           {#each discoveredRifts as rift}
             {@const riftVisual = getRiftVisual(rift)}
             {@const battleAnimation = getRiftBattleAnimationView(rift)}
-            {@const leftForceLoss = getAnimationForceLossTiming(battleAnimation, 'left')}
-            {@const rightForceLoss = getAnimationForceLossTiming(battleAnimation, 'right')}
             <article
               class="rift-card ui-debug-target"
               class:contest-neutral={$gameStore.game.gameMode === 'contest' && (!rift.controller || rift.controller === 'neutral')}
@@ -4510,9 +4582,9 @@
               </div>
 
               <div class="rift-battle-lane">
-                <div class="assigned-strip enemy-strip rift-force-side rift-force-left" class:force-loses-now={leftForceLoss === 'now'} class:force-loses-late={leftForceLoss === 'late'}>
+                <div class="assigned-strip enemy-strip rift-force-side rift-force-left">
                   {#each getAnimationLeftCombatantGroups(rift, battleAnimation) as group}
-                    <div class={`rift-force-combatant-group ${group.phaseClass}`}>
+                    <div class={`rift-force-combatant-group ${group.phaseClass} ${group.lossClass ?? ''}`}>
                       {#each group.combatants as enemy}
                         {@const enemyDetail = buildResolvedUnitDetail(
                           `enemy:${rift.id}:${enemy.combatantId}`,
@@ -4563,14 +4635,14 @@
                   {/if}
                 </div>
 
-                <div class="assigned-strip rift-force-side rift-force-right" class:force-loses-now={rightForceLoss === 'now'} class:force-loses-late={rightForceLoss === 'late'}>
+                <div class="assigned-strip rift-force-side rift-force-right">
                   {#if troopDrag?.active && troopDrag.dropTarget?.kind === 'rift' && troopDrag.dropTarget.riftId === rift.id && !getRiftDropValidationMessage(rift.id)}
                     <div class="unit-tile drop-preview-tile">
                       <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" aria-hidden="true" />
                     </div>
                   {/if}
                   {#each getAnimationRightCombatantGroups(rift, battleAnimation) as group}
-                    <div class={`rift-force-combatant-group ${group.phaseClass}`}>
+                    <div class={`rift-force-combatant-group ${group.phaseClass} ${group.lossClass ?? ''}`}>
                     {#each group.combatants as combatant}
                     {@const troopId = combatant.troopInstanceId}
                     {@const assignedDetail = buildResolvedUnitDetail(
@@ -5242,7 +5314,7 @@
               {#each pagedReplayEntries as replayEntry}
                 {@const archiveRiftVisual = getArchiveRiftVisual(replayEntry)}
                 {@const archiveVisual = archiveRiftVisual ? getRiftVisual(archiveRiftVisual) : null}
-                <div class="archive-card-row">
+                <div class="archive-card-row" class:archive-opponent-record={isArchiveOpponentBattle(replayEntry)}>
                   <button
                     class="archive-card ui-debug-target"
                     data-ui-name={`Archive entry ${replayEntry.summary}`}
@@ -6126,6 +6198,7 @@
     display: flex;
     flex-wrap: nowrap;
     gap: 0.45rem;
+    container-type: inline-size;
   }
 
   .resource-strip > div,
@@ -6141,7 +6214,10 @@
 
   .resource-strip > div,
   .resource-strip > button {
-    min-width: 6.2rem;
+    min-width: min(6.2rem, 100%);
+    justify-items: center;
+    text-align: center;
+    overflow: hidden;
     white-space: nowrap;
   }
 
@@ -6199,7 +6275,28 @@
   .archive-card small {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  @container (max-width: 520px) {
+    .resource-strip {
+      gap: 0.28rem;
+    }
+
+    .resource-strip > div,
+    .resource-strip > button {
+      padding-inline: 0.45rem;
+    }
+
+    .resource-strip strong,
+    .compact-list strong,
+    .archive-card small {
+      gap: 0.18rem;
+      font-size: clamp(0.68rem, 16cqw, 0.95rem);
+    }
   }
 
   .resource-essence strong {
@@ -6478,6 +6575,12 @@
     box-shadow: var(--ui-shadow-panel);
   }
 
+  .panel *,
+  .menu-panel *,
+  .draft-panel * {
+    min-width: 0;
+  }
+
   .opening-shell {
     width: min(1240px, 100%);
   }
@@ -6724,10 +6827,11 @@
   }
 
   .archive-card {
-    --archive-player: rgba(74, 193, 111, 0.58);
-    --archive-opponent: rgba(213, 75, 82, 0.58);
+    --archive-victory: rgba(74, 193, 111, 0.58);
+    --archive-defeat: rgba(213, 75, 82, 0.58);
+    --archive-draw: rgba(213, 178, 116, 0.52);
     --archive-neutral: rgba(143, 153, 164, 0.52);
-    --archive-left-color: var(--archive-player);
+    --archive-left-color: var(--archive-victory);
     --archive-right-color: var(--archive-neutral);
     position: relative;
     display: grid;
@@ -7032,20 +7136,24 @@
     animation: rift-force-group-late 7.6s ease-in-out both;
   }
 
+  .rift-force-combatant-group.force-loses-now.phase-now {
+    animation-name: rift-force-group-now-loses;
+  }
+
+  .rift-force-combatant-group.force-loses-late.phase-now {
+    animation-name: rift-force-group-now-loses-late;
+  }
+
+  .rift-force-combatant-group.force-loses-late.phase-late {
+    animation-name: rift-force-group-late-loses;
+  }
+
   .rift-force-left {
     justify-content: flex-start;
   }
 
   .rift-force-right {
     justify-content: flex-end;
-  }
-
-  .rift-force-side.force-loses-now {
-    animation: rift-force-fade 4.8s ease-in-out both;
-  }
-
-  .rift-force-side.force-loses-late {
-    animation: rift-force-fade 4.8s ease-in-out 3.7s both;
   }
 
   .rift-battle-lane .unit-tile {
@@ -7174,7 +7282,15 @@
     animation: clash-spark 4.8s ease-out both;
   }
 
-  @keyframes rift-force-fade {
+  @keyframes rift-force-group-now {
+    0%,
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes rift-force-group-now-loses {
     0%,
     58% {
       opacity: 1;
@@ -7188,16 +7304,17 @@
     }
   }
 
-  @keyframes rift-force-group-now {
+  @keyframes rift-force-group-now-loses-late {
     0%,
-    48% {
+    78% {
       opacity: 1;
       transform: translateY(0) scale(1);
+      filter: none;
     }
-    60%,
     100% {
       opacity: 0;
-      transform: translateY(0.2rem) scale(0.88);
+      transform: translateY(0.35rem) scale(0.86);
+      filter: grayscale(1) brightness(0.68);
     }
   }
 
@@ -7211,6 +7328,26 @@
     100% {
       opacity: 1;
       transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes rift-force-group-late-loses {
+    0%,
+    48% {
+      opacity: 0;
+      transform: translateY(-0.15rem) scale(0.9);
+      filter: none;
+    }
+    58%,
+    78% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: none;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(0.35rem) scale(0.86);
+      filter: grayscale(1) brightness(0.68);
     }
   }
 
@@ -8085,6 +8222,20 @@
     align-items: stretch;
   }
 
+  .archive-card-row.archive-opponent-record {
+    grid-template-columns: 2.45rem minmax(0, 1fr);
+  }
+
+  .archive-card-row.archive-opponent-record .archive-watch-button {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .archive-card-row.archive-opponent-record .archive-card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .archive-card {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -8217,17 +8368,60 @@
   }
 
   .faction-unlock-card {
+    position: relative;
     display: grid;
     gap: var(--ui-space-sm);
     align-content: start;
+    cursor: pointer;
   }
 
-  .faction-unlock-card > button:last-child {
-    margin-top: auto;
+  .faction-unlock-card > :not(.faction-card-select-button) {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .faction-unlock-card button:not(.faction-card-select-button) {
+    pointer-events: auto;
+  }
+
+  .faction-card-select-button {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    padding: 0;
+  }
+
+  .faction-unlock-card:hover,
+  .faction-unlock-card:focus-within {
+    border-color: rgba(213, 178, 116, 0.5);
+    box-shadow:
+      var(--ui-shadow-panel),
+      inset 0 0 0 1px rgba(213, 178, 116, 0.2);
+    outline: none;
+  }
+
+  .faction-card-select-button:focus-visible {
+    outline: 2px solid rgba(244, 205, 118, 0.94);
+    outline-offset: 3px;
+  }
+
+  .faction-unlock-card.selected {
+    border-color: rgba(231, 190, 105, 0.82);
+    background:
+      linear-gradient(160deg, rgba(48, 38, 16, 0.92), rgba(24, 22, 16, 0.96)),
+      radial-gradient(circle at top right, rgba(243, 204, 105, 0.2), transparent 42%);
+    box-shadow:
+      0 18px 42px rgba(0, 0, 0, 0.34),
+      inset 0 0 0 2px rgba(237, 197, 111, 0.38);
   }
 
   .troop-preview-row {
-    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(var(--troop-icon-box-size, 3.8rem), 1fr));
+    justify-items: center;
   }
 
   .troop-preview {
@@ -8243,8 +8437,21 @@
     font-size: 0.82rem;
   }
 
+  .included-troop-row {
+    justify-content: start;
+  }
+
+  .included-troop-preview {
+    border-color: rgba(213, 178, 116, 0.56);
+    background:
+      linear-gradient(135deg, rgba(44, 33, 17, 0.88), rgba(18, 25, 34, 0.88)),
+      radial-gradient(circle at 18% 18%, rgba(239, 199, 111, 0.18), transparent 58%);
+  }
+
   .scheduled-faction-shell .troop-preview {
-    min-height: 3.75rem;
+    width: var(--troop-icon-box-size, 3.8rem);
+    min-height: var(--troop-icon-box-size, 3.8rem);
+    aspect-ratio: 1;
     padding: 0.35rem;
     font-size: 0.76rem;
   }
@@ -9973,11 +10180,12 @@
     gap: 0.35rem;
     min-height: 2.37rem;
     min-width: 0;
+    container-type: inline-size;
   }
 
   .replay-health-total-label {
     display: grid;
-    grid-template-columns: minmax(0, auto) minmax(6.7rem, 1fr);
+    grid-template-columns: minmax(1.8rem, auto) minmax(6.7rem, 1fr);
     align-items: baseline;
     gap: 0.5rem;
     min-width: 0;
@@ -9991,6 +10199,7 @@
     overflow: hidden;
     text-overflow: clip;
     text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .replay-health-total-label strong {
@@ -10001,6 +10210,21 @@
     line-height: 1.2;
     text-align: right;
     white-space: nowrap;
+  }
+
+  @container (max-width: 230px) {
+    .replay-health-total-label {
+      gap: 0.25rem;
+    }
+
+    .replay-health-total-label span {
+      font-size: clamp(0.62rem, 10cqw, 0.82rem);
+      letter-spacing: 0.02em;
+    }
+
+    .replay-health-total-label strong {
+      font-size: clamp(0.64rem, 9cqw, 0.78rem);
+    }
   }
 
   .replay-health-side.enemy .replay-health-total-label strong {

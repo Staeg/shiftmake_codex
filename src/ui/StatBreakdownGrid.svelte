@@ -158,6 +158,7 @@
     display: grid;
     grid-template-columns: repeat(var(--stat-columns, 3), minmax(0, 1fr));
     gap: 0.45rem;
+    container-type: inline-size;
   }
 
   .stat-card {
@@ -174,18 +175,23 @@
     color: inherit;
     font: inherit;
     text-align: left;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .stat-main {
     display: grid;
     gap: 0.15rem;
+    min-width: 0;
   }
 
   .stat-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 0.4rem;
+    min-width: 0;
+    text-align: center;
   }
 
   .stat-main.inspectable {
@@ -208,17 +214,26 @@
     font-size: 0.7rem;
   }
 
+  .stat-head > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
   .stat-values {
     display: inline-flex;
     align-items: baseline;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 0.25rem;
     min-width: 0;
+    white-space: nowrap;
   }
 
   .stat-values > strong {
     font-size: 0.95rem;
     line-height: 1;
+    min-width: 0;
   }
 
   .stat-delta {
@@ -226,6 +241,29 @@
     font-weight: 800;
     line-height: 1;
     white-space: nowrap;
+  }
+
+  @container (max-width: 520px) {
+    .stats-grid {
+      gap: 0.35rem;
+    }
+
+    .stat-card {
+      padding: 0.38rem 0.42rem;
+    }
+
+    .stat-head,
+    .stat-values {
+      gap: 0.18rem;
+    }
+
+    .stat-main > span {
+      font-size: 0.64rem;
+    }
+
+    .stat-values > strong {
+      font-size: clamp(0.72rem, 16cqw, 0.92rem);
+    }
   }
 
   .stat-delta.positive {

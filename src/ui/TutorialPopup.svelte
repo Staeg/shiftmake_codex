@@ -756,6 +756,7 @@
     border-radius: 8px;
     background: rgba(9, 13, 20, 0.96);
     color: #f5f1e6;
+    font-family: var(--ui-font-readable);
     box-shadow: 0 16px 38px rgba(0, 0, 0, 0.48);
     pointer-events: none;
   }
@@ -795,21 +796,22 @@
   }
 
   p {
-    color: #d0ad67;
-    font-size: 0.63rem;
-    font-weight: 800;
-    text-transform: uppercase;
+    color: #d9bd82;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
   }
 
   h2 {
-    font-size: 0.98rem;
+    font-size: 1rem;
+    font-weight: 700;
     letter-spacing: 0;
   }
 
   span,
   strong {
-    font-size: 0.78rem;
-    line-height: 1.32;
+    font-size: 0.82rem;
+    line-height: 1.38;
   }
 
   strong {

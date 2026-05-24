@@ -67,7 +67,7 @@ describe('troop composition', () => {
     expect(composeTroopDefinition('dwarf', 'avenger').attributes).toEqual(['melee', 'dwarf']);
     expect(composeTroopDefinition('dwarf', 'avenger').stats).toMatchObject({ health: 240, damage: 6, speed: 8.5, armor: 3, size: 2, capacity: 2 });
     expect(composeTroopDefinition('orc', 'soldier').attributes).toEqual(['melee', 'orc']);
-    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 110, damage: 12.5, speed: 11, armor: 1, size: 1, capacity: 1 });
+    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 100, damage: 12.5, speed: 11, armor: 1, size: 1, capacity: 1 });
     expect(composeTroopDefinition('fae', 'wizard').attributes).toEqual(['caster', 'fae']);
     expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, speed: 9.2, range: 3, armor: -1 });
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
