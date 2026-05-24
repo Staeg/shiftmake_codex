@@ -49,6 +49,7 @@ import type {
   UpgradeId,
   GameMode,
   ContestPlayerState,
+  LoadGameRepairReport,
 } from '../engine/types';
 import {
   createNewSlotCampaign,
@@ -56,6 +57,7 @@ import {
   importCampaignReportToSlot,
   listSaveSlots,
   loadSaveSlot,
+  loadSaveSlotWithRepairs,
   migrateLegacySave,
   readSlotReplay,
   readSlotReplayPayload,
@@ -415,6 +417,35 @@ function blockingValidationMessages(state: GameState): string[] {
   return validateAssignments(state).issues
     .filter((issue) => issue.kind !== 'no_troops_assigned' && issue.kind !== 'holding_only_no_new_attack' && issue.kind !== 'idle_troops_remaining')
     .map((issue) => issue.message);
+}
+
+function formatRepairList(label: string, values: string[]): string | null {
+  if (values.length === 0) {
+    return null;
+  }
+  return `${label}: ${values.join(', ')}`;
+}
+
+function buildLoadRepairMessage(repairs: LoadGameRepairReport | null): string | null {
+  if (!repairs) {
+    return null;
+  }
+
+  const sections = [
+    formatRepairList('Missing factions', repairs.missingFactionIds),
+    formatRepairList('Missing troop unlocks', repairs.missingTroopUnlockIds),
+    formatRepairList('Missing troop instances', repairs.missingTroopInstanceIds),
+    formatRepairList('Missing upgrades', repairs.missingUpgradeIds),
+    formatRepairList('Missing Rift enemies', repairs.missingRiftEnemyIds),
+    formatRepairList('Missing draft options', repairs.missingDraftOptionIds),
+  ].filter((section): section is string => section !== null);
+
+  return sections.length > 0 ? `System Notice: This save referenced retired content that was removed on load. ${sections.join('; ')}.` : null;
+}
+
+function joinSystemMessages(messages: Array<string | null>): string | null {
+  const activeMessages = messages.filter((message): message is string => !!message);
+  return activeMessages.length > 0 ? activeMessages.join(' ') : null;
 }
 
 function isQuotaExceeded(error: unknown): boolean {
@@ -797,15 +828,21 @@ export const gameStore = (() => {
       });
     },
     loadSlot(slotId: SaveSlotId) {
-      const loadedGame = loadSaveSlot(localStorage, slotId);
-      if (!loadedGame) {
+      const loadedSlot = loadSaveSlotWithRepairs(localStorage, slotId);
+      if (!loadedSlot) {
         return false;
       }
+      const loadedGame = loadedSlot.game;
       const verification = verifyReplayIndexAgainstStoredPayloads(localStorage, slotId, loadedGame);
       const game = verification.game;
-      if (verification.game !== loadedGame) {
+      if (verification.game !== loadedGame || loadedSlot.repairs) {
         saveToSlot(localStorage, slotId, game);
       }
+      const repairMessage = buildLoadRepairMessage(loadedSlot.repairs);
+      const driftMessage =
+        verification.changedCount > 0
+          ? `${verification.changedCount} archived ${verification.changedCount === 1 ? 'battle now replays' : 'battles now replay'} with a different result.`
+          : null;
 
       set({
         ...makeInitialState(),
@@ -814,10 +851,7 @@ export const gameStore = (() => {
         slots: listSaveSlots(localStorage),
         tutorialProgress: slotId === TUTORIAL_SAVE_ID ? readTutorialProgress(localStorage) : null,
         game,
-        systemMessage:
-          verification.changedCount > 0
-            ? `${verification.changedCount} archived ${verification.changedCount === 1 ? 'battle now replays' : 'battles now replay'} with a different result.`
-            : null,
+        systemMessage: joinSystemMessages([repairMessage, driftMessage]),
       });
       scheduleContestAiPlanning(game);
       return true;

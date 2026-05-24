@@ -1,107 +1,33 @@
-import { getEnemyStatBreakdowns } from './army';
-function normalizeReplayIndex(state) {
-    if (!Array.isArray(state.replayIndex)) {
-        return state;
-    }
-    return {
-        ...state,
-        replayIndex: state.replayIndex.map((entry) => {
-            if (!entry || typeof entry !== 'object') {
-                return entry;
-            }
-            const replayId = 'replayId' in entry && typeof entry.replayId === 'string'
-                ? entry.replayId
-                : 'storageKey' in entry && typeof entry.storageKey === 'string'
-                    ? entry.storageKey.split(':').at(-1) ?? entry.storageKey
-                    : 'id' in entry && typeof entry.id === 'string'
-                        ? entry.id
-                        : '';
-            const { storageKey: _storageKey, ...rest } = entry;
-            return {
-                ...rest,
-                replayId,
-            };
-        }),
-    };
-}
-function normalizeOpenRifts(state) {
-    if (!Array.isArray(state.openRifts)) {
-        return state;
-    }
-    return {
-        ...state,
-        openRifts: state.openRifts.map((rift) => {
-            if (!rift || typeof rift !== 'object') {
-                return rift;
-            }
-            return {
-                ...rift,
-                rewardPackage: 'rewardPackage' in rift && rift.rewardPackage && typeof rift.rewardPackage === 'object'
-                    ? {
-                        ...rift.rewardPackage,
-                        blueprintChoiceCountByTier: 'blueprintChoiceCountByTier' in rift.rewardPackage && Array.isArray(rift.rewardPackage.blueprintChoiceCountByTier)
-                            ? rift.rewardPackage.blueprintChoiceCountByTier
-                            : [],
-                    }
-                    : rift.rewardPackage,
-                saturation: 'saturation' in rift && typeof rift.saturation === 'number' ? rift.saturation : 10,
-                enemyArmy: Array.isArray(rift.enemyArmy)
-                    ? rift.enemyArmy.map((combatant) => {
-                        if (!combatant || typeof combatant !== 'object') {
-                            return combatant;
-                        }
-                        return {
-                            ...combatant,
-                            statBreakdowns: 'statBreakdowns' in combatant && combatant.statBreakdowns
-                                ? combatant.statBreakdowns
-                                : getEnemyStatBreakdowns(combatant.factionId, combatant.unitTypeId, typeof rift.tier === 'number' ? rift.tier : 1),
-                        };
-                    })
-                    : rift.enemyArmy,
-            };
-        }),
-    };
-}
-function normalizePendingRewardChoices(state) {
-    if (!Array.isArray(state.pendingRewardChoices)) {
-        return state;
-    }
-    return {
-        ...state,
-        pendingRewardChoices: state.pendingRewardChoices.map((choice) => {
-            if (!choice || typeof choice !== 'object') {
-                return choice;
-            }
-            if ('kind' in choice && choice.kind === 'blueprint') {
-                return choice;
-            }
-            return {
-                kind: 'upgrade',
-                ...choice,
-            };
-        }),
-    };
-}
 export function serializeGameState(state) {
     return JSON.stringify(state);
 }
 export function deserializeGameState(json) {
     try {
-        const parsed = normalizePendingRewardChoices(normalizeOpenRifts(normalizeReplayIndex(JSON.parse(json))));
-        if (!parsed || parsed.version !== 1) {
+        const parsed = JSON.parse(json);
+        if (!parsed || parsed.version !== 3) {
             return { ok: false, error: 'unsupported_version' };
         }
-        if (!Array.isArray(parsed.troops) || !Array.isArray(parsed.openRifts) || !Array.isArray(parsed.replayIndex)) {
+        if (!Array.isArray(parsed.troops) ||
+            !Array.isArray(parsed.openRifts) ||
+            !Array.isArray(parsed.replayIndex) ||
+            !Array.isArray(parsed.unlockedFactionIds) ||
+            !Array.isArray(parsed.unlockedTroopUnlockIds)) {
             return { ok: false, error: 'invalid_shape' };
         }
+        const state = parsed;
         return {
             ok: true,
             state: {
-                cheatUpgrades: false,
-                cheatBlueprints: false,
-                cheatResources: false,
-                unlockedBlueprintTroopIds: [],
-                ...parsed,
+                ...state,
+                gameMode: parsed.gameMode ?? 'campaign',
+                activeFactionUnlockOffer: parsed.activeFactionUnlockOffer ?? null,
+                activeTroopTypeUnlockOffer: parsed.activeTroopTypeUnlockOffer ?? null,
+                contest: state.contest
+                    ? {
+                        ...state.contest,
+                        opponentInfo: state.contest.opponentInfo ?? null,
+                    }
+                    : state.contest,
             },
         };
     }

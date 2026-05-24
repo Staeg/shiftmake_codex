@@ -156,7 +156,6 @@ interface InternalState {
   replayId: string;
   input: BattleInput;
   currentTurnUnitId: string | null;
-  ensorcelTargetIds: Record<SideId, string | null>;
   changelingTriggeredSides: Set<SideId>;
   pendingGraveVigorBlocks: Array<{ unitId: string; side: SideId }>;
 }
@@ -1093,10 +1092,6 @@ function isDwarf(unit: InternalUnit): boolean {
   return unit.factionId === 'dwarf' || unit.attributes.includes('dwarf');
 }
 
-function isOrc(unit: InternalUnit): boolean {
-  return unit.factionId === 'orc' || unit.attributes.includes('orc');
-}
-
 function isFae(unit: InternalUnit): boolean {
   return unit.factionId === 'fae' || unit.attributes.includes('fae');
 }
@@ -1234,10 +1229,10 @@ function maybeApplyRowdyRegrowth(state: InternalState, target: InternalUnit): vo
   if (!hasAbility(target, 'rowdy-regrowth')) {
     return;
   }
-  target.initiative = fixedAdd(target.initiative, 15);
-  buildStep(state, 'buff', [target.id], [target.id], `${target.troopLabel} gains 15 initiative from Rowdy Regrowth.`, {
+  target.initiative = fixedAdd(target.initiative, 20);
+  buildStep(state, 'buff', [target.id], [target.id], `${target.troopLabel} gains 20 initiative from Rowdy Regrowth.`, {
     effect: 'rowdyRegrowth',
-    amount: 15,
+    amount: 20,
     value: target.initiative,
     sourceAbilityId: 'rowdy-regrowth',
     sourceAbilityLabel: getAbility('rowdy-regrowth').label,
@@ -2538,42 +2533,6 @@ function applyCopiousAle(state: InternalState): void {
   });
 }
 
-function pickEnsorcelTarget(state: InternalState, side: SideId): InternalUnit | null {
-  const enemies = getAliveUnits(state).filter((unit) => unit.side !== side);
-  for (const role of ['frontline', 'chaff', 'backline'] as RoleId[]) {
-    const candidates = enemies.filter((unit) => unit.role === role);
-    if (candidates.length > 0) {
-      return state.rng.pick(candidates);
-    }
-  }
-  return null;
-}
-
-function applyEnsorcel(state: InternalState, side: SideId): void {
-  if (!sideHasFactionUpgrade(state, side, 'fae-ensorcel')) {
-    return;
-  }
-  if (!getAliveUnits(state, side).some((unit) => isFae(unit) && hasAbility(unit, 'ensorcel'))) {
-    return;
-  }
-  const target = pickEnsorcelTarget(state, side);
-  if (!target) {
-    state.ensorcelTargetIds[side] = null;
-    return;
-  }
-  state.ensorcelTargetIds[side] = target.id;
-  target.resolvedAbilities = [];
-  buildStep(state, 'buff', [], [target.id], `${target.troopLabel} is ensorcelled and loses all abilities.`, {
-    effect: 'ensorcel',
-    sourceAbilityId: 'ensorcel',
-    sourceAbilityLabel: getAbility('ensorcel').label,
-  });
-}
-
-function applyInitialEnsorcel(state: InternalState): void {
-  (['player', 'enemy'] as SideId[]).forEach((side) => applyEnsorcel(state, side));
-}
-
 function performBrace(state: InternalState, actor: InternalUnit): void {
   if (!hasAbility(actor, 'brace') || actor.engagedWith.size === 0 || availableCapacity(state, actor) !== 0) {
     return;
@@ -2738,17 +2697,17 @@ function performHoldTheStandard(state: InternalState, fallen: InternalUnit): voi
 
 function performLootFrenzy(state: InternalState, actor: InternalUnit, position: HexCoord): void {
   getAliveUnits(state, actor.side)
-    .filter((unit) => unit.attributes.includes('goblin') && equalsHex(unit.position, position))
+    .filter((unit) => equalsHex(unit.position, position))
     .forEach((unit) => {
       healUnit(state, actor, unit, createRuntimeAbilityState(getAbility('loot-frenzy')), {
         kind: 'heal',
-        amount: 5,
+        amount: 10,
         mode: 'flat',
         disposition: 'beneficial',
       });
       applyInitiativeDelta(state, actor, unit, createRuntimeAbilityState(getAbility('loot-frenzy')), {
         kind: 'initiativeDelta',
-        amount: 35,
+        amount: 30,
         disposition: 'beneficial',
       });
     });
@@ -2765,29 +2724,6 @@ function performThrillKillBuff(state: InternalState, actor: InternalUnit, positi
         disposition: 'beneficial',
       });
     });
-}
-
-function performWarcry(state: InternalState, fallen: InternalUnit): void {
-  getAliveUnits(state)
-    .filter((unit) => unit.side !== fallen.side && isOrc(unit) && hasAbility(unit, 'warcry') && equalsHex(unit.position, fallen.position))
-    .forEach((orc) => {
-      getAliveUnits(state, orc.side).forEach((ally) => {
-        applyRamp(state, orc, ally, createRuntimeAbilityState(getAbility('warcry')), {
-          kind: 'ramp',
-          amount: 1,
-          mode: 'flat',
-          disposition: 'beneficial',
-        });
-      });
-    });
-}
-
-function refreshEnsorcelAfterDeath(state: InternalState, fallen: InternalUnit): void {
-  (['player', 'enemy'] as SideId[]).forEach((side) => {
-    if (state.ensorcelTargetIds[side] === fallen.id) {
-      applyEnsorcel(state, side);
-    }
-  });
 }
 
 function performLastWitness(state: InternalState, killer: InternalUnit, fallen: InternalUnit): void {
@@ -2845,8 +2781,6 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
   );
 
-  refreshEnsorcelAfterDeath(state, target);
-  performWarcry(state, target);
   triggerUnitAbilities(state, actor, { timing: 'onKill', fallenUnit: target });
   performScavengersHunger(state, actor, target);
   if (hasAbility(actor, 'snatch-the-moment')) {
@@ -2947,8 +2881,6 @@ function handleEnvironmentalDeath(
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
   );
 
-  refreshEnsorcelAfterDeath(state, target);
-  performWarcry(state, target);
   performHoldTheStandard(state, target);
   triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
   getAliveUnits(state).forEach((unit) => {
@@ -2965,26 +2897,12 @@ function handleEnvironmentalDeath(
 }
 
 function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit {
-  if (isFae(actor)) {
-    const ensorcelTarget = state.ensorcelTargetIds[actor.side] ? state.units.get(state.ensorcelTargetIds[actor.side]!) : null;
-    if (ensorcelTarget?.alive && ensorcelTarget.side !== actor.side && candidates.some((candidate) => candidate.id === ensorcelTarget.id)) {
-      return ensorcelTarget;
-    }
-  }
   if (hasAbility(actor, 'executioner')) {
     const lowestHp = Math.min(...candidates.map((enemy) => enemy.hp));
     const lowest = candidates.filter((enemy) => enemy.hp === lowestHp);
     return state.rng.pick(lowest);
   }
   return state.rng.pick(candidates);
-}
-
-function getStandAsOneRecipients(state: InternalState, target: InternalUnit, damage: number): InternalUnit[] {
-  if (damage <= 0 || !hasAbility(target, 'mycelial-beards') || !isDwarf(target)) {
-    return [target];
-  }
-  const recipients = getAliveUnits(state, target.side).filter((unit) => isDwarf(unit) && equalsHex(unit.position, target.position));
-  return recipients.length > 0 ? recipients : [target];
 }
 
 function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: InternalUnit, mode: 'melee' | 'ranged', category: AttackCategory): boolean {
@@ -3056,8 +2974,8 @@ function attack(
   const modifiedDamage = mode === 'ranged' ? fixedMul(baseDamage, state.effects.rangedDamageMultiplier) : baseDamage;
   const shieldDrillDamageCap = mode === 'ranged' && hasAbility(target, 'shield-drill') ? 1 : null;
   const damage = fixedMax(shieldDrillDamageCap === null ? modifiedDamage : Math.min(modifiedDamage, shieldDrillDamageCap), 0);
-  const damageRecipients = getStandAsOneRecipients(state, target, damage);
-  const damagePerRecipient = damageRecipients.length > 1 ? fixed(damage / damageRecipients.length) : damage;
+  const damageRecipients = [target];
+  const damagePerRecipient = damage;
   const inflictedDamage = fixedSum(damageRecipients.map((recipient) => (canTakeDamage(recipient) ? damagePerRecipient : 0)));
   damageRecipients.forEach((recipient) => {
     if (canTakeDamage(recipient)) {
@@ -3073,9 +2991,7 @@ function attack(
     'attack',
     [actor.id],
     damageRecipients.map((recipient) => recipient.id),
-    damageRecipients.length > 1
-      ? `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(inflictedDamage)}, shared among ${damageRecipients.length} Dwarves.`
-      : `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(inflictedDamage)}.`,
+    `${actor.troopLabel} hits ${target.troopLabel} for ${formatFixed(inflictedDamage)}.`,
     {
     damage: inflictedDamage,
     mode,
@@ -3903,7 +3819,6 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     replayId: makeReplayId(seed, input.riftId),
     input,
     currentTurnUnitId: null,
-    ensorcelTargetIds: { player: null, enemy: null },
     changelingTriggeredSides: new Set<SideId>(),
     pendingGraveVigorBlocks: [],
   };
@@ -3913,7 +3828,6 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     [...input.playerCombatants, ...input.enemyCombatants].map((combatant) => [combatant.combatantId, combatant.label]),
   );
   const initial = cloneSnapshot(state.units);
-  applyInitialEnsorcel(state);
   executeStartOfBattleAbilities(state);
   applyCopiousAle(state);
 

@@ -1,7 +1,17 @@
 import { getFaction } from '../engine/unitCatalog';
 import { deserializeGameState, serializeGameState, startNewGame } from '../engine/game';
 import { resolveBattle } from '../engine/battle';
-import type { BattleReplay, BattleOutcome, CampaignPhase, CampaignReportPayload, GameMode, GameState, ReplayIndexEntry, StoredReplayPayload } from '../engine/types';
+import type {
+  BattleReplay,
+  BattleOutcome,
+  CampaignPhase,
+  CampaignReportPayload,
+  GameMode,
+  GameState,
+  LoadGameRepairReport,
+  ReplayIndexEntry,
+  StoredReplayPayload,
+} from '../engine/types';
 
 export type NormalSaveSlotId = 1 | 2 | 3;
 export type SaveSlotId = NormalSaveSlotId | 'tutorial';
@@ -14,6 +24,11 @@ export interface SaveSlotSummary {
   phase: CampaignPhase | null;
   factionLabel: string | null;
   lastPlayedAt: string | null;
+}
+
+export interface LoadedSaveSlot {
+  game: GameState;
+  repairs: LoadGameRepairReport | null;
 }
 
 interface SlotMetaRecord {
@@ -124,13 +139,17 @@ function summarizeSlot(slotId: SaveSlotId, game: GameState | null, updatedAt: st
 }
 
 function loadGameFromStorage(storage: Storage, slotId: SaveSlotId): GameState | null {
+  return loadGameWithRepairsFromStorage(storage, slotId)?.game ?? null;
+}
+
+function loadGameWithRepairsFromStorage(storage: Storage, slotId: SaveSlotId): LoadedSaveSlot | null {
   const raw = storage.getItem(getSlotSaveKey(slotId));
   if (!raw) {
     return null;
   }
 
   const result = deserializeGameState(raw);
-  return result.ok ? result.state ?? null : null;
+  return result.ok && result.state ? { game: result.state, repairs: result.repairs ?? null } : null;
 }
 
 function parseSummaryCounts(summary: string): { player: number; enemy: number } | null {
@@ -174,7 +193,14 @@ export function verifyReplayIndexAgainstStoredPayloads(storage: Storage, slotId:
       return entry;
     }
 
-    const replay = resolveBattle(payload.input);
+    let replay: BattleReplay;
+    try {
+      replay = resolveBattle(payload.input);
+    } catch {
+      updated = true;
+      changedCount += 1;
+      return { ...entry, summaryOnly: true };
+    }
     if (replayResultMatchesEntry(entry, replay)) {
       if (entry.resultDrift) {
         updated = true;
@@ -243,6 +269,10 @@ export function loadSaveSlot(storage: Storage, slotId: SaveSlotId): GameState | 
   return loadGameFromStorage(storage, slotId);
 }
 
+export function loadSaveSlotWithRepairs(storage: Storage, slotId: SaveSlotId): LoadedSaveSlot | null {
+  return loadGameWithRepairsFromStorage(storage, slotId);
+}
+
 export function saveToSlot(storage: Storage, slotId: SaveSlotId, game: GameState): void {
   storage.setItem(getSlotSaveKey(slotId), serializeGameState(game));
   updateSlotTimestamp(storage, slotId);
@@ -280,7 +310,11 @@ export function readSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: s
       return parsed;
     }
     if ('input' in parsed && parsed.input) {
-      return resolveBattle(parsed.input);
+      try {
+        return resolveBattle(parsed.input);
+      } catch {
+        return null;
+      }
     }
     return null;
   } catch {

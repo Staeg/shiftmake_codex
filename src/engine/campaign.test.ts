@@ -249,12 +249,12 @@ describe('campaign progression', () => {
   });
 
   it('only treats faction upgrades as affecting troops when their effects can apply', () => {
-    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'champion'))).toBe(false);
-    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'beastmaster'))).toBe(false);
-    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'archer'))).toBe(true);
-    expect(upgradeAffectsTroop('elf-long-shot-doctrine', createTroopInstance('elf', 'druid'))).toBe(true);
-    expect(upgradeAffectsTroop('elven-eyes', createTroopInstance('elf', 'champion'))).toBe(false);
-    expect(upgradeAffectsTroop('elven-eyes', createTroopInstance('elf', 'ranger'))).toBe(true);
+    expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'champion'))).toBe(false);
+    expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'beastmaster'))).toBe(false);
+    expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'archer'))).toBe(true);
+    expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'druid'))).toBe(true);
+    expect(upgradeAffectsTroop('elf-elven-reflexes', createTroopInstance('elf', 'champion'))).toBe(false);
+    expect(upgradeAffectsTroop('elf-elven-reflexes', createTroopInstance('elf', 'ranger'))).toBe(true);
   });
 
   it('does not offer upgrades that affect none of the controlled troops', () => {
@@ -265,7 +265,7 @@ describe('campaign progression', () => {
       unlockedFactionIds: ['elf'],
       essence: 2,
       factionUpgradeIds: Object.values(FACTION_UPGRADES)
-        .filter((upgrade) => upgrade.factionId !== 'elf' || upgrade.id !== 'elf-long-shot-doctrine')
+        .filter((upgrade) => upgrade.factionId !== 'elf' || upgrade.id !== 'elf-silvershot-doctrine')
         .map((upgrade) => upgrade.id),
       troopTypeUpgradeIds: Object.values(TROOP_TYPE_UPGRADES)
         .filter((upgrade) => !['champion', 'beastmaster'].includes(upgrade.unitTypeId))
@@ -273,7 +273,7 @@ describe('campaign progression', () => {
     };
     const state = revealEssenceDraft(meleeElfOnly);
 
-    expect(state.activeUpgradeOffer?.optionUpgradeIds).not.toContain('elf-long-shot-doctrine');
+    expect(state.activeUpgradeOffer?.optionUpgradeIds).not.toContain('elf-silvershot-doctrine');
   });
 
   it('persists active offers through save round-trips', () => {
@@ -482,7 +482,7 @@ describe('campaign progression', () => {
 
     const united = {
       ...firstAssigned,
-      factionUpgradeIds: ['human-united' as UpgradeId],
+      factionUpgradeIds: ['human-tubthumping' as UpgradeId],
     };
     expect(assignTroopToRift(united, secondTroopId, riftId).troops.find((troop) => troop.id === secondTroopId)?.assignmentRiftId).toBe(riftId);
   });

@@ -201,51 +201,42 @@ Summoned units do not have their own unlockable upgrades.
 
 ### Humans
 
-- `Humans United` (tier 1): multiple Human troops may enter the same Rift
+- `Tubthumping` (tier 1): multiple Human troops may enter the same Rift; harmful damage or speed reductions become `+1` instead
 - `Human Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop type in the battle
-- `Tubthumping` (tier 3): harmful damage or speed reductions become `+1` instead
 - `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies on a Human hex, Human units on that hex heal 15
 
 ### Elves
 
-- `Elven Eyes` (tier 1): all non-melee Elven troops gain +1 range
-- `Fade Into Shadow` (tier 2): the first time an Elven backline unit is engaged each battle, it retreats 1 hex for free
+- `Elven Reflexes` (tier 1): all non-melee Elven troops gain +1 range; the first time an Elven backline unit is engaged each battle, it retreats 1 hex for free
 - `Elven Forsaken` (tier 3): if fighting alone with no other friendly troop types, gain +80% health, damage, and speed
-- `Long Shot Doctrine` (tier 3): ranged and caster attacks gain +1 damage and +2 initiative per hex of distance
-- `Silver Distance` (tier 2): attacks made from max range make the target lose 30 initiative
+- `Silvershot Doctrine` (tier 2): ranged and caster attacks gain +1 damage and +2 initiative per hex of distance; attacks made from max range make the target lose 30 initiative
 
 ### Goblins
 
-- `Goblin Farewell` (tier 1): on death, make 1 extra strike against a random enemy on the same hex
+- `Goblin Behavior` (tier 1): on death, make 1 extra strike against a random enemy on the same hex; on kill, enemies on that hex lose 20 initiative
 - `Goblin Pack` (tier 2): start of turn, gain +1 damage per other friendly unit on the same hex until end of turn
-- `Snatch the Moment` (tier 3): on kill, enemies on that hex lose 20 initiative
-- `Loot Frenzy` (tier 3): on kill, Goblins on that hex heal 5 and gain 35 initiative
+- `Loot Frenzy` (tier 3): on kill, allies on that hex heal 10 and gain 30 initiative
 
 ### Trolls
 
-- `Troll Momentum` (tier 1): end of turn, gain +1 damage for the battle
-- `Stoneblood` (tier 2): the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`
-- `Troll Frenzy` (tier 3): after taking damage, gain +1 damage for the battle
-- `Crushing Sweep` (tier 3): melee kills deal splash damage equal to `5 x size` on that hex
-- `Rowdy Regrowth` (tier 2): whenever a Troll is healed, it gains 15 initiative
+- `Roll the Boulder` (tier 1): end of turn, gain +1 damage for the battle; melee kills deal splash damage equal to `5 x size` on that hex
+- `Mossblood` (tier 2): the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`; after taking damage, gain +1 damage for the battle
+- `Rowdy Regrowth` (tier 2): whenever a Troll is healed, it gains 20 initiative
 
 ### Dwarves
 
 - `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
 - `Ale and Hearty` (tier 2): Dwarven troops gain +40% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
-- `Mycelial Beards` (tier 2): damage a Dwarven unit would receive is split equally among all Dwarven units on that hex after mitigation
-- `Stall Warts` (tier 3): Dwarven troops gain +1 armor for the battle after they are hit by normal attacks
+- `Stall Warts` (tier 3): Dwarven troops gain +1 armor and lose 1 speed for the battle after they are hit by normal attacks
 
 ### Orcs
 
 - `Seeing Red` (tier 1): whenever an Orc kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative
 - `First Blood` (tier 2): Orc units make an immediate normal attack when they engage, before the normal engagement attack
-- `Warcry` (tier 3): when an enemy dies on a hex with an Orc unit, all allied units gain +1 damage for the battle; multiple Orcs can trigger from the same death
 - `Berserk` (tier 3): when an Orc would die from damage, it becomes immune to damage, has its initiative set to 0, and dies at the end of its next turn
 
 ### Fae
 
-- `Ensorcel` (tier 1): at combat start, mark a random enemy prioritized by frontline, chaff, then backline; the marked unit loses all abilities, Fae target it while it is in range, and a new enemy is marked when it dies
 - `Glamour` (tier 2): once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range; triggered attack effects resolve as though the Fae made the attack
 - `Changeling` (tier 3): if a Fae troop was brought to battle, after beat 12 one random enemy unit from each enemy troop changes sides
 - `Whimsy` (tier 3): whenever a Fae unit takes damage, it relocates to a random hex

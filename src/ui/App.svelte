@@ -153,6 +153,7 @@
   type RiftAnimationCombatantGroup = {
     phaseClass: 'phase-now' | 'phase-late' | 'phase-static';
     combatants: ResolvedCombatantDefinition[];
+    participant: RiftBattleAnimationSide | null;
   };
 
   type ForceLossTiming = 'now' | 'late' | null;
@@ -2459,37 +2460,40 @@
     return [];
   }
 
-  function getAnimationLeftCombatantGroups(rift: RiftInstance, animation: RiftBattleAnimationView | null): RiftAnimationCombatantGroup[] {
+  function getAssignedRiftCombatants(rift: RiftInstance): ResolvedCombatantDefinition[] {
+    return getTroopsAssignedToRift($gameStore.game, rift.id).map((troop) => getTroopEffectiveDefinition($gameStore.game, troop.id));
+  }
+
+  function getAnimationCombatantGroupsForSide(
+    rift: RiftInstance,
+    animation: RiftBattleAnimationView | null,
+    side: 'left' | 'right',
+  ): RiftAnimationCombatantGroup[] {
     if (animation?.phases.length) {
       const groups = animation.phases.map((phase) => ({
         phaseClass: phase.delayClass,
-        combatants: getAnimationCombatantsForSide(phase, 'left'),
+        combatants: getAnimationCombatantsForSide(phase, side),
+        participant: phase[side],
       })).filter((group) => group.combatants.length > 0);
       if (groups.length > 0) {
         return groups;
       }
     }
-    return [{ phaseClass: 'phase-static', combatants: getVisibleRiftDefenders(rift) }];
+    return [
+      {
+        phaseClass: 'phase-static',
+        combatants: side === 'left' ? getVisibleRiftDefenders(rift) : getAssignedRiftCombatants(rift),
+        participant: null,
+      },
+    ];
   }
 
-  function getAnimationLeftCombatants(rift: RiftInstance, animation: RiftBattleAnimationView | null): ResolvedCombatantDefinition[] {
-    const leftBattlePhase =
-      animation?.phases.find((phase) => phase.left.kind === 'opponent' || phase.left.kind === 'player') ??
-      animation?.phases.find((phase) => phase.left.kind === 'neutral') ??
-      null;
-    if (leftBattlePhase) {
-      const record = $gameStore.cycleAnimation?.resolution.records.find((entry) => entry.replay.id === leftBattlePhase.replayId);
-      if (record) {
-        const participants = record.battleInput.sideParticipants;
-        if (participants?.player.kind === leftBattlePhase.left.kind && participants.player.label === leftBattlePhase.left.label) {
-          return record.battleInput.playerCombatants;
-        }
-        if (participants?.enemy.kind === leftBattlePhase.left.kind && participants.enemy.label === leftBattlePhase.left.label) {
-          return record.battleInput.enemyCombatants;
-        }
-      }
-    }
-    return getVisibleRiftDefenders(rift);
+  function getAnimationLeftCombatantGroups(rift: RiftInstance, animation: RiftBattleAnimationView | null): RiftAnimationCombatantGroup[] {
+    return getAnimationCombatantGroupsForSide(rift, animation, 'left');
+  }
+
+  function getAnimationRightCombatantGroups(rift: RiftInstance, animation: RiftBattleAnimationView | null): RiftAnimationCombatantGroup[] {
+    return getAnimationCombatantGroupsForSide(rift, animation, 'right');
   }
 
   function getRiftBattleAnimationView(rift: RiftInstance): RiftBattleAnimationView | null {
@@ -2514,12 +2518,7 @@
       };
     }
 
-    const humanGuardian = records.find((record) => record.contest?.kind === 'guardian' && record.contest.attackerId === 'human') ?? null;
-    const aiGuardian = records.find((record) => record.contest?.kind === 'guardian' && record.contest.attackerId === 'ai') ?? null;
-    const preferredRecords =
-      humanGuardian && aiGuardian
-        ? [humanGuardian]
-        : records.filter((record) => record.contest?.kind !== 'guardian' || record.contest.attackerId !== 'ai' || !humanGuardian);
+    const preferredRecords = records.filter((record) => record.contest?.kind !== 'pvp');
 
     return {
       riftId: rift.id,
@@ -4570,56 +4569,67 @@
                       <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" aria-hidden="true" />
                     </div>
                   {/if}
-                  {#each getTroopsAssignedToRift($gameStore.game, rift.id) as troop}
-                    {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
+                  {#each getAnimationRightCombatantGroups(rift, battleAnimation) as group}
+                    <div class={`rift-force-combatant-group ${group.phaseClass}`}>
+                    {#each group.combatants as combatant}
+                    {@const troopId = combatant.troopInstanceId}
                     {@const assignedDetail = buildResolvedUnitDetail(
-                      `rift-assigned:${rift.id}:${troop.id}`,
-                      troopDef.label,
-                      troop.factionId,
-                      troop.unitTypeId,
-                      troopDef.stats,
-                      troopDef.quantity,
-                      'Assigned to this Rift',
-                      troopDef.abilities,
-                      troopDef.statBreakdowns,
+                      `rift-right:${rift.id}:${combatant.combatantId}`,
+                      combatant.label,
+                      combatant.factionId,
+                      combatant.unitTypeId,
+                      combatant.stats,
+                      combatant.quantity,
+                      group.participant ? `${group.participant.label} force` : 'Assigned to this Rift',
+                      combatant.abilities,
+                      combatant.statBreakdowns,
                     )}
                     <button
                       class="unit-tile assigned-summary-tile draggable-troop-tile ui-debug-target"
-                      data-ui-name={`Assigned troop ${troopDef.label} on ${formatRiftDisplayId(rift.id)}`}
-                      class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === assignedDetail.detailKey}
-                      class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
-                      class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
-                      class:holding={isHoldingTroop(troop.id)}
-                      class:conflict-pulse={assignmentConflict?.troopId === troop.id || assignmentConflict?.conflictTroopId === troop.id}
-                      aria-label={`Drag ${troopDef.label} to another Rift or Ready Troops`}
-                      on:pointerdown={(event) =>
-                        startTroopDrag(
-                          event,
-                          troop.id,
-                          troop.assignmentRiftId,
-                          troopDef.label,
-                          getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
-                        )}
-                      on:mousedown={(event) =>
-                        startMouseTroopDrag(
-                          event,
-                          troop.id,
-                          troop.assignmentRiftId,
-                          troopDef.label,
-                          getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
-                        )}
+                      data-ui-name={`${group.participant?.label ?? 'Assigned'} troop ${combatant.label} on ${formatRiftDisplayId(rift.id)}`}
+                      class:enemy-tile={group.participant?.kind === 'opponent' || group.participant?.kind === 'neutral'}
+                      class:selected={(troopId !== null && selectedTroopId === troopId) || activeDetail?.detailKey === assignedDetail.detailKey}
+                      class:dragging-source={troopId !== null && troopDrag?.troopId === troopId && troopDrag.active}
+                      class:upgrade-affected={troopId !== null && isUpgradeAffectingTroop(troopId)}
+                      class:holding={troopId !== null && isHoldingTroop(troopId)}
+                      class:conflict-pulse={troopId !== null && (assignmentConflict?.troopId === troopId || assignmentConflict?.conflictTroopId === troopId)}
+                      aria-label={troopId !== null && !group.participant ? `Drag ${combatant.label} to another Rift or Ready Troops` : `${group.participant?.label ?? 'Battle'} troop ${combatant.label}`}
+                      on:pointerdown={(event) => {
+                        if (troopId !== null && !group.participant) {
+                          startTroopDrag(
+                            event,
+                            troopId,
+                            rift.id,
+                            combatant.label,
+                            getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId),
+                          );
+                        }
+                      }}
+                      on:mousedown={(event) => {
+                        if (troopId !== null && !group.participant) {
+                          startMouseTroopDrag(
+                            event,
+                            troopId,
+                            rift.id,
+                            combatant.label,
+                            getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId),
+                          );
+                        }
+                      }}
                       on:mouseenter={() => previewDetail(assignedDetail)}
                       on:focus={() => previewDetail(assignedDetail)}
                       on:mouseleave={clearDetail}
                       on:blur={clearDetail}
-                      on:click={() => handleRiftTroopClick(troop.id, assignedDetail)}
+                      on:click={() => (troopId !== null && !group.participant ? handleRiftTroopClick(troopId, assignedDetail) : togglePinnedDetail(assignedDetail))}
                     >
-                      <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                        {#each unitIconCopies(troopDef.quantity) as copy}
-                          <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                      <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
+                        {#each unitIconCopies(combatant.quantity) as copy}
+                          <img class="unit-tile-art" src={getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                         {/each}
                       </span>
                     </button>
+                    {/each}
+                    </div>
                   {/each}
                 </div>
               </div>
@@ -7659,16 +7669,10 @@
   }
 
   .unit-icon-cluster {
-    --unit-cluster-columns: 1;
-    --unit-cluster-icon-size: min(2.7rem, 78%);
-    --unit-cluster-gap: 0.18rem;
+    --unit-cluster-hero-size: 76%;
+    --unit-cluster-bg-size: 23%;
     position: relative;
-    display: grid;
-    grid-template-columns: repeat(var(--unit-cluster-columns), minmax(0, var(--unit-cluster-icon-size)));
-    grid-auto-rows: var(--unit-cluster-icon-size);
-    gap: var(--unit-cluster-gap);
-    place-content: center;
-    place-items: center;
+    display: block;
     width: 100%;
     height: 100%;
     justify-self: stretch;
@@ -7676,6 +7680,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+    isolation: isolate;
   }
 
   .unit-tile:has(.unit-icon-cluster),
@@ -7688,87 +7693,345 @@
   .tile-unit-cluster .unit-tile-art,
   .chip-unit-cluster .unit-button-art,
   .detail-unit-cluster .hover-unit-art {
-    position: static;
-    width: 100% !important;
-    height: 100% !important;
+    position: absolute;
+    width: var(--unit-cluster-bg-size) !important;
+    height: var(--unit-cluster-bg-size) !important;
     margin: 0 !important;
-    transform: none;
+    opacity: 0.72;
+    transform: translate(-50%, -50%);
+    transform-origin: center bottom;
+    z-index: 1;
+  }
+
+  .tile-unit-cluster .unit-tile-art:first-child,
+  .chip-unit-cluster .unit-button-art:first-child,
+  .detail-unit-cluster .hover-unit-art:first-child {
+    left: 50%;
+    top: 59%;
+    width: var(--unit-cluster-hero-size) !important;
+    height: var(--unit-cluster-hero-size) !important;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+    filter:
+      drop-shadow(0 0 9px rgba(0, 0, 0, 0.48))
+      drop-shadow(0 3px 1px rgba(0, 0, 0, 0.3));
+    z-index: 5;
+  }
+
+  .tile-unit-cluster .unit-tile-art:not(:first-child),
+  .chip-unit-cluster .unit-button-art:not(:first-child),
+  .detail-unit-cluster .hover-unit-art:not(:first-child) {
+    filter:
+      saturate(0.9)
+      brightness(0.78)
+      drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 2),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 2),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 2) {
+    left: 24%;
+    top: 25%;
+    transform: translate(-50%, -50%) rotate(-9deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 3),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 3),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 3) {
+    left: 74%;
+    top: 27%;
+    transform: translate(-50%, -50%) rotate(8deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 4),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 4),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 4) {
+    left: 41%;
+    top: 18%;
+    transform: translate(-50%, -50%) rotate(3deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 5),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 5),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 5) {
+    left: 60%;
+    top: 19%;
+    transform: translate(-50%, -50%) rotate(-4deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 6),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 6),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 6) {
+    left: 18%;
+    top: 47%;
+    transform: translate(-50%, -50%) rotate(7deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 7),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 7),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 7) {
+    left: 83%;
+    top: 49%;
+    transform: translate(-50%, -50%) rotate(-8deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 8),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 8),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 8) {
+    left: 31%;
+    top: 64%;
+    transform: translate(-50%, -50%) rotate(5deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 9),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 9),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 9) {
+    left: 69%;
+    top: 65%;
+    transform: translate(-50%, -50%) rotate(-5deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 10),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 10),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 10) {
+    left: 47%;
+    top: 77%;
+    transform: translate(-50%, -50%) rotate(-2deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 11),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 11),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 11) {
+    left: 14%;
+    top: 73%;
+    transform: translate(-50%, -50%) rotate(-7deg);
+  }
+
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 12),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 12),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 12),
+  .tile-unit-cluster .unit-tile-art:nth-child(12n + 13),
+  .chip-unit-cluster .unit-button-art:nth-child(12n + 13),
+  .detail-unit-cluster .hover-unit-art:nth-child(12n + 13) {
+    left: 88%;
+    top: 76%;
+    transform: translate(-50%, -50%) rotate(6deg);
   }
 
   .tile-unit-cluster.density-1,
   .chip-unit-cluster.density-1,
   .detail-unit-cluster.density-1 {
-    --unit-cluster-icon-size: min(3.2rem, 82%);
+    --unit-cluster-hero-size: 82%;
+    --unit-cluster-bg-size: 0%;
   }
 
   .tile-unit-cluster.density-4,
   .chip-unit-cluster.density-4,
   .detail-unit-cluster.density-4 {
-    --unit-cluster-icon-size: min(2.25rem, 42%);
-    --unit-cluster-gap: 0.22rem;
-  }
-
-  .tile-unit-cluster.density-4 .unit-tile-art,
-  .chip-unit-cluster.density-4 .unit-button-art,
-  .detail-unit-cluster.density-4 .hover-unit-art {
-    width: 100% !important;
-    height: 100% !important;
+    --unit-cluster-hero-size: 77%;
+    --unit-cluster-bg-size: 24%;
   }
 
   .tile-unit-cluster.density-6,
   .chip-unit-cluster.density-6,
   .detail-unit-cluster.density-6 {
-    --unit-cluster-icon-size: min(1.55rem, 29%);
-    --unit-cluster-gap: 0.16rem;
-  }
-
-  .tile-unit-cluster.density-6 .unit-tile-art,
-  .chip-unit-cluster.density-6 .unit-button-art,
-  .detail-unit-cluster.density-6 .hover-unit-art {
-    width: 100% !important;
-    height: 100% !important;
+    --unit-cluster-hero-size: 76%;
+    --unit-cluster-bg-size: 21%;
   }
 
   .tile-unit-cluster.density-9,
   .chip-unit-cluster.density-9,
   .detail-unit-cluster.density-9 {
-    --unit-cluster-icon-size: min(1.28rem, 26%);
-    --unit-cluster-gap: 0.13rem;
-  }
-
-  .tile-unit-cluster.density-9 .unit-tile-art,
-  .chip-unit-cluster.density-9 .unit-button-art,
-  .detail-unit-cluster.density-9 .hover-unit-art {
-    width: 100% !important;
-    height: 100% !important;
+    --unit-cluster-hero-size: 75%;
+    --unit-cluster-bg-size: 18%;
   }
 
   .tile-unit-cluster.density-12,
   .chip-unit-cluster.density-12,
   .detail-unit-cluster.density-12 {
-    --unit-cluster-icon-size: min(1.05rem, 22%);
-    --unit-cluster-gap: 0.1rem;
-  }
-
-  .tile-unit-cluster.density-12 .unit-tile-art,
-  .chip-unit-cluster.density-12 .unit-button-art,
-  .detail-unit-cluster.density-12 .hover-unit-art {
-    width: 100% !important;
-    height: 100% !important;
+    --unit-cluster-hero-size: 74%;
+    --unit-cluster-bg-size: 15.5%;
   }
 
   .tile-unit-cluster.density-20,
   .chip-unit-cluster.density-20,
   .detail-unit-cluster.density-20 {
-    --unit-cluster-icon-size: min(0.82rem, 17%);
-    --unit-cluster-gap: 0.07rem;
+    --unit-cluster-hero-size: 73%;
+    --unit-cluster-bg-size: 13%;
   }
 
   .tile-unit-cluster.density-24,
   .chip-unit-cluster.density-24,
   .detail-unit-cluster.density-24 {
-    --unit-cluster-icon-size: min(0.68rem, 14%);
-    --unit-cluster-gap: 0.055rem;
+    --unit-cluster-hero-size: 72%;
+    --unit-cluster-bg-size: 9.8%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:not(:first-child),
+  .chip-unit-cluster.density-24 .unit-button-art:not(:first-child),
+  .detail-unit-cluster.density-24 .hover-unit-art:not(:first-child) {
+    opacity: 0.82;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(2),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(2),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(2) {
+    left: 13%;
+    top: 20%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(3),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(3),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(3) {
+    left: 26%;
+    top: 14%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(4),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(4),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(4) {
+    left: 40%;
+    top: 10%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(5),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(5),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(5) {
+    left: 55%;
+    top: 10%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(6),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(6),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(6) {
+    left: 70%;
+    top: 14%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(7),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(7),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(7) {
+    left: 84%;
+    top: 22%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(8),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(8),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(8) {
+    left: 8%;
+    top: 38%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(9),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(9),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(9) {
+    left: 20%;
+    top: 33%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(10),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(10),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(10) {
+    left: 32%;
+    top: 27%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(11),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(11),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(11) {
+    left: 66%;
+    top: 27%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(12),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(12),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(12) {
+    left: 79%;
+    top: 34%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(13),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(13),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(13) {
+    left: 92%;
+    top: 41%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(14),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(14),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(14) {
+    left: 9%;
+    top: 57%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(15),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(15),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(15) {
+    left: 21%;
+    top: 66%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(16),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(16),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(16) {
+    left: 33%;
+    top: 75%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(17),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(17),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(17) {
+    left: 48%;
+    top: 82%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(18),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(18),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(18) {
+    left: 63%;
+    top: 76%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(19),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(19),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(19) {
+    left: 76%;
+    top: 67%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(20),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(20),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(20) {
+    left: 89%;
+    top: 59%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(21),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(21),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(21) {
+    left: 25%;
+    top: 49%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(22),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(22),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(22) {
+    left: 37%;
+    top: 39%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(23),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(23),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(23) {
+    left: 61%;
+    top: 40%;
+  }
+
+  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(24),
+  .chip-unit-cluster.density-24 .unit-button-art:nth-child(24),
+  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(24) {
+    left: 73%;
+    top: 50%;
   }
 
   .detail-unit-cluster {

@@ -61,8 +61,8 @@ describe('troop composition', () => {
 
     const soldier = createTroopInstance('elf', 'soldier');
     const archer = createTroopInstance('elf', 'archer');
-    const soldierResolved = resolveTroopCombatant({ factionUpgradeIds: ['elven-eyes'], troopTypeUpgradeIds: [] }, soldier, 'player');
-    const archerResolved = resolveTroopCombatant({ factionUpgradeIds: ['elven-eyes'], troopTypeUpgradeIds: [] }, archer, 'player');
+    const soldierResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, soldier, 'player');
+    const archerResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, archer, 'player');
 
     expect(soldierResolved.stats.range).toBe(0);
     expect(archerResolved.stats.range).toBe(4);
@@ -71,14 +71,14 @@ describe('troop composition', () => {
   it('only applies enemy stat scaling at tier 4 and leaves tier 3 at base stats', () => {
     const humanSoldierBase = composeBaseTroopDefinition('human', 'soldier');
     const tier3Breakdowns = getResolvedStatBreakdowns(
-      { factionUpgradeIds: ['elven-eyes'], troopTypeUpgradeIds: [] },
+      { factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       3,
     );
     const tier3Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 3, 'enemy-1');
     const tier4Breakdowns = getResolvedStatBreakdowns(
-      { factionUpgradeIds: ['elven-eyes'], troopTypeUpgradeIds: [] },
+      { factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       4,
@@ -86,7 +86,7 @@ describe('troop composition', () => {
     const tier4Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 4, 'enemy-2');
 
     expect(tier3Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves']);
-    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Elven Eyes']);
+    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Elven Reflexes']);
     expect(tier4Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Enemy Rift Tier 4']);
 
     expect(tier3Enemy.stats.health).toBe(humanSoldierBase.stats.health);

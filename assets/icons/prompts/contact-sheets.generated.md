@@ -30,7 +30,9 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
+      "initiative",
       "healing",
+      "summon",
       "corpse"
     ]
   },
@@ -43,6 +45,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: healing and positive stat gains affecting this unit are doubled.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "healing"
     ]
   },
@@ -104,6 +107,21 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
+    "id": "bolstering-light",
+    "name": "Bolstering Light",
+    "kind": "ability",
+    "owner": null,
+    "tier": null,
+    "mechanic": "Passive: heals that bring a target to full HP give +1 speed and +1 damage; other heals give 40 initiative.",
+    "gameplayTags": [
+      "base-ability",
+      "damage",
+      "speed",
+      "initiative",
+      "healing"
+    ]
+  },
+  {
     "id": "bonded",
     "name": "Bonded",
     "kind": "ability",
@@ -125,6 +143,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: start of turn, if engaged at full capacity, gain +5 armor until next turn.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "armor",
       "initiative",
       "melee",
@@ -140,6 +159,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: each shapeshift empowers this unit so its melee attacks reduce target speed by 2 for the battle.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "speed",
       "melee",
       "debuff",
@@ -157,22 +177,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "armor",
+      "initiative",
+      "summon",
       "corpse",
       "debuff",
-      "defense"
-    ]
-  },
-  {
-    "id": "challenge-accepted",
-    "name": "Challenge Accepted",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: enemies redirected by this unit deal 4 less damage while engaged with it.",
-    "gameplayTags": [
-      "base-ability",
-      "damage",
-      "melee",
+      "movement",
       "defense"
     ]
   },
@@ -212,8 +221,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Each summoned elemental can do the same once.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "initiative",
-      "summon"
+      "summon",
+      "corpse",
+      "ranged",
+      "synergy"
     ]
   },
   {
@@ -227,6 +240,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "initiative",
+      "summon",
+      "corpse",
       "ranged",
       "debuff"
     ]
@@ -253,6 +268,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies on their hex.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "initiative",
       "healing",
       "summon",
@@ -269,6 +285,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
+      "initiative",
       "melee"
     ]
   },
@@ -306,9 +323,14 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: skeletons this unit summons spawn with +100 initiative.",
     "gameplayTags": [
       "base-ability",
+      "damage",
+      "armor",
       "initiative",
       "summon",
-      "movement"
+      "corpse",
+      "debuff",
+      "movement",
+      "defense"
     ]
   },
   {
@@ -325,20 +347,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "initiative",
       "ranged",
       "synergy"
-    ]
-  },
-  {
-    "id": "ensorcel",
-    "name": "Ensorcel",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: at battle start, mark an enemy that loses abilities and becomes the preferred Fae target.",
-    "gameplayTags": [
-      "base-ability",
-      "corpse",
-      "ranged",
-      "debuff"
     ]
   },
   {
@@ -363,6 +371,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: the first time this backline unit is engaged, it retreats 1 hex for free.",
     "gameplayTags": [
       "base-ability",
+      "ranged",
       "melee",
       "movement"
     ]
@@ -393,6 +402,21 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
+    "id": "forest-friends",
+    "name": "Forest Friends",
+    "kind": "ability",
+    "owner": null,
+    "tier": null,
+    "mechanic": "Passive: end of turn, heal self and all units Bonded to this unit for 20; whenever this unit shapeshifts, summon 2 wolves.",
+    "gameplayTags": [
+      "base-ability",
+      "initiative",
+      "healing",
+      "summon",
+      "transformation"
+    ]
+  },
+  {
     "id": "forsaken-80",
     "name": "Forsaken 80",
     "kind": "ability",
@@ -416,7 +440,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "After taking damage: gain +1 damage for the battle.",
     "gameplayTags": [
       "base-ability",
-      "damage"
+      "damage",
+      "healing",
+      "corpse",
+      "debuff",
+      "defense"
     ]
   },
   {
@@ -443,22 +471,23 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "corpse"
+      "initiative",
+      "corpse",
+      "debuff"
     ]
   },
   {
-    "id": "haste-1",
-    "name": "Haste 1",
+    "id": "grave-vigor",
+    "name": "Grave Vigor",
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: a random allied unit within this unit's range gains +1 speed for the battle.",
+    "mechanic": "Passive: after this unit beneficially affects an ally, that ally ignores future beneficial effects and targeting from Grave Vigor units.",
     "gameplayTags": [
       "base-ability",
-      "speed",
-      "initiative",
-      "ranged",
-      "synergy"
+      "damage",
+      "summon",
+      "corpse"
     ]
   },
   {
@@ -472,7 +501,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "ranged",
-      "melee"
+      "melee",
+      "movement"
     ]
   },
   {
@@ -498,20 +528,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "corpse"
-    ]
-  },
-  {
-    "id": "leyline-focus",
-    "name": "Leyline Focus",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: start of turn, if no enemy is within 1 hex, gain 25 initiative.",
-    "gameplayTags": [
-      "base-ability",
       "initiative",
-      "ranged"
+      "corpse"
     ]
   },
   {
@@ -554,7 +572,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "initiative",
-      "ranged"
+      "ranged",
+      "debuff"
     ]
   },
   {
@@ -563,7 +582,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when this unit gets a kill, Goblins on that hex heal 5 and gain 35 initiative.",
+    "mechanic": "Passive: when this unit gets a kill, allies on that hex heal 10 and gain 30 initiative.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -602,33 +621,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "mycelial-beards",
-    "name": "Mycelial Beards",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: incoming damage is split equally among Dwarven units on this hex after normal mitigation.",
-    "gameplayTags": [
-      "base-ability",
-      "damage",
-      "transformation",
-      "defense"
-    ]
-  },
-  {
-    "id": "overflowing-grace",
-    "name": "Overflowing Grace",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: when this unit heals an ally to full HP, that ally gains 40 initiative.",
-    "gameplayTags": [
-      "base-ability",
-      "initiative",
-      "healing"
-    ]
-  },
-  {
     "id": "pack-1",
     "name": "Pack 1",
     "kind": "ability",
@@ -651,6 +643,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "End of turn: if engaged, a wolf on this unit hex redirects an engaged enemy and heals 10.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "initiative",
       "healing",
       "summon",
@@ -669,9 +662,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
+      "armor",
       "speed",
       "ranged",
-      "debuff"
+      "debuff",
+      "defense"
     ]
   },
   {
@@ -698,7 +693,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Start of turn: gain +1 initiative per other Militia on this hex.",
     "gameplayTags": [
       "base-ability",
-      "initiative"
+      "initiative",
+      "synergy"
     ]
   },
   {
@@ -711,7 +707,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative"
+      "initiative",
+      "melee"
     ]
   },
   {
@@ -728,19 +725,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "regen-60",
-    "name": "Regen 60",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "End of turn: heal self for 60.",
-    "gameplayTags": [
-      "base-ability",
-      "initiative",
-      "healing"
-    ]
-  },
-  {
     "id": "retaliate",
     "name": "Retaliate",
     "kind": "ability",
@@ -750,7 +734,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "melee"
+      "armor",
+      "initiative",
+      "melee",
+      "defense"
     ]
   },
   {
@@ -759,7 +746,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: whenever this unit is healed, gain 15 initiative.",
+    "mechanic": "Passive: whenever this unit is healed, gain 20 initiative.",
     "gameplayTags": [
       "base-ability",
       "initiative",
@@ -767,14 +754,16 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "scavengers-hunger",
+    "id": "scavengers-hunger-2",
     "name": "Scavenger's Hunger",
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: the first 3 times this unit kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
+    "mechanic": "Passive: the first 2 times this unit kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
     "gameplayTags": [
       "base-ability",
+      "damage",
+      "initiative",
       "summon",
       "corpse",
       "ranged"
@@ -789,6 +778,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: does not count toward allied saturation limits.",
     "gameplayTags": [
       "base-ability",
+      "initiative",
       "synergy"
     ]
   },
@@ -806,6 +796,19 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "initiative",
       "debuff",
       "defense"
+    ]
+  },
+  {
+    "id": "self-haste-2",
+    "name": "Self Haste 2",
+    "kind": "ability",
+    "owner": null,
+    "tier": null,
+    "mechanic": "End of turn: gain +2 speed for the battle.",
+    "gameplayTags": [
+      "base-ability",
+      "speed",
+      "initiative"
     ]
   },
   {
@@ -831,6 +834,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "When this unit applies a beneficial effect, the same target leaves no corpse on death and summons 1 skeleton on death.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "summon",
       "corpse"
     ]
@@ -873,7 +877,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: allies on this unit's hex take 1 less damage from ranged attacks and strikes.",
+    "mechanic": "Passive: ranged attacks can deal at most 1 damage to this unit after all modifiers.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -894,6 +898,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "armor",
+      "speed",
       "ranged",
       "debuff",
       "defense"
@@ -908,6 +913,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: ranged and caster attacks made from max range make the target lose 30 initiative.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "initiative",
       "ranged",
       "debuff"
@@ -922,6 +928,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: after attacking unengaged, move to the safest hex that still keeps an enemy in range.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "ranged",
       "melee",
       "movement"
@@ -938,6 +945,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "initiative",
+      "corpse",
       "debuff"
     ]
   },
@@ -960,10 +968,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: after being hit by normal attacks, gain +1 armor for the battle.",
+    "mechanic": "Passive: after being hit by normal attacks, gain +1 armor and lose 1 speed for the battle.",
     "gameplayTags": [
       "base-ability",
       "armor",
+      "speed",
+      "debuff",
       "defense"
     ]
   },
@@ -977,7 +987,9 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative"
+      "initiative",
+      "summon",
+      "corpse"
     ]
   },
   {
@@ -989,6 +1001,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: the first time this unit would die, it survives at 25 HP and loses Regen.",
     "gameplayTags": [
       "base-ability",
+      "damage",
       "healing",
       "corpse",
       "debuff",
@@ -1006,6 +1019,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "initiative",
+      "summon",
       "ranged"
     ]
   },
@@ -1045,7 +1059,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "summon"
+      "initiative",
+      "healing",
+      "summon",
+      "melee",
+      "synergy",
+      "defense"
     ]
   },
   {
@@ -1072,6 +1091,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
+      "speed",
+      "melee",
       "transformation"
     ]
   },
@@ -1112,6 +1133,9 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Overworld: troops of this faction may enter the same Rift together.",
     "gameplayTags": [
       "base-ability",
+      "damage",
+      "speed",
+      "debuff",
       "synergy"
     ]
   },
@@ -1169,20 +1193,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "warcry",
-    "name": "Warcry",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: when an enemy dies on this hex, all allies gain 1 damage for the battle.",
-    "gameplayTags": [
-      "base-ability",
-      "damage",
-      "corpse",
-      "synergy"
-    ]
-  },
-  {
     "id": "whimsy",
     "name": "Whimsy",
     "kind": "ability",
@@ -1193,33 +1203,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "movement"
-    ]
-  },
-  {
-    "id": "wild-call",
-    "name": "Wild Call",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "Passive: whenever this unit shapeshifts, summon 2 wolves.",
-    "gameplayTags": [
-      "base-ability",
-      "summon",
-      "transformation"
-    ]
-  },
-  {
-    "id": "zeal-enhance-1",
-    "name": "Zeal",
-    "kind": "ability",
-    "owner": null,
-    "tier": null,
-    "mechanic": "When this unit heals a target, that same target also gains +1 speed and +1 damage for the battle.",
-    "gameplayTags": [
-      "base-ability",
-      "damage",
-      "speed",
-      "healing"
     ]
   }
 ]
@@ -1260,31 +1243,18 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "dwarf-mycelial-beards",
-    "name": "Mycelial Beards",
-    "kind": "faction_upgrade",
-    "owner": "Dwarves",
-    "tier": 2,
-    "mechanic": "When a Dwarven unit would receive damage, split that damage equally among all Dwarven units on its hex after mitigation.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "dwarves",
-      "damage",
-      "transformation",
-      "defense"
-    ]
-  },
-  {
     "id": "dwarf-stall-warts",
     "name": "Stall Warts",
     "kind": "faction_upgrade",
     "owner": "Dwarves",
     "tier": 3,
-    "mechanic": "Dwarven troops gain +1 armor for the rest of the battle after they are hit by normal attacks.",
+    "mechanic": "Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.",
     "gameplayTags": [
       "faction-upgrade",
       "dwarves",
       "armor",
+      "speed",
+      "debuff",
       "defense"
     ]
   }
@@ -1300,43 +1270,31 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "elven-eyes",
-    "name": "Elven Eyes",
+    "id": "elf-elven-reflexes",
+    "name": "Elven Reflexes",
     "kind": "faction_upgrade",
     "owner": "Elves",
     "tier": 1,
-    "mechanic": "All non-melee elven troops gain +1 range.",
+    "mechanic": "All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.",
     "gameplayTags": [
       "faction-upgrade",
       "elves",
       "ranged",
-      "melee"
-    ]
-  },
-  {
-    "id": "elf-fade-into-shadow",
-    "name": "Fade Into Shadow",
-    "kind": "faction_upgrade",
-    "owner": "Elves",
-    "tier": 2,
-    "mechanic": "The first time each battle an engaged elven backline unit retreats 1 hex for free.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "elves",
       "melee",
       "movement"
     ]
   },
   {
-    "id": "elf-silver-distance",
-    "name": "Silver Distance",
+    "id": "elf-silvershot-doctrine",
+    "name": "Silvershot Doctrine",
     "kind": "faction_upgrade",
     "owner": "Elves",
     "tier": 2,
-    "mechanic": "Elven ranged and caster attacks made from max range make the target lose 30 initiative.",
+    "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.",
     "gameplayTags": [
       "faction-upgrade",
       "elves",
+      "damage",
       "initiative",
       "ranged",
       "debuff"
@@ -1357,21 +1315,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "healing",
       "synergy"
     ]
-  },
-  {
-    "id": "elf-long-shot-doctrine",
-    "name": "Long Shot Doctrine",
-    "kind": "faction_upgrade",
-    "owner": "Elves",
-    "tier": 3,
-    "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "elves",
-      "damage",
-      "initiative",
-      "ranged"
-    ]
   }
 ]
 ```
@@ -1384,21 +1327,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 
 ```json
 [
-  {
-    "id": "fae-ensorcel",
-    "name": "Ensorcel",
-    "kind": "faction_upgrade",
-    "owner": "Fae",
-    "tier": 1,
-    "mechanic": "At the start of combat, mark an enemy unit. It loses all abilities, and Fae units target it whenever it is in range. When it dies, another enemy is marked.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "fae",
-      "corpse",
-      "ranged",
-      "debuff"
-    ]
-  },
   {
     "id": "fae-glamour",
     "name": "Glamour",
@@ -1455,17 +1383,19 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "goblin-farewell-upgrade",
-    "name": "Goblin Farewell",
+    "id": "goblin-behavior",
+    "name": "Goblin Behavior",
     "kind": "faction_upgrade",
     "owner": "Goblins",
     "tier": 1,
-    "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy on its hex.",
+    "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.",
     "gameplayTags": [
       "faction-upgrade",
       "goblins",
       "damage",
-      "corpse"
+      "initiative",
+      "corpse",
+      "debuff"
     ]
   },
   {
@@ -1489,28 +1419,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Goblins",
     "tier": 3,
-    "mechanic": "When a Goblin gets a kill, Goblins on that hex heal 5 and gain 35 initiative.",
+    "mechanic": "When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative.",
     "gameplayTags": [
       "faction-upgrade",
       "goblins",
       "damage",
       "initiative",
       "healing"
-    ]
-  },
-  {
-    "id": "goblin-snatch-the-moment",
-    "name": "Snatch the Moment",
-    "kind": "faction_upgrade",
-    "owner": "Goblins",
-    "tier": 3,
-    "mechanic": "When a goblin gets a kill, all enemies on that hex lose 20 initiative.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "goblins",
-      "damage",
-      "initiative",
-      "debuff"
     ]
   }
 ]
@@ -1525,15 +1440,18 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "human-united",
-    "name": "Humans United",
+    "id": "human-tubthumping",
+    "name": "Tubthumping",
     "kind": "faction_upgrade",
     "owner": "Humans",
     "tier": 1,
-    "mechanic": "Overworld: human troops may enter the same Rift together.",
+    "mechanic": "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.",
     "gameplayTags": [
       "faction-upgrade",
       "humans",
+      "damage",
+      "speed",
+      "debuff",
       "synergy"
     ]
   },
@@ -1565,21 +1483,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "speed",
       "healing",
       "synergy"
-    ]
-  },
-  {
-    "id": "human-tubthumping",
-    "name": "Tubthumping",
-    "kind": "faction_upgrade",
-    "owner": "Humans",
-    "tier": 3,
-    "mechanic": "Effects that would reduce a Human unit speed or damage instead increase it by 1.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "humans",
-      "damage",
-      "speed",
-      "debuff"
     ]
   }
 ]
@@ -1639,21 +1542,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "corpse",
       "defense"
     ]
-  },
-  {
-    "id": "orc-warcry",
-    "name": "Warcry",
-    "kind": "faction_upgrade",
-    "owner": "Orcs",
-    "tier": 3,
-    "mechanic": "Whenever an enemy unit dies on a hex with an Orc unit, all allied units gain 1 damage for the battle. Multiple Orcs can trigger this from the same death.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "orcs",
-      "damage",
-      "corpse",
-      "synergy"
-    ]
   }
 ]
 ```
@@ -1667,17 +1555,35 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "troll-momentum",
-    "name": "Troll Momentum",
+    "id": "troll-roll-the-boulder",
+    "name": "Roll the Boulder",
     "kind": "faction_upgrade",
     "owner": "Trolls",
     "tier": 1,
-    "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle.",
+    "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.",
     "gameplayTags": [
       "faction-upgrade",
       "trolls",
       "damage",
-      "initiative"
+      "initiative",
+      "melee"
+    ]
+  },
+  {
+    "id": "troll-mossblood",
+    "name": "Mossblood",
+    "kind": "faction_upgrade",
+    "owner": "Trolls",
+    "tier": 2,
+    "mechanic": "The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.",
+    "gameplayTags": [
+      "faction-upgrade",
+      "trolls",
+      "damage",
+      "healing",
+      "corpse",
+      "debuff",
+      "defense"
     ]
   },
   {
@@ -1686,55 +1592,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Trolls",
     "tier": 2,
-    "mechanic": "Whenever a Troll is healed, it gains 15 initiative.",
+    "mechanic": "Whenever a Troll is healed, it gains 20 initiative.",
     "gameplayTags": [
       "faction-upgrade",
       "trolls",
       "initiative",
       "healing"
-    ]
-  },
-  {
-    "id": "troll-stoneblood",
-    "name": "Stoneblood",
-    "kind": "faction_upgrade",
-    "owner": "Trolls",
-    "tier": 2,
-    "mechanic": "The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "trolls",
-      "healing",
-      "corpse",
-      "debuff",
-      "defense"
-    ]
-  },
-  {
-    "id": "troll-crushing-sweep",
-    "name": "Crushing Sweep",
-    "kind": "faction_upgrade",
-    "owner": "Trolls",
-    "tier": 3,
-    "mechanic": "When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "trolls",
-      "damage",
-      "melee"
-    ]
-  },
-  {
-    "id": "troll-frenzy",
-    "name": "Troll Frenzy",
-    "kind": "faction_upgrade",
-    "owner": "Trolls",
-    "tier": 3,
-    "mechanic": "After taking damage: each troll unit gains +1 damage for the rest of the battle.",
-    "gameplayTags": [
-      "faction-upgrade",
-      "trolls",
-      "damage"
     ]
   }
 ]
@@ -1852,33 +1715,18 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "archer-pinning-volley",
-    "name": "Pinning Volley",
+    "id": "archer-crippling-shots",
+    "name": "Crippling Shots",
     "kind": "troop_type_upgrade",
     "owner": "Archer",
-    "tier": 2,
-    "mechanic": "Archer attacks reduce their target speed by 1 for the rest of the battle.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "archer",
-      "damage",
-      "speed",
-      "ranged",
-      "debuff"
-    ]
-  },
-  {
-    "id": "archer-shredding-arrows",
-    "name": "Shredding Arrows",
-    "kind": "troop_type_upgrade",
-    "owner": "Archer",
-    "tier": 2,
-    "mechanic": "On attack: each Archer reduces its target armor by 1 for the rest of the battle.",
+    "tier": 3,
+    "mechanic": "On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.",
     "gameplayTags": [
       "troop-type-upgrade",
       "archer",
       "damage",
       "armor",
+      "speed",
       "ranged",
       "debuff",
       "defense"
@@ -1896,20 +1744,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "avenger-blood-oath",
-    "name": "Blood Oath",
-    "kind": "troop_type_upgrade",
-    "owner": "Avenger",
-    "tier": 2,
-    "mechanic": "When a nearby ally falls, set this Avenger initiative to 100.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "avenger",
-      "initiative",
-      "corpse"
-    ]
-  },
-  {
     "id": "avenger-sevenfold",
     "name": "Sevenfold",
     "kind": "troop_type_upgrade",
@@ -1924,16 +1758,16 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "avenger-last-witness",
-    "name": "Last Witness",
+    "id": "avenger-witness",
+    "name": "Witness",
     "kind": "troop_type_upgrade",
     "owner": "Avenger",
     "tier": 3,
-    "mechanic": "When an ally dies on this Avenger hex, it strikes the killer twice if the killer is still there.",
+    "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.",
     "gameplayTags": [
       "troop-type-upgrade",
       "avenger",
-      "damage",
+      "initiative",
       "corpse"
     ]
   }
@@ -1949,29 +1783,16 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "beastmaster-blood-in-the-water",
-    "name": "Blood in the Water",
+    "id": "beastmaster-bloodhounds",
+    "name": "Bloodhounds",
     "kind": "troop_type_upgrade",
     "owner": "Beastmaster",
-    "tier": 2,
-    "mechanic": "Start-of-battle wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect.",
+    "tier": 3,
+    "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.",
     "gameplayTags": [
       "troop-type-upgrade",
       "beastmaster",
       "damage",
-      "summon"
-    ]
-  },
-  {
-    "id": "beastmaster-packmasters-whistle",
-    "name": "Packmaster's Whistle",
-    "kind": "troop_type_upgrade",
-    "owner": "Beastmaster",
-    "tier": 3,
-    "mechanic": "End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "beastmaster",
       "initiative",
       "healing",
       "summon",
@@ -2007,29 +1828,16 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "champion-executioner",
-    "name": "Executioner",
+    "id": "champion-anointed-executioner",
+    "name": "Anointed Executioner",
     "kind": "troop_type_upgrade",
     "owner": "Champion",
-    "tier": 2,
-    "mechanic": "Champions target the lowest-health enemy they are allowed to attack.",
+    "tier": 3,
+    "mechanic": "Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.",
     "gameplayTags": [
       "troop-type-upgrade",
       "champion",
       "damage",
-      "healing"
-    ]
-  },
-  {
-    "id": "champion-anointed",
-    "name": "Anointed",
-    "kind": "troop_type_upgrade",
-    "owner": "Champion",
-    "tier": 3,
-    "mechanic": "Whenever a Champion is healed or gains positive stats, it gains twice as much.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "champion",
       "healing"
     ]
   }
@@ -2062,59 +1870,33 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "druid-wild-growth",
-    "name": "Wild Growth",
-    "kind": "troop_type_upgrade",
-    "owner": "Druid",
-    "tier": 2,
-    "mechanic": "End of turn: each Druid heals itself for 60.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "druid",
-      "initiative",
-      "healing"
-    ]
-  },
-  {
-    "id": "druid-bramble-snare",
-    "name": "Bramble Snare",
+    "id": "druid-ents-visage",
+    "name": "Ent's Visage",
     "kind": "troop_type_upgrade",
     "owner": "Druid",
     "tier": 3,
-    "mechanic": "Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "druid",
-      "speed",
-      "melee",
-      "debuff",
-      "transformation"
-    ]
-  },
-  {
-    "id": "druid-thornhide",
-    "name": "Thornhide",
-    "kind": "troop_type_upgrade",
-    "owner": "Druid",
-    "tier": 3,
-    "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack.",
+    "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.",
     "gameplayTags": [
       "troop-type-upgrade",
       "druid",
       "damage",
+      "speed",
+      "melee",
       "transformation"
     ]
   },
   {
-    "id": "druid-wild-call",
-    "name": "Wild Call",
+    "id": "druid-forest-friends",
+    "name": "Forest Friends",
     "kind": "troop_type_upgrade",
     "owner": "Druid",
     "tier": 3,
-    "mechanic": "Whenever a Druid shapeshifts, it summons 2 wolves.",
+    "mechanic": "End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.",
     "gameplayTags": [
       "troop-type-upgrade",
       "druid",
+      "initiative",
+      "healing",
       "summon",
       "transformation"
     ]
@@ -2131,12 +1913,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "elementalist-arc-conductor",
-    "name": "Arc Conductor",
+    "id": "elementalist-crackling-mitosis",
+    "name": "Crackling Mitosis",
     "kind": "troop_type_upgrade",
     "owner": "Elementalist",
-    "tier": 2,
-    "mechanic": "When an allied elemental dies, blast its hex for 8.",
+    "tier": 3,
+    "mechanic": "When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
     "gameplayTags": [
       "troop-type-upgrade",
       "elementalist",
@@ -2162,20 +1944,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "ranged",
       "synergy"
     ]
-  },
-  {
-    "id": "elementalist-mitosis",
-    "name": "Mitosis",
-    "kind": "troop_type_upgrade",
-    "owner": "Elementalist",
-    "tier": 3,
-    "mechanic": "Every 4 turns, each Elementalist summons 1 elemental. Each summoned elemental can repeat that summon once after 4 turns.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "elementalist",
-      "initiative",
-      "summon"
-    ]
   }
 ]
 ```
@@ -2189,46 +1957,18 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "knight-brace",
-    "name": "Brace",
-    "kind": "troop_type_upgrade",
-    "owner": "Knight",
-    "tier": 2,
-    "mechanic": "Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "knight",
-      "armor",
-      "initiative",
-      "melee",
-      "defense"
-    ]
-  },
-  {
-    "id": "knight-retaliate",
-    "name": "Retaliate",
-    "kind": "troop_type_upgrade",
-    "owner": "Knight",
-    "tier": 2,
-    "mechanic": "Whenever a Knight is hit by a normal attack, it makes 1 normal attack back.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "knight",
-      "damage",
-      "melee"
-    ]
-  },
-  {
-    "id": "knight-challenge-accepted",
-    "name": "Challenge Accepted",
+    "id": "knight-dine-in-hell",
+    "name": "Dine in Hell",
     "kind": "troop_type_upgrade",
     "owner": "Knight",
     "tier": 3,
-    "mechanic": "Enemies redirected by this unit deal 4 less damage while engaged with it.",
+    "mechanic": "Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.",
     "gameplayTags": [
       "troop-type-upgrade",
       "knight",
       "damage",
+      "armor",
+      "initiative",
       "melee",
       "defense"
     ]
@@ -2260,19 +2000,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "militia-rabble-rush",
-    "name": "Rabble Rush",
-    "kind": "troop_type_upgrade",
-    "owner": "Militia",
-    "tier": 2,
-    "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia on their hex.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "militia",
-      "initiative"
-    ]
-  },
-  {
     "id": "militia-dogpile",
     "name": "Dogpile",
     "kind": "troop_type_upgrade",
@@ -2287,15 +2014,16 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "militia-scurry",
-    "name": "Scurry",
+    "id": "militia-rat-behavior",
+    "name": "Rat Behavior",
     "kind": "troop_type_upgrade",
     "owner": "Militia",
     "tier": 3,
-    "mechanic": "Militia do not count toward allied saturation limits.",
+    "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.",
     "gameplayTags": [
       "troop-type-upgrade",
       "militia",
+      "initiative",
       "synergy"
     ]
   }
@@ -2311,62 +2039,36 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "necromancer-alternate-fuel",
-    "name": "Alternate Fuel",
-    "kind": "troop_type_upgrade",
-    "owner": "Necromancer",
-    "tier": 2,
-    "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "necromancer",
-      "damage",
-      "healing",
-      "corpse"
-    ]
-  },
-  {
-    "id": "necromancer-early-riser",
-    "name": "Early Riser",
-    "kind": "troop_type_upgrade",
-    "owner": "Necromancer",
-    "tier": 2,
-    "mechanic": "Skeletons summoned by Necromancers spawn with +100 initiative.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "necromancer",
-      "initiative",
-      "summon",
-      "movement"
-    ]
-  },
-  {
-    "id": "necromancer-carrion-choir",
-    "name": "Carrion Choir",
+    "id": "necromancer-explosion-corpse",
+    "name": "Explosion Corpse",
     "kind": "troop_type_upgrade",
     "owner": "Necromancer",
     "tier": 3,
-    "mechanic": "Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
+    "mechanic": "Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
     "gameplayTags": [
       "troop-type-upgrade",
       "necromancer",
       "damage",
       "armor",
+      "initiative",
+      "summon",
       "corpse",
       "debuff",
+      "movement",
       "defense"
     ]
   },
   {
-    "id": "necromancer-rising-tide",
-    "name": "Rising Tide",
+    "id": "necromancer-hemomancy",
+    "name": "Hemomancy",
     "kind": "troop_type_upgrade",
     "owner": "Necromancer",
     "tier": 3,
-    "mechanic": "Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.",
+    "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.",
     "gameplayTags": [
       "troop-type-upgrade",
       "necromancer",
+      "damage",
       "initiative",
       "healing",
       "summon",
@@ -2385,15 +2087,17 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "priest-overflowing-grace",
-    "name": "Overflowing Grace",
+    "id": "priest-bolstering-light",
+    "name": "Bolstering Light",
     "kind": "troop_type_upgrade",
     "owner": "Priest",
-    "tier": 2,
-    "mechanic": "When a Priest heal brings an ally to full HP, that ally gains 40 initiative.",
+    "tier": 3,
+    "mechanic": "When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.",
     "gameplayTags": [
       "troop-type-upgrade",
       "priest",
+      "damage",
+      "speed",
       "initiative",
       "healing"
     ]
@@ -2414,21 +2118,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "synergy",
       "defense"
     ]
-  },
-  {
-    "id": "priest-zeal",
-    "name": "Zeal",
-    "kind": "troop_type_upgrade",
-    "owner": "Priest",
-    "tier": 3,
-    "mechanic": "Whenever a Priest heals a target, that same target also gains +1 speed and +1 damage for the battle.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "priest",
-      "damage",
-      "speed",
-      "healing"
-    ]
   }
 ]
 ```
@@ -2442,64 +2131,37 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "ranger-concussive-shots",
-    "name": "Concussive Shots",
+    "id": "ranger-on-the-hunt",
+    "name": "On the Hunt",
     "kind": "troop_type_upgrade",
     "owner": "Ranger",
-    "tier": 2,
-    "mechanic": "On attack: each Ranger sets its target initiative to 0.",
+    "tier": 3,
+    "mechanic": "On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
     "gameplayTags": [
       "troop-type-upgrade",
       "ranger",
       "damage",
       "initiative",
+      "summon",
+      "corpse",
       "ranged",
       "debuff"
     ]
   },
   {
-    "id": "ranger-skirmishers-step",
-    "name": "Skirmisher's Step",
-    "kind": "troop_type_upgrade",
-    "owner": "Ranger",
-    "tier": 2,
-    "mechanic": "After attacking, Rangers move to the safest hex that still keeps an enemy in range.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "ranger",
-      "ranged",
-      "melee",
-      "movement"
-    ]
-  },
-  {
-    "id": "ranger-heartseeker",
-    "name": "Heartseeker",
+    "id": "ranger-shadows-embrace",
+    "name": "Shadow's Embrace",
     "kind": "troop_type_upgrade",
     "owner": "Ranger",
     "tier": 3,
-    "mechanic": "Ranger attacks against unengaged targets deal double damage.",
+    "mechanic": "After attacking, Rangers move to the safest hex that still keeps an enemy in range. Ranger attacks against unengaged targets deal double damage.",
     "gameplayTags": [
       "troop-type-upgrade",
       "ranger",
       "damage",
       "ranged",
-      "melee"
-    ]
-  },
-  {
-    "id": "ranger-scavengers-hunger",
-    "name": "Scavenger's Hunger",
-    "kind": "troop_type_upgrade",
-    "owner": "Ranger",
-    "tier": 3,
-    "mechanic": "The first 3 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "ranger",
-      "summon",
-      "corpse",
-      "ranged"
+      "melee",
+      "movement"
     ]
   }
 ]
@@ -2528,31 +2190,18 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "shaman-serve-once-more",
-    "name": "Serve Once More",
+    "id": "shaman-grave-vigor",
+    "name": "Grave Vigor",
     "kind": "troop_type_upgrade",
     "owner": "Shaman",
     "tier": 3,
-    "mechanic": "Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "shaman",
-      "summon",
-      "corpse"
-    ]
-  },
-  {
-    "id": "shaman-static-charge",
-    "name": "Static Charge",
-    "kind": "troop_type_upgrade",
-    "owner": "Shaman",
-    "tier": 3,
-    "mechanic": "When a Shaman applies Enhance, affected allies gain 1 extra strike on their next normal attack.",
+    "mechanic": "Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death, gains 1 extra strike on its next normal attack if the effect was Enhance, and then ignores future beneficial effects and targeting from units with Grave Vigor.",
     "gameplayTags": [
       "troop-type-upgrade",
       "shaman",
       "damage",
-      "initiative"
+      "summon",
+      "corpse"
     ]
   }
 ]
@@ -2571,8 +2220,8 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "name": "Shield Drill",
     "kind": "troop_type_upgrade",
     "owner": "Soldier",
-    "tier": 2,
-    "mechanic": "Allies on a Soldier's hex take 1 less damage from ranged attacks and strikes.",
+    "tier": 3,
+    "mechanic": "Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers.",
     "gameplayTags": [
       "troop-type-upgrade",
       "soldier",
@@ -2595,20 +2244,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "wizard-leyline-focus",
-    "name": "Leyline Focus",
-    "kind": "troop_type_upgrade",
-    "owner": "Wizard",
-    "tier": 2,
-    "mechanic": "Start of turn: if no enemy is within 1 hex, the Wizard gains 25 initiative.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "wizard",
-      "initiative",
-      "ranged"
-    ]
-  },
-  {
     "id": "wizard-spell-echo",
     "name": "Spell Echo",
     "kind": "troop_type_upgrade",
@@ -2623,31 +2258,17 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     ]
   },
   {
-    "id": "wizard-storm",
-    "name": "Storm",
+    "id": "wizard-storm-rods",
+    "name": "Storm Rods",
     "kind": "troop_type_upgrade",
     "owner": "Wizard",
-    "tier": 2,
-    "mechanic": "Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range.",
+    "tier": 3,
+    "mechanic": "Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.",
     "gameplayTags": [
       "troop-type-upgrade",
       "wizard",
       "damage",
       "initiative",
-      "ranged"
-    ]
-  },
-  {
-    "id": "wizard-lightning-rods",
-    "name": "Lightning Rods",
-    "kind": "troop_type_upgrade",
-    "owner": "Wizard",
-    "tier": 3,
-    "mechanic": "Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.",
-    "gameplayTags": [
-      "troop-type-upgrade",
-      "wizard",
-      "damage",
       "summon",
       "ranged"
     ]

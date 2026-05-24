@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
-import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, startNewGame, startOpeningCampaign } from '../engine/game';
+import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
 import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId, UpgradeId } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
 
@@ -263,6 +263,67 @@ describe('gameStore progression flow', () => {
       activeSlotId: null,
       tutorialProgress: null,
     });
+  });
+
+  it('shows one system notice grouped by retired save-content category when loading a repaired slot', () => {
+    const opening = startNewGame(18);
+    const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(opening);
+    const opened = startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(opening, firstTroopUnlockId), secondTroopUnlockId));
+    storage.setItem(
+      'shiftmake:slot:3:save:v3',
+      serializeGameState({
+        ...opened,
+        unlockedFactionIds: [...opened.unlockedFactionIds, 'retired-faction'],
+        unlockedTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'],
+        troops: [
+          ...opened.troops,
+          {
+            id: 'retired-faction/soldier',
+            factionId: 'retired-faction',
+            unitTypeId: 'soldier',
+            recoveryCyclesRemaining: 0,
+            assignmentRiftId: null,
+          },
+        ],
+        factionUpgradeIds: ['retired-upgrade'],
+        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'] },
+        openRifts: [
+          {
+            ...opened.openRifts[0]!,
+            enemyArmy: [
+              ...opened.openRifts[0]!.enemyArmy,
+              {
+                combatantId: 'retired-enemy',
+                factionId: 'retired-faction',
+                unitTypeId: 'soldier',
+                troopInstanceId: null,
+                label: 'Retired Enemy',
+                role: 'frontline',
+                type: 'soldier',
+                attributes: [],
+                stats: { health: 1, damage: 1, speed: 1, armor: 0, range: 0, capacity: 1, size: 1 },
+                abilities: [],
+                quantity: 1,
+                cost: 1,
+                side: 'enemy',
+              },
+            ],
+          },
+          ...opened.openRifts.slice(1),
+        ],
+      }),
+    );
+
+    gameStore.loadSlot(3);
+
+    const state = currentStoreState<{ systemMessage: string | null }>();
+    expect(state.systemMessage).toContain('System Notice');
+    expect(state.systemMessage).toContain('Missing factions: retired-faction');
+    expect(state.systemMessage).toContain('Missing troop unlocks: retired-faction/soldier');
+    expect(state.systemMessage).toContain('Missing troop instances: retired-faction/soldier');
+    expect(state.systemMessage).toContain('Missing upgrades: retired-upgrade');
+    expect(state.systemMessage).toContain('Missing Rift enemies: Retired Enemy');
+    expect(state.systemMessage).toContain('Missing draft options: retired-faction/soldier');
   });
 
   it('exits tutorial mode and clears persisted tutorial progress', () => {

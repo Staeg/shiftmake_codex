@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
+import {
+  claimOpeningTroop,
+  deserializeGameState,
+  getOpeningFactionOptionIds,
+  getOpeningFactionStarterTroopUnlockIds,
+  serializeGameState,
+  startNewGame,
+  startOpeningCampaign,
+} from '../engine/game';
 import { FACTIONS } from '../engine/unitCatalog';
 import type { GameState, TroopUnlockId } from '../engine/types';
 import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, verifyReplayIndexAgainstStoredPayloads, writeSlotReplay } from './saveSlots';
@@ -155,6 +163,115 @@ describe('save slot repository', () => {
       currentFinalPlayerAlive: 0,
       currentFinalEnemyAlive: 0,
     });
+  });
+
+  it('loads older v3 saves with newly required fields defaulted', () => {
+    const opened = finishOpening(startNewGame(15));
+    const staleSave = { ...opened } as Partial<GameState>;
+    delete staleSave.gameMode;
+    delete staleSave.recentTroopUnlockIds;
+    delete staleSave.factionUpgradeIds;
+    delete staleSave.troopTypeUpgradeIds;
+    delete staleSave.activeFactionUnlockOffer;
+    delete staleSave.activeTroopTypeUnlockOffer;
+    delete staleSave.troopOfferRolls;
+    delete staleSave.upgradeOfferRolls;
+    delete staleSave.postgameDismissed;
+
+    const loaded = deserializeGameState(JSON.stringify(staleSave));
+
+    expect(loaded.ok).toBe(true);
+    expect(loaded.state).toMatchObject({
+      gameMode: 'campaign',
+      recentTroopUnlockIds: [],
+      factionUpgradeIds: [],
+      troopTypeUpgradeIds: [],
+      activeFactionUnlockOffer: null,
+      activeTroopTypeUnlockOffer: null,
+      troopOfferRolls: 0,
+      upgradeOfferRolls: 0,
+      postgameDismissed: false,
+    });
+  });
+
+  it('drops obsolete catalog ids from loaded saves', () => {
+    const opened = finishOpening(startNewGame(18));
+    const loaded = deserializeGameState(
+      JSON.stringify({
+        ...opened,
+        unlockedFactionIds: [...opened.unlockedFactionIds, 'retired-faction'],
+        unlockedTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'],
+        recentTroopUnlockIds: ['retired-faction/soldier'],
+        troops: [
+          ...opened.troops,
+          {
+            id: 'retired-faction/soldier',
+            factionId: 'retired-faction',
+            unitTypeId: 'soldier',
+            recoveryCyclesRemaining: 0,
+            assignmentRiftId: null,
+          },
+        ],
+        factionUpgradeIds: ['human-tubthumping', 'retired-upgrade'],
+        troopTypeUpgradeIds: ['archer-shredding-arrows', 'retired-type-upgrade'],
+        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'] },
+        activeUpgradeOffer: { kind: 'upgrade', optionUpgradeIds: ['human-tubthumping', 'retired-upgrade'] },
+      }),
+    );
+
+    expect(loaded.ok).toBe(true);
+    expect(loaded.repairs).toMatchObject({
+      missingFactionIds: ['retired-faction'],
+      missingTroopUnlockIds: ['retired-faction/soldier'],
+      missingTroopInstanceIds: ['retired-faction/soldier'],
+      missingUpgradeIds: ['retired-upgrade', 'retired-type-upgrade'],
+      missingDraftOptionIds: ['retired-faction/soldier', 'retired-upgrade'],
+    });
+    expect(loaded.state?.unlockedFactionIds).not.toContain('retired-faction');
+    expect(loaded.state?.unlockedTroopUnlockIds).toEqual(['human/soldier']);
+    expect(loaded.state?.recentTroopUnlockIds).toEqual([]);
+    expect(loaded.state?.troops.some((troop) => troop.factionId === 'retired-faction')).toBe(false);
+    expect(loaded.state?.factionUpgradeIds).toEqual(['human-tubthumping']);
+    expect(loaded.state?.troopTypeUpgradeIds).toEqual(['archer-shredding-arrows']);
+    expect(loaded.state?.activeTroopOffer?.optionTroopUnlockIds).toEqual(['human/soldier']);
+    expect(loaded.state?.activeUpgradeOffer?.optionUpgradeIds).toEqual(['human-tubthumping']);
+  });
+
+  it('repairs stale phase-specific saves instead of loading a blank overworld branch', () => {
+    const opened = finishOpening(startNewGame(16));
+    const loaded = deserializeGameState(JSON.stringify({ ...opened, phase: 'faction_unlock', activeFactionUnlockOffer: undefined }));
+
+    expect(loaded.ok).toBe(true);
+    expect(loaded.state?.phase).toBe('planning');
+  });
+
+  it('marks stale replay payloads summary-only when verification can no longer resolve them', () => {
+    const storage = new MemoryStorage();
+    const opened = finishOpening(startNewGame(17));
+    const game = {
+      ...opened,
+      replayIndex: [
+        {
+          id: 'bad-battle',
+          riftId: 'rift',
+          cycleNumber: 1,
+          battleSeed: 3,
+          outcome: 'victory' as const,
+          playerTroopLabels: ['Elven Archers'],
+          mutatorIds: [],
+          summary: 'VICTORY 1-0',
+          replayId: 'bad-battle',
+          estimatedBytes: 100,
+        },
+      ],
+    };
+    saveToSlot(storage, 1, game);
+    writeSlotReplay(storage, 1, 'bad-battle', JSON.stringify({ version: 1, input: { playerCombatants: [null], enemyCombatants: [] } }));
+
+    const verified = verifyReplayIndexAgainstStoredPayloads(storage, 1, game);
+
+    expect(verified.changedCount).toBe(1);
+    expect(verified.game.replayIndex[0]?.summaryOnly).toBe(true);
   });
 
   it('migrates a legacy save into slot one and copies legacy replay payloads', () => {

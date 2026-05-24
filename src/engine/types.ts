@@ -736,7 +736,17 @@ export interface ApplyCycleOutcomeResult {
 export interface LoadGameResult {
   ok: boolean;
   state?: GameState;
+  repairs?: LoadGameRepairReport;
   error?: 'unsupported_version' | 'invalid_json' | 'invalid_shape';
+}
+
+export interface LoadGameRepairReport {
+  missingFactionIds: string[];
+  missingTroopUnlockIds: string[];
+  missingTroopInstanceIds: string[];
+  missingUpgradeIds: string[];
+  missingRiftEnemyIds: string[];
+  missingDraftOptionIds: string[];
 }
 
 export interface MutatorDefinition {

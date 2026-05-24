@@ -1,4 +1,4 @@
-import { buildBalanceBattleInput, createSeedRange, createUnitTypeCombatant, sweepBattleSeeds } from './balanceHarness';
+import { buildSimulationBattleInput, createSeedRange, createUnitTypeCombatant, sweepBattleSeeds } from './simulationHarness';
 import { fixed } from './fixed';
 import { UNIT_TYPES, getUnitType } from './unitCatalog';
 function compareTroopIds(left, right) {
@@ -292,7 +292,7 @@ export function runPermutationBatch(teamSize, matchups, runCount, unitTypeIds) {
     const aggregate = createEmptyPermutationAggregate(unitTypeIds);
     const quantities = Object.fromEntries(unitTypeIds.map((troopId) => [troopId, resolvePermutationQuantity(troopId)]));
     const results = matchups.map((matchup) => {
-        const sweep = sweepBattleSeeds((seed) => buildBalanceBattleInput(seed, matchup.left.troopIds.map((troopId, index) => createUnitTypeCombatant(troopId, {
+        const sweep = sweepBattleSeeds((seed) => buildSimulationBattleInput(seed, matchup.left.troopIds.map((troopId, index) => createUnitTypeCombatant(troopId, {
             side: 'player',
             quantity: quantities[troopId],
             combatantId: `player-${matchup.index}-${index}-${troopId}`,

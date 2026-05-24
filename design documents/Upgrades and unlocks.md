@@ -114,33 +114,24 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 
 ## Implemented faction upgrades
 
-- `Humans United`
 - `Human Combined Arms`
 - `Tubthumping`
 - `Hold the Standard`
-- `Elven Eyes`
-- `Fade Into Shadow`
+- `Elven Reflexes`
 - `Elven Forsaken`
-- `Long Shot Doctrine`
-- `Silver Distance`
-- `Goblin Farewell`
+- `Silvershot Doctrine`
+- `Goblin Behavior`
 - `Goblin Pack`
-- `Snatch the Moment`
 - `Loot Frenzy`
-- `Troll Momentum`
-- `Stoneblood`
-- `Troll Frenzy`
-- `Crushing Sweep`
+- `Roll the Boulder`
+- `Mossblood`
 - `Rowdy Regrowth`
 - `Diggy Hole`
 - `Ale and Hearty`
-- `Mycelial Beards`
 - `Stall Warts`
 - `Seeing Red`
 - `First Blood`
-- `Warcry`
 - `Berserk`
-- `Ensorcel`
 - `Glamour`
 - `Changeling`
 - `Whimsy`

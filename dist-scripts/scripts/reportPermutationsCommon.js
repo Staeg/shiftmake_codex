@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 import { createEmptyPermutationAggregate, filterEligiblePermutationUnitTypeIds, finalizePermutationAggregate, generatePermutationMatchups, generatePermutationTeams, getEligiblePermutationUnitTypeIds, renderPermutationReport, resolvePermutationTroops, runPermutationBatch, serializePermutationAggregate, mergePermutationAggregates, } from '../src/engine/permutationReport';
-const DEFAULT_RUN_COUNT = 100;
+const DEFAULT_RUN_COUNT = 10;
 const DEFAULT_BATCH_SIZE = {
     2: 25,
     3: 10,
@@ -18,7 +18,7 @@ function parseArgs() {
     return {
         outputDir: outputDirArg ? outputDirArg.slice('--outputDir='.length) : resolve(process.cwd(), 'balance_results'),
         runCount: runsArg ? Math.max(1, Number.parseInt(runsArg.slice('--runs='.length), 10) || DEFAULT_RUN_COUNT) : DEFAULT_RUN_COUNT,
-        workerCount: workersArg ? Math.max(1, Number.parseInt(workersArg.slice('--workers='.length), 10) || 1) : Math.max(1, cpus().length - 1),
+        workerCount: workersArg ? Math.max(1, Number.parseInt(workersArg.slice('--workers='.length), 10) || 1) : 1,
         resume: args.includes('--resume'),
         ...(unitTypeIdsArg
             ? {
@@ -82,20 +82,39 @@ async function runBatchInWorker(workerPath, teamSize, runCount, unitTypeIds, mat
 }
 async function processBatches(workerPath, teamSize, runCount, workerCount, unitTypeIds, batches, aggregate, completedMatchupKeys, checkpointPath, configHash) {
     const pendingBatches = [...batches];
+    const totalBatches = batches.length;
+    const progressInterval = Math.max(1, Math.floor(totalBatches / 100));
+    let completedBatches = 0;
+    let useWorkers = workerCount > 1;
     const runNext = async () => {
         const batch = pendingBatches.shift();
         if (!batch) {
             return;
         }
-        const result = workerCount <= 1
-            ? runPermutationBatch(teamSize, batch, runCount, unitTypeIds)
-            : await runBatchInWorker(workerPath, teamSize, runCount, unitTypeIds, batch);
+        let result;
+        if (!useWorkers) {
+            result = runPermutationBatch(teamSize, batch, runCount, unitTypeIds);
+        }
+        else {
+            try {
+                result = await runBatchInWorker(workerPath, teamSize, runCount, unitTypeIds, batch);
+            }
+            catch (error) {
+                console.warn(`Worker startup failed for ${teamSize}v${teamSize}; falling back to serial execution.`, error);
+                useWorkers = false;
+                result = runPermutationBatch(teamSize, batch, runCount, unitTypeIds);
+            }
+        }
         mergePermutationAggregates(aggregate, result.aggregate);
         result.results.forEach((entry) => completedMatchupKeys.add(entry.matchupKey));
+        completedBatches += 1;
         await writeCheckpoint(checkpointPath, configHash, teamSize, runCount, unitTypeIds, completedMatchupKeys, aggregate);
+        if (completedBatches === 1 || completedBatches === totalBatches || completedBatches % progressInterval === 0) {
+            console.log(`[${teamSize}v${teamSize}] Completed ${completedBatches}/${totalBatches} batches, ${completedMatchupKeys.size} / ${completedMatchupKeys.size + pendingBatches.reduce((sum, entry) => sum + entry.length, 0)} matchups.`);
+        }
         await runNext();
     };
-    const runners = Array.from({ length: Math.min(workerCount, batches.length || 1) }, () => runNext());
+    const runners = Array.from({ length: Math.min(useWorkers ? workerCount : 1, batches.length || 1) }, () => runNext());
     await Promise.all(runners);
 }
 export async function generatePermutationReportFiles(teamSize) {
@@ -127,6 +146,10 @@ export async function generatePermutationReportFiles(teamSize) {
     }
     const pendingMatchups = matchups.filter((matchup) => !completedMatchupKeys.has(matchup.key));
     const batches = chunkMatchups(pendingMatchups, DEFAULT_BATCH_SIZE[teamSize]);
+    console.log(`Starting ${teamSize}v${teamSize} permutation report with ${eligibleTroops.length} troops, ${teams.length} teams, ${matchups.length} matchups, ${options.runCount} runs each, ${options.workerCount} worker(s).`);
+    if (completedMatchupKeys.size > 0) {
+        console.log(`Resuming from checkpoint with ${completedMatchupKeys.size} completed matchups already recorded.`);
+    }
     if (batches.length > 0) {
         await processBatches(workerPath, teamSize, options.runCount, options.workerCount, eligibleTroops, batches, aggregate, completedMatchupKeys, checkpointPath, configHash);
     }
@@ -134,6 +157,10 @@ export async function generatePermutationReportFiles(teamSize) {
     const markdown = renderPermutationReport(finalized);
     await writeFile(markdownPath, markdown, 'utf8');
     await writeFile(jsonPath, JSON.stringify(finalized, null, 2), 'utf8');
+    console.log(`Finished ${teamSize}v${teamSize} report.`);
+    console.log(`Markdown: ${markdownPath}`);
+    console.log(`JSON: ${jsonPath}`);
+    console.log(`Checkpoint: ${checkpointPath}`);
     return finalized;
 }
 export function getPermutationScriptConfigPreview(teamSize) {

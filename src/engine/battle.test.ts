@@ -655,23 +655,19 @@ describe('ability mechanics', () => {
       factionUpgradeIds: [
         'human-tubthumping',
         'human-hold-the-standard',
-        'elf-fade-into-shadow',
-        'elf-long-shot-doctrine',
-        'elf-silver-distance',
-        'goblin-snatch-the-moment',
+        'elf-elven-reflexes',
+        'elf-silvershot-doctrine',
+        'goblin-behavior',
         'goblin-loot-frenzy',
-        'troll-stoneblood',
-        'troll-crushing-sweep',
+        'troll-mossblood',
+        'troll-roll-the-boulder',
         'troll-rowdy-regrowth',
         'dwarf-diggy-hole',
         'dwarf-ale-and-hearty',
-        'dwarf-mycelial-beards',
         'dwarf-stall-warts',
         'orc-seeing-red',
         'orc-first-blood',
-        'orc-warcry',
         'orc-berserk',
-        'fae-ensorcel',
         'fae-glamour',
         'fae-changeling',
         'fae-whimsy',
@@ -733,6 +729,10 @@ describe('ability mechanics', () => {
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('blood-oath');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('uses-7-corpse-summon-skeleton');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('last-witness');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('stoneblood');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('frenzy-ramp-1');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('ramp-1');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('crushing-sweep');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('summon-wolf-2-blood');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('packmasters-whistle');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('thrill-of-the-hunt');
@@ -752,6 +752,7 @@ describe('ability mechanics', () => {
     expect(trollNecromancer.abilities.map((ability) => ability.id)).not.toContain('corpse-summon-skeleton');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('bolstering-light');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('mercy-before-dawn');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('united');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('tubthumping');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('self-haste-2');
     expect(elfRanger.abilities.map((ability) => ability.id)).not.toContain('haste-1');
@@ -767,6 +768,7 @@ describe('ability mechanics', () => {
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('summon-elemental-1');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('charge-4-random-enemy-r-strike-4');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('spell-echo');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('goblin-farewell');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('snatch-the-moment');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('brace');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('retaliate');
@@ -776,14 +778,11 @@ describe('ability mechanics', () => {
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('rabble-rush');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('diggy-hole');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('ale-and-hearty');
-    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('mycelial-beards');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stall-warts');
     expect(dwarfSoldier.stats.speed).toBe(11.9);
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('seeing-red');
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('first-blood');
-    expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('warcry');
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('berserk');
-    expect(faeWizard.abilities.map((ability) => ability.id)).toContain('ensorcel');
     expect(faeWizard.abilities.map((ability) => ability.id)).toContain('glamour');
     expect(faeWizard.abilities.map((ability) => ability.id)).toContain('changeling');
     expect(faeWizard.abilities.map((ability) => ability.id)).toContain('whimsy');
@@ -831,27 +830,6 @@ describe('ability mechanics', () => {
     expect(aleStep).toBeTruthy();
     const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.factionId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
     expect(dwarfSpeeds).toEqual([1, 11.9, 11.9]);
-  });
-
-  it('Mycelial Beards shares mitigated damage among Dwarves on the target hex', () => {
-    const dwarf = resolveTroopCombatant(
-      { factionUpgradeIds: ['dwarf-mycelial-beards'], troopTypeUpgradeIds: [] },
-      createTroopInstance('dwarf', 'soldier'),
-      'player',
-    );
-    dwarf.quantity = 2;
-    dwarf.stats = { ...dwarf.stats, health: 50, damage: 0, speed: 1 };
-    const enemy = makeBattleCombatant('human/archer', 'enemy');
-    enemy.stats = { ...enemy.stats, damage: 23, speed: 100, range: 99 };
-
-    const input = makeBattleInput([dwarf], [enemy], 63);
-    input.playerFactionUpgradeIds = ['dwarf-mycelial-beards'];
-    const replay = resolveBattle(input);
-    const sharedStep = replay.steps.find((step) => step.kind === 'attack' && step.message.includes('shared among 2 Dwarves'));
-
-    expect(sharedStep?.targetIds).toHaveLength(2);
-    const damagedDwarves = sharedStep?.snapshot.units.filter((unit) => unit.factionId === 'dwarf').map((unit) => unit.hp).sort((a, b) => a - b);
-    expect(damagedDwarves).toEqual([41, 41]);
   });
 
   it('stall warts grants Dwarves armor and reduces speed after normal attacks hit them', () => {
@@ -921,29 +899,6 @@ describe('ability mechanics', () => {
     expect(nearbyAttacks.some((step) => step.index > engageIndex)).toBe(true);
   });
 
-  it('warcry grants allied damage once per Orc on the fallen enemy hex', () => {
-    const orc = resolveTroopCombatant(
-      { factionUpgradeIds: ['orc-warcry'], troopTypeUpgradeIds: [] },
-      createTroopInstance('orc', 'soldier'),
-      'player',
-    );
-    orc.quantity = 1;
-    orc.stats = { ...orc.stats, damage: 100, speed: 100 };
-    const ally = makeBattleCombatant('human/archer', 'player');
-    ally.stats = { ...ally.stats, damage: 1, speed: 1 };
-    const enemy = makeBattleCombatant('human/militia', 'enemy');
-    enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
-
-    const input = makeBattleInput([orc, ally], [enemy], 67);
-    input.playerFactionUpgradeIds = ['orc-warcry'];
-    const replay = resolveBattle(input);
-    const archerBuffs = replay.steps.filter(
-      (step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'warcry' && step.targetIds.some((id) => id.includes('human/archer')),
-    );
-
-    expect(archerBuffs).toHaveLength(1);
-  });
-
   it('berserk prevents lethal damage, blocks later damage, then kills the Orc after its next turn', () => {
     const orc = resolveTroopCombatant(
       { factionUpgradeIds: ['orc-berserk'], troopTypeUpgradeIds: [] },
@@ -967,30 +922,6 @@ describe('ability mechanics', () => {
     expect(berserkStep?.message).toContain('goes berserk');
     expect(zeroDamageAfterBerserk).toBeTruthy();
     expect(deathStep?.message).toContain('burns out');
-  });
-
-  it('ensorcel marks a priority enemy, removes its abilities, and Fae target it in range', () => {
-    const fae = resolveTroopCombatant(
-      { factionUpgradeIds: ['fae-ensorcel'], troopTypeUpgradeIds: [] },
-      createTroopInstance('fae', 'wizard'),
-      'player',
-    );
-    fae.quantity = 1;
-    fae.stats = { ...fae.stats, damage: 1, speed: 100, range: 99 };
-    const frontline = makeBattleCombatant('human/beastmaster', 'enemy');
-    frontline.stats = { ...frontline.stats, damage: 0, speed: 1 };
-    const backline = makeBattleCombatant('human/wizard', 'enemy');
-    backline.stats = { ...backline.stats, damage: 0, speed: 1 };
-
-    const input = makeBattleInput([fae], [backline, frontline], 69);
-    input.playerFactionUpgradeIds = ['fae-ensorcel'];
-    const replay = resolveBattle(input);
-    const ensorcelStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'ensorcel');
-    const firstFaeAttack = replay.steps.find((step) => step.kind === 'attack' && step.actorIds.some((id) => id.startsWith('player_')));
-
-    expect(ensorcelStep?.message).toContain('Human Beastmaster');
-    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId?.startsWith('summon-wolf'))).toBe(false);
-    expect(firstFaeAttack?.targetIds.map((id) => replay.steps[firstFaeAttack.index]!.snapshot.units.find((unit) => unit.id === id)?.troopLabel)).toContain('Human Beastmaster');
   });
 
   it('glamour redirects one incoming normal attack with the Fae as the attacker', () => {
@@ -1187,7 +1118,7 @@ describe('ability mechanics', () => {
 
   it('stoneblood saves trolls at 25 hp and removes regen for the rest of the battle', () => {
     const soldier = resolveTroopCombatant(
-      { factionUpgradeIds: ['troll-stoneblood'], troopTypeUpgradeIds: [] },
+      { factionUpgradeIds: ['troll-mossblood'], troopTypeUpgradeIds: [] },
       createTroopInstance('troll', 'soldier'),
       'player',
     );
@@ -1340,6 +1271,7 @@ describe('ability mechanics', () => {
     const replay = resolveBattle(makeBattleInput([priest, trollSoldier], [makeBattleCombatant('human/knight', 'enemy')], 72));
 
     expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'rowdy-regrowth')).toBe(true);
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'rowdy-regrowth' && step.metadata.amount === 20)).toBe(true);
   });
 
   it('bramble snare stacks once per shapeshift, including true form', () => {
@@ -1356,7 +1288,7 @@ describe('ability mechanics', () => {
 
   it('silver distance strips initiative on max-range elven attacks', () => {
     const archer = resolveTroopCombatant(
-      { factionUpgradeIds: ['elf-silver-distance'], troopTypeUpgradeIds: [] },
+      { factionUpgradeIds: ['elf-silvershot-doctrine'], troopTypeUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'player',
     );
