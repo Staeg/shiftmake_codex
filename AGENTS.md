@@ -44,8 +44,8 @@ npm run test      # Vitest (engine unit tests)
 npm run preview   # Preview production build
 ```
 
+On Windows, use `npm.cmd` rather than bare `npm` with PowerShell `Start-Process`; otherwise `npm.ps1` may open in an editor instead of starting the server.
+
 ## Critical Architecture Rule
 
 `src/engine/` is pure TypeScript with zero rendering or DOM dependencies. All game logic lives here. Svelte components and PixiJS code must never contain game logic. See `TECHNICAL.md` for the full architecture.
-
-

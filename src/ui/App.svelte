@@ -224,6 +224,7 @@
   let replayAbilityTooltip: ReplayAbilityTooltipState | null = null;
   let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
+  let initiativeTooltip: { label: string; description: string; x: number; y: number } | null = null;
   let battleHost: HTMLDivElement | null = null;
   let renderer: BattleRendererType | null = null;
   let rendererInitPromise: Promise<void> | null = null;
@@ -275,6 +276,7 @@
   let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
   let lastDraftGameKey = '';
   let tutorialScenePrompt = false;
+  let tutorialScenePromptMessage = 'Follow the tutorial!';
   let tutorialScenePromptTimer: ReturnType<typeof window.setTimeout> | null = null;
   const multiplayerDefaultServerConfigured = hasConfiguredMultiplayerServerUrl();
 
@@ -312,7 +314,7 @@
       if (step === 'finish-replay') {
         gameStore.jumpTo(Number.MAX_SAFE_INTEGER);
       }
-      replayEventLogCollapsed = !['timeline-event', 'manual-steps', 'unit-actions', 'engagement', 'roles', 'ability'].includes(step);
+      replayEventLogCollapsed = !['timeline-event', 'unit-actions', 'ability'].includes(step);
       return;
     }
 
@@ -348,10 +350,6 @@
 
   async function previousTutorialStep(): Promise<void> {
     const currentStep = $gameStore.tutorialProgress?.step;
-    if (currentStep === 'confirm-openers') {
-      pendingOpeningTroopUnlockId = null;
-      selectedOpeningTroopUnlockIds.forEach((troopUnlockId) => gameStore.unclaimOpeningTroop(troopUnlockId));
-    }
     gameStore.previousTutorialStep();
     await tick();
     const step = $gameStore.tutorialProgress?.step;
@@ -374,7 +372,8 @@
     gameStore.exitTutorial();
   }
 
-  function showTutorialScenePrompt(): void {
+  function showTutorialScenePrompt(message = 'Follow the tutorial!'): void {
+    tutorialScenePromptMessage = message;
     tutorialScenePrompt = true;
     if (tutorialScenePromptTimer) {
       window.clearTimeout(tutorialScenePromptTimer);
@@ -714,6 +713,16 @@
     return `T${tier}`;
   }
 
+  function riftTierTooltip(tier: number): string {
+    return $gameStore.game.gameMode === 'contest'
+      ? `Tier ${tier}: harder Guardian army and ${tier} Victory Point per cycle while held.`
+      : `Tier ${tier}: harder Guardian army and ${tier} Victory Point on victory.`;
+  }
+
+  function riftFitTooltip(fit: number): string {
+    return `Fit ${fit}: the Rift's hex saturation limit. More total unit size than this may require the battlefield to expand.`;
+  }
+
   function formatRiftDisplayId(riftId: string): string {
     const match = /^cycle-(\d+)-rift-(\d+)$/i.exec(riftId);
     if (!match) {
@@ -780,6 +789,21 @@
 
   function clearTopbarTooltip(): void {
     topbarTooltip = null;
+  }
+
+  function showInitiativeTooltip(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    initiativeTooltip = {
+      label: `${unit.troopLabel} Initiative`,
+      description: `${formatFixed(unit.initiative)} / 100. Units act when initiative reaches 100; Beats add Speed until someone is ready.`,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    };
+    signalTutorial('initiative-hover');
+  }
+
+  function clearInitiativeTooltip(): void {
+    initiativeTooltip = null;
   }
 
   function formatStatModifier(value: { flat?: number; multiplier?: number } | undefined): string {
@@ -1067,6 +1091,9 @@
     if (detail.kind === 'mutator') {
       signalTutorial('mutator-hover');
     }
+    if (detail.detailKey.startsWith('enemy:')) {
+      signalTutorial('rift-enemy-hover');
+    }
   }
 
   function togglePinnedDetail(detail: DetailCard): void {
@@ -1076,7 +1103,7 @@
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
     if (detail.detailKey.startsWith('enemy:')) {
-      signalTutorial(wasPinned ? 'rift-enemy-unlock' : 'rift-enemy-lock');
+      signalTutorial('rift-enemy-hover');
     }
   }
 
@@ -1299,16 +1326,13 @@
   function toggleReplayAutoPlay(): void {
     const nextAutoPlay = !$gameStore.autoPlay;
     gameStore.setAutoPlay(nextAutoPlay);
-    if ($gameStore.tutorialProgress?.step === 'play' && nextAutoPlay) {
-      signalTutorial('play');
-    } else if ($gameStore.tutorialProgress?.step === 'pause-resume') {
-      signalTutorial(nextAutoPlay ? 'resume' : 'pause');
+    if ($gameStore.tutorialProgress?.step === 'play') {
+      signalTutorial(nextAutoPlay ? 'play' : 'pause');
     }
   }
 
   function setReplaySpeed(speedMs: number): void {
     gameStore.setSpeedMs(speedMs);
-    signalTutorial('speed-change');
   }
 
   function zoomReplayIn(): void {
@@ -4544,11 +4568,11 @@
                 style={`--rift-tint:${riftVisual.tint}; --rift-glow:${riftVisual.glow}; --rift-rotation:${riftVisual.rotationDeg}deg;`}
               >
                 <header class="rift-title-line">
-                  <strong class="rift-tier-pill">{formatRiftTierLabel(rift.tier)}</strong>
+                  <strong class="rift-tier-pill" title={riftTierTooltip(rift.tier)}>{formatRiftTierLabel(rift.tier)}</strong>
                   {#if $gameStore.game.gameMode === 'contest'}
                     <span class="control-pill">{getRiftControllerLabel(rift)}</span>
                   {/if}
-                  <span class="reward-pill rift-fit-pill">Fit {rift.saturation}</span>
+                  <span class="reward-pill rift-fit-pill" title={riftFitTooltip(rift.saturation)}>Fit {rift.saturation}</span>
                   {#if rift.mutatorIds.length === 0}
                     <span class="mutator-chip empty rift-mutator-chip">None</span>
                   {:else}
@@ -5914,14 +5938,13 @@
             replayEventLogCollapsed = !replayEventLogCollapsed;
             if (!replayEventLogCollapsed) {
               signalTutorial('event-log-show');
+            } else if ($gameStore.tutorialProgress?.step === 'timeline-event') {
+              showTutorialScenePrompt('Re-open the Event Log to continue.');
             }
           }}
         >
-          <div>
-            <p class="eyebrow">Event Log</p>
-            <strong>{replayEventLogCollapsed ? 'Collapsed' : 'Live Timeline'}</strong>
-          </div>
-          <span>{replayEventLogCollapsed ? 'Show' : 'Hide'}</span>
+          <span class="event-log-tab" class:active={replayEventLogCollapsed}>Overview</span>
+          <span class="event-log-tab" class:active={!replayEventLogCollapsed}>Event Log</span>
         </button>
         {#if replayEventLogCollapsed}
           <section class="panel replay-health-overview ui-debug-target" data-ui-name="Collapsed event log health overview" aria-label="Replay health overview">
@@ -5962,7 +5985,17 @@
                           <div class="replay-health-bar" aria-hidden="true">
                             <span style={`width: ${entry.hpPercent}`}></span>
                           </div>
-                          <div class="replay-initiative-row" title="Units act when initiative reaches 100; when no unit can act, each unit gains initiative equal to Speed.">
+                          <div
+                            class="replay-initiative-row"
+                            title={`${formatFixed(entry.unit.initiative)} / 100 Initiative. Units act when initiative reaches 100; when no unit can act, each unit gains initiative equal to Speed.`}
+                            role="meter"
+                            aria-label={`${entry.unit.troopLabel} initiative ${formatFixed(entry.unit.initiative)} out of 100`}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            aria-valuenow={Math.max(0, Math.min(100, entry.unit.initiative))}
+                            on:mouseenter={(event) => showInitiativeTooltip(entry.unit, event)}
+                            on:mouseleave={clearInitiativeTooltip}
+                          >
                             <div class="replay-health-bar initiative" aria-hidden="true">
                               <span style={`width: ${entry.initiativePercent}`}></span>
                             </div>
@@ -6091,6 +6124,13 @@
   </main>
 {/if}
 
+{#if initiativeTooltip}
+  <div class="initiative-tooltip" style={`left:${initiativeTooltip.x}px; top:${initiativeTooltip.y}px;`} role="tooltip">
+    <strong>{initiativeTooltip.label}</strong>
+    <span>{initiativeTooltip.description}</span>
+  </div>
+{/if}
+
 {#if debugToolsEnabled && !verificationLabMode && designModeEnabled}
   <DesignModePanel
     selectedDesignTargetName={selectedDesignTargetName}
@@ -6117,7 +6157,7 @@
   />
 {/if}
 {#if tutorialScenePrompt}
-  <div class="tutorial-scene-prompt" role="status">Follow the tutorial!</div>
+  <div class="tutorial-scene-prompt" role="status">{tutorialScenePromptMessage}</div>
 {/if}
 
 <style>
@@ -6258,6 +6298,33 @@
     box-shadow: var(--ui-shadow-panel);
     color: var(--ui-color-text);
     font-size: var(--ui-text-small);
+  }
+
+  .initiative-tooltip {
+    position: fixed;
+    z-index: 44;
+    display: grid;
+    gap: 0.18rem;
+    width: min(18rem, calc(100vw - 1rem));
+    padding: 0.5rem 0.62rem;
+    border: 1px solid rgba(214, 146, 54, 0.62);
+    border-radius: 8px;
+    background: rgba(8, 12, 18, 0.96);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+    color: #f5f1e6;
+    font-size: 0.78rem;
+    pointer-events: none;
+    transform: translate(-50%, calc(-100% - 0.45rem));
+  }
+
+  .initiative-tooltip strong {
+    color: #ffcf73;
+    font-size: 0.82rem;
+  }
+
+  .initiative-tooltip span {
+    color: #c7d5e0;
+    line-height: 1.32;
   }
 
   .resource-strip span,
@@ -6480,7 +6547,7 @@
     position: fixed;
     z-index: 43;
     left: 0.75rem;
-    top: 0.75rem;
+    bottom: 0.75rem;
     min-height: 2rem;
     padding: 0.32rem 0.68rem;
     border: 1px solid rgba(237, 197, 111, 0.78);
@@ -6544,6 +6611,21 @@
 
   :global(.ui-debug-target[data-design-tweaked]:not([data-design-selected])) {
     outline-color: rgba(120, 245, 179, 0.65);
+  }
+
+  :global(.tutorial-target-glow) {
+    outline: 2px solid rgba(119, 185, 255, 0.78);
+    outline-offset: 3px;
+    filter: drop-shadow(0 0 7px rgba(103, 179, 255, 0.54));
+  }
+
+  :global(.battle-tutorial-unit-target.tutorial-target-glow) {
+    border-radius: 999px;
+    outline-offset: 5px;
+    box-shadow:
+      inset 0 0 0 1px rgba(126, 198, 255, 0.4),
+      0 0 0 3px rgba(75, 158, 255, 0.16),
+      0 0 18px rgba(91, 170, 255, 0.5);
   }
 
   .left-column,
@@ -10127,18 +10209,50 @@
   }
 
   .event-log-toggle {
-    padding: 0.65rem 0.75rem;
+    --replay-log-panel-bg: #121c29;
+    display: flex;
+    align-items: end;
+    gap: 0.25rem;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .event-log-tab {
+    min-width: 0;
+    padding: 0.55rem 0.78rem 0.48rem;
+    border: 1px solid rgba(89, 105, 126, 0.62);
+    border-bottom-color: rgba(89, 105, 126, 0.28);
+    border-radius: 10px 10px 0 0;
+    background: rgba(12, 16, 24, 0.78);
+    color: #b9c7d4;
+    font-size: 0.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  .event-log-tab.active {
+    padding-top: 0.68rem;
+    background: var(--replay-log-panel-bg);
+    border-color: rgba(107, 137, 168, 0.78);
+    border-bottom-color: var(--replay-log-panel-bg);
+    color: #f0f5fb;
   }
 
   .collapsible-stack {
+    --replay-log-panel-bg: #121c29;
     min-height: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 0.65rem;
+    gap: 0;
+    align-content: start;
   }
 
   .collapsible-stack.collapsed {
-    grid-template-rows: auto;
+    grid-template-rows: auto auto;
   }
 
   .event-log-wrap {
@@ -10148,6 +10262,9 @@
 
   .event-log-wrap :global(.panel) {
     height: 100%;
+    border-top-color: rgba(107, 137, 168, 0.78);
+    border-radius: 0 0 var(--ui-panel-radius) var(--ui-panel-radius);
+    background: var(--replay-log-panel-bg);
   }
 
   .event-log-wrap :global(.log) {
@@ -10163,6 +10280,9 @@
     padding: 0.65rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: start;
+    border-top-color: rgba(107, 137, 168, 0.78);
+    border-radius: 0 0 var(--ui-panel-radius) var(--ui-panel-radius);
+    background: var(--replay-log-panel-bg);
   }
 
   .replay-health-side {

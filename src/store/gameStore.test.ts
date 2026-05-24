@@ -185,6 +185,22 @@ function spendAllEssence(): void {
   }
 }
 
+function assignAllReadyTroopsToRifts(): void {
+  const state = currentStoreState<{
+    game: {
+      troops: Array<{ id: string; recoveryCyclesRemaining: number; assignmentRiftId: string | null }>;
+      openRifts: Array<{ id: string }>;
+    };
+  }>();
+  const readyTroops = state.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
+  readyTroops.forEach((troop, index) => {
+    const riftId = state.game.openRifts[index]?.id;
+    if (riftId) {
+      gameStore.assignTroopToRift(troop.id, riftId);
+    }
+  });
+}
+
 function finishCycleResolutionAnimation(): void {
   gameStore.finishCycleAnimation();
 }
@@ -379,7 +395,9 @@ describe('gameStore progression flow', () => {
     expect(state.systemMessage).toBe('Spend all Essence before ending the cycle.');
 
     spendAllEssence();
+    assignAllReadyTroopsToRifts();
     gameStore.endCycle(true);
+    finishCycleResolutionAnimation();
     state = currentStoreState<{
       game: { cycleNumber: number };
       cycleEndConfirmationPending: boolean;
@@ -411,19 +429,16 @@ describe('gameStore progression flow', () => {
     claimDefaultOpeningTroops();
     spendAllEssence();
 
+    assignAllReadyTroopsToRifts();
     const started = currentStoreState<{
       game: {
-        troops: Array<{ id: string }>;
         openRifts: Array<{ id: string }>;
       };
     }>();
-    const troopId = started.game.troops[0]?.id;
     const riftId = started.game.openRifts[0]?.id;
 
-    expect(troopId).toBeTruthy();
     expect(riftId).toBeTruthy();
 
-    gameStore.assignTroopToRift(troopId!, riftId!);
     gameStore.endCycle(true);
     finishCycleResolutionAnimation();
 
@@ -435,9 +450,9 @@ describe('gameStore progression flow', () => {
     }>();
 
     expect(ended.game.cycleNumber).toBe(2);
-    expect(ended.game.replayIndex).toHaveLength(1);
+    expect(ended.game.replayIndex).toHaveLength(3);
     expect(ended.game.replayIndex[0]?.cycleNumber).toBe(1);
-    expect(ended.game.replayIndex[0]?.riftId).toBe(riftId);
+    expect(ended.game.replayIndex.some((entry) => entry.riftId === riftId)).toBe(true);
   });
 
   it('creates and imports exact battle reports for archived replays', () => {
@@ -445,21 +460,19 @@ describe('gameStore progression flow', () => {
     claimDefaultOpeningTroops();
     spendAllEssence();
 
+    assignAllReadyTroopsToRifts();
     const started = currentStoreState<{
       game: {
-        troops: Array<{ id: string }>;
         openRifts: Array<{ id: string }>;
       };
     }>();
-    const troopId = started.game.troops[0]?.id;
     const riftId = started.game.openRifts[0]?.id;
 
-    gameStore.assignTroopToRift(troopId!, riftId!);
     gameStore.endCycle(true);
     finishCycleResolutionAnimation();
 
     const archived = currentStoreState<{ game: { replayIndex: ReplayIndexEntry[] } }>();
-    const replayId = archived.game.replayIndex[0]?.replayId;
+    const replayId = archived.game.replayIndex.find((entry) => entry.riftId === riftId)?.replayId;
     expect(replayId).toBeTruthy();
 
     const report = gameStore.createBattleReport(replayId!, 2, [
@@ -502,6 +515,7 @@ describe('gameStore progression flow', () => {
     claimDefaultOpeningTroops();
     spendAllEssence();
 
+    assignAllReadyTroopsToRifts();
     const started = currentStoreState<{
       game: {
         troops: Array<{ id: string }>;
@@ -510,7 +524,6 @@ describe('gameStore progression flow', () => {
     }>();
     const troopId = started.game.troops[0]?.id;
     const riftId = started.game.openRifts[0]?.id;
-    gameStore.assignTroopToRift(troopId!, riftId!);
     gameStore.endCycle(true);
     finishCycleResolutionAnimation();
 
@@ -532,7 +545,7 @@ describe('gameStore progression flow', () => {
     if (!decoded.ok) {
       return;
     }
-    expect(decoded.payload.summary.replayPayloadCount).toBe(1);
+    expect(decoded.payload.summary.replayPayloadCount).toBe(3);
     expect(decoded.payload.uiContext.selectedRiftId).toBe(riftId);
 
     gameStore.startNewCampaign(2);

@@ -53,6 +53,7 @@ The campaign phases inside the overworld are:
 - If only troop options or only upgrade options remain, the one-sided draft costs 1 Essence.
 - Claim one troop option and one upgrade option from a revealed draft without spending additional Essence.
 - Troop draft candidates are limited to unlocked factions; defeating an enemy from a locked faction records the combination latently until that faction is later unlocked.
+- Troop draft options that would leave the roster with more troops of one faction or troop type than current discovered Rifts are hidden.
 - Spendable Essence must be used before ending the cycle. If no draft can be revealed, leftover Essence carries over.
 
 ### Rift planning
@@ -60,7 +61,7 @@ The campaign phases inside the overworld are:
 - Inspect Rift enemies, mutators, VP reward, and fit directly from the board without selecting the Rift card itself.
 - Select a troop to inspect stats and assign it to a Rift.
 - Assign or unassign ready troops.
-- End the cycle to resolve all assigned Rift battles.
+- End the cycle to resolve all assigned Rift battles after every ready troop is assigned.
 
 ### Archive and postgame
 
@@ -110,6 +111,6 @@ The implemented overworld UI currently has:
 
 ## Confirmations and warnings
 
-- Ending a cycle with no assignments is allowed, but prompts for confirmation.
+- Ending a cycle is blocked while any ready, non-occupying troop is unassigned.
 - Ending a cycle is blocked while an Essence draft can be revealed or a revealed draft still has unclaimed choices.
-- If both are true, the warning combines both conditions into one confirmation message.
+- Spendable Essence is routed first; assignment blockers are shown after Essence is spent and active drafts are finished.

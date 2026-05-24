@@ -30,15 +30,17 @@ describe('tutorial progress', () => {
   it('rewinds to the previous step with cleared signals', () => {
     const progressed = continueTutorial({
       step: 'initiative',
-      ready: true,
+      ready: false,
       signals: [],
       completed: false,
     });
 
-    expect(progressed.step).toBe('play');
-    expect(rewindTutorial(progressed)).toEqual({
+    expect(progressed.step).toBe('initiative');
+    const advanced = recordTutorialAction(progressed, 'initiative-hover');
+    expect(advanced.step).toBe('play');
+    expect(rewindTutorial(advanced)).toEqual({
       step: 'initiative',
-      ready: true,
+      ready: false,
       signals: [],
       completed: false,
     });
@@ -50,7 +52,7 @@ describe('tutorial progress', () => {
     expect(getTutorialStepSurface('unit-actions')).toBe('replay');
     expect(getTutorialStepSurface('game-start')).toBe('main-menu');
     expect(getTutorialStepSurface('start-contest')).toBe('singleplayer');
-    expect(getTutorialStepSurface('confirm-openers')).toBe('opening');
+    expect(getTutorialStepSurface('opening')).toBe('opening');
     expect(getTutorialStepSurface('choose-draft')).toBe('overworld');
     expect(getTutorialStepCenterMode('choose-draft')).toBe('troops');
     expect(getTutorialStepCenterMode('rift-enemies')).toBe('rifts');

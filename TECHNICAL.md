@@ -157,6 +157,7 @@ Troop offer candidates are limited to:
 
 - native troop combinations for already-unlocked factions
 - Rift-earned off-roster combinations whose faction is already unlocked
+- combinations that keep the roster assignable: after the pick, no owned faction or unit type may have more troops than there are currently discovered Rifts
 
 Rift-earned combinations for locked factions stay latent. They are shown on that faction's scheduled unlock option and can be chosen during that faction's immediate troop-type unlock flow.
 
@@ -338,7 +339,7 @@ The battle engine uses this for side-wide rules that must keep working for futur
 3. Enter `planning` with `2` Essence and generated cycle-1 Rifts
 4. Spend Essence to reveal combined troop and upgrade offer packs as needed; normal troop offers are limited to unlocked factions
 5. Claim one troop and one upgrade choice from each revealed combined draft
-6. Assign any ready troops to discovered Rifts
+6. Assign every ready, non-occupying troop to discovered Rifts
 7. Resolve every discovered Rift that has assigned troops
 8. Apply recovery, archive replay inputs, award VP only on victories, and grant `+2` Essence for the next cycle
 9. Generate the next cycle's Rifts
@@ -348,7 +349,7 @@ The battle engine uses this for side-wide rules that must keep working for futur
 
 Assignment rule: no more than one troop of a given faction can enter the same Rift unless that faction has `United`, and no more than one troop of a given unit type can enter the same Rift.
 
-Important current rule: ending a cycle with no assignments and/or only holding existing Contest Rifts is allowed after confirmation, but spendable Essence is not. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer readiness can be submitted.
+Important current rule: every ready troop that is not already occupying a Contest Rift must be assigned before ending the cycle. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer readiness can be submitted.
 
 ### Recovery
 

@@ -53,6 +53,8 @@ If any bucket cannot be satisfied, that slot falls back to a random unowned troo
 
 Generated offers persist in save data until they are claimed or the cycle advances.
 
+Troop options that would make the current roster impossible to fully assign are filtered out. In practice, a draft option is hidden if taking it would leave the player with more troops of one faction or one troop type than there are currently discovered Rifts.
+
 Offer candidate pool:
 
 - native troop combinations for unlocked factions only

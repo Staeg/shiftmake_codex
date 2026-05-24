@@ -83,6 +83,7 @@ Current Rift assignment restrictions:
 
 - a troop cannot be assigned while recovering
 - a troop can only be assigned to one Rift at a time
+- every ready troop that is not already occupying a Contest Rift must be assigned before the cycle can end
 - no more than one troop from the same faction can enter the same Rift unless that faction has the `United` overworld effect
 - no more than one troop of the same troop type can enter the same Rift
 

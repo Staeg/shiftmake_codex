@@ -22,10 +22,9 @@ export type TutorialAction =
   | 'unit-lock'
   | 'unit-unlock'
   | 'speed-hover'
+  | 'initiative-hover'
   | 'play'
   | 'pause'
-  | 'resume'
-  | 'speed-change'
   | 'event-log-show'
   | 'event-select'
   | 'step-next'
@@ -48,8 +47,7 @@ export type TutorialAction =
   | 'draft-troop'
   | 'draft-upgrade'
   | 'rifts-view'
-  | 'rift-enemy-lock'
-  | 'rift-enemy-unlock'
+  | 'rift-enemy-hover'
   | 'mutator-hover'
   | 'assign-troop'
   | 'end-cycle'
@@ -65,25 +63,14 @@ export type TutorialStepId =
   | 'speed'
   | 'initiative'
   | 'play'
-  | 'overview'
-  | 'pause-resume'
-  | 'speed-change'
   | 'timeline-show'
   | 'timeline-event'
-  | 'manual-steps'
   | 'unit-actions'
-  | 'engagement'
-  | 'roles'
   | 'ability'
   | 'finish-replay'
   | 'game-start'
   | 'start-contest'
   | 'opening'
-  | 'faction-toggle'
-  | 'future-toggle'
-  | 'starter'
-  | 'confirm-openers'
-  | 'begin'
   | 'essence'
   | 'reveal-draft'
   | 'choose-draft'
@@ -121,25 +108,14 @@ const STEP_ORDER: TutorialStepId[] = [
   'speed',
   'initiative',
   'play',
-  'overview',
-  'pause-resume',
-  'speed-change',
   'timeline-show',
   'timeline-event',
-  'manual-steps',
   'unit-actions',
-  'engagement',
-  'roles',
   'ability',
   'finish-replay',
   'game-start',
   'start-contest',
   'opening',
-  'faction-toggle',
-  'future-toggle',
-  'starter',
-  'confirm-openers',
-  'begin',
   'essence',
   'reveal-draft',
   'choose-draft',
@@ -156,11 +132,6 @@ const STEP_ORDER: TutorialStepId[] = [
 
 const CONTINUE_STEPS = new Set<TutorialStepId>([
   'battle-layout',
-  'initiative',
-  'overview',
-  'engagement',
-  'roles',
-  'opening',
   'contest-results',
   'complete',
 ]);
@@ -172,27 +143,14 @@ const REPLAY_STEPS = new Set<TutorialStepId>([
   'speed',
   'initiative',
   'play',
-  'overview',
-  'pause-resume',
-  'speed-change',
   'timeline-show',
   'timeline-event',
-  'manual-steps',
   'unit-actions',
-  'engagement',
-  'roles',
   'ability',
   'finish-replay',
 ]);
 
-const OPENING_STEPS = new Set<TutorialStepId>([
-  'opening',
-  'faction-toggle',
-  'future-toggle',
-  'starter',
-  'confirm-openers',
-  'begin',
-]);
+const OPENING_STEPS = new Set<TutorialStepId>(['opening']);
 
 const TROOPS_VIEW_STEPS = new Set<TutorialStepId>(['reveal-draft', 'choose-draft']);
 
@@ -332,18 +290,14 @@ export function recordTutorialAction(progress: TutorialProgress, action: Tutoria
       return actionSatisfied(next, 'unit-lock', 'unit-unlock') ? advance(next) : next;
     case 'speed':
       return action === 'speed-hover' ? advance(next) : next;
+    case 'initiative':
+      return action === 'initiative-hover' ? advance(next) : next;
     case 'play':
-      return action === 'play' ? advance(next) : next;
-    case 'pause-resume':
-      return actionSatisfied(next, 'pause', 'resume') ? advance(next) : next;
-    case 'speed-change':
-      return action === 'speed-change' ? advance(next) : next;
+      return actionSatisfied(next, 'play', 'pause') ? advance(next) : next;
     case 'timeline-show':
       return action === 'event-log-show' ? advance(next) : next;
     case 'timeline-event':
       return action === 'event-select' ? advance(next) : next;
-    case 'manual-steps':
-      return actionSatisfied(next, 'step-next', 'step-previous') ? advance(next) : next;
     case 'unit-actions':
       return actionSatisfied(next, 'unit-next-action', 'unit-previous-action') ? advance(next) : next;
     case 'ability':
@@ -354,15 +308,7 @@ export function recordTutorialAction(progress: TutorialProgress, action: Tutoria
       return action === 'singleplayer' ? advance(next) : next;
     case 'start-contest':
       return action === 'start-contest' ? advance(next) : next;
-    case 'faction-toggle':
-      return actionSatisfied(next, 'faction-select', 'faction-deselect') ? advance(next) : next;
-    case 'future-toggle':
-      return actionSatisfied(next, 'future-select', 'future-deselect') ? advance(next) : next;
-    case 'starter':
-      return action === 'starter-pending' ? advance(next) : next;
-    case 'confirm-openers':
-      return action === 'opening-confirmed' ? advance(next) : next;
-    case 'begin':
+    case 'opening':
       return action === 'begin' ? advance(next) : next;
     case 'essence':
       return action === 'essence-view' ? advance(next) : next;
@@ -373,7 +319,7 @@ export function recordTutorialAction(progress: TutorialProgress, action: Tutoria
     case 'return-rifts':
       return action === 'rifts-view' ? advance(next) : next;
     case 'rift-enemies':
-      return actionSatisfied(next, 'rift-enemy-lock', 'rift-enemy-unlock') ? advance(next) : next;
+      return action === 'rift-enemy-hover' ? advance(next) : next;
     case 'modifiers':
       return action === 'mutator-hover' ? advance(next) : next;
     case 'assign-rift':

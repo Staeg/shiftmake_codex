@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import type { TutorialProgress, TutorialStepId } from '../store/tutorial';
 
   export let progress: TutorialProgress;
@@ -62,35 +62,16 @@
     initiative: {
       title: 'Initiative',
       body: ['Each Unit starts battle with a small random amount of initiative. Then a usually invisible mechanism called Beats occur, adding the speed of each Unit to its Initiative, until any Unit has 100 or more. Then all Units with 100 or more Initiative take a turn in random order. Then Beats resume.'],
+      task: "Hover a Unit's Initiative bar.",
       placement: 'replay-top',
       targets: ['.replay-initiative-row'],
     },
     play: {
       title: 'Playback',
       body: ['The replay is set to 1x for this step.'],
-      task: 'Click Play.',
+      task: 'Click Play, then Pause.',
       placement: 'replay-low',
       targets: ['[data-tutorial-target="replay-play"]'],
-    },
-    overview: {
-      title: 'Health Overview',
-      body: ['This panel shows each Unit health bar and its Initiative bar below the health.'],
-      placement: 'replay-low',
-      targets: ['[data-ui-name="Collapsed event log health overview"]'],
-    },
-    'pause-resume': {
-      title: 'Pause and Resume',
-      body: ['You can control the playback.'],
-      task: 'Pause the replay, then resume it.',
-      placement: 'replay-low',
-      targets: ['[data-tutorial-target="replay-play"]'],
-    },
-    'speed-change': {
-      title: 'Replay Speed',
-      body: ['Replay speed changes automatic playback rate. Default playback rate is 64x.'],
-      task: 'Choose a different speed.',
-      placement: 'replay-low',
-      targets: ['[data-tutorial-target="replay-speed"]'],
     },
     'timeline-show': {
       title: 'Live Timeline',
@@ -107,13 +88,6 @@
       targets: ['.event-log-wrap button[data-step="100"]'],
       fallbackTargets: ['[data-ui-name="Toggle event log"]'],
     },
-    'manual-steps': {
-      title: 'Manual Replay',
-      body: ['Step controls move through replay events one by one.'],
-      task: 'Use Next Step and Previous Step.',
-      placement: 'replay-low',
-      targets: ['[data-tutorial-target="replay-next-step"]', '[data-tutorial-target="replay-previous-step"]'],
-    },
     'unit-actions': {
       title: 'Unit Actions',
       body: ['While having selected a Unit, you can see the next and previous time its Initiative had reached 100 and it took a turn.'],
@@ -124,23 +98,6 @@
         '[data-tutorial-target="unit-previous-action"]',
         '[data-tutorial-target="battlefield-unit"]',
       ],
-    },
-    engagement: {
-      title: 'Engagement',
-      body: ['Engagement begins when a Unit enters melee with an enemy who is not yet bogged down, usually by moving into the same hex.'],
-      placement: 'replay-top',
-      targets: ['[data-ui-name="Replay focus panel"]'],
-    },
-    roles: {
-      title: 'Roles',
-      body: [
-        'Frontline Units engage as many enemies as possible and hold ground.',
-        'Chaff Units seek access to enemy backline by running past saturated enemy frontlines.',
-        'Backline Units attack at range and preserve distance when possible.',
-      ],
-      placement: 'replay-top',
-      targets: ['.focus-panel .inspect-chip', '[data-ui-name="Replay focus panel"]'],
-      preferHigher: true,
     },
     ability: {
       title: 'Abilities',
@@ -175,48 +132,17 @@
     },
     opening: {
       title: 'Opening Selection',
-      body: ['You start by picking two Faction and Troop Type combinations. Each shown Faction includes one predetermined starter Troop. Future Unlock troops are previews for options you might find later.'],
+      body: [
+        'Troops are Faction + Troop Type packages: the Faction changes stats and abilities, while the Troop Type defines the battlefield role.',
+        'Pick two different packages to begin your Contest roster.',
+      ],
+      task: 'Select two Faction + Troop packages, then click Begin Contest.',
       placement: 'opening-top',
-      targets: ['.draft-grid'],
-    },
-    'faction-toggle': {
-      title: 'Faction Selection',
-      body: ['Factions modify the stats of all their Troops. Take a look at the bonuses and minuses.'],
-      task: 'Select a Faction, then deselect it.',
-      placement: 'opening-top',
-      targets: ['.opening-card-select-button'],
-    },
-    'future-toggle': {
-      title: 'Future Unlocks',
-      body: ['Future Unlock troops can be inspected before they are available.'],
-      task: 'Select a Future Unlock troop preview, then deselect it.',
-      placement: 'opening-top',
-      targets: ['.opening-future-tile'],
-    },
-    starter: {
-      title: 'Included Starter',
-      body: ['Browse the offered Faction and Troop combinations and select one.'],
-      task: 'Select an Included Starter troop and click the Confirm action at the bottom right.',
-      placement: 'opening-top',
-      targets: ['.opening-starter-tile', '.opening-confirm-troop-button'],
-    },
-    'confirm-openers': {
-      title: 'Two Starters',
-      body: ['Now select another one.'],
-      task: 'Confirm two opening Troops.',
-      placement: 'opening-top',
-      targets: ['.opening-confirm-troop-button', '.opening-starter-tile'],
-    },
-    begin: {
-      title: 'Begin',
-      body: ['The opening is ready after two starter Troops are confirmed.'],
-      task: 'Click Begin.',
-      placement: 'opening-top',
-      targets: ['[data-ui-name="Begin campaign button"]'],
+      targets: ['.opening-starter-tile', '.opening-confirm-troop-button', '[data-ui-name="Begin campaign button"]'],
     },
     essence: {
       title: 'Essence',
-      body: ['Essence is the primary progress resource. It is usually spent in batches of 2, to unlock both a new Troop and an Upgrade.'],
+      body: ['Essence is the primary progress resource. Spending Essence is necessary to grow your roster; it usually reveals a linked Troop and Upgrade draft for 2 Essence.'],
       task: 'Click Essence.',
       placement: 'overworld-left',
       targets: ['[data-tutorial-target="essence-counter"]'],
@@ -254,7 +180,7 @@
     'rift-enemies': {
       title: 'Rift Troops',
       body: ['Rifts show the neutral Guardians you must beat before you can establish control.'],
-      task: 'Lock an enemy Troop, then unlock it.',
+      task: 'Hover an enemy Troop.',
       placement: 'overworld-left',
       targets: ['[data-tutorial-target="rift-enemy"]'],
     },
@@ -277,7 +203,7 @@
     'end-cycle': {
       title: 'End Cycle',
       body: [
-        'Assigning Troops is usually pure upside, but it is not mandatory.',
+        'Every ready Troop must be assigned to a Rift before the Cycle can end.',
         'In Contest, held Rifts award Victory Points each Cycle equal to their Tier. All of these are Tier 1 Rifts.',
       ],
       task: 'Click End Cycle when ready.',
@@ -323,14 +249,12 @@
 
   type Rect = { left: number; right: number; top: number; bottom: number; width: number; height: number };
   type Point = { x: number; y: number };
-  type Edge = 'left' | 'right' | 'top' | 'bottom';
-  type EdgePoint = Point & { edge: Edge };
-  type Arrow = { d: string };
+  const TUTORIAL_HIGHLIGHT_CLASS = 'tutorial-target-glow';
 
   let popupEl: HTMLElement;
   let popupStyle = '';
   let popupBox: Rect | null = null;
-  let targetRects: Rect[] = [];
+  let highlightedElements: Element[] = [];
   let mounted = false;
   let anchorFrame: number | null = null;
   let anchorStep: TutorialStepId | null = null;
@@ -358,7 +282,7 @@
     return Math.hypot(ac.x - bc.x, ac.y - bc.y);
   }
 
-  function visibleTargetGroups(): Rect[][] {
+  function visibleTargetElementGroups(): Element[][] {
     if (typeof document === 'undefined') {
       return [];
     }
@@ -377,9 +301,27 @@
           seen.add(element);
           return true;
         })
-        .map(rectOf)
-        .filter((rect) => rect.width > 4 && rect.height > 4 && rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth),
+        .filter((element) => {
+          const rect = rectOf(element);
+          return rect.width > 4 && rect.height > 4 && rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
+        }),
     );
+  }
+
+  function clearTutorialHighlights(): void {
+    highlightedElements.forEach((element) => element.classList.remove(TUTORIAL_HIGHLIGHT_CLASS));
+    highlightedElements = [];
+  }
+
+  function setTutorialHighlights(elements: Element[]): void {
+    const next = [...new Set(elements)];
+    highlightedElements
+      .filter((element) => !next.includes(element))
+      .forEach((element) => element.classList.remove(TUTORIAL_HIGHLIGHT_CLASS));
+    next
+      .filter((element) => !highlightedElements.includes(element))
+      .forEach((element) => element.classList.add(TUTORIAL_HIGHLIGHT_CLASS));
+    highlightedElements = next;
   }
 
   function clamp(value: number, min: number, max: number): number {
@@ -458,11 +400,12 @@
       return;
     }
     await tick();
-    const visibleGroups = visibleTargetGroups();
+    const visibleElementGroups = visibleTargetElementGroups();
+    const visibleGroups = visibleElementGroups.map((group) => group.map(rectOf));
     const visible = visibleGroups.flat();
     const primaryGroup = visibleGroups.find((group) => group.length > 0);
     if (!popupEl || visible.length === 0 || !primaryGroup) {
-      targetRects = [];
+      clearTutorialHighlights();
       popupBox = null;
       popupStyle = '';
       return;
@@ -490,21 +433,14 @@
     anchorStep = progress.step;
     lastPrimaryCenter = primaryCenter;
     const targetIsClear = (target: Rect) => !popupBox || overlapArea(target, popupBox) === 0;
-    const nearestPerGroup = visibleGroups
+    const nearestPerGroupElements = visibleElementGroups
       .filter((group) => group.length > 0)
       .map((group) => {
-        const nearest = [...group].sort((a, b) => distance(a, primary) - distance(b, primary));
-        return nearest.find(targetIsClear) ?? nearest[0]!;
-      });
-    const minimumTargets = Math.max(3, nearestPerGroup.length);
-    targetRects = [...nearestPerGroup];
-    [...visible]
-      .sort((a, b) => distance(a, primary) - distance(b, primary))
-      .forEach((target) => {
-        if (targetRects.length < minimumTargets && targetIsClear(target) && !targetRects.includes(target)) {
-          targetRects = [...targetRects, target];
-        }
-      });
+        const nearest = [...group].sort((a, b) => distance(rectOf(a), primary) - distance(rectOf(b), primary));
+        return nearest.find((target) => targetIsClear(rectOf(target))) ?? nearest[0]!;
+    });
+    const selectedElements = [...nearestPerGroupElements];
+    setTutorialHighlights(selectedElements);
     popupStyle = `left:${popupBox.left}px; right:auto; top:${popupBox.top}px; bottom:auto; transform:none;`;
   }
 
@@ -520,136 +456,8 @@
 
   function mutationBelongsToTutorial(mutation: MutationRecord): boolean {
     const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
-    return !!target?.closest('.tutorial-popup, .tutorial-arrows');
+    return !!target?.closest('.tutorial-popup') || target?.classList.contains(TUTORIAL_HIGHLIGHT_CLASS);
   }
-
-  function arrowStart(target: Rect): EdgePoint {
-    if (!popupBox) {
-      return { x: 0, y: 0, edge: 'left' };
-    }
-    return nearestEdgePoint(popupBox, center(target));
-  }
-
-  function nearestEdgePoint(rect: Rect, point: Point): EdgePoint {
-    const clamped = {
-      x: clamp(point.x, rect.left, rect.right),
-      y: clamp(point.y, rect.top, rect.bottom),
-    };
-    if (clamped.x !== point.x || clamped.y !== point.y) {
-      const horizontalEdge = clamped.x === rect.left ? 'left' : clamped.x === rect.right ? 'right' : null;
-      const verticalEdge = clamped.y === rect.top ? 'top' : clamped.y === rect.bottom ? 'bottom' : null;
-      if (horizontalEdge && verticalEdge) {
-        const horizontalDistance = Math.abs(point.x - clamped.x);
-        const verticalDistance = Math.abs(point.y - clamped.y);
-        return { ...clamped, edge: horizontalDistance >= verticalDistance ? horizontalEdge : verticalEdge };
-      }
-      return { ...clamped, edge: horizontalEdge ?? verticalEdge ?? 'left' };
-    }
-
-    const edges = [
-      { distance: Math.abs(point.x - rect.left), x: rect.left, y: point.y, edge: 'left' as const },
-      { distance: Math.abs(point.x - rect.right), x: rect.right, y: point.y, edge: 'right' as const },
-      { distance: Math.abs(point.y - rect.top), x: point.x, y: rect.top, edge: 'top' as const },
-      { distance: Math.abs(point.y - rect.bottom), x: point.x, y: rect.bottom, edge: 'bottom' as const },
-    ];
-    edges.sort((a, b) => a.distance - b.distance);
-    return edges[0]!;
-  }
-
-  function edgeAxis(edge: Edge): 'x' | 'y' {
-    return edge === 'left' || edge === 'right' ? 'y' : 'x';
-  }
-
-  function edgeRange(rect: Rect, edge: Edge): { min: number; max: number } {
-    const padding = 14;
-    return edgeAxis(edge) === 'y'
-      ? { min: rect.top + padding, max: rect.bottom - padding }
-      : { min: rect.left + padding, max: rect.right - padding };
-  }
-
-  function spreadEdgeValues(points: EdgePoint[], rectForPoint: (point: EdgePoint) => Rect, gap: number): EdgePoint[] {
-    const byEdge = new Map<Edge, EdgePoint[]>();
-    points.forEach((point) => byEdge.set(point.edge, [...(byEdge.get(point.edge) ?? []), point]));
-
-    byEdge.forEach((group, edge) => {
-      const axis = edgeAxis(edge);
-      const ordered = [...group].sort((a, b) => a[axis] - b[axis]);
-      ordered.forEach((point, index) => {
-        const { min, max } = edgeRange(rectForPoint(point), edge);
-        point[axis] = clamp(point[axis], min, max);
-        if (index > 0) {
-          point[axis] = Math.max(point[axis], ordered[index - 1]![axis] + gap);
-        }
-      });
-      for (let index = ordered.length - 2; index >= 0; index -= 1) {
-        const point = ordered[index]!;
-        const { min, max } = edgeRange(rectForPoint(point), edge);
-        point[axis] = clamp(Math.min(point[axis], ordered[index + 1]![axis] - gap), min, max);
-      }
-      ordered.forEach((point) => {
-        const { min, max } = edgeRange(rectForPoint(point), edge);
-        point[axis] = clamp(point[axis], min, max);
-      });
-    });
-
-    return points;
-  }
-
-  function routeArrow(start: EdgePoint, end: EdgePoint): string {
-    const horizontalOpposites =
-      (start.edge === 'left' && end.edge === 'right') || (start.edge === 'right' && end.edge === 'left');
-    if (horizontalOpposites) {
-      const laneX = (start.x + end.x) / 2;
-      return `M ${start.x} ${start.y} L ${laneX} ${start.y} L ${laneX} ${end.y} L ${end.x} ${end.y}`;
-    }
-
-    const verticalOpposites =
-      (start.edge === 'top' && end.edge === 'bottom') || (start.edge === 'bottom' && end.edge === 'top');
-    if (verticalOpposites) {
-      const laneY = (start.y + end.y) / 2;
-      return `M ${start.x} ${start.y} L ${start.x} ${laneY} L ${end.x} ${laneY} L ${end.x} ${end.y}`;
-    }
-
-    const stub = 16;
-    const startOut =
-      start.edge === 'left'
-        ? { x: start.x - stub, y: start.y }
-        : start.edge === 'right'
-          ? { x: start.x + stub, y: start.y }
-          : start.edge === 'top'
-            ? { x: start.x, y: start.y - stub }
-            : { x: start.x, y: start.y + stub };
-    const endOut =
-      end.edge === 'left'
-        ? { x: end.x - stub, y: end.y }
-        : end.edge === 'right'
-          ? { x: end.x + stub, y: end.y }
-          : end.edge === 'top'
-            ? { x: end.x, y: end.y - stub }
-            : { x: end.x, y: end.y + stub };
-
-    const midpoint =
-      start.edge === 'left' || start.edge === 'right'
-        ? { x: startOut.x, y: endOut.y }
-        : { x: endOut.x, y: startOut.y };
-
-    return `M ${start.x} ${start.y} L ${startOut.x} ${startOut.y} L ${midpoint.x} ${midpoint.y} L ${endOut.x} ${endOut.y} L ${end.x} ${end.y}`;
-  }
-
-  $: arrows = (() => {
-    const pairs = targetRects.map((target) => ({ target, start: arrowStart(target), end: nearestEdgePoint(target, arrowStart(target)) }));
-    const starts = spreadEdgeValues(
-      pairs.map((pair) => pair.start),
-      () => popupBox ?? { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 },
-      28,
-    );
-    const ends = spreadEdgeValues(
-      pairs.map((pair) => pair.end),
-      (point) => pairs.find((pair) => pair.end === point)?.target ?? { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 },
-      16,
-    );
-    return pairs.map((pair, index): Arrow => ({ d: routeArrow(starts[index]!, ends[index]!) }));
-  })();
 
   $: if (copy && mounted) {
     if (anchorStep !== progress.step) {
@@ -677,6 +485,7 @@
     window.addEventListener('scroll', handleViewportChange, true);
     return () => {
       mounted = false;
+      clearTutorialHighlights();
       if (anchorFrame !== null) {
         cancelAnimationFrame(anchorFrame);
         anchorFrame = null;
@@ -686,20 +495,11 @@
       window.removeEventListener('scroll', handleViewportChange, true);
     };
   });
-</script>
 
-{#if arrows.length > 0}
-  <svg class="tutorial-arrows" aria-hidden="true">
-    <defs>
-      <marker id="tutorial-arrowhead" markerWidth="8" markerHeight="8" refX="6.6" refY="3.5" orient="auto">
-        <path d="M0,0 L7,3.5 L0,7 Z"></path>
-      </marker>
-    </defs>
-    {#each arrows as arrow}
-      <path d={arrow.d} marker-end="url(#tutorial-arrowhead)"></path>
-    {/each}
-  </svg>
-{/if}
+  onDestroy(() => {
+    clearTutorialHighlights();
+  });
+</script>
 
 <aside bind:this={popupEl} style={popupStyle} class={`tutorial-popup ${copy.placement}`} aria-live="polite" data-ui-name={`Tutorial step ${progress.step}`}>
   <button class="tutorial-back" type="button" aria-label="Previous tutorial step" on:click={onBack}>&lt;-</button>
@@ -721,29 +521,6 @@
 </aside>
 
 <style>
-  .tutorial-arrows {
-    position: fixed;
-    inset: 0;
-    z-index: 29;
-    width: 100vw;
-    height: 100vh;
-    overflow: visible;
-    pointer-events: none;
-  }
-
-  .tutorial-arrows > path {
-    fill: none;
-    stroke: #edc56f;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
-  }
-
-  .tutorial-arrows marker path {
-    fill: #edc56f;
-  }
-
   .tutorial-popup {
     position: fixed;
     z-index: 30;

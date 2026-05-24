@@ -263,11 +263,21 @@ function chooseFactionUpgradeIds(state: GameState, factionId: FactionId, count: 
 
 function chooseTroopUnlockIdsForFaction(state: GameState, factionId: FactionId, count: number, seed: number): TroopUnlockId[] {
   const rng = createRng(seed);
+  let pseudoState = state;
   const available = getFactionTroopTypeUnlockOptions(state, factionId);
   const selected: TroopUnlockId[] = [];
   while (selected.length < count && available.length > 0) {
-    const picked = rng.pick(available);
+    const fitting = available.filter((troopUnlockId) => rosterCanFitOpenRifts(pseudoState, troopUnlockId));
+    if (fitting.length === 0) {
+      break;
+    }
+    const picked = rng.pick(fitting);
     selected.push(picked);
+    const [pickedFactionId, pickedUnitTypeId] = splitTroopUnlockId(picked);
+    pseudoState = {
+      ...pseudoState,
+      troops: [...pseudoState.troops, createTroopInstance(pickedFactionId, pickedUnitTypeId)],
+    };
     available.splice(available.indexOf(picked), 1);
   }
   return selected;
@@ -322,7 +332,9 @@ function buildTroopTypeUnlockOffer(state: GameState, cycleNumber: number, factio
   if (remainingChoices <= 0) {
     return null;
   }
-  const optionTroopUnlockIds = getFactionTroopTypeUnlockOptions(state, factionId);
+  const optionTroopUnlockIds = getFactionTroopTypeUnlockOptions(state, factionId).filter((troopUnlockId) =>
+    rosterCanFitOpenRifts(state, troopUnlockId),
+  );
   if (optionTroopUnlockIds.length === 0) {
     return null;
   }
@@ -354,6 +366,35 @@ function applyScheduledCycleUnlock(state: GameState): GameState {
 
 function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeId] {
   return troopUnlockId.split('/') as [FactionId, UnitTypeId];
+}
+
+function countAvailableAssignmentRifts(state: Pick<GameState, 'openRifts'>): number {
+  return state.openRifts.filter((rift) => rift.state === 'discovered').length;
+}
+
+function rosterCanFitOpenRifts(
+  state: Pick<GameState, 'troops' | 'openRifts'>,
+  extraTroopUnlockId: TroopUnlockId | null = null,
+): boolean {
+  const riftCount = countAvailableAssignmentRifts(state);
+  if (riftCount <= 0) {
+    return false;
+  }
+
+  const factionCounts = new Map<FactionId, number>();
+  const unitTypeCounts = new Map<UnitTypeId, number>();
+  state.troops.forEach((troop) => {
+    factionCounts.set(troop.factionId, (factionCounts.get(troop.factionId) ?? 0) + 1);
+    unitTypeCounts.set(troop.unitTypeId, (unitTypeCounts.get(troop.unitTypeId) ?? 0) + 1);
+  });
+
+  if (extraTroopUnlockId) {
+    const [factionId, unitTypeId] = splitTroopUnlockId(extraTroopUnlockId);
+    factionCounts.set(factionId, (factionCounts.get(factionId) ?? 0) + 1);
+    unitTypeCounts.set(unitTypeId, (unitTypeCounts.get(unitTypeId) ?? 0) + 1);
+  }
+
+  return [...factionCounts.values(), ...unitTypeCounts.values()].every((count) => count <= riftCount);
 }
 
 function getContestAi(state: GameState): ContestPlayerState {
@@ -486,7 +527,9 @@ function pickUnselectedOption(rng: ReturnType<typeof createRng>, bucket: string[
 }
 
 function buildTroopOffer(state: GameState): TroopDraftOffer | null {
-  const availableTroopUnlockIds = getAvailableTroopUnlockIds(state);
+  const availableTroopUnlockIds = getAvailableTroopUnlockIds(state).filter((troopUnlockId) =>
+    rosterCanFitOpenRifts(state, troopUnlockId),
+  );
   if (availableTroopUnlockIds.length === 0) {
     return null;
   }
@@ -581,7 +624,7 @@ export function getEssenceDraftCost(state: GameState): number | null {
     return null;
   }
 
-  const hasTroopOptions = getAvailableTroopUnlockIds(state).length > 0;
+  const hasTroopOptions = getAvailableTroopUnlockIds(state).some((troopUnlockId) => rosterCanFitOpenRifts(state, troopUnlockId));
   const hasUpgradeOptions = getAvailableUpgradeIds(state).length > 0;
   if (hasTroopOptions && hasUpgradeOptions) {
     return 2;
@@ -769,7 +812,8 @@ export function claimTroopOffer(state: GameState, troopUnlockId: TroopUnlockId):
   if (
     !state.activeTroopOffer ||
     !state.activeTroopOffer.optionTroopUnlockIds.includes(troopUnlockId) ||
-    !getAvailableTroopUnlockIds(state).includes(troopUnlockId)
+    !getAvailableTroopUnlockIds(state).includes(troopUnlockId) ||
+    !rosterCanFitOpenRifts(state, troopUnlockId)
   ) {
     return state;
   }
@@ -803,18 +847,15 @@ export function validateAssignments(state: GameState): ValidationResult {
   const assignedTroops = state.troops.filter((troop) => troop.assignmentRiftId !== null && !occupiedHumanTroopIds.has(troop.id));
   const readyTroops = state.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
 
-  if (assignedTroops.length === 0) {
+  if (assignedTroops.length === 0 && readyTroops.length > 0 && occupiedHumanTroopIds.size === 0) {
     issues.push({
-      kind: occupiedHumanTroopIds.size > 0 ? 'holding_only_no_new_attack' : 'no_troops_assigned',
-      message:
-        occupiedHumanTroopIds.size > 0
-          ? 'Your holding troops will stay on their Rifts, but no ready troop is assigned to a new attack.'
-          : 'Assign at least one troop before ending the cycle.',
+      kind: 'no_troops_assigned',
+      message: 'Assign every ready troop before ending the cycle.',
     });
   } else if (readyTroops.length > 0) {
     issues.push({
       kind: 'idle_troops_remaining',
-      message: `${readyTroops.length} ready ${readyTroops.length === 1 ? 'troop is' : 'troops are'} still idle.`,
+      message: `${readyTroops.length} ready ${readyTroops.length === 1 ? 'troop is' : 'troops are'} still idle. Assign every ready troop before ending the cycle.`,
     });
   }
 
@@ -1002,7 +1043,7 @@ function buildProgressPseudoState(state: GameState, progress: ContestPlayerState
     activeTroopTypeUnlockOffer: progress.activeTroopTypeUnlockOffer,
     troopOfferRolls: progress.troopOfferRolls,
     upgradeOfferRolls: progress.upgradeOfferRolls,
-    openRifts: [],
+    openRifts: state.openRifts,
     replayIndex: [],
     contest: undefined,
   };

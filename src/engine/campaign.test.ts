@@ -453,7 +453,7 @@ describe('campaign progression', () => {
     };
 
     expect(validateAssignments(heldOnly).issues[0]).toMatchObject({
-      kind: 'holding_only_no_new_attack',
+      kind: 'idle_troops_remaining',
     });
   });
 

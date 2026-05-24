@@ -13,6 +13,8 @@ import {
   getEssenceDraftCost,
   resolveAssignedRifts,
   revealEssenceDraft,
+  deserializeGameState,
+  serializeGameState,
   startOpeningCampaign,
   startNewGame,
   unclaimOpeningTroop,
@@ -127,6 +129,7 @@ interface ReplayWriteResult {
 }
 
 const REPLAY_IDENTITY_KEY = (replayId: string): string => replayId;
+const TUTORIAL_CYCLE_REWIND_KEY = 'shiftmake:tutorial:cycle-rewind:v1';
 
 interface MultiplayerSession {
   connected: boolean;
@@ -403,10 +406,29 @@ function writeTutorialFixture(): ReturnType<typeof buildTutorialReplayFixture> {
   const fixture = buildTutorialReplayFixture();
   clearSaveSlot(localStorage, TUTORIAL_SAVE_ID);
   saveToSlot(localStorage, TUTORIAL_SAVE_ID, fixture.game);
+  localStorage.removeItem(TUTORIAL_CYCLE_REWIND_KEY);
   fixture.replayWrites.forEach((write) => {
     writeSlotReplay(localStorage, TUTORIAL_SAVE_ID, write.replayId, JSON.stringify(write.replay));
   });
   return fixture;
+}
+
+function writeTutorialCycleRewindGame(game: GameState): void {
+  localStorage.setItem(TUTORIAL_CYCLE_REWIND_KEY, JSON.stringify(serializeGameState(game)));
+}
+
+function readTutorialCycleRewindGame(): GameState | null {
+  const raw = localStorage.getItem(TUTORIAL_CYCLE_REWIND_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    const loaded = deserializeGameState(parsed);
+    return loaded.ok && loaded.state ? loaded.state : null;
+  } catch {
+    return null;
+  }
 }
 
 function slotReplayStorageKey(slotId: SaveSlotId): (replayId: string) => string {
@@ -415,7 +437,7 @@ function slotReplayStorageKey(slotId: SaveSlotId): (replayId: string) => string 
 
 function blockingValidationMessages(state: GameState): string[] {
   return validateAssignments(state).issues
-    .filter((issue) => issue.kind !== 'no_troops_assigned' && issue.kind !== 'holding_only_no_new_attack' && issue.kind !== 'idle_troops_remaining')
+    .filter((issue) => issue.kind !== 'holding_only_no_new_attack')
     .map((issue) => issue.message);
 }
 
@@ -953,9 +975,55 @@ export const gameStore = (() => {
       );
     },
     previousTutorialStep() {
-      update((state) =>
-        state.tutorialProgress ? persistTutorialProgress(state, rewindTutorial(state.tutorialProgress)) : state,
-      );
+      update((state) => {
+        if (!state.tutorialProgress) {
+          return state;
+        }
+
+        const progress = rewindTutorial(state.tutorialProgress);
+        let nextState = persistTutorialProgress(state, progress);
+        if (state.activeSlotId === TUTORIAL_SAVE_ID && progress.step === 'opening' && state.game.phase !== 'opening_unlock') {
+          const game = buildTutorialOpeningGame();
+          saveToSlot(localStorage, TUTORIAL_SAVE_ID, game);
+          nextState = {
+            ...nextState,
+            screen: 'overworld',
+            game,
+            loadedReplay: null,
+            loadedReplayPayload: null,
+            loadedBattleReport: null,
+            currentStep: -1,
+            selectedEvent: null,
+            autoPlay: false,
+            centerMode: 'rifts',
+            systemMessage: null,
+            cycleEndConfirmationPending: false,
+            cycleAnimation: null,
+          };
+        }
+        if (state.activeSlotId === TUTORIAL_SAVE_ID && progress.step === 'end-cycle') {
+          const game = state.cycleAnimation?.sourceGame ?? readTutorialCycleRewindGame();
+          if (game) {
+            saveToSlot(localStorage, TUTORIAL_SAVE_ID, game);
+            nextState = {
+              ...nextState,
+              screen: 'overworld',
+              game,
+              loadedReplay: null,
+              loadedReplayPayload: null,
+              loadedBattleReport: null,
+              currentStep: -1,
+              selectedEvent: null,
+              autoPlay: false,
+              centerMode: 'rifts',
+              systemMessage: null,
+              cycleEndConfirmationPending: false,
+              cycleAnimation: null,
+            };
+          }
+        }
+        return nextState;
+      });
     },
     returnToMainMenu() {
       update((state) => ({
@@ -1119,24 +1187,9 @@ export const gameStore = (() => {
         if (state.cycleAnimation) {
           return state;
         }
-        const validation = validateAssignments(state.game);
-        const softIssueKinds = new Set(['no_troops_assigned', 'holding_only_no_new_attack', 'idle_troops_remaining']);
-        const blockingIssues = validation.issues.filter((issue) => !softIssueKinds.has(issue.kind));
-        const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_troops_assigned');
-        const hasHoldingOnly = validation.issues.some((issue) => issue.kind === 'holding_only_no_new_attack');
-        const hasIdleTroops = validation.issues.some((issue) => issue.kind === 'idle_troops_remaining');
         const hasUnspentEssence = state.game.essence > 0;
         const hasSpendableEssence = state.game.essence > 0 && getEssenceDraftCost(state.game) !== null;
         const hasUnfinishedDraft = !!state.game.activeTroopOffer || !!state.game.activeUpgradeOffer;
-
-        if (blockingIssues.length > 0) {
-          return {
-            ...state,
-            validationMessages: blockingIssues.map((issue) => issue.message),
-            systemMessage: null,
-            cycleEndConfirmationPending: false,
-          };
-        }
 
         if (hasSpendableEssence || hasUnfinishedDraft) {
           return {
@@ -1146,6 +1199,22 @@ export const gameStore = (() => {
             systemMessage: hasUnfinishedDraft
               ? 'Finish the active Essence draft before ending the cycle.'
               : 'Spend all Essence before ending the cycle.',
+            cycleEndConfirmationPending: false,
+          };
+        }
+
+        const validation = validateAssignments(state.game);
+        const softIssueKinds = new Set(['holding_only_no_new_attack']);
+        const blockingIssues = validation.issues.filter((issue) => !softIssueKinds.has(issue.kind));
+        const hasNoAssignments = validation.issues.some((issue) => issue.kind === 'no_troops_assigned');
+        const hasHoldingOnly = validation.issues.some((issue) => issue.kind === 'holding_only_no_new_attack');
+        const hasIdleTroops = validation.issues.some((issue) => issue.kind === 'idle_troops_remaining');
+
+        if (blockingIssues.length > 0) {
+          return {
+            ...state,
+            validationMessages: blockingIssues.map((issue) => issue.message),
+            systemMessage: null,
             cycleEndConfirmationPending: false,
           };
         }
@@ -1161,6 +1230,10 @@ export const gameStore = (() => {
 
         if (!state.activeSlotId) {
           return { ...state, systemMessage: 'No active save slot is loaded.' };
+        }
+
+        if (state.activeSlotId === TUTORIAL_SAVE_ID && state.tutorialProgress?.step === 'end-cycle') {
+          writeTutorialCycleRewindGame(state.game);
         }
 
         const resolution = resolveAssignedRifts(state.game, getPreparedContestAiPlan(state.game));
