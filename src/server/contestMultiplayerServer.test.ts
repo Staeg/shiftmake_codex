@@ -136,7 +136,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(playerTwo.closeCalls.at(-1)).toEqual({ code: 1000, reason: 'Left multiplayer room.' });
   });
 
-  it('rejects token reconnects after a pre-start disconnect frees the seat', () => {
+  it('allows token reconnects after a pre-start disconnect while the seat is still open', () => {
     const playerOne = new FakeSocket();
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM3', seed: 3, playerName: 'One' });
     const token = latestSnapshot(playerOne).playerToken;
@@ -145,7 +145,10 @@ describe('Contest multiplayer reconnect rooms', () => {
     const reconnect = new FakeSocket();
     sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM3', playerId: 'human', token, playerName: 'One Again' });
 
-    expect(latestError(reconnect).message).toContain('Could not reconnect');
+    const snapshot = latestSnapshot(reconnect);
+    expect(snapshot.playerId).toBe('human');
+    expect(snapshot.playerNames.human).toBe('One Again');
+    expect(snapshot.connectedPlayers.human).toBe(true);
   });
 
   it('frees a disconnected pre-start seat for any later joiner', () => {

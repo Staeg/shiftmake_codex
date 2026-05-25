@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import {
   applyCycleOutcomes,
+  applyScheduledCycleUnlock,
   assignTroopToRift,
   canAssignTroopToRift,
   claimFactionUnlockOffer,
@@ -20,6 +21,7 @@ import {
   unclaimOpeningTroop,
   validateAssignments,
 } from '../engine/game';
+import { buildHarvestedLadderPayload, withLadderDraw } from '../engine/ladder';
 import {
   battleReportDecodeErrorMessage,
   buildBattleReportPayload,
@@ -88,6 +90,7 @@ import {
   type TutorialProgress,
   writeTutorialProgress,
 } from './tutorial';
+import { drawLadderRiftSet, harvestLadderRiftSet } from './ladderClient';
 
 export type CenterMode = 'rifts' | 'troops' | 'contest';
 export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
@@ -95,7 +98,7 @@ export type ScreenMode = 'main_menu' | 'overworld' | 'replay';
 interface CycleAnimationState {
   sourceGame: GameState;
   resolution: CycleResolution;
-  activeSlotId: SaveSlotId;
+  activeSlotId: SaveSlotId | null;
 }
 
 interface StoreState {
@@ -160,6 +163,9 @@ type MultiplayerServerMessage =
 
 let multiplayerSocket: WebSocket | null = null;
 let multiplayerReplayPayloads: Record<string, StoredReplayPayload> = {};
+let multiplayerReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let multiplayerReconnectAttempts = 0;
+let intentionallyClosedMultiplayerSocket = false;
 
 interface StoredMultiplayerIdentity {
   serverUrl: string;
@@ -275,6 +281,30 @@ function canEditGame(state: StoreState): boolean {
   return !state.multiplayer || !isMultiplayerSubmitted(state);
 }
 
+function buildMultiplayerCycleAnimation(
+  sourceGame: GameState,
+  replayPayloads: Record<string, StoredReplayPayload>,
+  previousReplayPayloads: Record<string, StoredReplayPayload>,
+): CycleResolution | null {
+  const newPayloads = Object.entries(replayPayloads).filter(([replayId]) => !previousReplayPayloads[replayId]);
+  if (newPayloads.length === 0) {
+    return null;
+  }
+  const records = newPayloads.map(([replayId, payload]) => {
+    const replay = resolveBattle(payload.input);
+    return {
+      riftId: payload.input.riftId ?? replayId,
+      assignedTroopIds: payload.input.playerCombatants.map((combatant) => combatant.troopInstanceId).filter((troopId): troopId is TroopId => !!troopId),
+      battleInput: payload.input,
+      replay,
+      outcome: replay.outcome,
+      victoryPoints: payload.input.tier ?? 0,
+      recoveryMap: {},
+    };
+  });
+  return records.length > 0 ? { records, preparedState: sourceGame } : null;
+}
+
 function shouldPreserveUnsubmittedMultiplayerGame(state: StoreState, message: Extract<MultiplayerServerMessage, { kind: 'room-snapshot' }>): boolean {
   const session = state.multiplayer;
   if (!session?.connected || state.screen === 'main_menu' || session.roomId !== message.roomId || session.playerId !== message.playerId) {
@@ -284,6 +314,11 @@ function shouldPreserveUnsubmittedMultiplayerGame(state: StoreState, message: Ex
 }
 
 function closeMultiplayerSocket(options: { notifyServer: boolean } = { notifyServer: false }): void {
+  if (multiplayerReconnectTimer !== null) {
+    clearTimeout(multiplayerReconnectTimer);
+    multiplayerReconnectTimer = null;
+  }
+  intentionallyClosedMultiplayerSocket = true;
   const socket = multiplayerSocket;
   multiplayerSocket = null;
   if (!socket) {
@@ -573,6 +608,46 @@ function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState
   });
 }
 
+async function applyResolvedCycleToStoreStateWithLadder(
+  state: StoreState,
+  sourceGame: GameState,
+  resolution: CycleResolution,
+  activeSlotId: SaveSlotId,
+): Promise<StoreState> {
+  const appliedState = applyResolvedCycleToStoreState(state, sourceGame, resolution, activeSlotId);
+  if (sourceGame.gameMode !== 'ladder') {
+    return appliedState;
+  }
+
+  const parentId = sourceGame.ladder?.currentRiftSetId ?? null;
+  if (!parentId) {
+    return {
+      ...appliedState,
+      systemMessage: 'Ladder Cycle resolved, but no source Rift-set was recorded for harvesting.',
+    };
+  }
+
+  const harvestedPayload = buildHarvestedLadderPayload(sourceGame, resolution.records);
+  await harvestLadderRiftSet(parentId, harvestedPayload);
+
+  if (appliedState.game.phase === 'game_over') {
+    return {
+      ...appliedState,
+      systemMessage: joinSystemMessages([appliedState.systemMessage, 'Ladder Cycle harvested.']),
+    };
+  }
+
+  const draw = await drawLadderRiftSet(appliedState.game.cycleNumber);
+  const game = applyScheduledCycleUnlock(withLadderDraw(appliedState.game, draw));
+  saveToSlot(localStorage, activeSlotId, game);
+  return {
+    ...appliedState,
+    game,
+    slots: listSaveSlots(localStorage),
+    systemMessage: appliedState.systemMessage,
+  };
+}
+
 function collectReplayPayloadsForCampaign(state: Pick<StoreState, 'activeSlotId' | 'game'>): {
   replayPayloads: Record<string, StoredReplayPayload>;
   missingReplayIds: string[];
@@ -651,8 +726,26 @@ export const gameStore = (() => {
     snapshot = state;
   });
 
+  function scheduleMultiplayerReconnect(playerName?: string): void {
+    const session = snapshot.multiplayer;
+    if (!session?.roomId || !session.playerId || !session.playerToken || multiplayerReconnectTimer !== null) {
+      return;
+    }
+    const delayMs = Math.min(10_000, 700 * 2 ** multiplayerReconnectAttempts);
+    multiplayerReconnectAttempts += 1;
+    multiplayerReconnectTimer = setTimeout(() => {
+      multiplayerReconnectTimer = null;
+      const current = snapshot.multiplayer;
+      if (!current?.roomId || current.connected) {
+        return;
+      }
+      connectMultiplayerContest(current.serverUrl, current.roomId, playerName ?? current.playerNames[current.playerId ?? 'human']);
+    }, delayMs);
+  }
+
   function connectMultiplayerContest(serverUrl: string, roomId?: string, playerName?: string): void {
     closeMultiplayerSocket();
+    intentionallyClosedMultiplayerSocket = false;
     multiplayerReplayPayloads = {};
     persistMultiplayerPreferences(serverUrl, playerName);
     const storedIdentity = readStoredMultiplayerIdentity(serverUrl, roomId);
@@ -708,6 +801,7 @@ export const gameStore = (() => {
         return;
       }
 
+      const previousMultiplayerReplayPayloads = multiplayerReplayPayloads;
       multiplayerReplayPayloads = {
         ...multiplayerReplayPayloads,
         ...message.replayPayloads,
@@ -718,34 +812,49 @@ export const gameStore = (() => {
         playerId: message.playerId,
         playerToken: message.playerToken,
       });
-      update((state) => ({
-        ...state,
-        screen: state.screen === 'main_menu' ? 'overworld' : state.screen,
-        activeSlotId: null,
-        game: shouldPreserveUnsubmittedMultiplayerGame(state, message) ? state.game : message.game,
-        slots: listSaveSlots(localStorage),
-        multiplayer: {
-          connected: true,
-          serverUrl,
-          roomId: message.roomId,
-          playerId: message.playerId,
-          playerToken: message.playerToken,
-          readiness: message.readiness,
-          connectedPlayers: message.connectedPlayers ?? state.multiplayer?.connectedPlayers ?? { human: true, ai: true },
-          playerNames: message.playerNames,
-          message: message.message,
-        },
-        systemMessage: isBenignMultiplayerStatusMessage(message.message) ? null : message.message,
-        cycleEndConfirmationPending: false,
-      }));
+      multiplayerReconnectAttempts = 0;
+      update((state) => {
+        const nextGame = shouldPreserveUnsubmittedMultiplayerGame(state, message) ? state.game : message.game;
+        const multiplayerAnimation =
+          state.screen !== 'main_menu' && isBenignMultiplayerStatusMessage(message.message)
+            ? buildMultiplayerCycleAnimation(nextGame, message.replayPayloads, previousMultiplayerReplayPayloads)
+            : null;
+        return {
+          ...state,
+          screen: state.screen === 'main_menu' ? 'overworld' : state.screen,
+          activeSlotId: null,
+          game: nextGame,
+          slots: listSaveSlots(localStorage),
+          multiplayer: {
+            connected: true,
+            serverUrl,
+            roomId: message.roomId,
+            playerId: message.playerId,
+            playerToken: message.playerToken,
+            readiness: message.readiness,
+            connectedPlayers: message.connectedPlayers ?? state.multiplayer?.connectedPlayers ?? { human: true, ai: true },
+            playerNames: message.playerNames,
+            message: message.message,
+          },
+          systemMessage: isBenignMultiplayerStatusMessage(message.message) ? null : message.message,
+          cycleEndConfirmationPending: false,
+          cycleAnimation: multiplayerAnimation ? { sourceGame: nextGame, resolution: multiplayerAnimation, activeSlotId: null } : state.cycleAnimation,
+        };
+      });
     };
 
     socket.onclose = () => {
+      const shouldReconnect = !intentionallyClosedMultiplayerSocket;
       update((state) => ({
         ...state,
-        multiplayer: state.multiplayer ? { ...state.multiplayer, connected: false, message: 'Disconnected from multiplayer server.' } : state.multiplayer,
-        systemMessage: state.multiplayer ? 'Disconnected from multiplayer server.' : state.systemMessage,
+        multiplayer: state.multiplayer
+          ? { ...state.multiplayer, connected: false, message: shouldReconnect ? 'Connection lost. Reconnecting...' : 'Disconnected from multiplayer server.' }
+          : state.multiplayer,
+        systemMessage: state.multiplayer ? (shouldReconnect ? 'Connection lost. Reconnecting...' : 'Disconnected from multiplayer server.') : state.systemMessage,
       }));
+      if (shouldReconnect) {
+        scheduleMultiplayerReconnect(playerName);
+      }
     };
 
     socket.onerror = () => {
@@ -843,6 +952,7 @@ export const gameStore = (() => {
     leaveMultiplayerContest() {
       closeMultiplayerSocket({ notifyServer: true });
       multiplayerReplayPayloads = {};
+      multiplayerReconnectAttempts = 0;
       set({
         ...makeInitialState(),
         slots: listSaveSlots(localStorage),
@@ -1060,9 +1170,43 @@ export const gameStore = (() => {
             }),
       );
     },
-    startOpeningCampaign() {
+    async startOpeningCampaign() {
       if (snapshot.multiplayer) {
         submitMultiplayerReady();
+        return;
+      }
+      if (snapshot.game.gameMode === 'ladder') {
+        const activeSlotId = snapshot.activeSlotId;
+        if (!activeSlotId) {
+          update((state) => ({ ...state, systemMessage: 'No active save slot is loaded.' }));
+          return;
+        }
+        const preparedGame = startOpeningCampaign(snapshot.game);
+        set({
+          ...snapshot,
+          game: preparedGame,
+          systemMessage: 'Drawing Ladder Rift-set...',
+          cycleEndConfirmationPending: false,
+        });
+        try {
+          const draw = await drawLadderRiftSet(preparedGame.cycleNumber);
+          const game = withLadderDraw(preparedGame, draw);
+          saveToSlot(localStorage, activeSlotId, game);
+          set({
+            ...snapshot,
+            game,
+            slots: listSaveSlots(localStorage),
+            systemMessage: null,
+            cycleEndConfirmationPending: false,
+          });
+        } catch (error) {
+          set({
+            ...snapshot,
+            game: preparedGame,
+            systemMessage: `Unable to start Ladder: ${error instanceof Error ? error.message : 'Ladder server unavailable.'}`,
+            cycleEndConfirmationPending: false,
+          });
+        }
         return;
       }
       update((state) =>
@@ -1253,6 +1397,26 @@ export const gameStore = (() => {
         }
 
         try {
+          if (state.game.gameMode === 'ladder') {
+            const sourceGame = state.game;
+            const activeSlotId = state.activeSlotId;
+            void applyResolvedCycleToStoreStateWithLadder(state, sourceGame, resolution, activeSlotId)
+              .then((nextState) => set(nextState))
+              .catch((error) => {
+                const message = error instanceof Error ? error.message : 'Unknown storage error.';
+                set({
+                  ...snapshot,
+                  systemMessage: `Unable to end cycle: ${message}`,
+                  cycleEndConfirmationPending: false,
+                  cycleAnimation: null,
+                });
+              });
+            return {
+              ...state,
+              systemMessage: 'Resolving Ladder Cycle...',
+              cycleEndConfirmationPending: false,
+            };
+          }
           return applyResolvedCycleToStoreState(state, state.game, resolution, state.activeSlotId);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown storage error.';
@@ -1264,24 +1428,45 @@ export const gameStore = (() => {
         }
       });
     },
-    finishCycleAnimation() {
-      update((state) => {
-        if (!state.cycleAnimation) {
-          return state;
-        }
-        const { sourceGame, resolution, activeSlotId } = state.cycleAnimation;
+    async finishCycleAnimation() {
+      const animation = snapshot.cycleAnimation;
+      if (!animation) {
+        return;
+      }
+      const { sourceGame, resolution, activeSlotId } = animation;
+      if (activeSlotId === null) {
+        set({
+          ...snapshot,
+          cycleAnimation: null,
+        });
+        return;
+      }
+      if (sourceGame.gameMode !== 'ladder') {
         try {
-          return applyResolvedCycleToStoreState(state, sourceGame, resolution, activeSlotId);
+          set(applyResolvedCycleToStoreState(snapshot, sourceGame, resolution, activeSlotId));
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown storage error.';
-          return {
-            ...state,
+          set({
+            ...snapshot,
             systemMessage: `Unable to end cycle: ${message}`,
             cycleEndConfirmationPending: false,
             cycleAnimation: null,
-          };
+          });
         }
-      });
+        return;
+      }
+      try {
+        const nextState = await applyResolvedCycleToStoreStateWithLadder(snapshot, sourceGame, resolution, activeSlotId);
+        set(nextState);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown storage error.';
+        set({
+          ...snapshot,
+          systemMessage: `Unable to end cycle: ${message}`,
+          cycleEndConfirmationPending: false,
+          cycleAnimation: null,
+        });
+      }
     },
     openReplay(replayId: string) {
       update((state) => {

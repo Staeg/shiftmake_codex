@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
 import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
+import { generateBaselineLadderPayload } from '../engine/ladder';
 import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId, UpgradeId } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
 
@@ -422,6 +423,47 @@ describe('gameStore progression flow', () => {
 
     expect(afterReload.activeTroopOffer).toEqual(beforeReload.activeTroopOffer);
     expect(afterReload.activeUpgradeOffer).toEqual(beforeReload.activeUpgradeOffer);
+  });
+
+  it('draws database-sourced Rifts when a Ladder opening starts', async () => {
+    const payload = generateBaselineLadderPayload(4321, 1);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          id: '00000000-0000-4000-8000-000000000111',
+          cycleNumber: 1,
+          generation: 0,
+          sourceSetId: null,
+          payload,
+        }),
+      })),
+    );
+
+    gameStore.startNewCampaign(1, 'ladder');
+    claimDefaultOpeningTroops();
+    await gameStore.startOpeningCampaign();
+
+    const state = currentStoreState<{
+      game: GameState;
+      systemMessage: string | null;
+    }>();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/ladder/draw'),
+      expect.objectContaining({
+        body: JSON.stringify({ cycleNumber: 1 }),
+      }),
+    );
+    expect(state.systemMessage).toBeNull();
+    expect(state.game.gameMode).toBe('ladder');
+    expect(state.game.openRifts.map((rift) => rift.id)).toEqual(payload.rifts.map((rift) => rift.id));
+    expect(state.game.ladder).toEqual({
+      currentRiftSetId: '00000000-0000-4000-8000-000000000111',
+      currentGeneration: 0,
+      currentSourceCycleNumber: 1,
+    });
+    expect(storage.getItem('shiftmake:slot:1:save:v3')).toContain('00000000-0000-4000-8000-000000000111');
   });
 
   it('adds resolved battles to the archive index when a cycle ends', () => {

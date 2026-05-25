@@ -18,6 +18,13 @@
   let campaignReportPreview: CampaignReportPayload | null = null;
   let campaignReportImportSlotId: SaveSlotId = 1;
   let campaignReportOverwriteConfirmed = false;
+  let ladderViewerMessage: string | null = null;
+  let ladderRecords: Array<Record<string, any>> = [];
+  let ladderStats: Record<string, any> | null = null;
+  let ladderCycleFilter = '';
+  let ladderGenerationFilter = '';
+  let ladderSpentFilter = '';
+  let ladderCompatibilityFilter = '';
 
   function slotPhaseLabel(phase?: string | null): string {
     return phase ? phase.replace(/_/g, ' ') : 'planning';
@@ -134,6 +141,35 @@
     campaignReportPreview = null;
     campaignReportOverwriteConfirmed = false;
   }
+
+  function ladderBaseUrl(): string {
+    return 'http://localhost:8787';
+  }
+
+  async function loadLadderRecords(): Promise<void> {
+    const params = new URLSearchParams();
+    if (ladderCycleFilter) params.set('cycleNumber', ladderCycleFilter);
+    if (ladderGenerationFilter) params.set('generation', ladderGenerationFilter);
+    if (ladderSpentFilter) params.set('spent', ladderSpentFilter);
+    if (ladderCompatibilityFilter) params.set('compatibilityStatus', ladderCompatibilityFilter);
+    params.set('limit', '50');
+    try {
+      const [listResponse, statsResponse] = await Promise.all([
+        fetch(`${ladderBaseUrl()}/ladder/list?${params.toString()}`),
+        fetch(`${ladderBaseUrl()}/ladder/stats`),
+      ]);
+      const listPayload = await listResponse.json();
+      const statsPayload = await statsResponse.json();
+      if (!listResponse.ok || !statsResponse.ok) {
+        throw new Error(listPayload.error ?? statsPayload.error ?? 'Ladder viewer request failed.');
+      }
+      ladderRecords = listPayload.records ?? [];
+      ladderStats = statsPayload;
+      ladderViewerMessage = `Loaded ${ladderRecords.length} Ladder Rift-sets.`;
+    } catch (error) {
+      ladderViewerMessage = error instanceof Error ? error.message : 'Unable to load Ladder records.';
+    }
+  }
 </script>
 
 {#if mode === 'campaign-button'}
@@ -238,6 +274,70 @@
           <p class="system-message">{battleReportMessage}</p>
         {/if}
       </section>
+
+      <section class="debug-report-section">
+        <p class="eyebrow">Ladder Database</p>
+        <h2>Inspect Rift-Sets</h2>
+        <div class="actions-grid compact-actions">
+          <label>
+            Cycle
+            <input bind:value={ladderCycleFilter} inputmode="numeric" placeholder="Any" />
+          </label>
+          <label>
+            Generation
+            <input bind:value={ladderGenerationFilter} inputmode="numeric" placeholder="Any" />
+          </label>
+          <label>
+            Spent
+            <select bind:value={ladderSpentFilter}>
+              <option value="">Any</option>
+              <option value="false">Unspent</option>
+              <option value="true">Spent</option>
+            </select>
+          </label>
+          <label>
+            Compatibility
+            <select bind:value={ladderCompatibilityFilter}>
+              <option value="">Any</option>
+              <option value="valid">Valid</option>
+              <option value="incompatible">Incompatible</option>
+            </select>
+          </label>
+          <button on:click={() => void loadLadderRecords()}>Load Ladder Records</button>
+        </div>
+        {#if ladderStats}
+          <div class="compact-list">
+            <div><span>Total</span><strong>{ladderStats.totalRows}</strong></div>
+            <div><span>Valid</span><strong>{ladderStats.validRows}</strong></div>
+            <div><span>Spent</span><strong>{ladderStats.spentRows}</strong></div>
+            <div><span>Incompatible</span><strong>{ladderStats.incompatibleRows}</strong></div>
+            <div><span>Payload Bytes</span><strong>{ladderStats.approximatePayloadBytes}</strong></div>
+          </div>
+        {/if}
+        {#each ladderRecords as record}
+          <details class="ladder-record">
+            <summary>{record.id} / C{record.cycleNumber} / G{record.generation} / {record.compatibilityStatus}</summary>
+            <div class="compact-list">
+              <div><span>Source</span><strong>{record.sourceSetId ?? 'baseline'}</strong></div>
+              <div><span>Appearances</span><strong>{record.appearances}</strong></div>
+              <div><span>Spent</span><strong>{record.spent ? 'yes' : 'no'}</strong></div>
+              <div><span>Issues</span><strong>{record.compatibilityIssues?.length ?? 0}</strong></div>
+            </div>
+            {#if record.compatibilityIssues?.length}
+              <pre>{JSON.stringify(record.compatibilityIssues, null, 2)}</pre>
+            {/if}
+            {#each record.payload?.rifts ?? [] as rift}
+              <details class="ladder-rift">
+                <summary>{rift.id} / Tier {rift.tier} / VP {rift.victoryPoints}</summary>
+                <pre>{JSON.stringify(rift, null, 2)}</pre>
+              </details>
+            {/each}
+          </details>
+        {/each}
+        {#if ladderViewerMessage}
+          <p class="system-message">{ladderViewerMessage}</p>
+        {/if}
+      </section>
     </div>
   </details>
 {/if}
@@ -296,7 +396,8 @@
   }
 
   textarea,
-  select {
+  select,
+  input {
     width: 100%;
     border: 1px solid rgba(126, 157, 181, 0.25);
     border-radius: var(--ui-panel-radius-tight);
@@ -304,6 +405,26 @@
     color: var(--ui-color-text);
     padding: var(--ui-space-sm);
     font: inherit;
+  }
+
+  pre {
+    max-height: 16rem;
+    overflow: auto;
+    border: 1px solid rgba(126, 157, 181, 0.15);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(5, 8, 13, 0.72);
+    padding: var(--ui-space-sm);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .ladder-record,
+  .ladder-rift {
+    display: grid;
+    gap: var(--ui-space-sm);
+    border: 1px solid rgba(126, 157, 181, 0.15);
+    border-radius: var(--ui-panel-radius-tight);
+    padding: var(--ui-space-sm);
   }
 
   textarea {

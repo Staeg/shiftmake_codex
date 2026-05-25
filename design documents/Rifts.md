@@ -12,6 +12,7 @@ Each generated Rift currently contains:
 - `tier`
 - `mutatorIds`
 - `enemyArmy`
+- optional Guardian upgrade snapshot ids for Ladder enemy resolution
 - `victoryPoints`
 - `saturation`
 - `state`
@@ -110,3 +111,28 @@ The reward preview in the UI should therefore show:
 ## Lifecycle note
 
 Generated Rifts are one-cycle opportunities. Any discovered Rift that is not played before the cycle advances expires immediately.
+
+## Ladder Rift-sets
+
+Campaign creates Rifts locally from the deterministic cycle generator. Ladder instead draws a compact Rift-set from the Ladder server for each cycle.
+
+Each Ladder Rift-set stores:
+
+- Rift id
+- Cycle
+- tier
+- mutator ids
+- saturation
+- VP value
+- Guardian faction and troop-type identities
+- Guardian faction upgrade ids
+- Guardian troop-type upgrade ids
+
+Guardian upgrade ids are snapshots from the player who conquered that Rift in a previous Ladder cycle. The payload stores identities and upgrade ids, not baked combat stats, so Guardians are resolved by the normal engine combatant rules when the Rift-set is drawn.
+
+After a Ladder cycle resolves, the played parent Rift-set is harvested into a child set:
+
+- parent appearances increments by 1
+- the parent may be marked spent
+- conquered Rifts replace their Guardians with the player's assigned troops and current upgrade snapshots
+- unconquered Rifts retain their previous Guardians

@@ -18,6 +18,7 @@ import type {
   GameState,
   ResolvedCombatantDefinition,
   RiftInstance,
+  RoleId,
   StatBreakdown,
   StatBreakdownLine,
   TroopId,
@@ -72,9 +73,20 @@ function applyTierScaling(stats: UnitStats, tier: number | null): UnitStats {
   };
 }
 
+function canFactionUpgradeAbilityApply(abilityId: string, role: RoleId, attributes: string[]): boolean {
+  if (abilityId === 'fade-into-shadow') {
+    return role === 'backline';
+  }
+  if (abilityId === 'long-shot-doctrine' || abilityId === 'silver-distance') {
+    return attributes.includes('ranged') || attributes.includes('caster');
+  }
+  return true;
+}
+
 function applyFactionUpgradeEffects(
   state: Pick<GameState, 'factionUpgradeIds'>,
   factionId: FactionId,
+  role: RoleId,
   stats: UnitStats,
   abilities: AbilityDefinition[],
   attributes: string[],
@@ -90,7 +102,7 @@ function applyFactionUpgradeEffects(
       upgrade.effects.forEach((effect) => {
         if (effect.kind === 'addAbility') {
           const ability = getAbility(effect.abilityId);
-          if (!nextAbilities.some((entry) => entry.id === ability.id)) {
+          if (canFactionUpgradeAbilityApply(effect.abilityId, role, nextAttributes) && !nextAbilities.some((entry) => entry.id === ability.id)) {
             nextAbilities.push(ability);
           }
           return;
@@ -126,6 +138,7 @@ function pushContribution(contributions: UpgradeStatContributions, stat: Explain
 function applyFactionUpgradeEffectsDetailed(
   state: Pick<GameState, 'factionUpgradeIds'>,
   factionId: FactionId,
+  role: RoleId,
   stats: UnitStats,
   abilities: AbilityDefinition[],
   attributes: string[],
@@ -142,7 +155,7 @@ function applyFactionUpgradeEffectsDetailed(
       upgrade.effects.forEach((effect) => {
         if (effect.kind === 'addAbility') {
           const ability = getAbility(effect.abilityId);
-          if (!nextAbilities.some((entry) => entry.id === ability.id)) {
+          if (canFactionUpgradeAbilityApply(effect.abilityId, role, nextAttributes) && !nextAbilities.some((entry) => entry.id === ability.id)) {
             nextAbilities.push(ability);
           }
           return;
@@ -339,6 +352,7 @@ export function getResolvedStatBreakdowns(
   const factionDetailed = applyFactionUpgradeEffectsDetailed(
     state,
     troop.factionId,
+    base.role,
     troopTypeDetailed.stats,
     troopTypeDetailed.abilities,
     troopTypeDetailed.attributes,
@@ -410,6 +424,7 @@ export function resolveTroopCombatant(
   const withFactionEffects = applyFactionUpgradeEffects(
     state,
     troop.factionId,
+    base.role,
     withTroopTypeEffects.stats,
     withTroopTypeEffects.abilities,
     withTroopTypeEffects.attributes,

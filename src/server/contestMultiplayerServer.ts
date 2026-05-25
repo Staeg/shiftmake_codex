@@ -1,8 +1,11 @@
 import { WebSocketServer, type WebSocket } from 'ws';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { createServer, type IncomingMessage as HttpIncomingMessage, type ServerResponse } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { startNewGame } from '../engine/game';
+import { generateBaselineLadderPayload } from '../engine/ladder';
 import { describeMultiplayerListenAddress, getMultiplayerServerConfig, type MultiplayerServerConfig } from './multiplayerServerConfig';
+import { getLadderRepository } from './ladderRepository';
 import {
   advanceContestMultiplayerRoom,
   buildStoredReplayPayloadMap,
@@ -72,6 +75,14 @@ const MAX_MESSAGE_BYTES = 32 * 1024;
 const RATE_LIMIT_WINDOW_MS = 10 * 1000;
 const MAX_MESSAGES_PER_WINDOW = 40;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+const MAX_HTTP_BODY_BYTES = 256 * 1024;
+const ladderRepository = getLadderRepository();
+let ladderReadyPromise: Promise<void> | null = null;
+
+function ensureLadderReady(): Promise<void> {
+  ladderReadyPromise ??= ladderRepository.init().then(() => ladderRepository.seedBaseline());
+  return ladderReadyPromise;
+}
 
 function makeRoomId(): string {
   return randomBytes(4).toString('hex').toUpperCase();
@@ -85,6 +96,145 @@ function send(socket: WebSocket, message: ServerMessage): void {
   if (socket.readyState === socket.OPEN) {
     socket.send(JSON.stringify(message));
   }
+}
+
+function sendJson(response: ServerResponse, status: number, payload: unknown): void {
+  response.writeHead(status, {
+    'content-type': 'application/json',
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type',
+  });
+  response.end(JSON.stringify(payload));
+}
+
+async function readJsonBody(request: HttpIncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > MAX_HTTP_BODY_BYTES) {
+      throw new Error('Request body is too large.');
+    }
+    chunks.push(buffer);
+  }
+  if (chunks.length === 0) {
+    return {};
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+function numberFromQuery(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+async function drawLadderSet(cycleNumber: number) {
+  let record = await ladderRepository.draw(cycleNumber);
+  if (!record) {
+    const payload = generateBaselineLadderPayload(Date.now() >>> 0, cycleNumber);
+    record = await ladderRepository.insert({
+      id: randomUUID(),
+      cycleNumber,
+      generation: 0,
+      sourceSetId: null,
+      appearances: 0,
+      spent: false,
+      compatibilityStatus: 'valid',
+      compatibilityIssues: [],
+      payload,
+    });
+  }
+  return {
+    id: record.id,
+    cycleNumber: record.cycleNumber,
+    generation: record.generation,
+    sourceSetId: record.sourceSetId,
+    payload: record.payload,
+  };
+}
+
+async function handleHttpRequest(request: HttpIncomingMessage, response: ServerResponse): Promise<void> {
+  if (request.method === 'OPTIONS') {
+    sendJson(response, 204, {});
+    return;
+  }
+
+  const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  try {
+    if (url.pathname.startsWith('/ladder/')) {
+      await ensureLadderReady();
+    }
+
+    if (request.method === 'POST' && url.pathname === '/ladder/draw') {
+      const body = await readJsonBody(request);
+      const cycleNumber = typeof body === 'object' && body !== null && Number.isInteger((body as { cycleNumber?: unknown }).cycleNumber)
+        ? Number((body as { cycleNumber: number }).cycleNumber)
+        : 0;
+      if (cycleNumber < 1 || cycleNumber > 10) {
+        sendJson(response, 400, { error: 'cycleNumber must be an integer from 1 to 10.' });
+        return;
+      }
+      sendJson(response, 200, await drawLadderSet(cycleNumber));
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/ladder/harvest') {
+      const body = await readJsonBody(request);
+      if (typeof body !== 'object' || body === null || typeof (body as { parentId?: unknown }).parentId !== 'string') {
+        sendJson(response, 400, { error: 'parentId is required.' });
+        return;
+      }
+      const parentId = (body as { parentId: string }).parentId;
+      const payload = (body as { payload?: unknown }).payload;
+      if (typeof payload !== 'object' || payload === null) {
+        sendJson(response, 400, { error: 'payload is required.' });
+        return;
+      }
+      await ladderRepository.incrementAppearances(parentId);
+      const parentSpent = Math.random() < 0.5;
+      if (parentSpent) {
+        await ladderRepository.markSpent(parentId, true);
+      }
+      const child = await ladderRepository.harvestChild(parentId, payload as never);
+      sendJson(response, 200, {
+        parentId,
+        childId: child.id,
+        parentSpent,
+        payload: child.payload,
+      });
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === '/ladder/list') {
+      const records = await ladderRepository.list({
+        cycleNumber: numberFromQuery(url.searchParams.get('cycleNumber')),
+        generation: numberFromQuery(url.searchParams.get('generation')),
+        spent: url.searchParams.has('spent') ? url.searchParams.get('spent') === 'true' : undefined,
+        compatibilityStatus:
+          url.searchParams.get('compatibilityStatus') === 'valid' || url.searchParams.get('compatibilityStatus') === 'incompatible'
+            ? (url.searchParams.get('compatibilityStatus') as 'valid' | 'incompatible')
+            : undefined,
+        limit: numberFromQuery(url.searchParams.get('limit')),
+      });
+      sendJson(response, 200, { records });
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === '/ladder/stats') {
+      sendJson(response, 200, await ladderRepository.storageStats());
+      return;
+    }
+  } catch (error) {
+    sendJson(response, 500, { error: error instanceof Error ? error.message : 'Ladder server error.' });
+    return;
+  }
+
+  sendJson(response, 404, { error: 'Not found.' });
 }
 
 function byteLength(raw: WebSocket.RawData): number {
@@ -267,10 +417,6 @@ function connectedPlayers(room: ContestRoom): Record<ContestPlayerId, boolean> {
   };
 }
 
-function isBeforeContestStart(room: ContestRoom): boolean {
-  return room.game.phase === 'opening_unlock';
-}
-
 function cleanupEmptyRooms(now = Date.now(), ttlMs = EMPTY_ROOM_TTL_MS): string[] {
   const removedRoomIds: string[] = [];
   rooms.forEach((room, roomId) => {
@@ -355,14 +501,15 @@ function createRoom(seed = Date.now() >>> 0, requestedRoomId?: string): ContestR
 }
 
 function attachClient(socket: WebSocket, room: ContestRoom, preferredPlayerId?: ContestPlayerId, playerName?: string): void {
-  const playerId = preferredPlayerId ?? (!room.playerTokens.human ? 'human' : !room.playerTokens.ai ? 'ai' : null);
+  const playerId = preferredPlayerId ?? (!room.clients.human ? 'human' : !room.clients.ai ? 'ai' : null);
   if (!playerId) {
     send(socket, { kind: 'room-error', message: 'Room already has two players.' });
     return;
   }
 
   room.clients[playerId]?.socket.close(1000, 'Replaced by a newer connection.');
-  room.playerTokens[playerId] ??= makePlayerToken();
+  room.playerTokens[playerId] = makePlayerToken();
+  delete room.submissions[playerId];
   room.playerNames[playerId] = sanitizePlayerName(playerName, DEFAULT_CONTEST_PLAYER_NAMES[playerId]);
   room.clients[playerId] = { socket, playerId };
   room.lastEmptyAt = null;
@@ -514,11 +661,6 @@ export function handleSocketClose(socket: WebSocket): void {
   }
   if (room.clients[membership.playerId]?.socket === socket) {
     delete room.clients[membership.playerId];
-    if (isBeforeContestStart(room)) {
-      delete room.playerTokens[membership.playerId];
-      delete room.submissions[membership.playerId];
-      room.playerNames[membership.playerId] = DEFAULT_CONTEST_PLAYER_NAMES[membership.playerId];
-    }
     if (!hasConnectedClients(room)) {
       room.lastEmptyAt = Date.now();
     }
@@ -529,8 +671,11 @@ export function handleSocketClose(socket: WebSocket): void {
 
 export function startContestMultiplayerServer(config: MultiplayerServerConfig = serverConfig): WebSocketServer {
   const baseOptions = config.host ? { port: config.port, host: config.host } : { port: config.port };
+  const httpServer = createServer((request, response) => {
+    void handleHttpRequest(request, response);
+  });
   const server = new WebSocketServer({
-    ...baseOptions,
+    server: httpServer,
     maxPayload: MAX_MESSAGE_BYTES,
     verifyClient: ({ origin }: { origin?: string }, done: (result: boolean, code?: number, message?: string) => void) => {
       done(isOriginAllowed(origin, config.allowedOrigins), 403, 'Origin is not allowed for this multiplayer server.');
@@ -555,7 +700,8 @@ export function startContestMultiplayerServer(config: MultiplayerServerConfig = 
     clearInterval(heartbeatInterval);
   });
 
-  console.log(describeMultiplayerListenAddress(config));
+  void ensureLadderReady();
+  httpServer.listen(baseOptions, () => console.log(describeMultiplayerListenAddress(config)));
   return server;
 }
 

@@ -13,7 +13,7 @@ Read alongside `AGENTS.md` and the design docs in `design documents/`.
 | UI framework | Svelte |
 | Battle renderer | PixiJS |
 | Testing | Vitest |
-| Persistence | `localStorage` |
+| Persistence | `localStorage` for saves, Render Postgres for production Ladder Rift-sets |
 
 ## Core Rule
 
@@ -34,10 +34,12 @@ src/
     rift.ts
     upgrades.ts
     save.ts
+    ladder.ts
 
   store/
     gameStore.ts
     saveSlots.ts
+    ladderClient.ts
     replayNavigation.ts
 
   ui/
@@ -69,6 +71,12 @@ Campaign phases are:
 - `troop_type_unlock`: scheduled troop unlock grant step for a newly unlocked faction
 - `planning`: normal overworld play
 - `game_over`: shown immediately after cycle 10 resolves unless already dismissed for that run
+
+Singleplayer modes are:
+
+- `campaign`: normal local Rift generation
+- `ladder`: Campaign progression with database-sourced Rift-sets and harvested follow-up Rift-sets
+- `contest`: singleplayer Contest vs AI
 
 ## Data Model
 
@@ -116,6 +124,7 @@ Important current catalog rules:
 `GameState` stores plain JSON only:
 
 - `version`
+- `gameMode`
 - `campaignSeed`
 - `cycleNumber`
 - `phase`
@@ -136,6 +145,8 @@ Important current catalog rules:
 - `postgameDismissed`
 - `openRifts`
 - `replayIndex`
+- `ladder` when `gameMode = 'ladder'`, containing the current source Rift-set id, generation, and source Cycle
+- `contest` when `gameMode = 'contest'`
 
 `TroopInstance` is intentionally minimal:
 
@@ -371,6 +382,20 @@ Base recovery is now:
 - awards `victoryPoints = tier`
 - does not use enemy budgets, resource rewards, upgrade rewards, or blueprints
 
+### Ladder Rift-sets
+
+`src/engine/ladder.ts` owns the pure Ladder data boundary:
+
+- compact `LadderRiftSetPayload` validation
+- compatibility issue generation for unknown factions, unit types, upgrades, mutators, invalid cycles, invalid numeric fields, and missing Guardians
+- conversion from valid compact Rift-sets into playable `RiftInstance[]`
+- conversion from generated Campaign-style Rifts into compact baseline payloads
+- harvested payload creation after a completed Ladder Cycle
+
+Ladder payloads store Guardian troop identities plus faction and troop-type upgrade snapshots. They do not store baked combat stats. When a Ladder Rift-set is converted back to `RiftInstance[]`, Guardians are resolved through the normal engine composition path so catalog rules remain centralized.
+
+The engine remains pure TypeScript. It does not import fetch, Svelte stores, DOM APIs, server modules, or Postgres code.
+
 ## Store and UI Responsibilities
 
 `src/store/gameStore.ts` owns:
@@ -380,12 +405,14 @@ Base recovery is now:
 - replay payload persistence
 - cycle-end confirmation state
 - screen mode and replay navigation state
+- Ladder draw and harvest orchestration through `src/store/ladderClient.ts`
 
 `src/ui/App.svelte` is intentionally thin:
 
 - renders opening unlock choices
 - renders planning state, rifts, troops, draft offers, VP, and archive
 - renders the cycle-10 game-over overlay
+- renders Ladder start and replace buttons in the singleplayer save-slot UI
 - delegates replay playback to the renderer and replay store actions
 
 ## Persistence
@@ -414,6 +441,8 @@ Replay archive retention:
 
 Legacy campaign saves are intentionally unsupported and are not migrated.
 
+Ladder save data remains in the normal save-slot payload. The shared Ladder Rift-set database is not mirrored into `localStorage`; saves only persist the current source Rift-set metadata and the currently drawn `openRifts`.
+
 ## Testing
 
 `npm run test` covers engine and store behavior.
@@ -428,6 +457,7 @@ Current tests cover:
 - replay navigation
 - save-slot persistence helpers
 - game-store confirmation and offer persistence
+- Ladder payload validation, conversion, baseline seeding, draw filtering, appearances, and harvested child generation
 - ability behaviors such as charge, forsaken, combined arms, retaliation, and summons
 
 ## Conventions
@@ -449,7 +479,7 @@ npm run preview
 
 ## Multiplayer Hosting
 
-The browser client reads `VITE_MULTIPLAYER_SERVER_URL` at build/dev time. If it is unset or blank, the multiplayer panel defaults to `ws://localhost:8787` for local development. Keep the manual server field visible for LAN testing and custom deployments.
+The browser client reads `VITE_MULTIPLAYER_SERVER_URL` at build/dev time. If it is unset or blank, the multiplayer panel and Ladder client default to `ws://localhost:8787` / `http://localhost:8787` for local development. Keep the manual server field visible for LAN testing and custom deployments.
 
 For LAN testing, run the app server on an external interface:
 
@@ -478,3 +508,35 @@ For internet deployment, serve the Vite app over HTTPS and set `VITE_MULTIPLAYER
 Contest multiplayer rooms are authoritative in the WebSocket server process. A room snapshot keeps the shared game state, submitted player states, reconnect tokens, connected sockets, player names, and archived replay payload inputs in memory so short disconnects do not destroy an active game.
 
 Rooms track `createdAt`, `updatedAt`, and `lastEmptyAt`. Empty rooms are removed after the server TTL; rooms with at least one connected player are kept. Server restarts are currently allowed to lose active rooms, which matches the private-room target and avoids adding a disk or hosted key-value dependency before the protocol is hardened.
+
+## Ladder Server And Storage
+
+The existing multiplayer server process also serves Ladder HTTP endpoints on the same port:
+
+- `POST /ladder/draw` with `{ "cycleNumber": number }`
+- `POST /ladder/harvest` with `{ "parentId": string, "payload": LadderRiftSetPayload }`
+- `GET /ladder/list` for the debug viewer
+- `GET /ladder/stats` for debug storage statistics
+
+Production storage is Render Postgres. Configure the server with `LADDER_DATABASE_URL`; if unset, `DATABASE_URL` is used as a fallback. Use Render's internal Postgres URL when the database and web service are in the same Render account and region.
+
+On startup, the server initializes the `ladder_rift_sets` table and indexes if needed, then seeds missing Generation 0 baselines until there are 5 sets per Cycle across Cycles 1-10. Seeding is idempotent.
+
+The server includes a memory repository for local/test runs when no database URL is configured. Do not use that in production because server memory is not shared across instances and disappears on restart.
+
+Local Postgres setup:
+
+```powershell
+$env:LADDER_DATABASE_URL = 'postgres://USER:PASSWORD@localhost:5432/shiftmake_ladder'
+npm run multiplayer:server
+```
+
+Render environment variables:
+
+- `LADDER_DATABASE_URL`: preferred internal Render Postgres connection string
+- `DATABASE_URL`: accepted fallback
+- `SHIFTMAKE_MULTIPLAYER_PORT` or `PORT`: server port
+- `SHIFTMAKE_MULTIPLAYER_HOST`: optional bind host
+- `SHIFTMAKE_MULTIPLAYER_ALLOWED_ORIGINS`: optional comma-separated origin allowlist
+
+Ladder v1 intentionally has no ranking, rating, matchmaking rating, player rating, or Rift-set rating fields.

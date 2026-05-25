@@ -34,9 +34,10 @@ export type CampaignPhase = 'opening_unlock' | 'faction_unlock' | 'troop_type_un
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
 export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
-export type GameMode = 'campaign' | 'contest';
+export type GameMode = 'campaign' | 'contest' | 'ladder';
 export type ContestPlayerId = 'human' | 'ai';
 export type ContestRiftController = 'neutral' | ContestPlayerId;
+export type LadderCompatibilityStatus = 'valid' | 'incompatible';
 
 export interface HexCoord {
   q: number;
@@ -607,12 +608,77 @@ export interface RiftInstance {
   tier: number;
   mutatorIds: MutatorId[];
   enemyArmy: ResolvedCombatantDefinition[];
+  enemyFactionUpgradeIds?: UpgradeId[];
+  enemyTroopTypeUpgradeIds?: UpgradeId[];
   victoryPoints: number;
   saturation: number;
   state: RiftState;
   controller?: ContestRiftController;
   occupyingPlayerId?: ContestPlayerId | null;
   occupyingTroopIds?: TroopId[];
+}
+
+export interface LadderGuardianSnapshot {
+  factionId: FactionId;
+  unitTypeId: UnitTypeId;
+  factionUpgradeIds: UpgradeId[];
+  troopTypeUpgradeIds: UpgradeId[];
+}
+
+export interface LadderRiftPayload {
+  id: string;
+  cycleNumber: number;
+  seed: number;
+  tier: number;
+  mutatorIds: MutatorId[];
+  saturation: number;
+  victoryPoints: number;
+  guardians: LadderGuardianSnapshot[];
+}
+
+export interface LadderRiftSetPayload {
+  version: 1;
+  rifts: LadderRiftPayload[];
+}
+
+export interface LadderCompatibilityIssue {
+  code:
+    | 'invalid_payload'
+    | 'invalid_cycle'
+    | 'invalid_rift'
+    | 'invalid_tier'
+    | 'invalid_saturation'
+    | 'invalid_victory_points'
+    | 'unknown_faction'
+    | 'unknown_unit_type'
+    | 'unknown_faction_upgrade'
+    | 'unknown_troop_type_upgrade'
+    | 'unknown_mutator'
+    | 'missing_guardians';
+  message: string;
+  path: string;
+  value?: string | number | boolean | null;
+}
+
+export interface LadderDrawResult {
+  id: string;
+  cycleNumber: number;
+  generation: number;
+  sourceSetId: string | null;
+  payload: LadderRiftSetPayload;
+}
+
+export interface LadderHarvestResult {
+  parentId: string;
+  childId: string;
+  parentSpent: boolean;
+  payload: LadderRiftSetPayload;
+}
+
+export interface LadderState {
+  currentRiftSetId: string | null;
+  currentGeneration: number | null;
+  currentSourceCycleNumber: number | null;
 }
 
 export interface ContestPlayerState {
@@ -668,6 +734,7 @@ export interface GameState {
   openRifts: RiftInstance[];
   replayIndex: ReplayIndexEntry[];
   contest?: ContestState;
+  ladder?: LadderState;
 }
 
 export interface ValidationIssue {

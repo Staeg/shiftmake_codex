@@ -5,6 +5,7 @@ import type {
   FactionUnlockOffer,
   GameMode,
   GameState,
+  LadderState,
   LoadGameResult,
   LoadGameRepairReport,
   ReplayIndexEntry,
@@ -91,7 +92,7 @@ function isKnownUpgradeId(value: unknown): value is string {
 }
 
 function gameModeOr(value: unknown): GameMode {
-  return value === 'contest' ? 'contest' : 'campaign';
+  return value === 'contest' || value === 'ladder' ? value : 'campaign';
 }
 
 function phaseOr(value: unknown): CampaignPhase {
@@ -316,6 +317,18 @@ function normalizeContestState(value: unknown, repairs: LoadGameRepairReport): C
   };
 }
 
+function normalizeLadderState(value: unknown): LadderState {
+  const ladder = isObject(value) ? value : {};
+  return {
+    currentRiftSetId: typeof ladder.currentRiftSetId === 'string' ? ladder.currentRiftSetId : null,
+    currentGeneration: typeof ladder.currentGeneration === 'number' && Number.isFinite(ladder.currentGeneration) ? ladder.currentGeneration : null,
+    currentSourceCycleNumber:
+      typeof ladder.currentSourceCycleNumber === 'number' && Number.isFinite(ladder.currentSourceCycleNumber)
+        ? ladder.currentSourceCycleNumber
+        : null,
+  };
+}
+
 function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairReport): GameState {
   const activeFactionUnlockOffer = normalizeFactionUnlockOffer(parsed.activeFactionUnlockOffer, repairs);
   const activeTroopTypeUnlockOffer = normalizeTroopTypeUnlockOffer(parsed.activeTroopTypeUnlockOffer, repairs);
@@ -351,6 +364,7 @@ function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairR
     openRifts: arrayOrEmpty<RiftInstance>(parsed.openRifts).map((rift) => normalizeRift(rift, repairs)),
     replayIndex: arrayOrEmpty<ReplayIndexEntry>(parsed.replayIndex).map(normalizeReplayIndexEntry),
     ...(gameMode === 'contest' ? { contest: normalizeContestState(parsed.contest, repairs) } : {}),
+    ...(gameMode === 'ladder' ? { ladder: normalizeLadderState(parsed.ladder) } : {}),
   };
 }
 

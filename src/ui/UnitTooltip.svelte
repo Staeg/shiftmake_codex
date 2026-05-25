@@ -147,7 +147,7 @@
         <b>{display.role}</b>
       </button>
       {#if display.initiative !== null}
-        <div title="Units act when initiative reaches 100; when no unit can act, each unit gains initiative equal to Speed."><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
+        <div><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
       {/if}
     </div>
 

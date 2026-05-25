@@ -25,13 +25,14 @@
     "@tsconfig/svelte": "^5.0.4",
     "@types/ws": "^8.18.1",
     "svelte": "^4.2.19",
-    "tsx": "^4.21.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.0",
     "vitest": "^2.0.5"
   },
   "dependencies": {
+    "pg": "^8.21.0",
     "pixi.js": "^7.4.2",
+    "tsx": "^4.22.3",
     "ws": "^8.20.0"
   }
 }

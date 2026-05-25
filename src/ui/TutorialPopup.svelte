@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import type { TutorialProgress, TutorialStepId } from '../store/tutorial';
+  import type { TutorialAction, TutorialProgress, TutorialStepId } from '../store/tutorial';
 
   export let progress: TutorialProgress;
   export let onBack: () => void;
@@ -16,6 +16,7 @@
     fallbackTargets?: string[];
     preferHigher?: boolean;
     avoidSelectors?: string[];
+    targetMode?: 'nearest-per-selector' | 'all';
   };
 
   const COPY: Record<TutorialStepId, TutorialCopy> = {
@@ -75,15 +76,15 @@
     },
     'timeline-show': {
       title: 'Live Timeline',
-      body: ['Clicking the top of the Event Log changes the view to the Live Timeline.'],
-      task: 'Click Show (or the surrounding area) on the Event Log.',
+      body: ['You can swap between the Unit Overview and a list of everything that happened in the battle step by step.'],
+      task: 'Click on the Event Log or the surrounding area to switch to that tab.',
       placement: 'replay-low',
       targets: ['[data-ui-name="Toggle event log"]'],
     },
     'timeline-event': {
       title: 'Timeline Event',
       body: ['Clicking a step changes the battle map to what the battle looks like at that step.'],
-      task: 'Click Event #101 in the Live Timeline.',
+      task: 'Click Event #101 in the Event Log.',
       placement: 'replay-low',
       targets: ['.event-log-wrap button[data-step="100"]'],
       fallbackTargets: ['[data-ui-name="Toggle event log"]'],
@@ -138,7 +139,9 @@
       ],
       task: 'Select two Faction + Troop packages, then click Begin Contest.',
       placement: 'opening-top',
-      targets: ['.opening-starter-tile', '.opening-confirm-troop-button', '[data-ui-name="Begin campaign button"]'],
+      targets: ['.opening-faction-card:not(.selected):not(.incompatible)'],
+      avoidSelectors: ['.opening-faction-card'],
+      targetMode: 'all',
     },
     essence: {
       title: 'Essence',
@@ -149,10 +152,10 @@
     },
     'reveal-draft': {
       title: 'Unlock Draft',
-      body: ['Essence reveals linked Troop and Upgrade choices.'],
-      task: 'Click Reveal Unlock Draft.',
+      body: ['Essence automatically reveals linked Troop and Upgrade choices because spending it is mandatory.'],
+      task: 'Review the revealed draft.',
       placement: 'overworld-left',
-      targets: ['[data-tutorial-target="reveal-draft-button"]'],
+      targets: ['[data-tutorial-target="draft-troop-option"]'],
     },
     'choose-draft': {
       title: 'Draft Choices',
@@ -260,6 +263,60 @@
   let anchorStep: TutorialStepId | null = null;
   let lastPrimaryCenter: Point | null = null;
 
+  function hasSignal(action: TutorialAction): boolean {
+    return progress.signals.includes(action);
+  }
+
+  function selectedOpeningFactionCount(): number {
+    if (typeof document === 'undefined') {
+      return 0;
+    }
+    return document.querySelectorAll('.opening-faction-card.selected').length;
+  }
+
+  function activeTargetSelectors(): string[] {
+    if (progress.step === 'opening' && selectedOpeningFactionCount() >= 2) {
+      return ['[data-ui-name="Begin campaign button"]'];
+    }
+    return copy.targets.some((selector) => document.querySelector(selector))
+      ? copy.targets
+      : copy.fallbackTargets ?? copy.targets;
+  }
+
+  function targetCompleted(selector: string): boolean {
+    if (progress.step === 'unit-actions') {
+      if (selector.includes('unit-next-action')) {
+        return hasSignal('unit-next-action');
+      }
+      if (selector.includes('unit-previous-action')) {
+        return hasSignal('unit-previous-action');
+      }
+      if (selector.includes('battlefield-unit')) {
+        return hasSignal('unit-lock');
+      }
+    }
+
+    if (progress.step === 'choose-draft') {
+      if (selector.includes('draft-troop') || selector.includes('confirm-draft-troop')) {
+        return hasSignal('draft-troop');
+      }
+      if (selector.includes('draft-upgrade') || selector.includes('confirm-draft-upgrade')) {
+        return hasSignal('draft-upgrade');
+      }
+    }
+
+    if (progress.step === 'finish-replay') {
+      if (selector.includes('replay-play')) {
+        return hasSignal('play');
+      }
+      if (selector.includes('replay-speed')) {
+        return hasSignal('speed-hover');
+      }
+    }
+
+    return false;
+  }
+
   function rectOf(element: Element): Rect {
     const rect = element.getBoundingClientRect();
     return {
@@ -288,9 +345,7 @@
     }
 
     const seen = new Set<Element>();
-    const selectors = copy.targets.some((selector) => document.querySelector(selector))
-      ? copy.targets
-      : copy.fallbackTargets ?? copy.targets;
+    const selectors = activeTargetSelectors().filter((selector) => !targetCompleted(selector));
 
     return selectors.map((selector) =>
       [...document.querySelectorAll(selector)]
@@ -336,6 +391,21 @@
 
   function rectFitsViewport(rect: Rect): boolean {
     return rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+  }
+
+  function rectArea(rect: Rect): number {
+    return Math.max(0, rect.width) * Math.max(0, rect.height);
+  }
+
+  function popupBadlyCoversTarget(target: Rect): boolean {
+    if (!popupBox) {
+      return true;
+    }
+    const overlap = overlapArea(popupBox, target);
+    if (copy.placement === 'opening-top') {
+      return overlap > 0;
+    }
+    return overlap > Math.min(rectArea(target) * 0.45, rectArea(popupBox) * 0.18);
   }
 
   function obstacleRects(): Rect[] {
@@ -420,13 +490,11 @@
     };
     const primary = [...primaryGroup].sort((a, b) => distance(a, viewCenter) - distance(b, viewCenter))[0]!;
     const primaryCenter = center(primary);
-    const primaryMovement = lastPrimaryCenter ? Math.hypot(primaryCenter.x - lastPrimaryCenter.x, primaryCenter.y - lastPrimaryCenter.y) : Number.POSITIVE_INFINITY;
     const canKeepPopup =
       anchorStep === progress.step &&
       popupBox &&
       rectFitsViewport(popupBox) &&
-      primaryMovement < 24 &&
-      overlapArea(popupBox, primary) === 0;
+      !popupBadlyCoversTarget(primary);
     if (!canKeepPopup) {
       popupBox = placeNearTarget(primary, popupEl.offsetWidth, popupEl.offsetHeight, obstacleRects());
     }
@@ -439,7 +507,9 @@
         const nearest = [...group].sort((a, b) => distance(rectOf(a), primary) - distance(rectOf(b), primary));
         return nearest.find((target) => targetIsClear(rectOf(target))) ?? nearest[0]!;
     });
-    const selectedElements = [...nearestPerGroupElements];
+    const selectedElements = copy.targetMode === 'all'
+      ? visibleElementGroups.flat()
+      : [...nearestPerGroupElements];
     setTutorialHighlights(selectedElements);
     popupStyle = `left:${popupBox.left}px; right:auto; top:${popupBox.top}px; bottom:auto; transform:none;`;
   }

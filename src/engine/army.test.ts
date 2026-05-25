@@ -68,6 +68,14 @@ describe('troop composition', () => {
     expect(archerResolved.stats.range).toBe(4);
   });
 
+  it('does not grant backline-only Elven Reflexes abilities to Elven Champions', () => {
+    const champion = createTroopInstance('elf', 'champion');
+    const championResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, champion, 'player');
+
+    expect(championResolved.stats.range).toBe(0);
+    expect(championResolved.abilities.map((ability) => ability.id)).not.toContain('fade-into-shadow');
+  });
+
   it('only applies enemy stat scaling at tier 4 and leaves tier 3 at base stats', () => {
     const humanSoldierBase = composeBaseTroopDefinition('human', 'soldier');
     const tier3Breakdowns = getResolvedStatBreakdowns(

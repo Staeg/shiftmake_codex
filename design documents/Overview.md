@@ -2,13 +2,13 @@
 
 This document describes the game as it is currently implemented.
 
-Shiftmake is a browser-based singleplayer strategy game with an auto-battling combat layer and fully replayable battles.
+Shiftmake is a browser-based strategy game with singleplayer Campaign and Ladder modes, a Contest vs AI mode, an auto-battling combat layer, and fully replayable battles.
 
 You build a mixed-faction army, preview visible Rifts, assign troops, draft new troops and upgrades with Essence, and chase the highest possible VP total by the end of cycle 10.
 
 ## Current flow
 
-1. Start a campaign from one of three save slots.
+1. Start a Campaign, Ladder, or Contest vs AI run from one of three save slots.
 2. Pick two free opening factions from the opening offer. Each faction option includes one specific starting troop type; the player chooses the faction, not the troop type.
 3. Enter the planning screen for the current cycle.
 4. Inspect visible Rifts, their mutators, enemy troops, saturation limit, and VP reward directly from the board.
@@ -18,6 +18,8 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 8. Gain VP equal to the tier of each Rift you win.
 9. Gain 2 Essence for the next cycle.
 10. After cycle 10 resolves, view the official game-over screen and optionally continue free play.
+
+Ladder follows the same 10-cycle progression, unlock, assignment, Essence, VP, recovery, and battle rules as Campaign. Its difference is the Rift source: each cycle's four Rifts are drawn from a shared Ladder Rift-set database. When a Ladder cycle completes, the source Rift-set is harvested into a child Rift-set where conquered Rifts use the player's assigned troops as future Guardians.
 
 ## Core strategic pressures
 
@@ -56,6 +58,7 @@ Removed from the current game:
 - Winning a Rift grants VP equal to that Rift's tier.
 - Rift victories can also record unusual troop combinations that appeared in the defeated Rift for future faction unlocks.
 - The scored run officially ends after cycle 10.
+- Ladder has no rating, ranking, matchmaking rating, player rating, or Rift-set rating in v1.
 
 ## Currently implemented factions
 

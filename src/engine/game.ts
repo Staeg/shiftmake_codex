@@ -12,6 +12,7 @@ import {
 import { fixed } from './fixed';
 import { createRng } from './rng';
 import { deserializeGameState, serializeGameState } from './save';
+import { LADDER_FINAL_CYCLE } from './ladder';
 import { deriveSeed, generateContestCycleRifts, generateCycleRifts } from './rift';
 import {
   FACTION_UPGRADES,
@@ -117,6 +118,7 @@ function buildInitialState(seed: number, gameMode: GameMode = 'campaign'): GameS
     openRifts: [],
     replayIndex: [],
     ...(gameMode === 'contest' ? { contest: { players: { ai: buildEmptyContestPlayerState() }, opponentInfo: null } } : {}),
+    ...(gameMode === 'ladder' ? { ladder: { currentRiftSetId: null, currentGeneration: null, currentSourceCycleNumber: null } } : {}),
   };
 }
 
@@ -347,7 +349,7 @@ function buildTroopTypeUnlockOffer(state: GameState, cycleNumber: number, factio
   };
 }
 
-function applyScheduledCycleUnlock(state: GameState): GameState {
+export function applyScheduledCycleUnlock(state: GameState): GameState {
   if (state.phase !== 'planning' || state.activeFactionUnlockOffer || state.activeTroopTypeUnlockOffer) {
     return state;
   }
@@ -691,6 +693,14 @@ export function startOpeningCampaign(state: GameState): GameState {
       },
       chooseAiOpeningTroops(state.campaignSeed),
     );
+  }
+
+  if (state.gameMode === 'ladder') {
+    return {
+      ...state,
+      phase: 'planning',
+      essence: 2,
+    };
   }
 
   return {
@@ -1916,8 +1926,8 @@ export function resolveAssignedRifts(state: GameState, preparedContestAi?: Conte
         rift.saturation,
         state.factionUpgradeIds,
         state.troopTypeUpgradeIds,
-        [],
-        [],
+        rift.enemyFactionUpgradeIds ?? [],
+        rift.enemyTroopTypeUpgradeIds ?? [],
         troops.map((troop) => resolveTroopCombatant(state, troop, 'player')),
         rift.enemyArmy,
       ), {
@@ -2031,9 +2041,10 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
     }
   });
 
-  nextState.phase = unlockedState.cycleNumber === CAMPAIGN_FINAL_CYCLE && !unlockedState.postgameDismissed ? 'game_over' : 'planning';
-  nextState.openRifts = [...nextState.openRifts, ...generateCycleRifts(nextState)];
-  nextState = applyScheduledCycleUnlock(nextState);
+  const finalCycle = unlockedState.gameMode === 'ladder' ? LADDER_FINAL_CYCLE : CAMPAIGN_FINAL_CYCLE;
+  nextState.phase = unlockedState.cycleNumber === finalCycle && !unlockedState.postgameDismissed ? 'game_over' : 'planning';
+  nextState.openRifts = unlockedState.gameMode === 'ladder' ? nextState.openRifts : [...nextState.openRifts, ...generateCycleRifts(nextState)];
+  nextState = unlockedState.gameMode === 'ladder' ? nextState : applyScheduledCycleUnlock(nextState);
 
   const deletes: { replayId: string }[] = [];
   const kept: ReplayIndexEntry[] = [];
