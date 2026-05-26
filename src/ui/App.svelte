@@ -146,7 +146,9 @@
     replayId: string;
     delayClass: 'phase-now' | 'phase-late';
     left: RiftBattleAnimationSide;
+    leftSource: SideId;
     right: RiftBattleAnimationSide;
+    rightSource: SideId;
   };
 
   type RiftBattleAnimationView = {
@@ -638,7 +640,7 @@
   }
 
   function previewReplayUnit(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
-    if (lockedUnitId || pinnedReplayExplanationIndex !== null) {
+    if (pinnedReplayExplanationIndex !== null) {
       return;
     }
     const target = event.currentTarget as HTMLElement;
@@ -654,7 +656,7 @@
   }
 
   function clearReplayUnitPreview(unitId: string): void {
-    if (lockedUnitId || pinnedReplayExplanationIndex !== null) {
+    if (pinnedReplayExplanationIndex !== null) {
       return;
     }
     if (hoverInfo?.unitId === unitId) {
@@ -1237,7 +1239,7 @@
     nextRenderer.setDiagnosticHandler(rememberRendererDiagnostic);
     nextRenderer.setInteractionHandlers({
       onUnitHover: (info) => {
-        if (!lockedUnitId && pinnedReplayExplanationIndex === null) {
+        if (pinnedReplayExplanationIndex === null) {
           hoverInfo = info;
           signalTutorial(info ? 'unit-hover' : 'unit-unhover');
           syncRenderer();
@@ -2491,7 +2493,9 @@
       replayId: record.replay.id,
       delayClass,
       left: playerIsRight ? enemySide : playerSide,
+      leftSource: playerIsRight ? 'enemy' : 'player',
       right: playerIsRight ? playerSide : enemySide,
+      rightSource: playerIsRight ? 'player' : 'enemy',
     };
   }
 
@@ -2507,15 +2511,8 @@
     if (!record) {
       return [];
     }
-    const phaseSide = phase[side];
-    const participants = record.battleInput.sideParticipants;
-    if (participants?.player.kind === phaseSide.kind && participants.player.label === phaseSide.label) {
-      return record.battleInput.playerCombatants;
-    }
-    if (participants?.enemy.kind === phaseSide.kind && participants.enemy.label === phaseSide.label) {
-      return record.battleInput.enemyCombatants;
-    }
-    return [];
+    const source = side === 'left' ? phase.leftSource : phase.rightSource;
+    return source === 'player' ? record.battleInput.playerCombatants : record.battleInput.enemyCombatants;
   }
 
   function getAssignedRiftCombatants(rift: RiftInstance): ResolvedCombatantDefinition[] {
@@ -2902,6 +2899,11 @@
   $: mustSpendEssenceBeforeCycleEnd =
     $gameStore.game.phase === 'planning' &&
     (($gameStore.game.essence > 0 && essenceDraftCost !== null) || $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
+  $: riftsNeedAttention =
+    $gameStore.game.phase === 'planning' &&
+    $gameStore.centerMode !== 'rifts' &&
+    discoveredRifts.length > 0 &&
+    !mustSpendEssenceBeforeCycleEnd;
   $: finalCycle = $gameStore.game.gameMode === 'contest' ? CONTEST_FINAL_CYCLE : $gameStore.game.gameMode === 'ladder' ? LADDER_FINAL_CYCLE : CAMPAIGN_FINAL_CYCLE;
   $: cycleProgressLabel = $gameStore.game.cycleNumber > finalCycle ? `Postgame cycle ${$gameStore.game.cycleNumber}` : `Cycle ${$gameStore.game.cycleNumber} / ${finalCycle}`;
   $: archiveEntriesPerPage = Math.max(4, Math.min(12, Math.floor((viewportHeight - 350) / 52)));
@@ -3126,6 +3128,24 @@
         null
       : null;
   $: inspectedUnitLiveStatLines = buildLiveStatBreakdownLines(replay, inspectedUnit?.id ?? null, $gameStore.currentStep);
+  $: hoveredReplayUnit =
+    hoverInfo?.unitId && hoverInfo.unitId !== lockedUnitId
+      ? replaySnapshot.find((unit) => unit.id === hoverInfo?.unitId) ?? null
+      : null;
+  $: hoveredReplayUnitProfile =
+    replay && hoveredReplayUnit
+      ? replay.troopProfiles.find((profile) => profile.troopLabel === hoveredReplayUnit.troopLabel && profile.side === hoveredReplayUnit.side) ??
+        replay.troopProfiles.find((profile) => {
+          const initialUnit = replay.initial.units.find((unit) => unit.id === hoveredReplayUnit.id);
+          return profile.troopLabel === hoveredReplayUnit.troopLabel && profile.side === initialUnit?.side;
+        }) ??
+        null
+      : null;
+  $: hoveredReplayUnitLiveStatLines = buildLiveStatBreakdownLines(replay, hoveredReplayUnit?.id ?? null, $gameStore.currentStep);
+  $: hoveredReplayUnitEngagedUnits =
+    hoveredReplayUnit && replaySnapshot.length > 0
+      ? hoveredReplayUnit.engagedWithIds.map((unitId) => replaySnapshot.find((unit) => unit.id === unitId)).filter(Boolean) as BattleUnit[]
+      : [];
   $: hoveredReplayProfile = hoveredReplayProfileKey ? replayProfilesByKey.get(hoveredReplayProfileKey) ?? null : null;
   $: selectedReplayProfile = selectedReplayProfileKey ? replayProfilesByKey.get(selectedReplayProfileKey) ?? null : null;
   $: replayFocusProfile = hoveredReplayProfile ?? inspectedProfile ?? selectedReplayProfile;
@@ -3704,13 +3724,12 @@
               <button
                 type="button"
                 class="opening-selected-faction"
-                aria-label={`Un-confirm ${selectedFaction.label} ${getUnitType(selectedUnitTypeId).label}`}
-                title={`Un-confirm ${selectedFaction.label}`}
-                on:click={() => unconfirmOpeningTroop(selectedFaction.starterTroopUnlockId)}
+                aria-label={`Selected ${selectedFaction.label} ${getUnitType(selectedUnitTypeId).label}`}
+                title={`Selected ${selectedFaction.label}`}
+                disabled
               >
                 <img src={getFactionPortrait(selectedFaction.factionId)} alt="" aria-hidden="true" />
                 <img src={getFactionUnitPortrait(selectedFaction.factionId, selectedUnitTypeId)} alt="" aria-hidden="true" />
-                <span>Un-confirm</span>
               </button>
             {:else}
               <div class="opening-selected-faction opening-selected-placeholder" aria-label={`Opening faction slot ${slotIndex + 1} empty`}></div>
@@ -4138,6 +4157,7 @@
           class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'rifts' && !tutorialCanSwitchCenterMode('rifts')}
           data-ui-name="Show rifts view"
           class:selected={$gameStore.centerMode === 'rifts'}
+          class:rifts-attention={riftsNeedAttention}
           data-tutorial-target="rifts-view-button"
           on:click={() => ($gameStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialCenterMode('rifts', setRiftCenterMode))}
         >Rifts</button>
@@ -4201,26 +4221,28 @@
       <div class="panel overworld-detail-panel ui-debug-target" data-ui-name="Detail panel">
         {#if activeDetail}
           <div class="detail-panel overworld-detail-panel" role="presentation" on:mouseleave={clearDetail}>
-            <p class="eyebrow">
-              {activeDetail.kind === 'mutator'
-                ? 'Mutator Effect'
-                : activeDetail.kind === 'faction'
-                  ? 'Faction Modifiers'
-                  : activeDetail.kind === 'upgrade'
-                    ? 'Upgrade Preview'
-                    : activeDetail.inspectLabel}
-            </p>
+            {#if activeDetail.kind !== 'unit'}
+              <p class="eyebrow">
+                {activeDetail.kind === 'mutator'
+                  ? 'Mutator Effect'
+                  : activeDetail.kind === 'faction'
+                    ? 'Faction Modifiers'
+                    : activeDetail.kind === 'upgrade'
+                      ? 'Upgrade Preview'
+                      : activeDetail.inspectLabel}
+              </p>
+            {/if}
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             {#if activeDetail.kind === 'unit'}
-              <div class="hover-unit-detail">
+              <div class="unit-overview-strip">
                 <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                   {#each unitIconCopies(activeDetail.quantity) as copy}
                     <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                   {/each}
                 </span>
-                <p>{activeDetail.description}</p>
+                <StatBreakdownGrid stats={activeDetail.stats} columns={8} compact={true} />
               </div>
-              <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+              <p>{activeDetail.description}</p>
               <button type="button" class="compare-pin-button" on:click={() => pinComparisonDetail(activeDetail)}>📌 Compare</button>
               <div class="ability-row detail-ability-row">
                 <span>Abilities</span>
@@ -4420,28 +4442,28 @@
             {/if}
           </div>
         {:else if $gameStore.centerMode === 'troops' && selectedTroop && selectedTroopDefinition}
-          <p class="eyebrow">Troop Inspector</p>
           <h2>{selectedTroopDefinition.label}</h2>
-          <div class="hover-unit-detail">
+          <div class="unit-overview-strip">
             <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(selectedTroopDefinition.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(selectedTroopDefinition.quantity)}`} aria-label={`${selectedTroopDefinition.quantity} units in troop`}>
               {#each unitIconCopies(selectedTroopDefinition.quantity) as copy}
                 <img class="hover-unit-art" src={getFactionUnitPortrait(selectedTroop.factionId, selectedTroop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
               {/each}
             </span>
-            <p>
-              <strong>{selectedTroopDefinition.role}</strong>: {formatRoleExact(selectedTroopDefinition.role)}
-              <br />
-              {selectedTroop.assignmentRiftId
-                ? `Assigned to ${selectedTroop.assignmentRiftId}`
-                : selectedTroop.recoveryCyclesRemaining > 0
-                  ? `Recovering ${selectedTroop.recoveryCyclesRemaining}`
-                  : 'Ready'}
-            </p>
+            <StatBreakdownGrid
+              stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
+              columns={8}
+              compact={true}
+            />
           </div>
-          <StatBreakdownGrid
-            stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
-            columns={4}
-          />
+          <p>
+            <strong>{selectedTroopDefinition.role}</strong>: {formatRoleExact(selectedTroopDefinition.role)}
+            <br />
+            {selectedTroop.assignmentRiftId
+              ? `Assigned to ${selectedTroop.assignmentRiftId}`
+              : selectedTroop.recoveryCyclesRemaining > 0
+                ? `Recovering ${selectedTroop.recoveryCyclesRemaining}`
+                : 'Ready'}
+          </p>
 
           <div class="ability-row">
             <span>Abilities</span>
@@ -5779,25 +5801,42 @@
             <ReplayStepExplanation view={replayExplanationView} compact={true} />
           </div>
         {:else if replayFocusProfile || inspectedUnit}
-          <UnitTooltip
-            unit={inspectedUnit}
-            profile={replayFocusProfile}
-            engagedUnits={engagedUnits}
-            getUnitPortraitUrl={getReplayUnitPortraitUrl}
-            x={hoverInfo?.x ?? 0}
-            y={hoverInfo?.y ?? 0}
-            locked={!!lockedUnitId}
-            lastActionStep={lockedUnitLastActionStep}
-            nextActionStep={lockedUnitNextActionStep}
-            onGoToLastAction={() => goToReplayUnitActionStep(lockedUnitLastActionStep)}
-            onGoToNextAction={() => goToReplayUnitActionStep(lockedUnitNextActionStep)}
-            docked={true}
-            liveBuffLines={inspectedUnitLiveStatLines}
-            onHoverStat={(key) => key === 'speed' && signalTutorial('speed-hover')}
-            onHoverAbility={() => signalTutorial('ability-hover')}
-            onPreviousAction={() => signalTutorial('unit-previous-action')}
-            onNextAction={() => signalTutorial('unit-next-action')}
-          />
+          <div class="replay-unit-focus-stack">
+            <UnitTooltip
+              unit={inspectedUnit}
+              profile={replayFocusProfile}
+              engagedUnits={engagedUnits}
+              getUnitPortraitUrl={getReplayUnitPortraitUrl}
+              x={hoverInfo?.x ?? 0}
+              y={hoverInfo?.y ?? 0}
+              locked={!!lockedUnitId}
+              lastActionStep={lockedUnitLastActionStep}
+              nextActionStep={lockedUnitNextActionStep}
+              onGoToLastAction={() => goToReplayUnitActionStep(lockedUnitLastActionStep)}
+              onGoToNextAction={() => goToReplayUnitActionStep(lockedUnitNextActionStep)}
+              docked={true}
+              liveBuffLines={inspectedUnitLiveStatLines}
+              onHoverStat={(key) => key === 'speed' && signalTutorial('speed-hover')}
+              onHoverAbility={() => signalTutorial('ability-hover')}
+              onPreviousAction={() => signalTutorial('unit-previous-action')}
+              onNextAction={() => signalTutorial('unit-next-action')}
+            />
+            {#if lockedUnitId && hoveredReplayUnit}
+              <UnitTooltip
+                unit={hoveredReplayUnit}
+                profile={hoveredReplayUnitProfile}
+                engagedUnits={hoveredReplayUnitEngagedUnits}
+                getUnitPortraitUrl={getReplayUnitPortraitUrl}
+                x={hoverInfo?.x ?? 0}
+                y={hoverInfo?.y ?? 0}
+                locked={false}
+                docked={true}
+                liveBuffLines={hoveredReplayUnitLiveStatLines}
+                onHoverStat={(key) => key === 'speed' && signalTutorial('speed-hover')}
+                onHoverAbility={() => signalTutorial('ability-hover')}
+              />
+            {/if}
+          </div>
         {:else}
           <div class="focus-empty">
             <p class="eyebrow">Unit Focus</p>
@@ -6481,6 +6520,26 @@
     border-color: rgba(213, 178, 116, 0.6);
   }
 
+  .mode-toggle button.rifts-attention {
+    border-color: rgba(244, 205, 118, 0.72);
+    animation: rifts-button-attention 1.8s ease-in-out infinite;
+  }
+
+  @keyframes rifts-button-attention {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 0 rgba(244, 205, 118, 0.16),
+        inset 0 0 0 1px rgba(244, 205, 118, 0.14);
+    }
+    50% {
+      box-shadow:
+        0 0 0 3px rgba(244, 205, 118, 0.14),
+        0 0 16px rgba(244, 205, 118, 0.18),
+        inset 0 0 0 1px rgba(244, 205, 118, 0.34);
+    }
+  }
+
   button:disabled {
     cursor: not-allowed;
     opacity: 0.48;
@@ -6515,6 +6574,11 @@
     font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
+  }
+
+  button.opening-selected-faction:disabled {
+    cursor: default;
+    opacity: 1;
   }
 
   .opening-selected-placeholder {
@@ -6922,6 +6986,10 @@
     --game-icon-raster-scale: 1.45;
   }
 
+  .ability-chip :global(.game-icon) {
+    --game-icon-size: 1.58rem;
+  }
+
   .summon-preview-chip {
     border-color: rgba(215, 221, 230, 0.34);
     background: rgba(28, 34, 42, 0.82);
@@ -6943,6 +7011,19 @@
 
   .detail-title :global(.game-icon) {
     --game-icon-size: 1.35rem;
+  }
+
+  .unit-overview-strip {
+    display: grid;
+    grid-template-columns: minmax(3.1rem, 4rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0.1rem 0 0.45rem;
+    min-width: 0;
+  }
+
+  .unit-overview-strip :global(.stats-grid.compact) {
+    min-width: 0;
   }
 
   .mutator-chip.empty {
@@ -7343,7 +7424,7 @@
     display: grid;
     place-items: center;
     opacity: 0;
-    animation: battle-phase 4.8s ease-in-out both;
+    animation: battle-phase 7.6s ease-in-out both;
   }
 
   .rift-battle-phase.phase-late {
@@ -7407,7 +7488,7 @@
     --sword-ready-rotate: 90deg;
     --sword-clash-rotate: 42deg;
     --sword-break-rotate: 128deg;
-    animation: sword-clash 4.8s cubic-bezier(0.2, 0.9, 0.26, 1) both;
+    animation: sword-clash 7.6s cubic-bezier(0.2, 0.9, 0.26, 1) both;
   }
 
   .right-sword {
@@ -7416,7 +7497,7 @@
     --sword-ready-rotate: -90deg;
     --sword-clash-rotate: -42deg;
     --sword-break-rotate: -128deg;
-    animation: sword-clash 4.8s cubic-bezier(0.2, 0.9, 0.26, 1) both;
+    animation: sword-clash 7.6s cubic-bezier(0.2, 0.9, 0.26, 1) both;
   }
 
   .left-loses .left-sword,
@@ -7434,7 +7515,7 @@
       0 0 12px rgba(255, 231, 154, 0.95),
       0 0 26px rgba(229, 92, 60, 0.58);
     opacity: 0;
-    animation: clash-spark 4.8s ease-out both;
+    animation: clash-spark 7.6s ease-out both;
   }
 
   @keyframes rift-force-group-now {
@@ -7447,7 +7528,7 @@
 
   @keyframes rift-force-group-now-loses {
     0%,
-    58% {
+    84% {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: none;
@@ -7461,7 +7542,7 @@
 
   @keyframes rift-force-group-now-loses-late {
     0%,
-    78% {
+    88% {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: none;
@@ -7494,7 +7575,7 @@
       filter: none;
     }
     58%,
-    78% {
+    88% {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: none;
@@ -10215,6 +10296,12 @@
     display: grid;
     gap: 0.55rem;
     align-content: start;
+  }
+
+  .replay-unit-focus-stack {
+    display: grid;
+    gap: 0.55rem;
+    min-width: 0;
   }
 
   .replay-explanation-panel {

@@ -455,7 +455,7 @@
   }
 
   .ability-chip :global(.game-icon) {
-    --game-icon-size: 0.95rem;
+    --game-icon-size: 1.43rem;
   }
 
   .ability-chip :global(.game-icon.raster-icon) {

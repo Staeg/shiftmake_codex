@@ -609,6 +609,10 @@ function buildMovementExplanation(kind: 'move' | 'engage', actor: InternalUnit |
         ? { q: metadata.targetHexQ, r: metadata.targetHexR }
         : undefined,
     destination: hasDestination ? { q: metadata.toQ as number, r: metadata.toR as number } : undefined,
+    routedAroundSaturatedHex:
+      typeof metadata.routedAroundSaturatedQ === 'number' && typeof metadata.routedAroundSaturatedR === 'number'
+        ? { q: metadata.routedAroundSaturatedQ, r: metadata.routedAroundSaturatedR }
+        : undefined,
     keepEnemyInRange: effect === 'skirmishersStep' ? true : undefined,
   };
 }
@@ -3147,6 +3151,10 @@ function validMovementHexes(state: InternalState, actor: InternalUnit): HexCoord
     .filter((coord) => fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) <= state.saturation);
 }
 
+function isSaturatedForMovement(state: InternalState, actor: InternalUnit, coord: HexCoord): boolean {
+  return fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) > state.saturation;
+}
+
 function getEnemyUnits(state: InternalState, actor: InternalUnit, roles: RoleId[] = []): InternalUnit[] {
   return getAliveUnits(state)
     .filter((unit) => unit.side !== actor.side)
@@ -3376,7 +3384,29 @@ function moveToward(
   if (equalsHex(selected.coord, actor.position)) {
     return false;
   }
+  const saturatedPreference = neighbors(actor.position)
+    .filter((coord) => inRadius(coord, state.mapRadius))
+    .filter((coord) => isSaturatedForMovement(state, actor, coord))
+    .map((coord) => {
+      const enemiesHere = getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord));
+      return {
+        coord,
+        distance: hexDistance(coord, target.position),
+        nonEngagedEnemies: enemiesHere.filter((unit) => unit.engagedWith.size === 0).length,
+      };
+    })
+    .filter((entry) => entry.distance < currentDistance)
+    .filter((entry) => entry.distance < selected.distance || (entry.distance === selected.distance && entry.nonEngagedEnemies < selected.nonEngagedEnemies))
+    .filter((entry) => hexDistance(entry.coord, selected.coord) === 1)
+    .sort((a, b) => a.distance - b.distance || a.nonEngagedEnemies - b.nonEngagedEnemies)[0]?.coord;
   relocateUnit(state, actor, selected.coord);
+  const routeMetadata =
+    saturatedPreference && hexDistance(saturatedPreference, actor.position) === 1
+      ? {
+          routedAroundSaturatedQ: saturatedPreference.q,
+          routedAroundSaturatedR: saturatedPreference.r,
+        }
+      : {};
   if (roleIntent && reasonCode && targetRole) {
     emitRoleIntentStep(state, 'move', actor, [target], `${actor.troopLabel} ${formatRoleIntentMessage(roleIntent)}.`, {
       roleIntent,
@@ -3386,9 +3416,10 @@ function moveToward(
       targetHexR: target.position.r,
       toQ: actor.position.q,
       toR: actor.position.r,
+      ...routeMetadata,
     });
   } else {
-    buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} moves.`, { toQ: actor.position.q, toR: actor.position.r });
+    buildStep(state, 'move', [actor.id], [], `${actor.troopLabel} moves.`, { toQ: actor.position.q, toR: actor.position.r, ...routeMetadata });
   }
   return true;
 }

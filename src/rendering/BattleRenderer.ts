@@ -57,6 +57,16 @@ function axialToPixel(coord: HexCoord): PixelPoint {
   return { x, y };
 }
 
+function sharedHexVertex(a: HexCoord, b: HexCoord, c: HexCoord): PixelPoint {
+  const pa = axialToPixel(a);
+  const pb = axialToPixel(b);
+  const pc = axialToPixel(c);
+  return {
+    x: (pa.x + pb.x + pc.x) / 3,
+    y: (pa.y + pb.y + pc.y) / 3,
+  };
+}
+
 function getUnitById(units: BattleUnit[], id: string): BattleUnit | undefined {
   return units.find((unit) => unit.id === id);
 }
@@ -772,11 +782,19 @@ export class BattleRenderer {
 
       const start = prevLayout.positions.get(previousUnit.id) ?? axialToPixel(previousUnit.position);
       const end = nextLayout.positions.get(nextUnit.id) ?? axialToPixel(nextUnit.position);
+      const routedAround =
+        typeof step.metadata?.routedAroundSaturatedQ === 'number' && typeof step.metadata.routedAroundSaturatedR === 'number'
+          ? { q: step.metadata.routedAroundSaturatedQ, r: step.metadata.routedAroundSaturatedR }
+          : null;
+      const waypoint = routedAround ? sharedHexVertex(previousUnit.position, nextUnit.position, routedAround) : null;
 
       this.stopEffects.push(
-        animate(220, (t) => {
-          sprite.x = start.x + (end.x - start.x) * t;
-          sprite.y = start.y + (end.y - start.y) * t;
+        animate(waypoint ? 300 : 220, (t) => {
+          const segmentT = waypoint ? (t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5) : t;
+          const from = waypoint && t >= 0.5 ? waypoint : start;
+          const to = waypoint && t < 0.5 ? waypoint : end;
+          sprite.x = from.x + (to.x - from.x) * segmentT;
+          sprite.y = from.y + (to.y - from.y) * segmentT;
           this.syncUnitAdornments(actorId as string, sprite.x, sprite.y);
         }),
       );

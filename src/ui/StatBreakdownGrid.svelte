@@ -23,6 +23,7 @@
   }> = [];
 
   export let columns = 3;
+  export let compact = false;
   export let onHoverStat: ((key: string) => void) | null = null;
 
   let hoveredKey: string | null = null;
@@ -83,7 +84,7 @@
   }
 </script>
 
-<div class="stats-grid" style={`--stat-columns:${columns};`}>
+<div class="stats-grid" class:compact style={`--stat-columns:${columns};`}>
   {#each stats as stat}
     <div class="stat-card">
       <button
@@ -177,6 +178,43 @@
     text-align: left;
     min-width: 0;
     overflow: hidden;
+  }
+
+  .stats-grid.compact {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .stats-grid.compact .stat-card {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .stats-grid.compact .stat-main.inspectable {
+    width: 100%;
+    min-height: 1.35rem;
+    display: grid;
+    place-items: center;
+  }
+
+  .stats-grid.compact .stat-head {
+    gap: 0.16rem;
+  }
+
+  .stats-grid.compact .stat-main > span {
+    font-size: 0.66rem;
+  }
+
+  .stats-grid.compact .stat-values > strong {
+    font-size: 0.82rem;
   }
 
   .stat-main {

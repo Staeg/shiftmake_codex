@@ -466,6 +466,69 @@ describe('gameStore progression flow', () => {
     expect(storage.getItem('shiftmake:slot:1:save:v3')).toContain('00000000-0000-4000-8000-000000000111');
   });
 
+  it('does not duplicate Ladder harvests while cycle finalization is still in flight', async () => {
+    const cycleOnePayload = generateBaselineLadderPayload(4321, 1);
+    const cycleTwoPayload = generateBaselineLadderPayload(5432, 2);
+    let releaseHarvest: (() => void) | null = null;
+    const harvestGate = new Promise<void>((resolve) => {
+      releaseHarvest = resolve;
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/ladder/harvest')) {
+        await harvestGate;
+        return {
+          ok: true,
+          json: async () => ({
+            parentId: '00000000-0000-4000-8000-000000000111',
+            childId: '00000000-0000-4000-8000-000000000333',
+            parentSpent: false,
+            payload: cycleOnePayload,
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () =>
+          fetchMock.mock.calls.filter(([calledInput]) => String(calledInput).includes('/ladder/draw')).length === 1
+            ? {
+                id: '00000000-0000-4000-8000-000000000111',
+                cycleNumber: 1,
+                generation: 0,
+                sourceSetId: null,
+                payload: cycleOnePayload,
+              }
+            : {
+                id: '00000000-0000-4000-8000-000000000222',
+                cycleNumber: 2,
+                generation: 0,
+                sourceSetId: null,
+                payload: cycleTwoPayload,
+              },
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    gameStore.startNewCampaign(1, 'ladder');
+    claimDefaultOpeningTroops();
+    await gameStore.startOpeningCampaign();
+    spendAllEssence();
+    assignAllReadyTroopsToRifts();
+    gameStore.endCycle(true);
+
+    const firstFinish = gameStore.finishCycleAnimation();
+    const secondFinish = gameStore.finishCycleAnimation();
+    await Promise.resolve();
+
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('/ladder/harvest'))).toHaveLength(1);
+
+    releaseHarvest?.();
+    await Promise.all([firstFinish, secondFinish]);
+
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('/ladder/harvest'))).toHaveLength(1);
+    expect(currentStoreState<{ game: GameState }>().game.cycleNumber).toBe(2);
+  });
+
   it('adds resolved battles to the archive index when a cycle ends', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();

@@ -24,9 +24,9 @@ Status as of 2026-05-25:
 
 Verification completed:
 
-- `npm run test`: 25 test files, 256 tests passing.
+- `npm run test`: 25 test files, 261 tests passing.
 - `npm run build`: passing.
-- Added focused Ladder tests for validation, conversion, baseline seeding, valid draw filtering, appearances, spent state, store-side Ladder draw on opening start, and harvested child generation with player Guardian upgrade snapshots.
+- Added focused Ladder tests for validation, conversion, baseline seeding, valid draw filtering, appearances, spent state, store-side Ladder draw on opening start, duplicate harvest prevention during slow finalization, and harvested child generation with player Guardian upgrade snapshots.
 
 Known follow-up:
 

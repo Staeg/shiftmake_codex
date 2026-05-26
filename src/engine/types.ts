@@ -347,6 +347,7 @@ export interface BattleMovementExplanation {
   targetRole?: RoleId;
   targetHex?: HexCoord;
   destination?: HexCoord;
+  routedAroundSaturatedHex?: HexCoord;
   keepEnemyInRange?: boolean;
 }
 
@@ -397,6 +398,8 @@ export interface BattleStepMetadata {
   value?: number;
   toQ?: number;
   toR?: number;
+  routedAroundSaturatedQ?: number;
+  routedAroundSaturatedR?: number;
   explanation?: BattleStepExplanation;
   [key: string]: number | string | string[] | boolean | BattleStepExplanation | undefined;
 }

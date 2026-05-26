@@ -721,6 +721,7 @@ export function persistReplayPayloadWrites(
 export const gameStore = (() => {
   const { subscribe, update, set } = writable<StoreState>(makeInitialState());
   let snapshot = makeInitialState();
+  let cycleAnimationFinishInFlight = false;
 
   subscribe((state) => {
     snapshot = state;
@@ -1429,16 +1430,21 @@ export const gameStore = (() => {
       });
     },
     async finishCycleAnimation() {
+      if (cycleAnimationFinishInFlight) {
+        return;
+      }
       const animation = snapshot.cycleAnimation;
       if (!animation) {
         return;
       }
+      cycleAnimationFinishInFlight = true;
       const { sourceGame, resolution, activeSlotId } = animation;
       if (activeSlotId === null) {
         set({
           ...snapshot,
           cycleAnimation: null,
         });
+        cycleAnimationFinishInFlight = false;
         return;
       }
       if (sourceGame.gameMode !== 'ladder') {
@@ -1452,6 +1458,8 @@ export const gameStore = (() => {
             cycleEndConfirmationPending: false,
             cycleAnimation: null,
           });
+        } finally {
+          cycleAnimationFinishInFlight = false;
         }
         return;
       }
@@ -1466,6 +1474,8 @@ export const gameStore = (() => {
           cycleEndConfirmationPending: false,
           cycleAnimation: null,
         });
+      } finally {
+        cycleAnimationFinishInFlight = false;
       }
     },
     openReplay(replayId: string) {
