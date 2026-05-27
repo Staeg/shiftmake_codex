@@ -21,6 +21,7 @@ const UNIT_PIXEL_SIZE = 32;
 const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const BASE_EFFECT_MS = 1000;
+const BASE_STEP_MS = 500;
 const AUTO_ATTACK_EFFECT_MS = 280;
 const VIEWPORT_PADDING = 18;
 const DEFAULT_FIT_SCALE = 1.2;
@@ -180,6 +181,8 @@ export class BattleRenderer {
 
   private isAutoPlayback = false;
 
+  private playbackSpeedMs = BASE_STEP_MS;
+
   private currentMapRadius = 0;
 
   private boardBounds: Bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
@@ -264,11 +267,16 @@ export class BattleRenderer {
     this.onDiagnostic = handler;
   }
 
-  setPlaybackTiming(autoPlay: boolean, _speedMs: number): void {
+  setPlaybackTiming(autoPlay: boolean, speedMs: number): void {
+    const nextSpeedMs = Number.isFinite(speedMs) && speedMs > 0 ? speedMs : BASE_STEP_MS;
     if (this.isAutoPlayback && !autoPlay) {
       this.clearEffects();
     }
+    if (this.isAutoPlayback && autoPlay && nextSpeedMs !== this.playbackSpeedMs) {
+      this.clearEffects();
+    }
     this.isAutoPlayback = autoPlay;
+    this.playbackSpeedMs = nextSpeedMs;
   }
 
   destroy(): void {
@@ -703,11 +711,18 @@ export class BattleRenderer {
   }
 
   private effectDurationMs(): number {
-    return BASE_EFFECT_MS;
+    return this.scalePlaybackDuration(BASE_EFFECT_MS);
   }
 
   private attackEffectDurationMs(): number {
-    return this.isAutoPlayback ? AUTO_ATTACK_EFFECT_MS : this.effectDurationMs();
+    return this.scalePlaybackDuration(this.isAutoPlayback ? AUTO_ATTACK_EFFECT_MS : BASE_EFFECT_MS);
+  }
+
+  private scalePlaybackDuration(durationMs: number): number {
+    if (!this.isAutoPlayback) {
+      return durationMs;
+    }
+    return Math.max(1, Math.round(durationMs * (this.playbackSpeedMs / BASE_STEP_MS)));
   }
 
   private playStepEffect(step: BattleStep, prevUnits: BattleUnit[], nextUnits: BattleUnit[]): void {
@@ -789,7 +804,7 @@ export class BattleRenderer {
       const waypoint = routedAround ? sharedHexVertex(previousUnit.position, nextUnit.position, routedAround) : null;
 
       this.stopEffects.push(
-        animate(waypoint ? 300 : 220, (t) => {
+        animate(this.scalePlaybackDuration(waypoint ? 300 : 220), (t) => {
           const segmentT = waypoint ? (t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5) : t;
           const from = waypoint && t >= 0.5 ? waypoint : start;
           const to = waypoint && t < 0.5 ? waypoint : end;
@@ -1056,7 +1071,7 @@ export class BattleRenderer {
     };
 
     const stop = animate(
-      620,
+      this.scalePlaybackDuration(620),
       (t) => {
         const radius = startRadius + (endRadius - startRadius) * t;
         smoke.clear();
@@ -1181,7 +1196,7 @@ export class BattleRenderer {
     };
 
     const stop = animate(
-      800,
+      this.scalePlaybackDuration(800),
       (t) => {
         indicator.y = startY + floatDistance * t;
         indicator.alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
@@ -1231,7 +1246,7 @@ export class BattleRenderer {
     };
 
     const stop = animate(
-      540,
+      this.scalePlaybackDuration(540),
       (t) => {
         indicator.y = startY + floatDistance * t;
         indicator.alpha = 1 - t;

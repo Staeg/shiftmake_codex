@@ -67,6 +67,7 @@ import {
   readSlotReplayPayload,
   removeSlotReplay,
   clearSaveSlot,
+  slotReplayExists,
   type SaveSlotId,
   type SaveSlotSummary,
   saveToSlot,
@@ -965,17 +966,11 @@ export const gameStore = (() => {
       if (!loadedSlot) {
         return false;
       }
-      const loadedGame = loadedSlot.game;
-      const verification = verifyReplayIndexAgainstStoredPayloads(localStorage, slotId, loadedGame);
-      const game = verification.game;
-      if (verification.game !== loadedGame || loadedSlot.repairs) {
+      const game = loadedSlot.game;
+      if (loadedSlot.repairs) {
         saveToSlot(localStorage, slotId, game);
       }
       const repairMessage = buildLoadRepairMessage(loadedSlot.repairs);
-      const driftMessage =
-        verification.changedCount > 0
-          ? `${verification.changedCount} archived ${verification.changedCount === 1 ? 'battle now replays' : 'battles now replay'} with a different result.`
-          : null;
 
       set({
         ...makeInitialState(),
@@ -984,7 +979,7 @@ export const gameStore = (() => {
         slots: listSaveSlots(localStorage),
         tutorialProgress: slotId === TUTORIAL_SAVE_ID ? readTutorialProgress(localStorage) : null,
         game,
-        systemMessage: joinSystemMessages([repairMessage, driftMessage]),
+        systemMessage: repairMessage,
       });
       scheduleContestAiPlanning(game);
       return true;
@@ -1544,7 +1539,7 @@ export const gameStore = (() => {
       if (snapshot.multiplayer) {
         return !!multiplayerReplayPayloads[replayId];
       }
-      return snapshot.activeSlotId ? readSlotReplay(localStorage, snapshot.activeSlotId, replayId) !== null : false;
+      return snapshot.activeSlotId ? slotReplayExists(localStorage, snapshot.activeSlotId, replayId) : false;
     },
     getReplay(replayId: string): BattleReplay | null {
       if (snapshot.multiplayer) {

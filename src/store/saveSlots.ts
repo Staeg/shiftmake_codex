@@ -322,6 +322,10 @@ export function readSlotReplay(storage: Storage, slotId: SaveSlotId, replayId: s
   }
 }
 
+export function slotReplayExists(storage: Storage, slotId: SaveSlotId, replayId: string): boolean {
+  return getSlotReplayKeys(slotId, replayId).some((key) => storage.getItem(key) !== null);
+}
+
 export function readSlotReplayPayload(storage: Storage, slotId: SaveSlotId, replayId: string): StoredReplayPayload | null {
   const json = getSlotReplayKeys(slotId, replayId)
     .map((key) => storage.getItem(key))
