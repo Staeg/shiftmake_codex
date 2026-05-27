@@ -82,15 +82,13 @@
     name?: string;
     description?: string;
     value: string;
-    comparisonDelta?: string;
-    comparisonDirection?: 'positive' | 'negative';
     breakdown: StatBreakdown | null;
   };
 
   type DetailCard =
     | {
         detailKey: string;
-        kind: 'mutator' | 'faction' | 'upgrade';
+        kind: 'mutator' | 'faction' | 'upgrade' | 'rift';
         label: string;
         description: string;
         iconKind?: 'upgrade' | 'mutator';
@@ -252,11 +250,9 @@
   let selectedTroopOfferUnlockId: TroopUnlockId | null = null;
   let selectedUpgradeOfferId: UpgradeId | null = null;
   let selectedScheduledFactionId: FactionId | null = null;
-  let pendingOpeningTroopUnlockId: TroopUnlockId | null = null;
   let confirmedTroopOfferUnlockId: TroopUnlockId | null = null;
   let confirmedUpgradeOfferId: UpgradeId | null = null;
   let hoveredUpgradeOfferId: UpgradeId | null = null;
-  let comparisonDetails: DetailCard[] = [];
   let assignmentConflict: { troopId?: TroopId; conflictTroopId?: TroopId; riftId?: string; message: string } | null = null;
   let archivePage = 0;
   let viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
@@ -719,13 +715,23 @@
   }
 
   function riftTierTooltip(tier: number): string {
-    return $gameStore.game.gameMode === 'contest'
-      ? `Tier ${tier}: harder Guardian army and ${tier} Victory Point per cycle while held.`
-      : `Tier ${tier}: harder Guardian army and ${tier} Victory Point on victory.`;
+    if ($gameStore.game.gameMode === 'contest') {
+      return `Tier ${tier} sets the Guardian difficulty for this Rift and pays ${tier} Victory Point per cycle to the side controlling it.`;
+    }
+    if ($gameStore.game.gameMode === 'ladder') {
+      return `Tier ${tier} sets the Ladder Guardian difficulty and awards ${tier} Victory Point if you win this Rift.`;
+    }
+    return `Tier ${tier} sets the enemy difficulty and awards ${tier} Victory Point if you win this Rift.`;
   }
 
   function riftFitTooltip(fit: number): string {
-    return `Capacity ${fit}: the Rift's hex saturation limit. More total unit size than this may require the battlefield to expand.`;
+    if ($gameStore.game.gameMode === 'contest') {
+      return `Capacity ${fit} is the Rift's starting hex saturation limit for Contest battles here. If the armies' total unit Size exceeds it, the battlefield may expand.`;
+    }
+    if ($gameStore.game.gameMode === 'ladder') {
+      return `Capacity ${fit} is the Rift's starting hex saturation limit for this Ladder battle. If your force and the Guardians exceed it, the battlefield may expand.`;
+    }
+    return `Capacity ${fit} is the Rift's starting hex saturation limit. If your assigned troop and the enemies' total unit Size exceeds it, the battlefield may expand.`;
   }
 
   function formatRiftDisplayId(riftId: string): string {
@@ -858,30 +864,6 @@
     return entries;
   }
 
-  function withActiveComparisonDeltas(detail: DetailCard, comparisonDetail: DetailCard | null): StatEntry[] {
-    if (detail.kind !== 'unit' || comparisonDetail?.kind !== 'unit' || comparisonDetail.detailKey === detail.detailKey) {
-      return detail.kind === 'unit' ? detail.stats.slice(0, 8) : [];
-    }
-
-    return detail.stats.slice(0, 8).map((stat) => {
-      const activeStat = comparisonDetail.stats.find((entry) => entry.key === stat.key);
-      if (!activeStat) {
-        return stat;
-      }
-
-      const delta = Number(activeStat.value) - Number(stat.value);
-      if (delta === 0) {
-        return stat;
-      }
-
-      return {
-        ...stat,
-        comparisonDelta: `${delta > 0 ? '+' : ''}${formatFixed(delta)}`,
-        comparisonDirection: delta > 0 ? 'positive' : 'negative',
-      };
-    });
-  }
-
   function describeFactionModifiers(factionId: FactionId): string[] {
     const faction = getFaction(factionId);
     const parts: string[] = [];
@@ -961,6 +943,24 @@
       description: mutator.description,
       iconKind: 'mutator',
       iconId: mutatorId,
+    };
+  }
+
+  function buildRiftTierDetail(rift: RiftInstance): DetailCard {
+    return {
+      detailKey: `rift-tier:${rift.id}`,
+      kind: 'rift',
+      label: `Tier ${rift.tier}`,
+      description: riftTierTooltip(rift.tier),
+    };
+  }
+
+  function buildRiftCapacityDetail(rift: RiftInstance): DetailCard {
+    return {
+      detailKey: `rift-capacity:${rift.id}`,
+      kind: 'rift',
+      label: `Capacity ${rift.saturation}`,
+      description: riftFitTooltip(rift.saturation),
     };
   }
 
@@ -1091,9 +1091,7 @@
   }
 
   function previewDetail(detail: DetailCard): void {
-    if (!pinnedDetail) {
-      hoveredDetail = detail;
-    }
+    hoveredDetail = detail;
     if (detail.kind === 'mutator') {
       signalTutorial('mutator-hover');
     }
@@ -1113,22 +1111,8 @@
     }
   }
 
-  function pinComparisonDetail(detail: DetailCard): void {
-    if (detail.kind !== 'unit') {
-      return;
-    }
-    const withoutExisting = comparisonDetails.filter((entry) => entry.detailKey !== detail.detailKey);
-    comparisonDetails = [...withoutExisting, detail].slice(-4);
-  }
-
-  function removeComparisonDetail(detailKey: string): void {
-    comparisonDetails = comparisonDetails.filter((entry) => entry.detailKey !== detailKey);
-  }
-
   function clearDetail(): void {
-    if (!pinnedDetail) {
-      hoveredDetail = null;
-    }
+    hoveredDetail = null;
     hoveredAbilityTooltip = null;
   }
 
@@ -1172,7 +1156,6 @@
     selectedTroopOfferUnlockId = null;
     selectedUpgradeOfferId = null;
     selectedScheduledFactionId = null;
-    pendingOpeningTroopUnlockId = null;
     hoveredUpgradeOfferId = null;
     assignmentConflict = null;
   }
@@ -1509,7 +1492,6 @@
       return;
     }
     resetZoneState();
-    pendingOpeningTroopUnlockId = null;
     gameStore.startOpeningCampaign();
     signalTutorial('begin');
   }
@@ -2747,13 +2729,6 @@
   }
 
   $: if (
-    pendingOpeningTroopUnlockId &&
-    (isOpeningTroopSelected(pendingOpeningTroopUnlockId) || !canClaimOpeningTroop(pendingOpeningTroopUnlockId))
-  ) {
-    pendingOpeningTroopUnlockId = null;
-  }
-
-  $: if (
     selectedUpgradeOfferId &&
     !$gameStore.game.activeUpgradeOffer?.optionUpgradeIds.includes(selectedUpgradeOfferId)
   ) {
@@ -2877,6 +2852,10 @@
     }
   }
   $: activeDetail = pinnedDetail ?? hoveredDetail;
+  $: secondaryUnitDetail =
+    pinnedDetail?.kind === 'unit' && hoveredDetail?.kind === 'unit' && hoveredDetail.detailKey !== pinnedDetail.detailKey
+      ? hoveredDetail
+      : null;
   $: currentAbilityOwnerKey =
     activeDetail?.kind === 'unit'
       ? activeDetail.detailKey
@@ -2953,55 +2932,16 @@
         pinnedDetail = null;
       }
       gameStore.unclaimOpeningTroop(troopUnlockId);
-      pendingOpeningTroopUnlockId = null;
       signalTutorial('faction-deselect');
       return;
     }
 
     if (canClaimOpeningTroop(troopUnlockId)) {
       gameStore.claimOpeningTroop(troopUnlockId);
-      pendingOpeningTroopUnlockId = null;
       pinnedDetail = null;
       hoveredDetail = null;
       signalTutorial($gameStore.game.troops.length === 2 ? 'opening-confirmed' : 'faction-select');
     }
-  }
-
-  function lockOpeningTroopPreview(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
-    pendingOpeningTroopUnlockId = isOpeningTroopSelected(troopUnlockId) ? null : troopUnlockId;
-    togglePinnedDetail(detail);
-    signalTutorial('starter-pending');
-  }
-
-  function confirmOpeningTroop(): void {
-    if (!pendingOpeningTroopUnlockId || !canClaimOpeningTroop(pendingOpeningTroopUnlockId)) {
-      return;
-    }
-    gameStore.claimOpeningTroop(pendingOpeningTroopUnlockId);
-    pendingOpeningTroopUnlockId = null;
-    pinnedDetail = null;
-    hoveredDetail = null;
-    if ($gameStore.game.troops.length === 2) {
-      signalTutorial('opening-confirmed');
-    }
-  }
-
-  function unconfirmOpeningTroop(troopUnlockId: TroopUnlockId): void {
-    if (!isOpeningTroopSelected(troopUnlockId)) {
-      return;
-    }
-    if (pinnedDetail?.detailKey === `opening:${troopUnlockId}`) {
-      pinnedDetail = null;
-    }
-    hoveredDetail = null;
-    pendingOpeningTroopUnlockId = null;
-    gameStore.unclaimOpeningTroop(troopUnlockId);
-  }
-
-  function toggleOpeningFutureDetail(detail: DetailCard): void {
-    const isPinned = pinnedDetail?.detailKey === detail.detailKey;
-    togglePinnedDetail(detail);
-    signalTutorial(isPinned ? 'future-deselect' : 'future-select');
   }
 
   function getScheduledFactionRosterUnlockIds(factionId: FactionId): TroopUnlockId[] {
@@ -3531,19 +3471,20 @@
         <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Opening detail panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
-              <p class="eyebrow">{activeDetail.kind === 'faction' ? 'Faction Modifiers' : activeDetail.kind === 'unit' ? 'Troop Preview' : 'Detail'}</p>
+              {#if activeDetail.kind !== 'unit'}
+                <p class="eyebrow">{activeDetail.kind === 'faction' ? 'Faction Modifiers' : 'Detail'}</p>
+              {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
-                <div class="hover-unit-detail">
+                <div class="unit-overview-strip">
                   <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
                   </span>
-                  <p>{activeDetail.description}</p>
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
                 </div>
-                <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
-                <div class="ability-row detail-ability-row">
+            <div class="ability-row detail-ability-row">
                   <span>Abilities</span>
                   <div class="ability-list">
                     {#if activeDetail.abilities.length === 0}
@@ -3608,7 +3549,6 @@
             <article
               class="draft-card panel opening-faction-card ui-debug-target"
               class:selected={starterSelected}
-              class:pending={pendingOpeningTroopUnlockId === starterTroopUnlockId}
               class:incompatible={starterIncompatible}
               data-ui-name={`Opening faction card ${group.label}`}
               on:mouseenter={() => previewDetail(factionDetail)}
@@ -3617,7 +3557,6 @@
               <button
                 type="button"
                 class="opening-card-select-button"
-                class:pending={pendingOpeningTroopUnlockId === starterTroopUnlockId}
                 aria-label={`Choose ${group.label} with ${starterTroopDef.label}`}
                 aria-pressed={starterSelected}
                 disabled={starterIncompatible}
@@ -3651,7 +3590,6 @@
                   type="button"
                   class="draft-troop-icon opening-starter-tile ui-debug-target"
                   class:selected={pinnedDetail?.detailKey === starterTroopDetail.detailKey}
-                  class:pending={pendingOpeningTroopUnlockId === starterTroopUnlockId}
                   class:incompatible={starterIncompatible}
                   data-ui-name={`Opening included troop ${starterTroopDef.label}`}
                   aria-label={`Inspect ${starterTroopDef.label}`}
@@ -3660,7 +3598,7 @@
                   on:focus={() => previewDetail(starterTroopDetail)}
                   on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
                   on:blur={clearDetail}
-                  on:click|stopPropagation={() => lockOpeningTroopPreview(starterTroopUnlockId, starterTroopDetail)}
+                  on:click|stopPropagation={() => togglePinnedDetail(starterTroopDetail)}
                   disabled={starterIncompatible}
                 >
                   <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(starterTroopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(starterTroopDef.quantity)}`} aria-label={`${starterTroopDef.quantity} ${starterTroopDef.label} units`}>
@@ -3699,7 +3637,7 @@
                         on:focus={() => previewDetail(troopDetail)}
                         on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
                         on:blur={clearDetail}
-                        on:click|stopPropagation={() => toggleOpeningFutureDetail(troopDetail)}
+                        on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
                       >
                         <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                           {#each unitIconCopies(troopDef.quantity) as copy}
@@ -3791,26 +3729,25 @@
         <aside class="panel draft-focus-panel ui-debug-target" class:empty={!activeDetail} data-ui-name="Scheduled faction detail panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
-              <p class="eyebrow">
-                {activeDetail.kind === 'faction'
-                  ? 'Faction Modifiers'
-                  : activeDetail.kind === 'upgrade'
-                    ? 'Upgrade Effects'
-                    : activeDetail.kind === 'unit'
-                      ? 'Troop Preview'
+              {#if activeDetail.kind !== 'unit'}
+                <p class="eyebrow">
+                  {activeDetail.kind === 'faction'
+                    ? 'Faction Modifiers'
+                    : activeDetail.kind === 'upgrade'
+                      ? 'Upgrade Effects'
                       : 'Detail'}
-              </p>
+                </p>
+              {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
-                <div class="hover-unit-detail">
+                <div class="unit-overview-strip">
                   <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
                   </span>
-                  <p>{activeDetail.description}</p>
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
                 </div>
-                <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
                 <div class="ability-row detail-ability-row">
                   <span>Abilities</span>
                   <div class="ability-list">
@@ -4062,18 +3999,16 @@
 
       {#if activeDetail}
         <aside class="panel floating-detail-panel">
-          <p class="eyebrow">Troop Preview</p>
           <h2>{activeDetail.label}</h2>
           {#if activeDetail.kind === 'unit'}
-            <div class="hover-unit-detail">
-                  <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
-                    {#each unitIconCopies(activeDetail.quantity) as copy}
-                      <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                    {/each}
-                  </span>
-              <p>{activeDetail.description}</p>
+            <div class="unit-overview-strip">
+              <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
+                {#each unitIconCopies(activeDetail.quantity) as copy}
+                  <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                {/each}
+              </span>
+              <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
             </div>
-            <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
           {:else}
             <p>{activeDetail.description}</p>
           {/if}
@@ -4229,7 +4164,9 @@
                     ? 'Faction Modifiers'
                     : activeDetail.kind === 'upgrade'
                       ? 'Upgrade Preview'
-                      : activeDetail.inspectLabel}
+                      : activeDetail.kind === 'rift'
+                        ? 'Rift Rule'
+                        : activeDetail.inspectLabel}
               </p>
             {/if}
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
@@ -4240,11 +4177,9 @@
                     <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                   {/each}
                 </span>
-                <StatBreakdownGrid stats={activeDetail.stats} columns={8} compact={true} />
+                <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
               </div>
-              <p>{activeDetail.description}</p>
-              <button type="button" class="compare-pin-button" on:click={() => pinComparisonDetail(activeDetail)}>📌 Compare</button>
-              <div class="ability-row detail-ability-row">
+                <div class="ability-row detail-ability-row">
                 <span>Abilities</span>
                 <div class="ability-list">
                   {#if activeDetail.abilities.length === 0}
@@ -4294,6 +4229,33 @@
               {/if}
             {/if}
           </div>
+          {#if secondaryUnitDetail}
+            <div class="detail-panel overworld-detail-panel secondary-unit-detail" role="presentation">
+              <h2 class="detail-title"><span>{secondaryUnitDetail.label}</span></h2>
+              <div class="unit-overview-strip">
+                <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(secondaryUnitDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(secondaryUnitDetail.quantity)}`} aria-label={`${secondaryUnitDetail.quantity} units in troop`}>
+                  {#each unitIconCopies(secondaryUnitDetail.quantity) as copy}
+                    <img class="hover-unit-art" src={secondaryUnitDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                  {/each}
+                </span>
+                <StatBreakdownGrid stats={secondaryUnitDetail.stats} columns={4} compact={true} />
+              </div>
+              <div class="ability-row detail-ability-row">
+                <span>Abilities</span>
+                <div class="ability-list">
+                  {#if secondaryUnitDetail.abilities.length === 0}
+                    <span class="mutator-chip empty">None</span>
+                  {:else}
+                    {#each secondaryUnitDetail.abilities as ability}
+                      <span class="mutator-chip ability-chip readonly-plan">
+                        <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
+                      </span>
+                    {/each}
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/if}
         {:else if false && $gameStore.centerMode === 'rifts' && selectedRift}
           {@const selectedRiftVisual = getRiftVisual(selectedRift)}
           <p class="eyebrow">Selected Rift</p>
@@ -4449,22 +4411,12 @@
                 <img class="hover-unit-art" src={getFactionUnitPortrait(selectedTroop.factionId, selectedTroop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
               {/each}
             </span>
-            <StatBreakdownGrid
-              stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
-              columns={8}
+              <StatBreakdownGrid
+                stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
+              columns={4}
               compact={true}
             />
           </div>
-          <p>
-            <strong>{selectedTroopDefinition.role}</strong>: {formatRoleExact(selectedTroopDefinition.role)}
-            <br />
-            {selectedTroop.assignmentRiftId
-              ? `Assigned to ${selectedTroop.assignmentRiftId}`
-              : selectedTroop.recoveryCyclesRemaining > 0
-                ? `Recovering ${selectedTroop.recoveryCyclesRemaining}`
-                : 'Ready'}
-          </p>
-
           <div class="ability-row">
             <span>Abilities</span>
             <div class="ability-list">
@@ -4529,71 +4481,6 @@
         {/if}
       </div>
 
-      {#if comparisonDetails.length > 0}
-        <div class="panel comparison-tray ui-debug-target" data-ui-name="Troop comparison tray">
-          <div class="comparison-header">
-            <p class="eyebrow">Compare Troops</p>
-            <button type="button" on:click={() => (comparisonDetails = [])}>Clear</button>
-          </div>
-          <div class="comparison-grid">
-            {#each comparisonDetails as detail}
-              {#if detail.kind === 'unit'}
-                <article class="comparison-card">
-                  <button type="button" class="comparison-remove" aria-label={`Remove ${detail.label} from comparison`} on:click={() => removeComparisonDetail(detail.detailKey)}>X</button>
-                  {#if activeDetail?.kind === 'unit' && activeDetail.detailKey !== detail.detailKey}
-                    <div class="comparison-versus">
-                      <div class="comparison-unit-summary">
-                        <span class={`unit-icon-cluster tile-unit-cluster comparison-unit-art ${unitIconDensityClass(detail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(detail.quantity)}`} aria-label={`${detail.quantity} ${detail.label} units`}>
-                          {#each unitIconCopies(detail.quantity) as copy}
-                            <img class="unit-tile-art" src={detail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                          {/each}
-                        </span>
-                        <strong>{detail.label}</strong>
-                      </div>
-                      <span class="comparison-versus-mark">vs</span>
-                      <div class="comparison-unit-summary selected">
-                        <span class={`unit-icon-cluster tile-unit-cluster comparison-unit-art ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} ${activeDetail.label} units`}>
-                          {#each unitIconCopies(activeDetail.quantity) as copy}
-                            <img class="unit-tile-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                          {/each}
-                        </span>
-                        <strong>{activeDetail.label}</strong>
-                      </div>
-                    </div>
-                  {:else}
-                    <div class="comparison-unit-summary solo">
-                      <span class={`unit-icon-cluster tile-unit-cluster comparison-unit-art ${unitIconDensityClass(detail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(detail.quantity)}`} aria-label={`${detail.quantity} ${detail.label} units`}>
-                        {#each unitIconCopies(detail.quantity) as copy}
-                          <img class="unit-tile-art" src={detail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                        {/each}
-                      </span>
-                      <strong>{detail.label}</strong>
-                    </div>
-                  {/if}
-                  <StatBreakdownGrid stats={withActiveComparisonDeltas(detail, activeDetail)} columns={2} />
-                  <div class="comparison-abilities">
-                    {#if detail.abilities.length === 0}
-                      <small>No abilities</small>
-                    {:else}
-                      {#each detail.abilities as ability}
-                        <small>{ability.label}</small>
-                      {/each}
-                    {/if}
-                  </div>
-                  <div class="comparison-upgrades">
-                    {#each $gameStore.game.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === detail.factionId) as upgradeId}
-                      <small>{getUpgradeDetails(upgradeId).label}</small>
-                    {/each}
-                    {#each $gameStore.game.troopTypeUpgradeIds.filter((upgradeId) => TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId === detail.unitTypeId) as upgradeId}
-                      <small>{getUpgradeDetails(upgradeId).label}</small>
-                    {/each}
-                  </div>
-                </article>
-              {/if}
-            {/each}
-          </div>
-        </div>
-      {/if}
     </section>
 
     <section class="center-column ui-debug-target" data-ui-name={getCenterBoardLabel()}>
@@ -4621,11 +4508,31 @@
                 style={`--rift-tint:${riftVisual.tint}; --rift-glow:${riftVisual.glow}; --rift-rotation:${riftVisual.rotationDeg}deg;`}
               >
                 <header class="rift-title-line">
-                  <strong class="rift-tier-pill" title={riftTierTooltip(rift.tier)}>{formatRiftTierLabel(rift.tier)}</strong>
+                  <button
+                    type="button"
+                    class="rift-tier-pill rift-info-pill ui-debug-target"
+                    data-ui-name={`Tier ${rift.tier} info on ${formatRiftDisplayId(rift.id)}`}
+                    aria-label={riftTierTooltip(rift.tier)}
+                    on:mouseenter={() => previewDetail(buildRiftTierDetail(rift))}
+                    on:focus={() => previewDetail(buildRiftTierDetail(rift))}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => togglePinnedDetail(buildRiftTierDetail(rift))}
+                  >{formatRiftTierLabel(rift.tier)}</button>
                   {#if $gameStore.game.gameMode === 'contest'}
                     <span class="control-pill">{getRiftControllerLabel(rift)}</span>
                   {/if}
-                  <span class="reward-pill rift-fit-pill" title={riftFitTooltip(rift.saturation)}>Capacity {rift.saturation}</span>
+                  <button
+                    type="button"
+                    class="reward-pill rift-fit-pill rift-info-pill ui-debug-target"
+                    data-ui-name={`Capacity ${rift.saturation} info on ${formatRiftDisplayId(rift.id)}`}
+                    aria-label={riftFitTooltip(rift.saturation)}
+                    on:mouseenter={() => previewDetail(buildRiftCapacityDetail(rift))}
+                    on:focus={() => previewDetail(buildRiftCapacityDetail(rift))}
+                    on:mouseleave={clearDetail}
+                    on:blur={clearDetail}
+                    on:click={() => togglePinnedDetail(buildRiftCapacityDetail(rift))}
+                  >Capacity {rift.saturation}</button>
                   {#if rift.mutatorIds.length === 0}
                     <span class="mutator-chip empty rift-mutator-chip">None</span>
                   {:else}
@@ -5162,15 +5069,14 @@
           </p>
           <h2>{activeDetail.label}</h2>
           {#if activeDetail.kind === 'unit'}
-            <div class="hover-unit-detail">
+            <div class="unit-overview-strip">
               <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                 {#each unitIconCopies(activeDetail.quantity) as copy}
                   <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                 {/each}
               </span>
-              <p>{activeDetail.description}</p>
+              <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
             </div>
-            <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
             <div class="ability-row detail-ability-row">
               <span>Abilities</span>
               <div class="ability-list">
@@ -5786,7 +5692,7 @@
       <section class="panel focus-panel ui-debug-target" data-ui-name="Replay focus panel">
         {#if activeDetail}
           <div class="detail-panel replay-detail-panel">
-            <p class="eyebrow">{activeDetail.kind === 'mutator' ? 'Mutator Effect' : activeDetail.kind === 'upgrade' ? 'Upgrade Preview' : 'Battle Detail'}</p>
+            <p class="eyebrow">{activeDetail.kind === 'mutator' ? 'Mutator Effect' : activeDetail.kind === 'upgrade' ? 'Upgrade Preview' : activeDetail.kind === 'rift' ? 'Rift Rule' : 'Battle Detail'}</p>
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             <p>{activeDetail.description}</p>
           </div>
@@ -7015,7 +6921,7 @@
 
   .unit-overview-strip {
     display: grid;
-    grid-template-columns: minmax(3.1rem, 4rem) minmax(0, 1fr);
+    grid-template-columns: minmax(3.1rem, 5.4rem) minmax(0, 1fr);
     align-items: center;
     gap: 0.55rem;
     margin: 0.1rem 0 0.45rem;
@@ -7024,6 +6930,11 @@
 
   .unit-overview-strip :global(.stats-grid.compact) {
     min-width: 0;
+  }
+
+  .secondary-unit-detail {
+    border-color: rgba(124, 153, 176, 0.16);
+    background: rgba(12, 18, 28, 0.72);
   }
 
   .mutator-chip.empty {
@@ -7228,18 +7139,6 @@
       inset 0 0 0 2px rgba(237, 197, 111, 0.38);
   }
 
-  .opening-faction-card.pending {
-    border-color: rgba(128, 196, 255, 0.72);
-    box-shadow:
-      0 0 0 1px rgba(128, 196, 255, 0.24),
-      0 0 24px rgba(78, 148, 214, 0.24),
-      var(--ui-shadow-panel);
-  }
-
-  .opening-card-select-button.pending:focus-visible {
-    outline-color: rgba(128, 196, 255, 0.95);
-  }
-
   .opening-faction-card.incompatible {
     cursor: not-allowed;
     opacity: 0.68;
@@ -7266,10 +7165,6 @@
     background:
       linear-gradient(135deg, rgba(64, 46, 18, 0.95), rgba(31, 26, 17, 0.97)),
       radial-gradient(circle at 20% 15%, rgba(248, 218, 139, 0.26), transparent 58%);
-  }
-
-  .opening-starter-tile.pending {
-    border-color: rgba(128, 196, 255, 0.86);
   }
 
   .opening-future-section {
@@ -7725,6 +7620,18 @@
     font-size: 0.88rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .rift-info-pill {
+    font: inherit;
+    cursor: help;
+  }
+
+  .rift-info-pill:hover,
+  .rift-info-pill:focus-visible {
+    border-color: rgba(231, 190, 105, 0.72);
+    color: #fff6e5;
+    box-shadow: 0 0 0 2px rgba(213, 178, 116, 0.12);
   }
 
   .control-pill {
@@ -8410,10 +8317,10 @@
   .detail-unit-cluster {
     width: 5.4rem;
     height: 5.4rem;
-    padding: 0.24rem;
-    border: 1px solid rgba(237, 197, 111, 0.24);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(16, 24, 34, 0.58);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
   }
 
   .detail-unit-cluster .hover-unit-art {
@@ -8806,160 +8713,6 @@
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.75rem;
     align-items: center;
-  }
-
-  .compare-pin-button {
-    justify-self: start;
-    padding: 0.35rem 0.6rem;
-    border: 1px solid rgba(213, 178, 116, 0.34);
-    border-radius: var(--ui-panel-radius-pill);
-    background: rgba(42, 32, 18, 0.72);
-    color: #f4e6ba;
-    font: inherit;
-    font-size: 0.74rem;
-    font-weight: 700;
-  }
-
-  .compare-mini-button {
-    align-self: center;
-    min-height: 1.35rem;
-    padding: 0.12rem 0.34rem;
-    border: 1px solid rgba(213, 178, 116, 0.34);
-    border-radius: 999px;
-    background: rgba(31, 24, 16, 0.82);
-    color: #f1d7ae;
-    font-size: 0.64rem;
-    line-height: 1;
-  }
-
-  .compare-mini-button.roster-pin {
-    margin-top: -0.15rem;
-  }
-
-  .comparison-tray {
-    align-content: start;
-  }
-
-  .comparison-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-
-  .comparison-header button,
-  .comparison-remove {
-    border: 1px solid rgba(126, 157, 181, 0.2);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(20, 29, 39, 0.9);
-    color: #f4f7fb;
-    font: inherit;
-    font-size: 0.7rem;
-  }
-
-  .comparison-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-    gap: 0.55rem;
-  }
-
-  .comparison-card {
-    position: relative;
-    display: grid;
-    gap: 0.4rem;
-    padding: 0.65rem 2.15rem 0.65rem 0.65rem;
-    border: 1px solid rgba(126, 157, 181, 0.16);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(15, 22, 31, 0.72);
-  }
-
-  .comparison-versus {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .comparison-unit-summary {
-    display: grid;
-    grid-template-columns: 2.35rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.4rem;
-    min-width: 0;
-  }
-
-  .comparison-unit-summary.selected {
-    grid-template-columns: minmax(0, 1fr) 2.35rem;
-  }
-
-  .comparison-unit-summary.selected .comparison-unit-art {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .comparison-unit-summary.selected strong {
-    grid-column: 1;
-    grid-row: 1;
-    text-align: right;
-  }
-
-  .comparison-unit-summary.solo {
-    grid-template-columns: 2.7rem minmax(0, 1fr);
-  }
-
-  .comparison-unit-summary strong {
-    min-width: 0;
-    color: #f4f7fb;
-    font-size: 0.84rem;
-    line-height: 1.12;
-    overflow-wrap: anywhere;
-  }
-
-  .comparison-unit-art {
-    width: 2.35rem;
-    height: 2.35rem;
-    padding: 0.18rem;
-    border: 1px solid rgba(126, 157, 181, 0.18);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(11, 18, 27, 0.7);
-  }
-
-  .comparison-unit-art .unit-tile-art {
-    width: min(1rem, 70%) !important;
-    height: min(1rem, 70%) !important;
-  }
-
-  .comparison-versus-mark {
-    color: #a7b8c8;
-    font-size: 0.62rem;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .comparison-abilities,
-  .comparison-upgrades {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-
-  .comparison-abilities small,
-  .comparison-upgrades small {
-    padding: 0.15rem 0.32rem;
-    border: 1px solid rgba(124, 153, 176, 0.18);
-    border-radius: 999px;
-    background: rgba(15, 22, 31, 0.62);
-    color: #cbd7e2;
-    font-size: 0.66rem;
-  }
-
-  .comparison-remove {
-    position: absolute;
-    top: 0.35rem;
-    right: 0.35rem;
-    width: 1.45rem;
-    height: 1.45rem;
-    padding: 0;
   }
 
   .warning-panel {
@@ -9562,7 +9315,7 @@
   }
 
   .opening-shell:not(.scheduled-faction-shell) .draft-layout {
-    align-items: stretch;
+    align-items: start;
   }
 
   .draft-section {
@@ -9579,6 +9332,10 @@
   .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel,
   .opening-shell:not(.scheduled-faction-shell) .draft-grid {
     max-height: 100%;
+  }
+
+  .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel {
+    align-self: start;
   }
 
   .draft-icon-row {
@@ -10961,11 +10718,12 @@
     }
 
     .opening-shell:not(.scheduled-faction-shell) .draft-layout {
-      grid-template-rows: minmax(8.5rem, 15rem) minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
     }
 
     .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel {
       min-height: 0;
+      max-height: 15rem;
     }
 
     .draft-focus-panel.empty {

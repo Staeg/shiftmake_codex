@@ -9,8 +9,6 @@
     name?: string;
     description?: string;
     value: string;
-    comparisonDelta?: string;
-    comparisonDirection?: 'positive' | 'negative';
     breakdown: StatBreakdown | null;
     action?: {
       label: string;
@@ -101,9 +99,6 @@
           <span>{stat.label}</span>
           <span class="stat-values">
             <strong>{stat.value}</strong>
-            {#if stat.comparisonDelta && stat.comparisonDirection}
-              <small class={`stat-delta ${stat.comparisonDirection}`}>{stat.comparisonDelta}</small>
-            {/if}
           </span>
         </span>
       </button>
@@ -181,15 +176,14 @@
   }
 
   .stats-grid.compact {
-    display: flex;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: repeat(var(--stat-columns, 4), minmax(0, 1fr));
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.18rem 0.3rem;
     min-width: 0;
   }
 
   .stats-grid.compact .stat-card {
-    flex: 1 1 0;
     min-width: 0;
     padding: 0;
     border: 0;
@@ -274,13 +268,6 @@
     min-width: 0;
   }
 
-  .stat-delta {
-    font-size: 0.68rem;
-    font-weight: 800;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
   @container (max-width: 520px) {
     .stats-grid {
       gap: 0.35rem;
@@ -302,14 +289,6 @@
     .stat-values > strong {
       font-size: clamp(0.72rem, 16cqw, 0.92rem);
     }
-  }
-
-  .stat-delta.positive {
-    color: #69d26b;
-  }
-
-  .stat-delta.negative {
-    color: #f07178;
   }
 
   .stat-action {
