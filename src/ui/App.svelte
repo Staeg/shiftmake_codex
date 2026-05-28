@@ -194,13 +194,6 @@
     units: ReplayHealthUnit[];
   };
 
-  type ArchiveHealthTotal = {
-    side: SideId;
-    label: string;
-    hpPercent: string;
-    hpLabel: string;
-  };
-
   const ARCHIVE_PARTICIPANT_FALLBACK: Record<SideId, { kind: BattleParticipantKind; label: string }> = {
     player: { kind: 'player', label: 'Player' },
     enemy: { kind: 'neutral', label: 'Neutral Guardians' },
@@ -245,6 +238,9 @@
   let expandedReplayRecapTroopKey: string | null = null;
   let pinnedReplayExplanationIndex: number | null = null;
   let lastReplayExplanationReplayId: string | null = null;
+  let replayHealthRosterCache: { replayId: string; roster: BattleUnit[] } | null = null;
+  let replayRecapCache: { replayId: string; recap: BattleRecapTroopEntry[] } | null = null;
+  let replayProfilesByKeyCache: { replayId: string; profiles: Map<string, BattleReplay['troopProfiles'][number]> } | null = null;
   let troopDrag: TroopDragState | null = null;
   let suppressTroopClickId: TroopId | null = null;
   let selectedTroopOfferUnlockId: TroopUnlockId | null = null;
@@ -2093,6 +2089,36 @@
     return [...unitsById.values()].sort((left, right) => left.id.localeCompare(right.id));
   }
 
+  function getReplayHealthRoster(replay: BattleReplay): BattleUnit[] {
+    if (replayHealthRosterCache?.replayId === replay.id) {
+      return replayHealthRosterCache.roster;
+    }
+    const roster = buildReplayHealthRoster(replay);
+    replayHealthRosterCache = { replayId: replay.id, roster };
+    return roster;
+  }
+
+  function getReplayRecap(replay: BattleReplay): BattleRecapTroopEntry[] {
+    if (replayRecapCache?.replayId === replay.id) {
+      return replayRecapCache.recap;
+    }
+    const recap = buildBattleRecap(replay);
+    replayRecapCache = { replayId: replay.id, recap };
+    return recap;
+  }
+
+  function getReplayProfilesByKey(replay: BattleReplay | null): Map<string, BattleReplay['troopProfiles'][number]> {
+    if (!replay) {
+      return new Map();
+    }
+    if (replayProfilesByKeyCache?.replayId === replay.id) {
+      return replayProfilesByKeyCache.profiles;
+    }
+    const profiles = new Map(replay.troopProfiles.map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
+    replayProfilesByKeyCache = { replayId: replay.id, profiles };
+    return profiles;
+  }
+
   function buildReplayHealthSide(roster: BattleUnit[], snapshot: BattleUnit[], side: SideId): ReplayHealthSide {
     const currentUnitsById = new Map(snapshot.map((unit) => [unit.id, unit]));
     const sideUnits = roster.filter((unit) => (currentUnitsById.get(unit.id)?.side ?? unit.side) === side);
@@ -2124,10 +2150,6 @@
       unitsMinHeight: `${sideUnits.length * 1.9 + Math.max(0, sideUnits.length - 1) * 0.28}rem`,
       units,
     };
-  }
-
-  function finalReplaySnapshot(replay: BattleReplay): BattleUnit[] {
-    return replay.steps[replay.steps.length - 1]?.snapshot.units ?? replay.initial.units;
   }
 
   function statLineKey(line: StatBreakdownLine): string {
@@ -2212,19 +2234,6 @@
     return Object.fromEntries(
       Object.entries(linesByStat).map(([stat, lines]) => [stat, lines.filter((line) => line.kind === 'set' || line.value !== 0)]),
     ) as Partial<Record<ExplainedStatKey, StatBreakdownLine[]>>;
-  }
-
-  function buildArchiveHealthTotal(replay: BattleReplay, side: SideId): ArchiveHealthTotal {
-    const finalUnits = finalReplaySnapshot(replay).filter((unit) => unit.side === side);
-    const initialUnits = replay.initial.units.filter((unit) => unit.side === side);
-    const currentHp = finalUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
-    const maxHp = initialUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
-    return {
-      side,
-      label: getArchiveSideLabel(side),
-      hpPercent: getHpPercent(currentHp, maxHp),
-      hpLabel: `${Math.round(Number.parseFloat(getHpPercent(currentHp, maxHp)))}% (${formatHpLabel(currentHp, maxHp)})`,
-    };
   }
 
   function decorateArchiveSummary(summary: string): string {
@@ -2325,46 +2334,22 @@
       side === 'player'
         ? selectedArchivePayload?.input.playerCombatants ?? []
         : selectedArchivePayload?.input.enemyCombatants ?? [];
-    if (payloadCombatants.length > 0) {
-      return payloadCombatants.map((combatant) => ({
-        ...combatant,
-        quantity: Number.isFinite(combatant.quantity) && combatant.quantity > 0 ? combatant.quantity : 1,
-      }));
-    }
-    if (!selectedArchiveReplay) {
-      return [];
-    }
-    return selectedArchiveReplay.troopProfiles
-      .filter((profile) => profile.side === side)
-      .map((profile) => ({
-        combatantId: `${side}:${profile.troopLabel}`,
-        factionId: profile.factionId,
-        unitTypeId: profile.unitTypeId,
-        troopInstanceId: null,
-        label: profile.troopLabel,
-        role: profile.role,
-        type: profile.type,
-        attributes: profile.attributes,
-        stats: profile.stats,
-        abilities: profile.abilities,
-        quantity: selectedArchiveReplay.initial.units.filter((unit) => unit.side === side && unit.troopLabel === profile.troopLabel).length,
-        cost: 0,
-        side,
-        statBreakdowns: profile.statBreakdowns,
-      }));
+    return payloadCombatants.map((combatant) => ({
+      ...combatant,
+      quantity: Number.isFinite(combatant.quantity) && combatant.quantity > 0 ? combatant.quantity : 1,
+    }));
   }
 
-  function getRelevantArchiveUpgradeIds(payload: StoredReplayPayload | null, replay: BattleReplay | null, side: SideId): UpgradeId[] {
+  function getRelevantArchiveUpgradeIds(payload: StoredReplayPayload | null, side: SideId): UpgradeId[] {
     if (!payload) {
       return [];
     }
 
     const factionUpgradeIds = side === 'player' ? payload.input.playerFactionUpgradeIds ?? [] : payload.input.enemyFactionUpgradeIds ?? [];
     const troopTypeUpgradeIds = side === 'player' ? payload.input.playerTroopTypeUpgradeIds ?? [] : payload.input.enemyTroopTypeUpgradeIds ?? [];
-    const profiles = replay?.troopProfiles.filter((profile) => profile.side === side) ?? [];
     const fallbackCombatants = side === 'player' ? payload.input.playerCombatants : payload.input.enemyCombatants;
-    const relevantFactions = new Set((profiles.length > 0 ? profiles : fallbackCombatants).map((entry) => entry.factionId));
-    const relevantUnitTypes = new Set((profiles.length > 0 ? profiles : fallbackCombatants).map((entry) => entry.unitTypeId));
+    const relevantFactions = new Set(fallbackCombatants.map((entry) => entry.factionId));
+    const relevantUnitTypes = new Set(fallbackCombatants.map((entry) => entry.unitTypeId));
 
     return [...factionUpgradeIds, ...troopTypeUpgradeIds].filter((upgradeId) => {
       if (upgradeId in FACTION_UPGRADES) {
@@ -3002,15 +2987,10 @@
     : null;
   $: selectedReplayAvailable =
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
-  $: selectedArchiveReplay =
-    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.getReplay(selectedReplayEntry.replayId) : null;
   $: selectedArchivePayload =
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.getReplayPayload(selectedReplayEntry.replayId) : null;
-  $: selectedArchiveHealthTotals = selectedArchiveReplay
-    ? [buildArchiveHealthTotal(selectedArchiveReplay, 'player'), buildArchiveHealthTotal(selectedArchiveReplay, 'enemy')]
-    : [];
-  $: selectedArchivePlayerUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, selectedArchiveReplay, 'player');
-  $: selectedArchiveEnemyUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, selectedArchiveReplay, 'enemy');
+  $: selectedArchivePlayerUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'player');
+  $: selectedArchiveEnemyUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'enemy');
   $: readyTroops = $gameStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
   $: selectedRiftAssignableTroops = selectedRift
     ? selectedRift.controller === 'human'
@@ -3039,12 +3019,12 @@
     mainMenuView = 'home';
   }
   $: replaySnapshot = replay ? currentSnapshot(replay) : [];
-  $: replayHealthRoster = replay ? buildReplayHealthRoster(replay) : [];
+  $: replayHealthRoster = replay ? getReplayHealthRoster(replay) : [];
   $: replayHealthOverview = replay
     ? [buildReplayHealthSide(replayHealthRoster, replaySnapshot, 'player'), buildReplayHealthSide(replayHealthRoster, replaySnapshot, 'enemy')]
     : [];
   $: currentUnitById = new Map(replaySnapshot.map((unit) => [unit.id, unit]));
-  $: replayProfilesByKey = new Map((replay?.troopProfiles ?? []).map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
+  $: replayProfilesByKey = getReplayProfilesByKey(replay);
   $: replayHighlightedStepIndex = replay && $gameStore.currentStep >= 0 ? $gameStore.currentStep : null;
   $: replayHighlightedStep = replay && replayHighlightedStepIndex !== null ? replay.steps[replayHighlightedStepIndex] ?? null : null;
   $: replayPlayerAbilities = replay || replaySnapshot || replayHighlightedStep ? buildReplaySideAbilities('player') : [];
@@ -3111,7 +3091,7 @@
     lockedUnitId && replay ? findLockedUnitActorStep(lockedUnitId, $gameStore.currentStep, 'prev') : null;
   $: lockedUnitNextActionStep =
     lockedUnitId && replay ? findLockedUnitActorStep(lockedUnitId, $gameStore.currentStep, 'next') : null;
-  $: replayRecap = replay ? buildBattleRecap(replay) : [];
+  $: replayRecap = replay ? getReplayRecap(replay) : [];
   $: replayRecapPlayerTroops = replayRecap.filter((entry) => entry.side === 'player');
   $: replayRecapEnemyTroops = replayRecap.filter((entry) => entry.side === 'enemy');
   $: if ((replay?.id ?? null) !== lastReplayExplanationReplayId) {
@@ -3320,7 +3300,9 @@
           <button class="primary large" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'game-start'} data-ui-name="Main menu Singleplayer" on:click={() => showMainMenuView('singleplayer')}>Singleplayer</button>
           <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('tutorial')}>Tutorial</button>
           <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('multiplayer')}>Multiplayer</button>
-          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('debug')}>Debug</button>
+          {#if debugToolsEnabled}
+            <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('debug')}>Debug</button>
+          {/if}
           <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('settings')}>Settings</button>
         </div>
       {:else if mainMenuView === 'singleplayer'}
@@ -4140,15 +4122,13 @@
             <span class="multiplayer-copy-indicator topbar-copy-indicator" role="status">{multiplayerCopyMessage}</span>
           {/if}
         {/if}
-        {#if debugToolsEnabled}
-          <DebugToolsMenu
-            mode="campaign-button"
-            selectedTroopId={selectedTroopId}
-            selectedReplayId={selectedReplayId}
-            selectedRiftId={selectedRiftId}
-            rendererDiagnostics={rendererDiagnostics}
-          />
-        {/if}
+        <DebugToolsMenu
+          mode="campaign-button"
+          selectedTroopId={selectedTroopId}
+          selectedReplayId={selectedReplayId}
+          selectedRiftId={selectedRiftId}
+          rendererDiagnostics={rendererDiagnostics}
+        />
       </div>
     </header>
 
@@ -5165,23 +5145,7 @@
             </div>
           </div>
 
-          {#if selectedArchiveHealthTotals.length > 0}
-            <div class="archive-health-totals">
-              {#each selectedArchiveHealthTotals as total}
-                <div class={`archive-health-total ${archiveParticipantClass(getArchiveParticipant(total.side).kind)}`}>
-                  <div>
-                    <span>{total.label} final HP</span>
-                    <strong>{total.hpLabel}</strong>
-                  </div>
-                  <div class="replay-health-bar total" aria-hidden="true">
-                    <span style={`width: ${total.hpPercent}`}></span>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          {#if selectedArchivePayload || selectedArchiveReplay}
+          {#if selectedArchivePayload}
             <div class="archive-force-block">
               <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('player').kind)}`}>{getArchiveForcesLabel('player')}</span>
               <div class="assigned-strip archive-force-strip">
@@ -5633,9 +5597,7 @@
       <div class="replay-header ui-debug-target" data-ui-name="Replay header">
         <div class="replay-title-row">
           <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
-          {#if debugToolsEnabled}
-            <DebugToolsMenu mode="battle-button" rendererDiagnostics={rendererDiagnostics} />
-          {/if}
+          <DebugToolsMenu mode="battle-button" rendererDiagnostics={rendererDiagnostics} />
         </div>
         <div class="replay-actions replay-header-actions">
           <button

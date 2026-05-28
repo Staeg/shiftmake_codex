@@ -45,7 +45,9 @@
       "Bash(export:*)",
       "Bash(cd \"C:\\\\Users\\\\staeg\\\\shiftmake - Codex\" && npm run build 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\staeg\\\\shiftmake - Codex\" && npm run test 2>&1)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\staeg\\\\shiftmake - Codex\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

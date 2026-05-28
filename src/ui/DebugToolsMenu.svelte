@@ -178,10 +178,10 @@
     data-ui-name="Copy campaign report"
     on:click={() => void copyCampaignReport()}
     disabled={!$gameStore.activeSlotId}
-    title="Copy current campaign state to report"
-    aria-label="Copy current campaign state to report"
+    title="Copy current game state report"
+    aria-label="Copy current game state report"
   >
-    DBG
+    LOG
   </button>
 {:else if mode === 'battle-button'}
   <button
@@ -189,10 +189,10 @@
     data-ui-name="Copy battle report"
     on:click={() => void copyLoadedReplayReport()}
     disabled={!$gameStore.loadedReplayPayload}
-    title="Copy current battle state to report"
-    aria-label="Copy current battle state to report"
+    title="Copy current battle report"
+    aria-label="Copy current battle report"
   >
-    DBG
+    LOG
   </button>
 {:else}
   <details class="debug-dropdown ui-debug-target" data-ui-name="Debug tools">
