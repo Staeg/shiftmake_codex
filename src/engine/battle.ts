@@ -158,6 +158,7 @@ interface InternalState {
   currentTurnUnitId: string | null;
   changelingTriggeredSides: Set<SideId>;
   pendingGraveVigorBlocks: Array<{ unitId: string; side: SideId }>;
+  distinctTypeCache: Map<SideId, string[]>;
 }
 
 interface SpawnContext {
@@ -720,6 +721,7 @@ function expandSpawnCells(
   origin: HexCoord,
   radius: number,
   activeCells: HexCoord[],
+  activeCellKeys: Set<string>,
   forbidden: Set<string>,
 ): boolean {
   const enemyCorner = startingCorner(side === 'player' ? 'enemy' : 'player', radius);
@@ -732,7 +734,7 @@ function expandSpawnCells(
       .filter((neighbor) => inRadius(neighbor, radius))
       .forEach((neighbor) => {
         const key = hexKey(neighbor);
-        if (forbidden.has(key) || activeCells.some((active) => equalsHex(active, neighbor))) {
+        if (forbidden.has(key) || activeCellKeys.has(key)) {
           return;
         }
         frontier.set(key, neighbor);
@@ -748,8 +750,10 @@ function expandSpawnCells(
   const nextCells = candidates.filter((cell) => Math.abs(hexDistance(cell, enemyCorner) - originEnemyDistance) === bestDelta);
 
   nextCells.forEach((cell) => {
-    if (!activeCells.some((active) => equalsHex(active, cell))) {
+    const key = hexKey(cell);
+    if (!activeCellKeys.has(key)) {
       activeCells.push(cell);
+      activeCellKeys.add(key);
     }
   });
 
@@ -762,6 +766,7 @@ function placeUnitWithExpandableCells(
   origin: HexCoord,
   radius: number,
   activeCells: HexCoord[],
+  activeCellKeys: Set<string>,
   context: SpawnContext,
   forbidden: Set<string>,
   occupancy: Map<string, number>,
@@ -787,16 +792,26 @@ function placeUnitWithExpandableCells(
       .filter((item): item is { cell: HexCoord; used: number; utilization: number } => item !== null);
 
     if (candidates.length > 0) {
-      const minUtilization = Math.min(...candidates.map((item) => item.utilization));
-      const finalists = candidates.filter((item) => item.utilization === minUtilization);
-      const minUsed = Math.min(...finalists.map((item) => item.used));
-      const selected = context.rng.pick(finalists.filter((item) => item.used === minUsed)).cell;
+      let minUtil = Infinity;
+      let minUsed = Infinity;
+      const best: Array<{ cell: HexCoord; used: number; utilization: number }> = [];
+      for (const item of candidates) {
+        if (item.utilization < minUtil || (item.utilization === minUtil && item.used < minUsed)) {
+          minUtil = item.utilization;
+          minUsed = item.used;
+          best.length = 0;
+          best.push(item);
+        } else if (item.utilization === minUtil && item.used === minUsed) {
+          best.push(item);
+        }
+      }
+      const selected = context.rng.pick(best).cell;
       const key = hexKey(selected);
       occupancy.set(key, fixedAdd(occupancy.get(key) ?? 0, size));
       return selected;
     }
 
-    if (!expandSpawnCells(side, origin, radius, activeCells, forbidden)) {
+    if (!expandSpawnCells(side, origin, radius, activeCells, activeCellKeys, forbidden)) {
       return null;
     }
   }
@@ -818,18 +833,20 @@ function spawnGroup(
     combatants.map((combatant) => (countsTowardAllySaturationFromAbilities(combatant.abilities) ? combatant.stats.size : 0)),
   );
   const targetCellCount = Math.max(1, Math.ceil(totalGroupSize / context.saturation));
-  const activeCells: HexCoord[] = forbidden.has(hexKey(origin)) ? [] : [origin];
+  const originKey = hexKey(origin);
+  const activeCells: HexCoord[] = forbidden.has(originKey) ? [] : [origin];
+  const activeCellKeys = new Set<string>(forbidden.has(originKey) ? [] : [originKey]);
   const occupancy = new Map<string, number>();
   const usedHexes = new Set<string>();
 
   while (activeCells.length < targetCellCount) {
-    if (!expandSpawnCells(side, origin, radius, activeCells, forbidden)) {
+    if (!expandSpawnCells(side, origin, radius, activeCells, activeCellKeys, forbidden)) {
       break;
     }
   }
 
   combatants.forEach((combatant, index) => {
-    const slot = placeUnitWithExpandableCells(combatant, side, origin, radius, activeCells, context, forbidden, occupancy);
+    const slot = placeUnitWithExpandableCells(combatant, side, origin, radius, activeCells, activeCellKeys, context, forbidden, occupancy);
     if (!slot) {
       throw new Error('Failed to spawn combatant');
     }
@@ -1043,7 +1060,13 @@ function matchesRoleFilter(unit: InternalUnit, roles: RoleId[]): boolean {
 }
 
 function getDistinctFriendlyUnitTypes(state: InternalState, unit: InternalUnit): string[] {
-  return [...new Set(getAliveUnits(state, unit.side).map((entry) => entry.type))];
+  const cached = state.distinctTypeCache.get(unit.side);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const result = [...new Set(getAliveUnits(state, unit.side).map((entry) => entry.type))];
+  state.distinctTypeCache.set(unit.side, result);
+  return result;
 }
 
 function formatSigned(value: number): string {
@@ -2087,13 +2110,17 @@ function recordSummonedProfile(state: InternalState, unit: InternalUnit): void {
 
 function tryFindSummonHex(state: InternalState, actor: InternalUnit, origin: HexCoord, size: number): HexCoord | null {
   const candidatePool = [origin, ...state.rng.shuffle(neighbors(origin).filter((coord) => inRadius(coord, state.mapRadius)))];
-  const valid = candidatePool.filter(
-    (coord) => fixedAdd(allySizeOnHex(state, actor.side, coord), size) <= state.saturation,
-  );
-  if (valid.length === 0) {
-    return null;
+  const hexOccupancy = new Map<string, number>();
+  for (const unit of getAliveUnits(state, actor.side)) {
+    if (!countsTowardAllySaturationFromAbilities(unit.resolvedAbilities)) {
+      continue;
+    }
+    const key = hexKey(unit.position);
+    hexOccupancy.set(key, fixedAdd(hexOccupancy.get(key) ?? 0, unit.resolvedStats.size));
   }
-  return valid[0] ?? null;
+  return (
+    candidatePool.find((coord) => fixedAdd(hexOccupancy.get(hexKey(coord)) ?? 0, size) <= state.saturation) ?? null
+  );
 }
 
 function applyCarrionChoir(state: InternalState, actor: InternalUnit, corpsePosition: HexCoord): void {
@@ -2170,6 +2197,7 @@ function summonUnit(
   };
   applyMutatorAdjustmentsToUnit(summonedUnit, state.effects);
   state.units.set(unitId, summonedUnit);
+  state.distinctTypeCache.delete(summonedUnit.side);
   recordSummonedProfile(state, summonedUnit);
   buildStep(state, 'buff', [actor.id], [unitId], `${actor.troopLabel} summons ${troop.label}.`, {
     effect: 'summon',
@@ -2767,6 +2795,7 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   }
   target.alive = false;
   target.hp = 0;
+  state.distinctTypeCache.delete(target.side);
   removeAllEngagements(state, target);
   if (!hasAbility(target, 'fading')) {
     state.corpses.set(target.id, { ...target.position });
@@ -2867,6 +2896,7 @@ function handleEnvironmentalDeath(
   }
   target.alive = false;
   target.hp = 0;
+  state.distinctTypeCache.delete(target.side);
   removeAllEngagements(state, target);
   if (!hasAbility(target, 'fading')) {
     state.corpses.set(target.id, { ...target.position });
@@ -3852,6 +3882,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     currentTurnUnitId: null,
     changelingTriggeredSides: new Set<SideId>(),
     pendingGraveVigorBlocks: [],
+    distinctTypeCache: new Map<SideId, string[]>(),
   };
   state.units.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
 

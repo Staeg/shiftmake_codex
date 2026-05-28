@@ -167,6 +167,8 @@ export class BattleRenderer {
 
   private replay: BattleReplay | null = null;
 
+  private layoutCache = new WeakMap<BattleUnit[], LayoutResult>();
+
   private currentStep = -1;
 
   private strongHighlightIds = new Set<string>();
@@ -297,6 +299,7 @@ export class BattleRenderer {
 
   setReplay(replay: BattleReplay): void {
     this.replay = replay;
+    this.layoutCache = new WeakMap();
     this.currentStep = -1;
     this.currentMapRadius = replay.mapRadius;
     this.clearLayers();
@@ -594,6 +597,16 @@ export class BattleRenderer {
   }
 
   private computeDisplayLayout(units: BattleUnit[]): LayoutResult {
+    const cached = this.layoutCache.get(units);
+    if (cached) {
+      return cached;
+    }
+    const result = this.buildDisplayLayout(units);
+    this.layoutCache.set(units, result);
+    return result;
+  }
+
+  private buildDisplayLayout(units: BattleUnit[]): LayoutResult {
     const aliveUnits = units.filter((unit) => unit.alive);
     const byHex = new Map<string, Set<'player' | 'enemy'>>();
     const byHexCount = new Map<string, number>();
