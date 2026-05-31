@@ -5,6 +5,10 @@
   shuffle<T>(items: T[]): T[];
 }
 
+export function randomSeed(): number {
+  return (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
+}
+
 export function createRng(seed: number): Rng {
   let state = seed >>> 0;
 

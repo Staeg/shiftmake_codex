@@ -1,5 +1,6 @@
 import { deserializeGameState } from './game';
 import type { CampaignReportPayload, CampaignReportUiContext, GameState, StoredReplayPayload } from './types';
+import { decodeBase64Url, encodeBase64Url, hashString, stableStringify } from '../shared/reportEncoding';
 
 const REPORT_PREFIX = 'SMCR1.';
 const REPORT_VERSION = 1;
@@ -19,54 +20,6 @@ export type CampaignReportDecodeResult =
   | { ok: false; error: 'invalid_prefix' | 'invalid_json' | 'unsupported_version' | 'invalid_shape' | 'invalid_game_state' };
 
 export type CampaignReportDecodeError = Extract<CampaignReportDecodeResult, { ok: false }>['error'];
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableStringify(entry)).join(',')}]`;
-  }
-
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`)
-      .join(',')}}`;
-  }
-
-  return JSON.stringify(value);
-}
-
-function hashString(value: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(36).padStart(7, '0');
-}
-
-function encodeBase64Url(value: string): string {
-  if (typeof btoa === 'function') {
-    const bytes = new TextEncoder().encode(value);
-    let binary = '';
-    bytes.forEach((byte) => {
-      binary += String.fromCharCode(byte);
-    });
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-  }
-
-  return Buffer.from(value, 'utf8').toString('base64url');
-}
-
-function decodeBase64Url(value: string): string {
-  if (typeof atob === 'function') {
-    const padded = `${value}${'='.repeat((4 - (value.length % 4)) % 4)}`.replace(/-/g, '+').replace(/_/g, '/');
-    const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
-  }
-
-  return Buffer.from(value, 'base64url').toString('utf8');
-}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

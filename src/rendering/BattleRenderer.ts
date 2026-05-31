@@ -12,7 +12,7 @@ import {
 import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/types';
 
 import projectileUrl from '../assets/sprites/projectile.svg';
-import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../ui/iconAssets';
+import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../presentation/iconAssets';
 import { loadFactionUnitTextures } from './unitVisuals';
 import type { BattleReportDiagnostic } from '../engine/types';
 
@@ -169,6 +169,8 @@ export class BattleRenderer {
 
   private layoutCache = new WeakMap<BattleUnit[], LayoutResult>();
 
+  private troopProfileMap = new Map<string, import('../engine/types').ReplayTroopProfile>();
+
   private currentStep = -1;
 
   private strongHighlightIds = new Set<string>();
@@ -300,6 +302,7 @@ export class BattleRenderer {
   setReplay(replay: BattleReplay): void {
     this.replay = replay;
     this.layoutCache = new WeakMap();
+    this.troopProfileMap = new Map(replay.troopProfiles.map((p) => [`${p.side}:${p.troopLabel}`, p]));
     this.currentStep = -1;
     this.currentMapRadius = replay.mapRadius;
     this.clearLayers();
@@ -345,8 +348,16 @@ export class BattleRenderer {
   }
 
   setHighlights(strongIds: string[], faintIds: string[]): void {
+    const strongUnchanged =
+      strongIds.length === this.strongHighlightIds.size && strongIds.every((id) => this.strongHighlightIds.has(id));
+    const faintFiltered = faintIds.filter((id) => !this.strongHighlightIds.has(id));
+    const faintUnchanged =
+      faintFiltered.length === this.faintHighlightIds.size && faintFiltered.every((id) => this.faintHighlightIds.has(id));
+    if (strongUnchanged && faintUnchanged) {
+      return;
+    }
     this.strongHighlightIds = new Set(strongIds);
-    this.faintHighlightIds = new Set(faintIds.filter((id) => !this.strongHighlightIds.has(id)));
+    this.faintHighlightIds = new Set(faintFiltered);
     this.applyHighlights();
   }
 
@@ -494,7 +505,7 @@ export class BattleRenderer {
       tutorialTarget.className = 'battle-tutorial-unit-target';
       tutorialTarget.dataset.tutorialTarget = 'battlefield-unit';
       tutorialTarget.dataset.unitId = unit.id;
-      const profile = this.replay?.troopProfiles.find((entry) => entry.side === unit.side && entry.troopLabel === unit.troopLabel);
+      const profile = this.troopProfileMap.get(`${unit.side}:${unit.troopLabel}`);
       if ((profile?.abilities.length ?? 0) > 0) {
         tutorialTarget.dataset.tutorialHasAbilities = 'true';
       }
@@ -647,7 +658,7 @@ export class BattleRenderer {
       const sideBiasX = hasBothSides ? (side === 'player' ? -usableRadius * 0.4 : usableRadius * 0.4) : 0;
       const squashX = hasBothSides ? 0.62 : 1;
 
-      groupUnits.sort((a, b) => a.id.localeCompare(b.id));
+      groupUnits.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       groupUnits.forEach((unit, index) => {
         const offset = distributedOffset(index, groupUnits.length, usableRadius, squashX);
         positions.set(unit.id, {

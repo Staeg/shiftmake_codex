@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AbilityId, MutatorId, UpgradeId } from '../engine/types';
-  import { getAbilityFallbackIcon, getAbilityIconUrl, getMutatorIconUrl, getUpgradeIconUrl } from './iconAssets';
+  import { getAbilityFallbackIcon, getAbilityIconUrl, getMutatorIconUrl, getUpgradeIconUrl } from '../presentation/iconAssets';
 
   export let kind: 'ability' | 'upgrade' | 'mutator';
   export let id: AbilityId | UpgradeId | MutatorId;

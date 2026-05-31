@@ -21,6 +21,10 @@ All gameplay logic lives in `src/engine/` with no DOM or rendering dependencies.
 
 The Svelte and Pixi layers consume resolved engine data. They do not decide outcomes, apply combat rules, or maintain a second copy of gameplay state.
 
+Renderer-neutral presentation helpers live outside `src/ui/`. For example, `src/presentation/iconAssets.ts` is shared by Svelte controls and the Pixi renderer, so `src/rendering/` does not import from `src/ui/`.
+
+Pure cross-runtime helpers that are not gameplay rules live in `src/shared/`. Report base64url encoding and stable report hashing are centralized in `src/shared/reportEncoding.ts`.
+
 ## Project Shape
 
 ```text
@@ -30,6 +34,8 @@ src/
     unitCatalog.ts
     army.ts
     battle.ts
+    battleAbilityRules.ts
+    battleInput.ts
     game.ts
     rift.ts
     upgrades.ts
@@ -37,14 +43,22 @@ src/
     ladder.ts
 
   store/
+    contestMultiplayerClient.ts
     gameStore.ts
     saveSlots.ts
     ladderClient.ts
     replayNavigation.ts
 
+  presentation/
+    iconAssets.ts
+
+  shared/
+    reportEncoding.ts
+
   ui/
     App.svelte
     BattleControls.svelte
+    detailCards.ts
     EventLog.svelte
     StatBreakdownGrid.svelte
     UnitTooltip.svelte
@@ -269,7 +283,7 @@ Each acting unit:
 
 ### Role decision tree
 
-Role behavior is implemented inside `src/engine/battle.ts` and stays fully engine-owned.
+Role behavior is implemented inside `src/engine/battle.ts` and stays fully engine-owned. Battle input/debug construction lives in `src/engine/battleInput.ts`, and reusable ability rule helpers such as target filtering and radius resolution live in `src/engine/battleAbilityRules.ts`.
 
 Shared first check for every acting unit:
 
@@ -334,6 +348,8 @@ Rule: any future ability that reads army composition at battle start must use `c
 - summary info for archive UI
 
 The replay UI always reads resolved replay data and never reconstructs combat state from catalog assumptions.
+
+Battle report and campaign report modules build and validate report payloads in `src/engine/battleReport.ts` and `src/engine/campaignReport.ts`. Their shared base64url and stable-hash helpers come from `src/shared/reportEncoding.ts`, keeping the report format logic consistent without duplicating browser/Node fallbacks in engine modules.
 
 ### Battle input context
 
@@ -406,6 +422,7 @@ The engine remains pure TypeScript. It does not import fetch, Svelte stores, DOM
 - cycle-end confirmation state
 - screen mode and replay navigation state
 - Ladder draw and harvest orchestration through `src/store/ladderClient.ts`
+- high-level multiplayer state transitions, while WebSocket lifecycle, reconnect token storage, last-used room preferences, and multiplayer replay payload cache live in `src/store/contestMultiplayerClient.ts`
 
 `src/ui/App.svelte` is intentionally thin:
 
@@ -414,6 +431,7 @@ The engine remains pure TypeScript. It does not import fetch, Svelte stores, DOM
 - renders the cycle-10 game-over overlay
 - renders Ladder start and replace buttons in the singleplayer save-slot UI
 - delegates replay playback to the renderer and replay store actions
+- delegates reusable inspector/detail-card construction to `src/ui/detailCards.ts`
 
 ## Persistence
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAbilityFallbackIcon, getAbilityIconUrl } from './iconAssets';
+import { getAbilityFallbackIcon, getAbilityIconUrl } from '../presentation/iconAssets';
 
 describe('ability icon fallback rules', () => {
   it('uses rule-based icons instead of generated placeholder SVGs', () => {

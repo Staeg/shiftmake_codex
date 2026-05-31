@@ -1,6 +1,6 @@
 # Battle details
 
-This document describes the current battle implementation in `src/engine/battle.ts`.
+This document describes the current battle implementation centered on `src/engine/battle.ts`. Battle input/debug construction is split into `src/engine/battleInput.ts`, and reusable ability targeting/rule helpers are split into `src/engine/battleAbilityRules.ts`.
 
 ## Map
 

@@ -8,6 +8,8 @@ The image model should receive enough gameplay meaning to invent good visual met
 
 The source of truth is `src/engine/unitCatalog.ts`. Do not manually maintain a parallel list of upgrades or abilities.
 
+Runtime icon lookup and fallback icon metadata live in `src/presentation/iconAssets.ts` so both Svelte UI and Pixi rendering code can use the same assets without creating a renderer-to-UI dependency.
+
 ## Generated Inputs
 
 Run:

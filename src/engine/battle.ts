@@ -1,10 +1,16 @@
 import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
 import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, formatFixed } from './fixed';
-import { createRng, type Rng } from './rng';
-import { clampStat, composeBaseTroopDefinition, composeSummonedTroopDefinition, getAbility, getMutator, getTroopDefinitionOrThrow } from './unitCatalog';
-import { createTroopInstance, resolveTroopCombatant } from './army';
+import { createRng, randomSeed, type Rng } from './rng';
+import { clampStat, composeSummonedTroopDefinition, getAbility, getMutator } from './unitCatalog';
+import {
+  effectDisposition,
+  filterTargetCandidates,
+  matchesFallenTrigger,
+  prioritizeCandidates,
+  resolveAbilityTargetRadius,
+  resolveFallenTriggerRadius,
+} from './battleAbilityRules';
 import type {
-  AbilityAllegiance,
   BattleAbilityExplanation,
   BattleDamageExplanation,
   AbilityDefinition,
@@ -16,18 +22,19 @@ import type {
   BattleReplay,
   BattleStepMetadata,
   BattleStepExplanation,
-  EffectDisposition,
   RoleIntentId,
   ReplayTroopProfile,
   BattleStateSnapshot,
   BattleStep,
   BattleStepKind,
+  EffectDisposition,
   HexCoord,
   ResolvedCombatantDefinition,
   RoleId,
   SideId,
 } from './types';
-import type { BattleDebugInput } from './debugTypes';
+export { resolveAbilityTargetRadius } from './battleAbilityRules';
+export { buildBattleInputFromResolvedCombatants, resolveDebugBattle } from './battleInput';
 
 type RuntimeAbilityState = {
   definition: AbilityDefinition;
@@ -170,10 +177,6 @@ interface SpawnContext {
 const BASE_MAP_RADIUS = 3;
 const DEFAULT_SATURATION = 10;
 const MAX_BEATS = 1000;
-
-function randomSeed(): number {
-  return (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
-}
 
 function makeReplayId(seed: number, riftId: string | null): string {
   return `${riftId ?? 'debug'}-${seed}`;
@@ -953,6 +956,12 @@ function getAliveUnits(state: InternalState, side?: SideId): InternalUnit[] {
   return [...state.units.values()].filter((unit) => unit.alive && (!side || unit.side === side));
 }
 
+function assertUnitLive(unit: InternalUnit, context: string): void {
+  if (import.meta.env.DEV && !unit.alive) {
+    throw new Error(`[battle] Mutation attempted on dead unit "${unit.id}" (${unit.troopLabel}) in ${context}`);
+  }
+}
+
 function hasPendingDiggyHoleUnits(state: InternalState, side: SideId): boolean {
   return state.pendingDiggyHoleCombatants[side].length > 0;
 }
@@ -1308,10 +1317,6 @@ function maybeGrantStaticCharge(state: InternalState, actor: InternalUnit, runti
     sourceAbilityId: 'static-charge',
     sourceAbilityLabel: getAbility('static-charge').label,
   });
-}
-
-function effectDisposition(effect: AbilityEffectDefinition): EffectDisposition {
-  return effect.disposition ?? 'neutral';
 }
 
 function isGraveVigorBeneficialEffect(actor: InternalUnit, target: InternalUnit, effect: AbilityEffectDefinition): boolean {
@@ -1862,42 +1867,6 @@ function expireTimedEffects(state: InternalState, unit: InternalUnit): void {
   unit.activeTimedEffects = remaining;
 }
 
-function matchesFallenTrigger(unit: InternalUnit, fallenUnit: InternalUnit, allegiance: AbilityAllegiance): boolean {
-  if (unit.id === fallenUnit.id) {
-    return false;
-  }
-  if (allegiance === 'all') {
-    return true;
-  }
-  return allegiance === 'ally' ? unit.side === fallenUnit.side : unit.side !== fallenUnit.side;
-}
-
-function filterTargetCandidates(candidates: InternalUnit[], filters?: AbilityTargetDefinition['filters']): InternalUnit[] {
-  if (!filters) {
-    return candidates;
-  }
-  return candidates.filter((candidate) => {
-    if (filters.onlyTypes && !hasMatchingIdentityTag(candidate, filters.onlyTypes)) {
-      return false;
-    }
-    if (filters.notTypes && hasMatchingIdentityTag(candidate, filters.notTypes)) {
-      return false;
-    }
-    if (filters.unengaged && candidate.engagedWith.size > 0) {
-      return false;
-    }
-    return true;
-  });
-}
-
-function prioritizeCandidates(candidates: InternalUnit[], filters?: AbilityTargetDefinition['filters']): InternalUnit[] {
-  if (!filters?.prioritizeTypes?.length) {
-    return candidates;
-  }
-  const prioritized = candidates.filter((candidate) => hasMatchingIdentityTag(candidate, filters.prioritizeTypes ?? []));
-  return prioritized.length > 0 ? prioritized : candidates;
-}
-
 // Default target resolution for effects that don't have an explicit target definition.
 // Each effect kind that needs context from the trigger event gets its own named helper,
 // keeping that semantic knowledge co-located with the effect rather than buried in a
@@ -1948,26 +1917,6 @@ function getAppliedEffectDefaultTarget(event: AbilityTriggerEvent): InternalUnit
 
 function getAttackDefaultTarget(event: AbilityTriggerEvent): InternalUnit[] {
   return event.attackTarget?.alive ? [event.attackTarget] : [];
-}
-
-export function resolveAbilityTargetRadius(actor: { resolvedStats: { range: number } }, target: AbilityTargetDefinition | undefined): number {
-  if (!target) {
-    return 0;
-  }
-  if (target.radiusSource === 'selfRange') {
-    return actor.resolvedStats.range;
-  }
-  return target.radius ?? 0;
-}
-
-function resolveFallenTriggerRadius(actor: { resolvedStats: { range: number } }, trigger: AbilityDefinition['trigger']): number {
-  if (!trigger.fallen) {
-    return 0;
-  }
-  if (trigger.fallen.radiusSource === 'selfRange') {
-    return actor.resolvedStats.range;
-  }
-  return trigger.fallen.radius;
 }
 
 function getTargetCandidates(
@@ -2990,6 +2939,8 @@ function attack(
   strikeCount = 0,
   category: AttackCategory = 'normal',
 ): void {
+  assertUnitLive(actor, 'attack/actor');
+  assertUnitLive(target, 'attack/target');
   if (tryApplyGlamour(state, actor, target, mode, category)) {
     return;
   }
@@ -3937,87 +3888,5 @@ export function resolveBattle(input: BattleInput): BattleReplay {
       finalPlayerAlive: finalCounts.player,
       finalEnemyAlive: finalCounts.enemy,
     },
-  };
-}
-
-export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
-  const playerFactionUpgradeIds = input.playerFactionUpgradeIds ?? [];
-  const playerTroopTypeUpgradeIds = input.playerTroopTypeUpgradeIds ?? [];
-  const enemyFactionUpgradeIds = input.enemyFactionUpgradeIds ?? [];
-  const enemyTroopTypeUpgradeIds = input.enemyTroopTypeUpgradeIds ?? [];
-  const playerCombatants = Object.entries(input.player)
-    .filter(([, quantity]) => quantity > 0)
-    .map(([troopId, quantity]) => {
-      const troop = getTroopDefinitionOrThrow(troopId);
-      const resolved = resolveTroopCombatant(
-        { factionUpgradeIds: playerFactionUpgradeIds, troopTypeUpgradeIds: playerTroopTypeUpgradeIds },
-        createTroopInstance(troop.factionId, troop.unitTypeId),
-        'player',
-        null,
-        `debug-player-${troopId}`,
-      );
-      return {
-        ...resolved,
-        troopInstanceId: null,
-        quantity,
-      };
-    });
-  const enemyCombatants = Object.entries(input.enemy)
-    .filter(([, quantity]) => quantity > 0)
-    .map(([troopId, quantity]) => {
-      const troop = getTroopDefinitionOrThrow(troopId);
-      const resolved = resolveTroopCombatant(
-        { factionUpgradeIds: enemyFactionUpgradeIds, troopTypeUpgradeIds: enemyTroopTypeUpgradeIds },
-        createTroopInstance(troop.factionId, troop.unitTypeId),
-        'enemy',
-        null,
-        `debug-enemy-${troopId}`,
-      );
-      return {
-        ...resolved,
-        troopInstanceId: null,
-        quantity,
-      };
-    });
-
-  return resolveBattle({
-    seed: input.seed ?? randomSeed(),
-    riftId: null,
-    tier: null,
-    mutatorIds: [],
-    playerFactionUpgradeIds,
-    playerTroopTypeUpgradeIds,
-    enemyFactionUpgradeIds,
-    enemyTroopTypeUpgradeIds,
-    playerCombatants,
-    enemyCombatants,
-  });
-}
-
-export function buildBattleInputFromResolvedCombatants(
-  seed: number,
-  riftId: string | null,
-  tier: number | null,
-  mutatorIds: string[],
-  saturation: number | undefined,
-  playerFactionUpgradeIds: string[],
-  playerTroopTypeUpgradeIds: string[],
-  enemyFactionUpgradeIds: string[],
-  enemyTroopTypeUpgradeIds: string[],
-  playerCombatants: ResolvedCombatantDefinition[],
-  enemyCombatants: ResolvedCombatantDefinition[],
-): BattleInput {
-  return {
-    seed,
-    riftId,
-    tier,
-    mutatorIds,
-    saturation,
-    playerFactionUpgradeIds,
-    playerTroopTypeUpgradeIds,
-    enemyFactionUpgradeIds,
-    enemyTroopTypeUpgradeIds,
-    playerCombatants,
-    enemyCombatants,
   };
 }
