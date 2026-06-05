@@ -22,7 +22,10 @@ const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const BASE_EFFECT_MS = 1000;
 const BASE_STEP_MS = 500;
-const AUTO_ATTACK_EFFECT_MS = 280;
+const AUTO_ATTACK_EFFECT_MS = 640;
+const BASE_DEATH_FADE_MS = 2000;
+const HIT_FLASH_RED = 0xff1f24;
+const HIT_FLASH_PEAK = 0.9;
 const VIEWPORT_PADDING = 18;
 const DEFAULT_FIT_SCALE = 1.2;
 const MIN_ZOOM_FACTOR = 0.6;
@@ -38,6 +41,7 @@ type LayoutResult = {
 };
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 type EffectIndicatorKind = 'positive' | 'negative' | 'neutral';
+export type ReplayStepNavigationKind = 'auto' | 'manual-step' | 'event-select' | 'reset';
 
 export type UnitPointerInfo = {
   unitId: string;
@@ -127,6 +131,21 @@ function distributedOffset(index: number, count: number, maxRadius: number, squa
   };
 }
 
+function mixChannel(from: number, to: number, t: number): number {
+  return Math.round(from + (to - from) * t);
+}
+
+function mixColor(from: number, to: number, t: number): number {
+  const clamped = Math.max(0, Math.min(1, t));
+  const fromR = (from >> 16) & 0xff;
+  const fromG = (from >> 8) & 0xff;
+  const fromB = from & 0xff;
+  const toR = (to >> 16) & 0xff;
+  const toG = (to >> 8) & 0xff;
+  const toB = to & 0xff;
+  return (mixChannel(fromR, toR, clamped) << 16) | (mixChannel(fromG, toG, clamped) << 8) | mixChannel(fromB, toB, clamped);
+}
+
 function densityScaleForHexUnitCount(unitCount: number): number {
   if (unitCount <= 6) {
     return 1;
@@ -176,6 +195,8 @@ export class BattleRenderer {
   private strongHighlightIds = new Set<string>();
 
   private faintHighlightIds = new Set<string>();
+
+  private fadingUnitIds = new Set<string>();
 
   private stopEffects: Array<() => void> = [];
 
@@ -273,12 +294,6 @@ export class BattleRenderer {
 
   setPlaybackTiming(autoPlay: boolean, speedMs: number): void {
     const nextSpeedMs = Number.isFinite(speedMs) && speedMs > 0 ? speedMs : BASE_STEP_MS;
-    if (this.isAutoPlayback && !autoPlay) {
-      this.clearEffects();
-    }
-    if (this.isAutoPlayback && autoPlay && nextSpeedMs !== this.playbackSpeedMs) {
-      this.clearEffects();
-    }
     this.isAutoPlayback = autoPlay;
     this.playbackSpeedMs = nextSpeedMs;
   }
@@ -361,7 +376,7 @@ export class BattleRenderer {
     this.applyHighlights();
   }
 
-  showStep(stepIndex: number): void {
+  showStep(stepIndex: number, navigationKind: ReplayStepNavigationKind = 'event-select'): void {
     if (!this.replay) {
       return;
     }
@@ -372,20 +387,25 @@ export class BattleRenderer {
 
     const snapshot = normalized < 0 ? this.replay.initial.units : this.replay.steps[normalized]?.snapshot.units ?? [];
 
-    if (normalized !== previous && !this.isAutoPlayback) {
+    if (normalized !== previous && (navigationKind === 'event-select' || navigationKind === 'reset')) {
       this.clearEffects();
     }
 
     this.renderSnapshot(snapshot);
+    this.applyHighlights();
 
     if (normalized >= 0 && normalized !== previous) {
       const step = this.replay.steps[normalized] as BattleStep;
       const prevUnits =
-        previous < 0 ? this.replay.initial.units : this.replay.steps[previous]?.snapshot.units ?? this.replay.initial.units;
+        navigationKind === 'event-select' || navigationKind === 'reset'
+          ? normalized <= 0
+            ? this.replay.initial.units
+            : this.replay.steps[normalized - 1]?.snapshot.units ?? this.replay.initial.units
+          : previous < 0
+            ? this.replay.initial.units
+            : this.replay.steps[previous]?.snapshot.units ?? this.replay.initial.units;
       this.playStepEffect(step, prevUnits, snapshot);
     }
-
-    this.applyHighlights();
   }
 
   private pointerInfo(unitId: string, event: FederatedPointerEvent): UnitPointerInfo {
@@ -411,6 +431,7 @@ export class BattleRenderer {
     this.tutorialUnitTargets.clear();
     this.unitBaseScales.clear();
     this.unitAlive.clear();
+    this.fadingUnitIds.clear();
     this.unitOutlines.clear();
     this.targetMarkers.clear();
   }
@@ -742,6 +763,10 @@ export class BattleRenderer {
     return this.scalePlaybackDuration(this.isAutoPlayback ? AUTO_ATTACK_EFFECT_MS : BASE_EFFECT_MS);
   }
 
+  private deathFadeDurationMs(): number {
+    return this.scalePlaybackDuration(BASE_DEATH_FADE_MS);
+  }
+
   private scalePlaybackDuration(durationMs: number): number {
     if (!this.isAutoPlayback) {
       return durationMs;
@@ -752,6 +777,19 @@ export class BattleRenderer {
   private playStepEffect(step: BattleStep, prevUnits: BattleUnit[], nextUnits: BattleUnit[]): void {
     const prevLayout = this.computeDisplayLayout(prevUnits);
     const nextLayout = this.computeDisplayLayout(nextUnits);
+
+    if (step.kind === 'death') {
+      step.targetIds.forEach((targetId) => {
+        const fallen = getUnitById(prevUnits, targetId) ?? getUnitById(nextUnits, targetId);
+        if (!fallen) {
+          return;
+        }
+        const position = prevLayout.positions.get(fallen.id) ?? nextLayout.positions.get(fallen.id) ?? axialToPixel(fallen.position);
+        const densityScale = prevLayout.densityScales.get(fallen.id) ?? nextLayout.densityScales.get(fallen.id) ?? 1;
+        this.stopEffects.push(this.fadeOutUnit(fallen, position, densityScale, this.deathFadeDurationMs()));
+      });
+      return;
+    }
 
     if (step.kind === 'buff') {
       const effect = typeof step.metadata?.effect === 'string' ? step.metadata.effect : null;
@@ -789,16 +827,38 @@ export class BattleRenderer {
       const targets = step.targetIds
         .map((targetId) => getUnitById(prevUnits, targetId) ?? getUnitById(nextUnits, targetId))
         .filter((unit): unit is BattleUnit => Boolean(unit));
+      const attackMode = step.metadata?.mode;
+      const didDealDamage = typeof step.metadata?.damage === 'number' && step.metadata.damage > 0;
+      const hitFlashDurationMs = this.scalePlaybackDuration(420);
 
       targets.forEach((target) => {
         const targetPos = prevLayout.positions.get(target.id) ?? nextLayout.positions.get(target.id) ?? axialToPixel(target.position);
         if (target.alive) {
-          this.stopEffects.push(this.holdUnitAtAttackPose(target, targetPos, prevLayout.densityScales.get(target.id), durationMs));
+          this.stopEffects.push(
+            this.holdUnitAtAttackPose(
+              target,
+              targetPos,
+              prevLayout.densityScales.get(target.id),
+              didDealDamage ? durationMs + hitFlashDurationMs : durationMs,
+            ),
+          );
         }
-        if ((step.metadata?.mode as string) === 'ranged') {
+        if (attackMode === 'ranged') {
           this.stopEffects.push(this.fireProjectile(actorPos, targetPos, durationMs));
+        } else if (attackMode === 'melee') {
+          this.stopEffects.push(
+            this.thrustMeleeSword(
+              actorPos,
+              targetPos,
+              prevLayout.densityScales.get(actor.id) ?? nextLayout.densityScales.get(actor.id) ?? 1,
+              durationMs,
+            ),
+          );
         }
-        this.stopEffects.push(this.shakeUnit(target.id, durationMs));
+        if (didDealDamage) {
+          this.stopEffects.push(this.flashUnitHit(target.id, durationMs, hitFlashDurationMs));
+        }
+        this.stopEffects.push(this.shakeUnit(target.id, durationMs, durationMs));
       });
       return;
     }
@@ -828,7 +888,7 @@ export class BattleRenderer {
       const waypoint = routedAround ? sharedHexVertex(previousUnit.position, nextUnit.position, routedAround) : null;
 
       this.stopEffects.push(
-        animate(this.scalePlaybackDuration(waypoint ? 300 : 220), (t) => {
+        animate(this.scalePlaybackDuration(waypoint ? 420 : 320), (t) => {
           const segmentT = waypoint ? (t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5) : t;
           const from = waypoint && t >= 0.5 ? waypoint : start;
           const to = waypoint && t < 0.5 ? waypoint : end;
@@ -840,9 +900,117 @@ export class BattleRenderer {
     }
   }
 
+  private fadeOutUnit(unit: BattleUnit, position: PixelPoint, densityScale = 1, durationMs: number): () => void {
+    const sprite = this.unitSprites.get(unit.id);
+    const outline = this.unitOutlines.get(unit.id);
+    const targetMarker = this.targetMarkers.get(unit.id);
+    if (!sprite) {
+      return () => {};
+    }
+
+    const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
+    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale;
+    const yScale = baseScale * densityScale;
+    const driftDirection = unit.side === 'enemy' ? 1 : -1;
+    const driftX = UNIT_PIXEL_SIZE * 1.2 * driftDirection;
+    const launchHeight = UNIT_PIXEL_SIZE * 4.2;
+    const spin = driftDirection * Math.PI * 0.85;
+
+    this.fadingUnitIds.add(unit.id);
+    sprite.visible = true;
+    sprite.alpha = 1;
+    sprite.tint = 0xffffff;
+    sprite.rotation = 0;
+    sprite.position.set(position.x, position.y);
+    sprite.scale.set(xScale, yScale);
+    if (outline) {
+      outline.visible = false;
+      outline.alpha = 0;
+      this.setOutlineScale(outline, xScale, yScale);
+    }
+    if (targetMarker) {
+      targetMarker.visible = false;
+      targetMarker.alpha = 0;
+    }
+    this.syncUnitAdornments(unit.id, sprite.x, sprite.y);
+
+    const cleanup = () => {
+      this.fadingUnitIds.delete(unit.id);
+      sprite.visible = false;
+      sprite.alpha = 0;
+      sprite.rotation = 0;
+      this.syncUnitAdornments(unit.id, sprite.x, sprite.y);
+    };
+
+    const stop = animate(
+      durationMs,
+      (t) => {
+        const launch = 1 - Math.pow(1 - t, 3);
+        const fade = t < 0.08 ? 1 : 1 - (t - 0.08) / 0.92;
+        sprite.alpha = Math.max(0, fade);
+        sprite.x = position.x + driftX * launch;
+        sprite.y = position.y - launchHeight * launch;
+        sprite.rotation = spin * launch;
+        sprite.scale.set(xScale * (1 - 0.24 * launch), yScale * (1 - 0.24 * launch));
+        this.syncUnitAdornments(unit.id, sprite.x, sprite.y);
+      },
+      cleanup,
+      cleanup,
+    );
+
+    return () => {
+      stop();
+    };
+  }
+
   private syncUnitAdornments(unitId: string, x: number, y: number): void {
     this.unitOutlines.get(unitId)?.position.set(x, y);
     this.targetMarkers.get(unitId)?.position.set(x, y);
+  }
+
+  private flashUnitHit(unitId: string, delayMs: number, durationMs: number): () => void {
+    const sprite = this.unitSprites.get(unitId);
+    if (!sprite) {
+      return () => {};
+    }
+
+    const originalTint = sprite.tint;
+    let delayHandle: ReturnType<typeof window.setTimeout> | null = null;
+    let stopFlash: (() => void) | null = null;
+    let cleaned = false;
+
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      if (delayHandle !== null) {
+        window.clearTimeout(delayHandle);
+        delayHandle = null;
+      }
+      sprite.tint = originalTint;
+    };
+
+    delayHandle = window.setTimeout(() => {
+      delayHandle = null;
+      stopFlash = animate(
+        durationMs,
+        (t) => {
+          const wave = Math.sin(Math.PI * t);
+          sprite.tint = mixColor(0xffffff, HIT_FLASH_RED, wave * HIT_FLASH_PEAK);
+        },
+        cleanup,
+        cleanup,
+      );
+    }, delayMs);
+
+    return () => {
+      if (stopFlash) {
+        stopFlash();
+        return;
+      }
+      cleanup();
+    };
   }
 
   private holdUnitAtAttackPose(unit: BattleUnit, position: PixelPoint, densityScale = 1, durationMs: number): () => void {
@@ -1014,6 +1182,90 @@ export class BattleRenderer {
     };
   }
 
+  private thrustMeleeSword(from: PixelPoint, to: PixelPoint, densityScale: number, durationMs: number): () => void {
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    const distance = Math.max(1, Math.hypot(deltaX, deltaY));
+    const angle = Math.atan2(deltaY, deltaX);
+    const dirX = deltaX / distance;
+    const dirY = deltaY / distance;
+    const hiltOffset = UNIT_PIXEL_SIZE * 0.45;
+    const bladeLength = UNIT_PIXEL_SIZE * 0.76;
+    const tipReach = Math.hypot(bladeLength, hiltOffset);
+    const targetIconRadius = UNIT_PIXEL_SIZE * 0.42;
+    const localTipAngle = Math.atan2(-hiltOffset, bladeLength);
+    const endRotation = angle - localTipAngle;
+    const clockwiseWindup = endRotation - Math.PI / 2;
+    const counterClockwiseWindup = endRotation + Math.PI / 2;
+    const startRotation = Math.sin(clockwiseWindup) <= Math.sin(counterClockwiseWindup) ? clockwiseWindup : counterClockwiseWindup;
+    const lungeDistance = Math.max(0, distance - tipReach);
+    const overshootDistance = Math.max(0, tipReach - distance - targetIconRadius);
+    const endPivot = {
+      x: from.x + dirX * (lungeDistance + overshootDistance),
+      y: from.y + dirY * (lungeDistance + overshootDistance),
+    };
+
+    const sword = new Graphics();
+    sword.rotation = startRotation;
+    sword.position.set(from.x, from.y);
+    this.effectLayer.addChild(sword);
+    this.effectLayer.setChildIndex(sword, this.effectLayer.children.length - 1);
+
+    const drawSword = (alpha: number) => {
+      sword.clear();
+      sword.lineStyle(5, 0x3a2419, alpha);
+      sword.moveTo(-5, -hiltOffset);
+      sword.lineTo(0, -hiltOffset);
+      sword.lineStyle(3, 0xd8dde7, alpha);
+      sword.moveTo(0, -hiltOffset);
+      sword.lineTo(bladeLength, -hiltOffset);
+      sword.lineStyle(1, 0xffffff, alpha * 0.9);
+      sword.moveTo(2, -hiltOffset - 0.9);
+      sword.lineTo(Math.max(3, bladeLength - 4), -hiltOffset - 0.9);
+      sword.lineStyle(2, 0xb47737, alpha);
+      sword.moveTo(1, -hiltOffset - 5);
+      sword.lineTo(1, -hiltOffset + 5);
+      sword.lineStyle(1.5, 0xf6df84, alpha);
+      sword.moveTo(Math.max(1, bladeLength - 4), -hiltOffset - 3);
+      sword.lineTo(bladeLength, -hiltOffset);
+      sword.lineTo(Math.max(1, bladeLength - 4), -hiltOffset + 3);
+    };
+
+    drawSword(1);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      if (sword.parent) {
+        sword.parent.removeChild(sword);
+      }
+      sword.destroy();
+    };
+
+    const stop = animate(
+      durationMs,
+      (t) => {
+        const windup = t < 0.16 ? t / 0.16 : 1;
+        const swingT = t < 0.16 ? 0 : (t - 0.16) / 0.84;
+        const swing = 1 - Math.pow(1 - swingT, 3);
+        const travel = swingT <= 0 ? 0 : 1 - Math.pow(1 - swingT, 2);
+        const arcLift = 3 * Math.sin(Math.PI * windup) + 5 * Math.sin(Math.PI * travel);
+        sword.rotation = startRotation + (endRotation - startRotation) * swing;
+        sword.position.set(from.x + (endPivot.x - from.x) * travel, from.y + (endPivot.y - from.y) * travel - arcLift);
+        drawSword(t < 0.84 ? 1 : 1 - (t - 0.84) / 0.16);
+      },
+      cleanup,
+      cleanup,
+    );
+
+    return () => {
+      stop();
+    };
+  }
+
   private drawFallbackAbilityIcon(icon: AbilityFallbackIcon, size = 20): Graphics {
     const graphic = new Graphics();
     const fill = icon.tone === 'positive' ? 0x4279c9 : icon.tone === 'negative' ? 0xb83e43 : 0x8d98a6;
@@ -1156,7 +1408,7 @@ export class BattleRenderer {
     };
   }
 
-  private shakeUnit(unitId: string, durationMs: number): () => void {
+  private shakeUnit(unitId: string, durationMs: number, delayMs = 0): () => void {
     const sprite = this.unitSprites.get(unitId);
     if (!sprite) {
       return () => {};
@@ -1177,20 +1429,40 @@ export class BattleRenderer {
       this.syncUnitAdornments(unitId, sprite.x, sprite.y);
     };
 
-    const stop = animate(
-      Math.round(durationMs * 0.75),
-      (t) => {
-        const damping = 1 - t;
-        const wave = Math.sin(Math.PI * 2 * oscillations * t);
-        sprite.position.set(startX + wave * amplitude * damping, startY);
-        this.syncUnitAdornments(unitId, sprite.x, sprite.y);
-      },
-      cleanup,
-      cleanup,
-    );
+    let delayHandle: ReturnType<typeof window.setTimeout> | null = null;
+    let stopShake: (() => void) | null = null;
+
+    const startShake = () => {
+      delayHandle = null;
+      stopShake = animate(
+        Math.round(durationMs * 0.75),
+        (t) => {
+          const damping = 1 - t;
+          const wave = Math.sin(Math.PI * 2 * oscillations * t);
+          sprite.position.set(startX + wave * amplitude * damping, startY);
+          this.syncUnitAdornments(unitId, sprite.x, sprite.y);
+        },
+        cleanup,
+        cleanup,
+      );
+    };
+
+    if (delayMs > 0) {
+      delayHandle = window.setTimeout(startShake, delayMs);
+    } else {
+      startShake();
+    }
 
     return () => {
-      stop();
+      if (delayHandle !== null) {
+        window.clearTimeout(delayHandle);
+        delayHandle = null;
+      }
+      if (stopShake) {
+        stopShake();
+      } else {
+        cleanup();
+      }
     };
   }
 
@@ -1295,6 +1567,15 @@ export class BattleRenderer {
       const targetMarker = this.targetMarkers.get(unitId);
       const alive = this.unitAlive.get(unitId) ?? false;
       if (!alive) {
+        if (this.fadingUnitIds.has(unitId)) {
+          if (outline) {
+            outline.visible = false;
+          }
+          if (targetMarker) {
+            targetMarker.visible = false;
+          }
+          return;
+        }
         sprite.visible = false;
         if (outline) {
           outline.visible = false;

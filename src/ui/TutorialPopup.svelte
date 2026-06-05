@@ -63,7 +63,7 @@
     initiative: {
       title: 'Initiative',
       body: ['Each Unit starts battle with a small random amount of initiative. Then a usually invisible mechanism called Beats occur, adding the speed of each Unit to its Initiative, until any Unit has 100 or more. Then all Units with 100 or more Initiative take a turn in random order. Then Beats resume.'],
-      task: "Hover a Unit's Initiative bar.",
+      task: "Hover a Unit's Initiative bolt.",
       placement: 'replay-top',
       targets: ['.replay-initiative-row'],
     },
@@ -127,9 +127,9 @@
     'start-contest': {
       title: 'Contest vs AI',
       body: ['The guided start uses one particular mode, Contest vs AI, and stores it in a special tutorial save slot which you can access via selecting Tutorial from the main menu.'],
-      task: 'Click Contest vs AI or Replace Contest vs AI.',
+      task: 'Click Start New Game, then Contest vs AI.',
       placement: 'menu-left',
-      targets: ['button[data-ui-name^="Start Contest vs AI"]', 'button[data-ui-name^="Replace Contest vs AI"]'],
+      targets: ['button[data-ui-name^="Start new game"]', 'button[data-ui-name^="Start Contest vs AI"]', 'button[data-ui-name^="Replace Contest vs AI"]'],
     },
     opening: {
       title: 'Opening Selection',

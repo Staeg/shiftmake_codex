@@ -50,8 +50,9 @@
     UpgradeId,
   } from '../engine/types';
   import { describeTroopUnlock, getAvailableTroopUnlockIds, upgradeAffectsTroop } from '../engine/upgrades';
-  import type { BattleRenderer as BattleRendererType, UnitPointerInfo } from '../rendering/BattleRenderer';
-  import { getFactionSpriteUrl, loadFactionUnitPortraitUrls } from '../rendering/unitVisualAssets';
+  import type { BattleRenderer as BattleRendererType, ReplayStepNavigationKind, UnitPointerInfo } from '../rendering/BattleRenderer';
+  import { buildBattlePresentationTimeline, type BattlePresentationTimeline } from '../rendering/battlePresentationTimeline';
+  import { getFactionSpriteUrl, loadFactionUnitPortraitUrls, UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
   import { getConfiguredMultiplayerServerUrl, hasConfiguredMultiplayerServerUrl, inferShareableMultiplayerServerUrl, normalizeMultiplayerServerUrl } from '../config/multiplayer';
   import { gameStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
   import { getTutorialStepCenterMode, getTutorialStepSurface, type TutorialStepId } from '../store/tutorial';
@@ -61,7 +62,7 @@
   import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
   import EventLog from './EventLog.svelte';
   import GameIcon from './GameIcon.svelte';
-  import { formatAbilityDescription, formatRoleExact } from './inspectText';
+  import { formatAbilityDescription, formatRoleExact, statIcon } from './inspectText';
   import ReplayStepExplanation from './ReplayStepExplanation.svelte';
   import { buildReplayStepExplanationView } from './replayStepExplanation';
   import { getRiftVisual } from './riftVisuals';
@@ -128,6 +129,7 @@
   };
 
   type RiftAnimationCombatantGroup = {
+    key: string;
     phaseClass: 'phase-now' | 'phase-late' | 'phase-static';
     combatants: ResolvedCombatantDefinition[];
     participant: RiftBattleAnimationSide | null;
@@ -153,6 +155,7 @@
     hpPercent: string;
     hpLabel: string;
     initiativePercent: string;
+    initiativeReady: boolean;
     portraitUrl: string;
   };
 
@@ -171,6 +174,10 @@
     player: { kind: 'player', label: 'Player' },
     enemy: { kind: 'neutral', label: 'Neutral Guardians' },
   };
+  const SINGLEPLAYER_GAME_MODES: GameMode[] = ['campaign', 'ladder', 'contest'];
+  const RIFT_BATTLE_ANIMATION_MS = 7600;
+  const RIFT_BATTLE_LATE_PHASE_DELAY_MS = 3700;
+  const RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS = 200;
 
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
@@ -199,7 +206,13 @@
   let renderedReplayId: string | null = null;
   let renderedStep = Number.NaN;
   let renderedHighlightKey = '';
-  let autoTimer: ReturnType<typeof window.setInterval> | null = null;
+  let replayStepNavigationKind: ReplayStepNavigationKind = 'manual-step';
+  let autoTimelineFrame: number | null = null;
+  let autoTimelineReplayId: string | null = null;
+  let autoTimelineSpeedMs = 0;
+  let autoTimelineStartedAt = 0;
+  let autoTimelineCueIndex = 0;
+  let replayTimelineCache: { replayId: string; speedMs: number; timeline: BattlePresentationTimeline } | null = null;
   let hoverInfo: UnitPointerInfo | null = null;
   let lockedUnitId: string | null = null;
   let hoveredReplayProfileKey: string | null = null;
@@ -242,6 +255,7 @@
   let multiplayerReadySubmitted = false;
   let multiplayerStatus: string | null = null;
   let mainMenuView: MainMenuView = 'home';
+  let newGameSlot: SaveSlotSummary | null = null;
   let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
   let lastDraftGameKey = '';
   let tutorialScenePrompt = false;
@@ -281,6 +295,7 @@
         gameStore.openReplay(replayId);
       }
       if (step === 'finish-replay') {
+        replayStepNavigationKind = 'event-select';
         gameStore.jumpTo(Number.MAX_SAFE_INTEGER);
       }
       replayEventLogCollapsed = !['timeline-event', 'unit-actions', 'ability'].includes(step);
@@ -679,7 +694,7 @@
   }
 
   function getFactionUnitPortrait(factionId: FactionId, unitTypeId: UnitTypeId): string {
-    return portraits[`${factionId}/${unitTypeId}`] ?? '';
+    return portraits[`${factionId}/${unitTypeId}`] ?? UNIT_SPRITE_URLS[unitTypeId] ?? '';
   }
 
   function getFactionPortrait(factionId: FactionId): string {
@@ -837,19 +852,83 @@
   }
 
   function clearAutoTimer(): void {
-    if (autoTimer !== null) {
-      window.clearInterval(autoTimer);
-      autoTimer = null;
+    if (autoTimelineFrame !== null) {
+      window.cancelAnimationFrame(autoTimelineFrame);
+      autoTimelineFrame = null;
     }
+    autoTimelineReplayId = null;
+    autoTimelineSpeedMs = 0;
+  }
+
+  function getReplayTimeline(replay: BattleReplay, speedMs: number): BattlePresentationTimeline {
+    if (replayTimelineCache?.replayId === replay.id && replayTimelineCache.speedMs === speedMs) {
+      return replayTimelineCache.timeline;
+    }
+    const timeline = buildBattlePresentationTimeline(replay, speedMs);
+    replayTimelineCache = { replayId: replay.id, speedMs, timeline };
+    return timeline;
+  }
+
+  function startAutoTimeline(replay: BattleReplay): void {
+    clearAutoTimer();
+
+    const timeline = getReplayTimeline(replay, $gameStore.speedMs);
+    const nextCueIndex = timeline.cues.findIndex((cue) => cue.stepIndex > $gameStore.currentStep);
+    if (nextCueIndex < 0) {
+      gameStore.setAutoPlay(false);
+      return;
+    }
+
+    autoTimelineReplayId = replay.id;
+    autoTimelineSpeedMs = $gameStore.speedMs;
+    autoTimelineCueIndex = nextCueIndex;
+    autoTimelineStartedAt = performance.now() - timeline.cues[nextCueIndex]!.startMs;
+
+    const tickAutoTimeline = () => {
+      const activeReplay = $gameStore.loadedReplay;
+      if (!$gameStore.autoPlay || !activeReplay || activeReplay.id !== autoTimelineReplayId) {
+        clearAutoTimer();
+        return;
+      }
+
+      const activeTimeline = getReplayTimeline(activeReplay, autoTimelineSpeedMs);
+      const elapsedMs = performance.now() - autoTimelineStartedAt;
+      let advanced = false;
+
+      while (autoTimelineCueIndex < activeTimeline.cues.length && activeTimeline.cues[autoTimelineCueIndex]!.startMs <= elapsedMs) {
+        const cue = activeTimeline.cues[autoTimelineCueIndex]!;
+        replayStepNavigationKind = 'auto';
+        gameStore.jumpTo(cue.stepIndex);
+        autoTimelineCueIndex += 1;
+        advanced = true;
+      }
+
+      if (autoTimelineCueIndex >= activeTimeline.cues.length) {
+        autoTimelineFrame = null;
+        gameStore.setAutoPlay(false);
+        return;
+      }
+
+      autoTimelineFrame = window.requestAnimationFrame(tickAutoTimeline);
+
+      if (!advanced) {
+        syncRenderer();
+      }
+    };
+
+    autoTimelineFrame = window.requestAnimationFrame(tickAutoTimeline);
   }
 
   function teardownRenderer(): void {
+    clearAutoTimer();
     renderer?.destroy();
     renderer = null;
     rendererInitPromise = null;
     renderedReplayId = null;
     renderedStep = Number.NaN;
     renderedHighlightKey = '';
+    replayTimelineCache = null;
+    replayStepNavigationKind = 'manual-step';
     hoverInfo = null;
     lockedUnitId = null;
   }
@@ -928,13 +1007,15 @@
       renderedReplayId = $gameStore.loadedReplay.id;
       renderedStep = Number.NaN;
       renderedHighlightKey = '';
+      replayTimelineCache = null;
       lockedUnitId = null;
       hoverInfo = null;
     }
 
     if (renderedStep !== $gameStore.currentStep) {
-      renderer.showStep($gameStore.currentStep);
+      renderer.showStep($gameStore.currentStep, replayStepNavigationKind);
       renderedStep = $gameStore.currentStep;
+      replayStepNavigationKind = 'manual-step';
     }
 
     const currentStep = $gameStore.currentStep >= 0 ? $gameStore.loadedReplay.steps[$gameStore.currentStep] ?? null : null;
@@ -958,9 +1039,10 @@
     renderer?.refreshViewport();
   }
 
-  function runManualReplayAction(action: () => void): void {
+  function runManualReplayAction(action: () => void, navigationKind: ReplayStepNavigationKind = 'manual-step'): void {
     gameStore.setAutoPlay(false);
     pinnedReplayExplanationIndex = null;
+    replayStepNavigationKind = navigationKind;
     action();
   }
 
@@ -999,6 +1081,44 @@
       return;
     }
     gameStore.startNewCampaign(slot.slotId, 'campaign');
+  }
+
+  function openNewGameMenu(slot: SaveSlotSummary): void {
+    if (tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest') {
+      showTutorialScenePrompt();
+      return;
+    }
+    newGameSlot = slot;
+  }
+
+  function closeNewGameMenu(): void {
+    newGameSlot = null;
+  }
+
+  function chooseNewGameMode(slot: SaveSlotSummary, gameMode: GameMode): void {
+    closeNewGameMenu();
+    if (slot.status === 'occupied') {
+      restartSlot(slot, gameMode);
+      return;
+    }
+    startSlot(slot, gameMode);
+  }
+
+  function newGameActionLabel(slot: SaveSlotSummary, gameMode: GameMode): string {
+    const prefix = slot.status === 'occupied' ? 'Replace' : 'Start';
+    if (gameMode === 'campaign') return `${prefix} Campaign`;
+    if (gameMode === 'ladder') return `${prefix} Ladder`;
+    return `${prefix} Contest vs AI`;
+  }
+
+  function newGameModeDescription(gameMode: GameMode): string {
+    if (gameMode === 'campaign') {
+      return 'A standard local run with fresh Rifts generated from your save seed.';
+    }
+    if (gameMode === 'ladder') {
+      return 'A campaign that draws shared Rift-sets and feeds your completed sets back into the ladder pool.';
+    }
+    return 'A solo Contest run where an AI rival drafts and assigns troops against you.';
   }
 
   function startSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
@@ -1792,6 +1912,7 @@
         hpPercent: getHpPercent(currentUnit.hp, currentUnit.maxHp),
         hpLabel: formatHpLabel(currentUnit.hp, currentUnit.maxHp),
         initiativePercent: `${Math.max(0, Math.min(100, currentUnit.initiative))}%`,
+        initiativeReady: currentUnit.initiative >= 100,
         portraitUrl: getReplayUnitPortraitUrl(currentUnit),
       }];
     });
@@ -2159,6 +2280,7 @@
         let group = groups.find((entry) => battleParticipantKey(entry.participant) === key);
         if (!group) {
           group = {
+            key: `${animation.riftId}:${side}:${phase.delayClass}:${key}`,
             phaseClass: phase.delayClass,
             combatants,
             participant,
@@ -2176,6 +2298,7 @@
     }
     return [
       {
+        key: `${rift.id}:${side}:static`,
         phaseClass: 'phase-static',
         combatants: side === 'left' ? getVisibleRiftDefenders(rift) : getAssignedRiftCombatants(rift),
         participant: null,
@@ -2326,17 +2449,16 @@
     syncRenderer();
   }
 
-  $: {
-    clearAutoTimer();
-    if ($gameStore.screen === 'replay' && $gameStore.loadedReplay && $gameStore.autoPlay) {
-      autoTimer = window.setInterval(() => {
-        if (!$gameStore.loadedReplay || $gameStore.currentStep >= $gameStore.loadedReplay.steps.length - 1) {
-          gameStore.setAutoPlay(false);
-          return;
-        }
-        gameStore.stepForward();
-      }, $gameStore.speedMs);
+  $: if ($gameStore.screen === 'replay' && $gameStore.loadedReplay && $gameStore.autoPlay) {
+    if (
+      autoTimelineFrame === null ||
+      autoTimelineReplayId !== $gameStore.loadedReplay.id ||
+      autoTimelineSpeedMs !== $gameStore.speedMs
+    ) {
+      startAutoTimeline($gameStore.loadedReplay);
     }
+  } else if (autoTimelineFrame !== null) {
+    clearAutoTimer();
   }
 
   $: if ($gameStore.loadedReplay && $gameStore.currentStep >= $gameStore.loadedReplay.steps.length - 1 && $gameStore.autoPlay) {
@@ -2346,10 +2468,12 @@
   $: {
     if ($gameStore.cycleAnimation && !cycleAnimationFinishTimer) {
       const hasLatePhase = $gameStore.cycleAnimation.resolution.records.some((record) => record.contest?.kind === 'pvp');
+      const animationDuration =
+        RIFT_BATTLE_ANIMATION_MS + (hasLatePhase ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0) + RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS;
       cycleAnimationFinishTimer = window.setTimeout(() => {
         cycleAnimationFinishTimer = null;
         gameStore.finishCycleAnimation();
-      }, hasLatePhase ? 7600 : 5200);
+      }, animationDuration);
     }
     if (!$gameStore.cycleAnimation && cycleAnimationFinishTimer) {
       window.clearTimeout(cycleAnimationFinishTimer);
@@ -2779,6 +2903,7 @@
     selectedReplayProfileKey = null;
     pinnedReplayExplanationIndex = index;
     gameStore.setAutoPlay(false);
+    replayStepNavigationKind = 'event-select';
     gameStore.selectEvent(index);
     if ($gameStore.tutorialProgress?.step !== 'timeline-event' || index === 100) {
       signalTutorial('event-select');
@@ -2791,6 +2916,7 @@
     }
 
     gameStore.setAutoPlay(false);
+    replayStepNavigationKind = 'event-select';
     gameStore.selectEvent(stepIndex);
     pinnedReplayExplanationIndex = null;
     syncRenderer();
@@ -2806,6 +2932,7 @@
     lockedUnitId = null;
     hoverInfo = null;
     selectedReplayProfileKey = null;
+    replayStepNavigationKind = 'event-select';
     gameStore.selectEvent(index);
     pinnedReplayExplanationIndex = index;
     syncRenderer();
@@ -2911,6 +3038,7 @@
     const targetStep = isUnitAliveAtStep(replay, unitId, currentStep) ? currentStep : findLastAliveStep(replay, unitId, currentStep);
     gameStore.setAutoPlay(false);
     if (targetStep !== currentStep) {
+      replayStepNavigationKind = 'event-select';
       gameStore.jumpTo(targetStep);
     }
 
@@ -2983,21 +3111,54 @@
               {/if}
 
               <div class="actions-grid">
-                <button class="primary ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
-                  {slot.status === 'occupied' ? 'Load Slot' : 'Start Campaign'}
-                </button>
-                {#if slot.status === 'empty'}
-                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Start Ladder for save slot ${slot.slotId}`} on:click={() => startSlot(slot, 'ladder')}>Ladder</button>
-                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest'} data-ui-name={`Start Contest vs AI for save slot ${slot.slotId}`} on:click={() => startSlot(slot, 'contest')}>Contest vs AI</button>
-                {:else}
-                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Replace campaign for slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'campaign')}>Replace Campaign</button>
-                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Replace Ladder for save slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'ladder')}>Replace Ladder</button>
-                  <button class="ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest'} data-ui-name={`Replace Contest vs AI for save slot ${slot.slotId}`} on:click={() => restartSlot(slot, 'contest')}>Replace Contest vs AI</button>
+                {#if slot.status === 'occupied'}
+                  <button class="primary ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
+                    Load Slot
+                  </button>
                 {/if}
+                <button
+                  class:primary={slot.status === 'empty'}
+                  class="ui-debug-target"
+                  class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest'}
+                  data-ui-name={`Start new game for save slot ${slot.slotId}`}
+                  on:click={() => openNewGameMenu(slot)}
+                >
+                  Start New Game
+                </button>
               </div>
             </article>
           {/each}
         </div>
+        {#if newGameSlot}
+          <div class="new-game-modal-backdrop">
+            <button class="new-game-modal-dismiss" aria-label="Close new game menu" on:click={closeNewGameMenu}></button>
+            <section class="panel new-game-modal ui-debug-target" data-ui-name={`New game mode menu for save slot ${newGameSlot.slotId}`} role="dialog" aria-modal="true" aria-labelledby="new-game-title">
+              <div class="new-game-modal-header">
+                <div>
+                  <p class="eyebrow">Slot {newGameSlot.slotId}</p>
+                  <h2 id="new-game-title">Start New Game</h2>
+                </div>
+                <button class="new-game-close" type="button" aria-label="Close new game menu" on:click={closeNewGameMenu}>Close</button>
+              </div>
+              <div class="new-game-options">
+                {#each SINGLEPLAYER_GAME_MODES as gameMode}
+                  <button
+                    type="button"
+                    class="new-game-option ui-debug-target"
+                    class:tutorial-scene-locked={tutorialSceneLockActive() && !(gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest')}
+                    data-ui-name={`${newGameActionLabel(newGameSlot, gameMode)} for save slot ${newGameSlot.slotId}`}
+                    on:click={() => chooseNewGameMode(newGameSlot, gameMode)}
+                    aria-describedby={`new-game-${gameMode}-description`}
+                    title={newGameModeDescription(gameMode)}
+                  >
+                    <span>{newGameActionLabel(newGameSlot, gameMode)}</span>
+                    <small id={`new-game-${gameMode}-description`} role="tooltip">{newGameModeDescription(gameMode)}</small>
+                  </button>
+                {/each}
+              </div>
+            </section>
+          </div>
+        {/if}
       {:else if mainMenuView === 'tutorial'}
         <section class="tutorial-menu panel ui-debug-target" data-ui-name="Tutorial menu">
           {#if gameStore.hasTutorialSave()}
@@ -4203,7 +4364,7 @@
 
               <div class="rift-battle-lane">
                 <div class="assigned-strip enemy-strip rift-force-side rift-force-left">
-                  {#each getAnimationLeftCombatantGroups(rift, battleAnimation) as group}
+                  {#each getAnimationLeftCombatantGroups(rift, battleAnimation) as group (group.key)}
                     <div class={`rift-force-combatant-group ${group.phaseClass} ${group.lossClass ?? ''}`}>
                       {#each group.combatants as enemy}
                         {@const enemyDetail = buildResolvedUnitDetail(
@@ -4242,7 +4403,7 @@
                 <div class="rift-battle-center">
                   {#if battleAnimation}
                     <div class="rift-battle-animation" aria-hidden="true">
-                      {#each battleAnimation.phases as phase}
+                      {#each battleAnimation.phases as phase (phase.key)}
                         <div class={`rift-battle-phase ${phase.delayClass}`}>
                           <div class="clash-swords" class:left-loses={phase.left.loses} class:right-loses={phase.right.loses}>
                             <span class="clash-sword left-sword"></span>
@@ -4261,7 +4422,7 @@
                       <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" aria-hidden="true" />
                     </div>
                   {/if}
-                  {#each getAnimationRightCombatantGroups(rift, battleAnimation) as group}
+                  {#each getAnimationRightCombatantGroups(rift, battleAnimation) as group (group.key)}
                     <div class={`rift-force-combatant-group ${group.phaseClass} ${group.lossClass ?? ''}`}>
                     {#each group.combatants as combatant}
                     {@const troopId = combatant.troopInstanceId}
@@ -5294,7 +5455,7 @@
         currentStep={$gameStore.currentStep}
         autoPlay={$gameStore.autoPlay}
         speedMs={$gameStore.speedMs}
-        onJumpStart={() => runManualReplayAction(() => gameStore.jumpTo(-1))}
+        onJumpStart={() => runManualReplayAction(() => gameStore.jumpTo(-1), 'reset')}
         onStepBack={() => {
           runManualReplayAction(() => gameStore.stepBackward());
           signalTutorial('step-previous');
@@ -5583,22 +5744,27 @@
                       >
                         <img src={entry.portraitUrl} alt="" aria-hidden="true" />
                         <div class="replay-health-unit-main">
-                          <div class="replay-health-bar" aria-hidden="true">
-                            <span style={`width: ${entry.hpPercent}`}></span>
-                          </div>
                           <div
-                            class="replay-initiative-row"
+                            class="replay-health-track"
                             role="meter"
                             aria-label={`${entry.unit.troopLabel} initiative ${formatFixed(entry.unit.initiative)} out of 100`}
                             aria-valuemin="0"
                             aria-valuemax="100"
                             aria-valuenow={Math.max(0, Math.min(100, entry.unit.initiative))}
-                            on:mouseenter={(event) => showInitiativeTooltip(entry.unit, event)}
-                            on:mouseleave={clearInitiativeTooltip}
                           >
-                            <div class="replay-health-bar initiative" aria-hidden="true">
-                              <span style={`width: ${entry.initiativePercent}`}></span>
+                            <div class="replay-health-bar" aria-hidden="true">
+                              <span style={`width: ${entry.hpPercent}`}></span>
                             </div>
+                            <span
+                              class="replay-initiative-row replay-initiative-marker"
+                              class:ready={entry.initiativeReady}
+                              style={`--initiative-position: ${entry.initiativePercent};`}
+                              on:mouseenter={(event) => showInitiativeTooltip(entry.unit, event)}
+                              on:mouseleave={clearInitiativeTooltip}
+                              aria-hidden="true"
+                            >
+                              {statIcon('speed')}
+                            </span>
                           </div>
                         </div>
                       </button>
@@ -8739,6 +8905,115 @@
     min-height: var(--ui-space-hit);
   }
 
+  .new-game-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: grid;
+    place-items: center;
+    padding: var(--ui-space-md);
+  }
+
+  .new-game-modal-dismiss {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    border-radius: 0;
+    background: rgba(3, 7, 12, 0.68);
+    backdrop-filter: blur(8px);
+  }
+
+  .new-game-modal {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    gap: var(--ui-space-md);
+  }
+
+  .new-game-modal-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--ui-space-sm);
+  }
+
+  .new-game-modal-header h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    line-height: 1.15;
+  }
+
+  .new-game-close {
+    min-height: 2rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--ui-panel-radius-pill);
+    border: 1px solid rgba(196, 214, 227, 0.22);
+    background: rgba(12, 18, 28, 0.52);
+    color: #f4f7fb;
+    font: inherit;
+    font-size: 0.72rem;
+  }
+
+  .new-game-options {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .new-game-option {
+    position: relative;
+    display: grid;
+    min-height: var(--ui-space-hit);
+    padding: 0.75rem 0.85rem;
+    align-content: center;
+    border: 1px solid rgba(126, 157, 181, 0.24);
+    border-radius: 8px;
+    background: var(--ui-color-surface-interactive);
+    color: var(--ui-color-text);
+    font: inherit;
+    text-align: left;
+  }
+
+  .new-game-option:hover,
+  .new-game-option:focus,
+  .new-game-option:focus-visible {
+    border-color: rgba(213, 178, 116, 0.58);
+    background: rgba(25, 36, 49, 0.96);
+    outline: none;
+  }
+
+  .new-game-option span {
+    color: #f4f7fb;
+    font-size: 0.9rem;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+
+  .new-game-option small {
+    visibility: hidden;
+    position: absolute;
+    left: 0.65rem;
+    right: 0.65rem;
+    bottom: calc(100% + 0.28rem);
+    z-index: 3;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid rgba(213, 178, 116, 0.34);
+    border-radius: 8px;
+    background: rgba(8, 12, 18, 0.98);
+    box-shadow: var(--ui-shadow-panel);
+    color: var(--ui-color-text-muted);
+    font-family: var(--ui-font-readable);
+    font-size: 0.78rem;
+    line-height: 1.25;
+    text-transform: none;
+    pointer-events: none;
+  }
+
+  .new-game-option:hover small,
+  .new-game-option:focus small,
+  .new-game-option:focus-visible small {
+    visibility: visible;
+  }
+
   .multiplayer-menu {
     display: grid;
     gap: var(--ui-space-sm);
@@ -9101,7 +9376,7 @@
 
   .enemy-strip .unit-tile {
     gap: 0.4rem;
-    justify-content: center;
+    place-items: stretch;
     padding: 0.4rem 0.3rem;
   }
 
@@ -9962,19 +10237,68 @@
     min-width: 0;
   }
 
-  .replay-initiative-row {
+  .replay-health-track {
+    position: relative;
     display: block;
-    margin: -0.16rem 0;
-    padding: 0.16rem 0;
+    padding: 0.42rem 0;
+    margin: -0.42rem 0;
   }
 
-  .replay-health-bar.initiative {
-    height: 0.26rem;
-    border-color: rgba(214, 146, 54, 0.34);
+  .replay-health-track .replay-health-bar {
+    height: 0.42rem;
   }
 
-  .replay-health-bar.initiative span {
-    background: linear-gradient(90deg, #e48728, #ffbf47);
+  .replay-initiative-marker {
+    --initiative-marker-size: 0.9rem;
+    position: absolute;
+    left: clamp(
+      calc(var(--initiative-marker-size) / 2),
+      var(--initiative-position),
+      calc(100% - var(--initiative-marker-size) / 2)
+    );
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: var(--initiative-marker-size);
+    height: var(--initiative-marker-size);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font-size: 0.82rem;
+    line-height: 1;
+    text-shadow:
+      -0.04rem 0 #05070a,
+      0.04rem 0 #05070a,
+      0 -0.04rem #05070a,
+      0 0.04rem #05070a;
+    transform: translate(-50%, -50%);
+    transition:
+      left 140ms ease-out,
+      text-shadow 140ms ease-out,
+      filter 140ms ease-out;
+    pointer-events: auto;
+  }
+
+  .replay-initiative-marker.ready {
+    filter: saturate(1.2) brightness(1.12);
+    text-shadow:
+      -0.04rem 0 #05070a,
+      0.04rem 0 #05070a,
+      0 -0.04rem #05070a,
+      0 0.04rem #05070a,
+      0 0 0.22rem rgba(255, 232, 160, 0.9),
+      0 0 0.55rem rgba(255, 190, 71, 0.9);
+  }
+
+  .replay-initiative-marker.ready::after {
+    content: '';
+    position: absolute;
+    inset: -0.08rem 0.08rem 0.08rem -0.08rem;
+    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.62) 48%, transparent 66%);
+    clip-path: polygon(34% 0, 72% 0, 45% 44%, 74% 44%, 24% 100%, 42% 54%, 18% 54%);
+    mix-blend-mode: screen;
+    pointer-events: none;
   }
 
   .replay-health-empty {
