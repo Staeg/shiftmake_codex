@@ -3281,7 +3281,7 @@
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
                   </span>
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
                 </div>
             <div class="ability-row detail-ability-row">
                   <span>Abilities</span>
@@ -3313,10 +3313,10 @@
               {:else if activeDetail.description}
                 <p><strong>{activeDetail.role}</strong>: {formatRoleExact(activeDetail.role)} {activeDetail.description}</p>
                 {#if activeDetail.stats && activeDetail.stats.length > 0}
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
                 {/if}
               {:else if activeDetail.stats && activeDetail.stats.length > 0}
-                <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+                <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
               {/if}
             </div>
           {:else}
@@ -3545,7 +3545,7 @@
                       <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
                   </span>
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
                 </div>
                 <div class="ability-row detail-ability-row">
                   <span>Abilities</span>
@@ -3579,7 +3579,7 @@
                   <p>{activeDetail.description}</p>
                 {/if}
                 {#if activeDetail.stats && activeDetail.stats.length > 0}
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
                 {/if}
               {/if}
             </div>
@@ -3806,7 +3806,7 @@
                   <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                 {/each}
               </span>
-              <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
+              <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
             </div>
           {:else}
             <p>{activeDetail.description}</p>
@@ -3974,7 +3974,7 @@
                     <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                   {/each}
                 </span>
-                <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
+                <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
               </div>
                 <div class="ability-row detail-ability-row">
                 <span>Abilities</span>
@@ -4022,7 +4022,7 @@
                 <p>{activeDetail.description}</p>
               {/if}
               {#if activeDetail.stats && activeDetail.stats.length > 0}
-                <StatBreakdownGrid stats={activeDetail.stats} columns={4} />
+                <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
               {/if}
             {/if}
           </div>
@@ -4035,7 +4035,7 @@
                     <img class="hover-unit-art" src={secondaryUnitDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                   {/each}
                 </span>
-                <StatBreakdownGrid stats={secondaryUnitDetail.stats} columns={4} compact={true} />
+                <StatBreakdownGrid stats={secondaryUnitDetail.stats} columns={3} compact={true} />
               </div>
               <div class="ability-row detail-ability-row">
                 <span>Abilities</span>
@@ -4210,7 +4210,7 @@
             </span>
               <StatBreakdownGrid
                 stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
-              columns={4}
+              columns={3}
               compact={true}
             />
           </div>
@@ -4872,7 +4872,7 @@
                   <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                 {/each}
               </span>
-              <StatBreakdownGrid stats={activeDetail.stats} columns={4} compact={true} />
+              <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
             </div>
             <div class="ability-row detail-ability-row">
               <span>Abilities</span>

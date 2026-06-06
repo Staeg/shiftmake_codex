@@ -162,7 +162,7 @@
     {/if}
 
     {#if display.stats}
-      <StatBreakdownGrid stats={statEntries} columns={2} {onHoverStat} />
+      <StatBreakdownGrid stats={statEntries} columns={3} {onHoverStat} />
     {/if}
 
     <div class="meta">
@@ -231,7 +231,7 @@
             { key: 'move', label: statIcon('move'), value: formatFixed(hoveredSummonProfile.stats.move), breakdown: hoveredSummonProfile.statBreakdowns.move },
             { key: 'armor', label: statIcon('armor'), value: formatFixed(hoveredSummonProfile.stats.armor), breakdown: hoveredSummonProfile.statBreakdowns.armor },
           ]}
-          columns={2}
+          columns={3}
         />
       </div>
     {/if}

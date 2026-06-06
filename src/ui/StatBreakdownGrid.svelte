@@ -154,7 +154,7 @@
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(var(--stat-columns, 3), minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: 0.38rem;
     container-type: inline-size;
   }
 
@@ -178,9 +178,9 @@
 
   .stats-grid.compact {
     display: grid;
-    grid-template-columns: repeat(var(--stat-columns, 4), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--stat-columns, 3), minmax(0, 1fr));
     align-items: center;
-    gap: 0.18rem 0.3rem;
+    gap: 0.12rem 0.28rem;
     min-width: 0;
   }
 
@@ -195,7 +195,7 @@
 
   .stats-grid.compact .stat-main.inspectable {
     width: 100%;
-    min-height: 1.35rem;
+    min-height: 1.08rem;
     display: grid;
     place-items: center;
   }
