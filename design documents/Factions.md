@@ -31,7 +31,7 @@ Faction upgrades:
 
 - Tier 1: `Tubthumping` - all human troops gain `United`; harmful damage or speed reductions become `+1` instead
 - Tier 2: `Human Combined Arms` - all human troops gain `Combined Arms 20`
-- Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies on a Human hex, Human units on that hex heal 15
+- Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
 
 ## Elves
 
@@ -65,7 +65,7 @@ Faction upgrades:
 
 - Tier 1: `Goblin Behavior` - all goblin troops gain `Goblin Farewell` and `Snatch the Moment`
 - Tier 2: `Goblin Pack` - all goblin troops gain `Pack 1`
-- Tier 3: `Loot Frenzy` - when a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative
+- Tier 3: `Loot Frenzy` - when a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative
 
 ## Trolls
 

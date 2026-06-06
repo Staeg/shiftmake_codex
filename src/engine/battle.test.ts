@@ -1237,37 +1237,6 @@ describe('ability mechanics', () => {
     expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains On Death Summon Skeleton'))).toBe(true);
   });
 
-  it('militia with scurry keep their actual size without overlapping footprints', () => {
-    const militia = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-scurry'] },
-      createTroopInstance('human', 'militia'),
-      'player',
-    );
-    const soldier = makeBattleCombatant('human/soldier', 'player');
-    const replay = resolveBattle({
-      seed: 37,
-      riftId: null,
-      tier: null,
-      mutatorIds: [],
-      saturation: 1,
-      playerCombatants: [militia, soldier],
-      enemyCombatants: [],
-    });
-
-    const playerUnits = replay.initial.units.filter((unit) => unit.side === 'player');
-    const occupiedHexes = playerUnits.flatMap((unit) => unit.occupiedHexes.map((hex) => `${hex.q},${hex.r}`));
-    const occupiedSet = new Set(occupiedHexes);
-    const sizeByUnit = playerUnits.reduce<Record<string, number>>((acc, unit) => {
-      acc[unit.id] = unit.stats.size;
-      return acc;
-    }, {});
-
-    expect(playerUnits.length).toBeGreaterThan(2);
-    expect(playerUnits.filter((unit) => unit.troopLabel === 'Human Militia').every((unit) => unit.stats.size === 1)).toBe(true);
-    expect(Object.values(sizeByUnit).every((size) => size === 1)).toBe(true);
-    expect(occupiedSet.size).toBe(occupiedHexes.length);
-  });
-
   it('summons search outward for legal full-footprint placements without overlapping', () => {
     const massSummon: AbilityDefinition = {
       id: 'test-mass-summon',

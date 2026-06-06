@@ -26,7 +26,7 @@ const upgradeIconAliases: Record<string, string[]> = {
   'druid-ents-visage': ['druid-thornhide', 'druid-bramble-snare'],
   'elementalist-crackling-mitosis': ['elementalist-mitosis', 'elementalist-arc-conductor'],
   'knight-dine-in-hell': ['knight-retaliate', 'knight-brace'],
-  'militia-rat-behavior': ['militia-scurry', 'militia-rabble-rush'],
+  'militia-rat-behavior': ['militia-rabble-rush'],
   'necromancer-hemomancy': ['necromancer-alternate-fuel', 'necromancer-rising-tide'],
   'necromancer-explosion-corpse': ['necromancer-carrion-choir', 'necromancer-early-riser'],
   'priest-bolstering-light': ['priest-zeal', 'priest-overflowing-grace'],

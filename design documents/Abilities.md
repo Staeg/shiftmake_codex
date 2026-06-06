@@ -32,7 +32,7 @@ Each ability definition has:
 - `maxUses`
 - `condition: 'forsaken'`
 - `repeatPerDistinctFriendlyTroopType`
-- `repeatPerOtherFriendlyUnitOnHex`
+- `repeatPerTouchingFriendlyUnit`
 - `fallen: { allegiance, radius, radiusSource? }`
 - `effectApplication: { effectKinds?, dispositions? }`
 
@@ -40,7 +40,7 @@ Meaning:
 
 - `condition: 'forsaken'` requires no other friendly troop types to be present.
 - `repeatPerDistinctFriendlyTroopType` counts distinct friendly primary troop `type`s other than the acting unit's own.
-- `repeatPerOtherFriendlyUnitOnHex` repeats once per other friendly unit on the acting unit's hex.
+- `repeatPerTouchingFriendlyUnit` repeats once per other friendly unit whose footprint touches the acting unit's footprint.
 - `fallen.radiusSource: 'selfRange'` makes the fallen-unit trigger use the acting unit's resolved range.
 - `effectApplication.effectKinds` filters reactions to successful applications of particular effect kinds such as `heal`.
 - `effectApplication.dispositions` filters reactions to successful applications of beneficial, harmful, or neutral effects.
@@ -330,7 +330,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `startOfTurn`
 - turns 1
 - `target: self`
-- `trigger modifier: repeatPerOtherFriendlyUnitOnHex`
+- `trigger modifier: repeatPerTouchingFriendlyUnit`
 - Effect: gain +1 damage per other touching friendly unit until end of turn
 
 ### Power of Friendship
@@ -371,11 +371,6 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 
 - `passive`
 - Effect: when hit by a normal attack while engaged at full capacity, make one normal retaliation attack
-
-### Scurry
-
-- `passive`
-- Effect: ignore legacy allied formation pressure checks; full-footprint placement still cannot overlap living units
 
 ### Grave Vigor Corpse Mark
 

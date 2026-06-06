@@ -122,7 +122,7 @@ Footprint sizes:
 - Abilities: none
 - Cost: 10
 - Troop upgrades:
-  - `Rat Behavior` (tier 3): start of turn, gain +1 initiative per other touching Militia; does not count toward allied formation pressure checks
+  - `Rat Behavior` (tier 3): start of turn, gain +1 initiative per other Militia touching them
   - `Dogpile` (tier 3): attacks against enemies engaged by at least 3 allies strike 1 extra time
 
 ### Necromancer
@@ -224,7 +224,7 @@ Footprint sizes:
 
 - `Goblin Behavior` (tier 1): on death, make 1 extra strike against a random touching enemy; on kill, enemies touching the fallen unit lose 20 initiative
 - `Goblin Pack` (tier 2): start of turn, gain +1 damage per other friendly unit touching it until end of turn
-- `Loot Frenzy` (tier 3): on kill, allies overlapping the fallen footprint heal 10 and gain 30 initiative
+- `Loot Frenzy` (tier 3): on kill, allies touching the fallen unit heal 10 and gain 30 initiative
 
 ### Trolls
 

@@ -1236,12 +1236,12 @@ function availableCapacity(state: InternalState, unit: InternalUnit): number {
   return fixedMax(fixedSub(unit.resolvedStats.capacity, used), 0);
 }
 
-function enemyUnitsOnHex(state: InternalState, unit: InternalUnit): InternalUnit[] {
+function touchingEnemies(state: InternalState, unit: InternalUnit): InternalUnit[] {
   return getAliveUnits(state).filter((other) => other.side !== unit.side && unitsTouchOrOverlap(other, unit));
 }
 
-function nonEngagedEnemiesOnHex(state: InternalState, unit: InternalUnit): InternalUnit[] {
-  return enemyUnitsOnHex(state, unit).filter((enemy) => enemy.engagedWith.size === 0);
+function touchingUnengagedEnemies(state: InternalState, unit: InternalUnit): InternalUnit[] {
+  return touchingEnemies(state, unit).filter((enemy) => enemy.engagedWith.size === 0);
 }
 
 function removeAllEngagements(state: InternalState, unit: InternalUnit): void {
@@ -1271,7 +1271,7 @@ function createEngagement(state: InternalState, actor: InternalUnit, target: Int
   }
 }
 
-function engageEnemiesOnHex(
+function engageTouchingEnemies(
   state: InternalState,
   actor: InternalUnit,
   roles: RoleId[] = [],
@@ -1279,7 +1279,7 @@ function engageEnemiesOnHex(
 ): InternalUnit[] {
   let remainingCapacity = availableCapacity(state, actor);
   const engagedTargets: InternalUnit[] = [];
-  const candidates = enemyUnitsOnHex(state, actor)
+  const candidates = touchingEnemies(state, actor)
     .filter((enemy) => matchesRoleFilter(enemy, roles))
     .filter((enemy) => !actor.engagedWith.has(enemy.id))
     .filter((enemy) => includeAlreadyEngaged || enemy.engagedWith.size === 0);
@@ -2265,7 +2265,7 @@ function getAbilityRepeatCount(state: InternalState, actor: InternalUnit, runtim
   if (runtime.definition.trigger.repeatPerDistinctFriendlyTroopType) {
     return Math.max(0, getDistinctFriendlyUnitTypes(state, actor).filter((type) => type !== actor.type).length);
   }
-  if (runtime.definition.trigger.repeatPerOtherFriendlyUnitOnHex) {
+  if (runtime.definition.trigger.repeatPerTouchingFriendlyUnit) {
     return getAliveUnits(state, actor.side).filter((ally) => ally.id !== actor.id && unitsTouchOrOverlap(ally, actor)).length;
   }
   return 1;
@@ -2540,7 +2540,7 @@ type PerTargetEffectHandler = (
 // Registry of handlers for effects that operate on resolved targets.
 // Adding a new effect kind only requires adding an entry here — the dispatch in
 // executeAbilityEffect does not need to change.
-// 'taunt' is absent: it bypasses target resolution and uses engageEnemiesOnHex directly.
+// 'taunt' is absent: it bypasses target resolution and uses engageTouchingEnemies directly.
 // 'pack' is absent: it is a passive bonus computed in getPackBonus, not a triggered effect.
 const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind'], PerTargetEffectHandler>> = {
   bolster: (state, actor, runtime, target, effect) => applyBolster(state, actor, target, runtime, effect as Extract<AbilityEffectDefinition, { kind: 'bolster' }>),
@@ -3333,7 +3333,7 @@ function attack(
 }
 
 function pileOn(state: InternalState, actor: InternalUnit): boolean {
-  const candidates = enemyUnitsOnHex(state, actor);
+  const candidates = touchingEnemies(state, actor);
   if (candidates.length === 0) {
     return false;
   }
@@ -3358,7 +3358,7 @@ function fight(state: InternalState, actor: InternalUnit): boolean {
 }
 
 function drawAttention(state: InternalState, actor: InternalUnit, roles: RoleId[] = []): boolean {
-  const engagedTargets = engageEnemiesOnHex(state, actor, roles);
+  const engagedTargets = engageTouchingEnemies(state, actor, roles);
 
   if (engagedTargets.length > 0) {
     buildStep(state, 'engage', [actor.id], engagedTargets.map((target) => target.id), `${actor.troopLabel} engages enemies.`, {
@@ -3412,11 +3412,11 @@ function pickNearestUnit(state: InternalState, actor: InternalUnit, candidates: 
   return state.rng.pick(candidates.filter((candidate) => unitFootprintDistance(actor, candidate) === nearestDistance));
 }
 
-function countFriendlyFrontlineUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
+function countTouchingFriendlyFrontline(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
   return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'frontline' && unitAtAnchorTouchesUnit(actor, coord, unit)).length;
 }
 
-function countFriendlyUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
+function countTouchingFriendlies(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
   return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unitAtAnchorTouchesUnit(actor, coord, unit)).length;
 }
 
@@ -3437,7 +3437,7 @@ function pickBestMovementHex(
   const scored = candidates.map((coord) => ({
     coord,
     score: scoreHex(coord),
-    friendlyOccupancy: countFriendlyUnitsOnHex(state, actor, coord),
+    friendlyOccupancy: countTouchingFriendlies(state, actor, coord),
   }));
   const bestScore = Math.max(...scored.map((entry) => entry.score));
   const bestScoreCandidates = scored.filter((entry) => entry.score === bestScore);
@@ -3841,8 +3841,8 @@ function moveToward(
   const minEnemies = Math.min(...byDistance.map((entry) => entry.nonEngagedEnemies));
   let finalists = byDistance.filter((entry) => entry.nonEngagedEnemies === minEnemies);
   if (actor.role === 'frontline' && roleIntent === 'fallback-backline' && finalists.length > 1) {
-    const minFrontlineSupport = Math.min(...finalists.map((entry) => countFriendlyFrontlineUnitsOnHex(state, actor, entry.coord)));
-    finalists = finalists.filter((entry) => countFriendlyFrontlineUnitsOnHex(state, actor, entry.coord) === minFrontlineSupport);
+    const minFrontlineSupport = Math.min(...finalists.map((entry) => countTouchingFriendlyFrontline(state, actor, entry.coord)));
+    finalists = finalists.filter((entry) => countTouchingFriendlyFrontline(state, actor, entry.coord) === minFrontlineSupport);
   }
   const selected = state.rng.pick(finalists);
   if (equalsHex(selected.coord, actor.position)) {
@@ -3902,8 +3902,8 @@ function nearestEnemyDistance(state: InternalState, actor: InternalUnit): number
 
 function engageObjective(state: InternalState, actor: InternalUnit, objective: RoleObjective): boolean {
   const preferredRoles = objective.targetRole === 'backline' ? ['backline'] : ['frontline', 'pusher'];
-  if (enemyUnitsOnHex(state, actor).some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
-    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles, actor.role === 'pusher');
+  if (touchingEnemies(state, actor).some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
+    const engagedTargets = engageTouchingEnemies(state, actor, preferredRoles, actor.role === 'pusher');
     if (engagedTargets.length > 0) {
       emitRoleIntentStep(state, 'engage', actor, engagedTargets, `${actor.troopLabel} ${formatRoleIntentMessage(objective.roleIntent)}.`, {
         roleIntent: objective.roleIntent,
@@ -3920,12 +3920,12 @@ function engageObjective(state: InternalState, actor: InternalUnit, objective: R
   }
 
   const moved = moveToward(state, actor, objective.target, objective.roleIntent, objective.reasonCode, objective.targetRole);
-  const enemiesOnCell = enemyUnitsOnHex(state, actor);
+  const enemiesOnCell = touchingEnemies(state, actor);
   if (enemiesOnCell.length === 0) {
     return moved;
   }
   if (enemiesOnCell.some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
-    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles, actor.role === 'pusher');
+    const engagedTargets = engageTouchingEnemies(state, actor, preferredRoles, actor.role === 'pusher');
     if (engagedTargets.length > 0) {
       emitRoleIntentStep(state, 'engage', actor, engagedTargets, `${actor.troopLabel} ${formatRoleIntentMessage(objective.roleIntent)}.`, {
         roleIntent: objective.roleIntent,
@@ -4028,7 +4028,7 @@ function retreat(state: InternalState, actor: InternalUnit): boolean {
     }
     return true;
   }
-  const sameHexEnemies = enemyUnitsOnHex(state, actor);
+  const sameHexEnemies = touchingEnemies(state, actor);
   if (sameHexEnemies.length > 0) {
     attack(state, actor, chooseAttackTarget(state, actor, sameHexEnemies), 'melee');
     return true;
@@ -4253,9 +4253,9 @@ function executeTurnActions(state: InternalState, actor: InternalUnit): void {
   }
 
   if (actor.role === 'pusher') {
-    const sameHexEnemies = enemyUnitsOnHex(state, actor);
+    const sameHexEnemies = touchingEnemies(state, actor);
     if (sameHexEnemies.length > 0) {
-      const engagedTargets = engageEnemiesOnHex(state, actor, [], true);
+      const engagedTargets = engageTouchingEnemies(state, actor, [], true);
       if (engagedTargets.length > 0) {
         buildStep(state, 'engage', [actor.id], engagedTargets.map((target) => target.id), `${actor.troopLabel} engages enemies.`, {
           reasonCode: 'pusher-contact-engage',

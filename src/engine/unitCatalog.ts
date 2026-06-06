@@ -148,7 +148,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('ally', 0),
     effects: [statEffect('heal', 20, 'flat')],
-    shortText: 'On kill: heal allies overlapping the fallen footprint for 20.',
+    shortText: 'On kill: heal allies touching the fallen unit for 20.',
   }),
   united: makeAbility({
     id: 'united',
@@ -262,7 +262,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     [statEffect('ramp', 1, 'flat')],
     'Start of turn: gain +1 damage per other touching friendly unit until end of turn.',
     turnsDuration(1),
-    { repeatPerOtherFriendlyUnitOnHex: true },
+    { repeatPerTouchingFriendlyUnit: true },
   ),
   'mend-4': makeAbility({
     id: 'mend-4',
@@ -499,14 +499,6 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [],
     shortText: 'Passive: when hit by a normal attack, make a normal attack back once.',
   }),
-  scurry: makeAbility({
-    id: 'scurry',
-    label: 'Scurry',
-    trigger: { timing: 'passive' },
-    duration: instantDuration(),
-    effects: [],
-    shortText: 'Passive: does not count toward allied formation pressure checks.',
-  }),
   'alternate-fuel-10': makeAbility({
     id: 'alternate-fuel-10',
     label: 'Alternate Fuel',
@@ -565,7 +557,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'End of turn: if engaged, a wolf on this unit hex redirects an engaged enemy and heals 10.',
+    shortText: 'End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.',
   }),
   'shapeshift-bear-2': makeAbility({
     id: 'shapeshift-bear-2',
@@ -609,7 +601,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
   'rabble-rush': makeAbility({
     id: 'rabble-rush',
     label: 'Rabble Rush',
-    trigger: { timing: 'startOfTurn', repeatPerOtherFriendlyUnitOnHex: true },
+    trigger: { timing: 'startOfTurn', repeatPerTouchingFriendlyUnit: true },
     duration: instantDuration(),
     target: selfTarget(),
     effects: [initiativeDeltaEffect(1)],
@@ -669,7 +661,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'End of turn: enhance all allies on a chosen allied hex instead of one target.',
+    shortText: 'End of turn: pick a random allied non-caster in range; enhance it and all allies touching it.',
   }),
   'spell-echo': makeAbility({
     id: 'spell-echo',
@@ -709,7 +701,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: on kill, enemies on that hex lose 20 initiative.',
+    shortText: 'Passive: on kill, enemies touching the fallen unit lose 20 initiative.',
   }),
   'stoneblood': makeAbility({
     id: 'stoneblood',
@@ -725,7 +717,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: melee kills deal splash damage equal to 5 times this unit size to other enemies on that hex.',
+    shortText: 'Passive: melee kills deal splash damage equal to 5 times this unit size to enemies touching the fallen unit.',
   }),
   'last-witness': makeAbility({
     id: 'last-witness',
@@ -733,7 +725,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: when an ally dies on this unit hex, strike the killer twice if it is still there.',
+    shortText: 'Passive: when a touching ally dies, strike their killer twice if still in contact.',
   }),
   brace: makeAbility({
     id: 'brace',
@@ -813,7 +805,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: when this unit gets a kill, allies on that hex heal 10 and gain 30 initiative.',
+    shortText: 'Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative.',
   }),
   'rowdy-regrowth': makeAbility({
     id: 'rowdy-regrowth',
@@ -894,7 +886,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: end of turn, wolves on this unit hex gain 10 initiative; any wolf kill gives allies on that hex +2 damage for the battle.',
+    shortText: 'Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle.',
   }),
 };
 
@@ -1249,7 +1241,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Loot Frenzy',
     tier: 3,
-    description: 'When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative.',
+    description: 'When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.',
     effects: [{ kind: 'addAbility', abilityId: 'loot-frenzy' }],
   },
   'troll-roll-the-boulder': {
@@ -1257,7 +1249,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'troll',
     label: 'Roll the Boulder',
     tier: 1,
-    description: "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.",
+    description: "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.",
     effects: [{ kind: 'addAbility', abilityId: 'ramp-1' }, { kind: 'addAbility', abilityId: 'crushing-sweep' }],
   },
   'troll-mossblood': {
@@ -1281,7 +1273,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'human',
     label: 'Hold the Standard',
     tier: 2,
-    description: 'Whenever a non-Fading ally dies on a Human hex, Human units on that hex heal 15.',
+    description: 'Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.',
     effects: [{ kind: 'addAbility', abilityId: 'hold-the-standard' }],
   },
   'dwarf-diggy-hole': {
@@ -1479,8 +1471,8 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'militia',
     label: 'Rat Behavior',
     tier: 3,
-    description: 'Start of turn: Militia gain +1 initiative for each other touching Militia. Militia do not count toward allied formation pressure checks.',
-    effects: [{ kind: 'addAbility', abilityId: 'rabble-rush' }, { kind: 'addAbility', abilityId: 'scurry' }],
+    description: 'Start of turn: Militia gain +1 initiative for each other Militia touching them.',
+    effects: [{ kind: 'addAbility', abilityId: 'rabble-rush' }],
   },
   'militia-dogpile': {
     id: 'militia-dogpile',
@@ -1635,7 +1627,6 @@ const LEGACY_TROOP_TYPE_UPGRADE_IDS: Record<string, string> = {
   'elementalist-arc-conductor': 'elementalist-crackling-mitosis',
   'elementalist-mitosis': 'elementalist-crackling-mitosis',
   'militia-rabble-rush': 'militia-rat-behavior',
-  'militia-scurry': 'militia-rat-behavior',
   'necromancer-alternate-fuel': 'necromancer-hemomancy',
   'necromancer-rising-tide': 'necromancer-hemomancy',
   'necromancer-early-riser': 'necromancer-explosion-corpse',
