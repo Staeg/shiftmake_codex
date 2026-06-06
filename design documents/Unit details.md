@@ -11,20 +11,29 @@ Summoned units do not have their own unlockable upgrades.
 - `health`: HP before death
 - `damage`: base normal attack damage
 - `speed`: initiative gained each beat
+- `move`: how many legal hexes a unit can travel during ordinary movement and special repositioning
 - `range`: hex attack distance, with `0` meaning melee
 - `armor`: flat adjustment to incoming normal attack damage; negative armor increases damage taken
-- `size`: how much enemy capacity is needed to engage the unit
+- `size`: footprint scale and how much enemy capacity is needed to engage the unit
 - `capacity`: how much total enemy size the unit can engage
 - `role`: autonomous behavior profile
 - `cost`: base troop cost before faction cost modifiers
 - `quantity`: derived after faction resolution as `120 / resolved cost`
+
+Footprint sizes:
+
+- Size 1 occupies one hex.
+- Size 2 occupies a north- or south-facing 3-hex triangle.
+- Size 3 occupies a 7-hex radius-1 footprint.
+- Size 4 occupies the size-2 triangle plus one surrounding layer.
+- Size 5 occupies a 19-hex radius-2 footprint.
 
 ## Base unit types
 
 ### Archer
 
 - Attributes: `ranged`
-- Stats: health 30, damage 11, speed 11, range 2, armor 0, size 1, capacity 0
+- Stats: health 30, damage 11, speed 11, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: none
 - Cost: 20
@@ -34,7 +43,7 @@ Summoned units do not have their own unlockable upgrades.
 ### Avenger
 
 - Attributes: `melee`
-- Stats: health 200, damage 6, speed 10, range 0, armor 0, size 2, capacity 1
+- Stats: health 200, damage 6, speed 10, move 1, range 0, armor 0, size 2, capacity 1
 - Role: frontline
 - Abilities: `Vengeance 3`
 - Cost: 40
@@ -45,18 +54,18 @@ Summoned units do not have their own unlockable upgrades.
 ### Beastmaster
 
 - Attributes: `melee`, `summoner`
-- Stats: health 90, damage 8, speed 8, range 0, armor 0, size 2, capacity 1
+- Stats: health 90, damage 8, speed 8, move 2, range 0, armor 0, size 2, capacity 1
 - Role: frontline
 - Abilities: `Summon Wolf 2`
 - Cost: 60
 - Troop upgrades:
-  - `Bloodhounds` (tier 3): starting wolves summon more wolves on kills; if engaged, a wolf on the Beastmaster's hex joins the fight and heals 10
-  - `Thrill of the Hunt` (tier 3): wolves on the Beastmaster's hex gain 10 initiative at end of turn, and any wolf kill gives allies on that hex +2 damage for the battle
+  - `Bloodhounds` (tier 3): starting wolves summon more wolves on kills; if engaged, a wolf touching the Beastmaster joins the fight and heals 10
+  - `Thrill of the Hunt` (tier 3): wolves touching the Beastmaster gain 10 initiative at end of turn, and any wolf kill gives allies touching the fallen unit +2 damage for the battle
 
 ### Champion
 
 - Attributes: `melee`
-- Stats: health 130, damage 20, speed 17, range 0, armor 0, size 2, capacity 1
+- Stats: health 130, damage 20, speed 17, move 2, range 0, armor 0, size 2, capacity 1
 - Role: frontline
 - Abilities: `Valor 20`
 - Cost: 60
@@ -66,7 +75,7 @@ Summoned units do not have their own unlockable upgrades.
 ### Druid
 
 - Attributes: `caster`
-- Stats: health 25, damage 11, speed 8, range 2, armor 0, size 1, capacity 0
+- Stats: health 25, damage 11, speed 8, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Shapeshift - Bear`
 - Cost: 30
@@ -78,7 +87,7 @@ Summoned units do not have their own unlockable upgrades.
 ### Elemental
 
 - Attributes: `melee`, `summoned`
-- Stats: health 60, damage 13, speed 7, range 2, armor 5, size 1, capacity 3
+- Stats: health 60, damage 13, speed 7, move 1, range 0, armor 5, size 1, capacity 3
 - Role: frontline
 - Abilities: none
 - Cost: 20
@@ -86,7 +95,7 @@ Summoned units do not have their own unlockable upgrades.
 ### Elementalist
 
 - Attributes: `caster`, `summoner`
-- Stats: health 25, damage 10, speed 9, range 2, armor 0, size 1, capacity 0
+- Stats: health 25, damage 10, speed 9, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Charge 4 Summon Elemental`
 - Cost: 30
@@ -97,40 +106,40 @@ Summoned units do not have their own unlockable upgrades.
 ### Knight
 
 - Attributes: `melee`
-- Stats: health 200, damage 16, speed 7, range 0, armor 10, size 2, capacity 5
+- Stats: health 200, damage 16, speed 7, move 1, range 0, armor 10, size 2, capacity 5
 - Role: frontline
 - Abilities: `Taunt`
 - Cost: 60
 - Troop upgrades:
   - `Dine in Hell` (tier 3): start of turn, if engaged at full capacity, gain +5 armor until next turn; while engaged at full capacity, answer normal attacks with one normal attack
-  - `Sentinel Runes` (tier 3): the first enemy to move off the Knight's hex causes 2 elementals to be summoned on its new hex; if unused, this triggers on death instead
+  - `Sentinel Runes` (tier 3): the first enemy to move out of contact with the Knight causes 2 elementals to be summoned at its new position; if unused, this triggers on death instead
 
 ### Militia
 
 - Attributes: `melee`, `expendable`
-- Stats: health 40, damage 8, speed 11, range 0, armor 0, size 1, capacity 1
-- Role: chaff
+- Stats: health 40, damage 8, speed 11, move 3, range 0, armor 0, size 1, capacity 1
+- Role: Pusher
 - Abilities: none
 - Cost: 10
 - Troop upgrades:
-  - `Rat Behavior` (tier 3): start of turn, gain +1 initiative per other Militia on the same hex; does not count toward allied saturation
+  - `Rat Behavior` (tier 3): start of turn, gain +1 initiative per other touching Militia; does not count toward allied formation pressure checks
   - `Dogpile` (tier 3): attacks against enemies engaged by at least 3 allies strike 1 extra time
 
 ### Necromancer
 
 - Attributes: `caster`, `summoner`
-- Stats: health 40, damage 16, speed 8, range 2, armor 0, size 1, capacity 0
+- Stats: health 40, damage 16, speed 8, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Corpse Summon Skeleton`
 - Cost: 40
 - Troop upgrades:
-  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; summoned skeletons heal allies on their own hex for 7 each turn
+  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; summoned skeletons heal allies touching them for 7 each turn
   - `Explosion Corpse` (tier 3): summoned skeletons spawn with 100 initiative; consuming a corpse makes enemies adjacent to that corpse lose 1 armor and 1 damage for the battle
 
 ### Priest
 
 - Attributes: `caster`
-- Stats: health 25, damage 7, speed 8, range 2, armor 0, size 1, capacity 0
+- Stats: health 25, damage 7, speed 8, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Mend 4`
 - Cost: 20
@@ -141,7 +150,7 @@ Summoned units do not have their own unlockable upgrades.
 ### Ranger
 
 - Attributes: `ranged`
-- Stats: health 50, damage 16, speed 13, range 3, armor 0, size 1, capacity 0
+- Stats: health 50, damage 16, speed 13, move 3, range 7, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Self Haste 2`
 - Cost: 60
@@ -152,7 +161,7 @@ Summoned units do not have their own unlockable upgrades.
 ### Shaman
 
 - Attributes: `caster`
-- Stats: health 20, damage 11, speed 8, range 2, armor 0, size 1, capacity 0
+- Stats: health 20, damage 11, speed 8, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Enhance 1`
 - Cost: 20
@@ -163,15 +172,15 @@ Summoned units do not have their own unlockable upgrades.
 ### Skeleton
 
 - Attributes: `melee`, `summoned`
-- Stats: health 40, damage 13, speed 7, range 0, armor 0, size 1, capacity 1
-- Role: chaff
+- Stats: health 40, damage 13, speed 7, move 2, range 0, armor 0, size 1, capacity 1
+- Role: Pusher
 - Abilities: `Bonded`, `Fading`
 - Cost: 20
 
 ### Soldier
 
 - Attributes: `melee`
-- Stats: health 100, damage 10, speed 10, range 0, armor 2, size 1, capacity 2
+- Stats: health 100, damage 10, speed 10, move 2, range 0, armor 2, size 1, capacity 2
 - Role: frontline
 - Abilities: none
 - Cost: 24
@@ -181,19 +190,19 @@ Summoned units do not have their own unlockable upgrades.
 ### Wizard
 
 - Attributes: `caster`
-- Stats: health 20, damage 9, speed 8, range 2, armor 0, size 1, capacity 0
+- Stats: health 20, damage 9, speed 8, move 2, range 5, armor 0, size 1, capacity 0
 - Role: backline
 - Abilities: `Blast 5`
 - Cost: 20
 - Troop upgrades:
-  - `Storm Rods` (tier 3): every 4 turns, make 4 extra strikes against a random enemy in range; `Blast` deals +1 damage per elemental on the target hex, and Wizards summon 1 elemental at battle start
+  - `Storm Rods` (tier 3): every 4 turns, make 4 extra strikes against a random enemy in range; `Blast` deals +1 damage per elemental overlapping the target cell, and Wizards summon 1 elemental at battle start
   - `Spell Echo` (tier 2): `Blast` chains to an adjacent hex that has not already been hit in that chain
 
 ### Wolf
 
 - Attributes: `melee`, `summoned`
-- Stats: health 70, damage 6, speed 12, range 2, armor 0, size 1, capacity 1
-- Role: frontline
+- Stats: health 70, damage 6, speed 12, move 3, range 0, armor 0, size 1, capacity 1
+- Role: Pusher
 - Abilities: `Bonded`, `Pack 1`
 - Cost: 20
 
@@ -203,7 +212,7 @@ Summoned units do not have their own unlockable upgrades.
 
 - `Tubthumping` (tier 1): multiple Human troops may enter the same Rift; harmful damage or speed reductions become `+1` instead
 - `Human Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop type in the battle
-- `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies on a Human hex, Human units on that hex heal 15
+- `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
 
 ### Elves
 
@@ -213,13 +222,13 @@ Summoned units do not have their own unlockable upgrades.
 
 ### Goblins
 
-- `Goblin Behavior` (tier 1): on death, make 1 extra strike against a random enemy on the same hex; on kill, enemies on that hex lose 20 initiative
-- `Goblin Pack` (tier 2): start of turn, gain +1 damage per other friendly unit on the same hex until end of turn
-- `Loot Frenzy` (tier 3): on kill, allies on that hex heal 10 and gain 30 initiative
+- `Goblin Behavior` (tier 1): on death, make 1 extra strike against a random touching enemy; on kill, enemies touching the fallen unit lose 20 initiative
+- `Goblin Pack` (tier 2): start of turn, gain +1 damage per other friendly unit touching it until end of turn
+- `Loot Frenzy` (tier 3): on kill, allies overlapping the fallen footprint heal 10 and gain 30 initiative
 
 ### Trolls
 
-- `Roll the Boulder` (tier 1): end of turn, gain +1 damage for the battle; melee kills deal splash damage equal to `5 x size` on that hex
+- `Roll the Boulder` (tier 1): end of turn, gain +1 damage for the battle; melee kills deal splash damage equal to `5 x size` to enemies touching the fallen unit
 - `Mossblood` (tier 2): the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`; after taking damage, gain +1 damage for the battle
 - `Rowdy Regrowth` (tier 2): whenever a Troll is healed, it gains 20 initiative
 

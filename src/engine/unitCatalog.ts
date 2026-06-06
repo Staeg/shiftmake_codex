@@ -20,7 +20,7 @@ import type {
   UnitTypeId,
 } from './types';
 
-const STAT_KEYS: Array<keyof UnitStats> = ['health', 'damage', 'speed', 'range', 'armor', 'size', 'capacity'];
+const STAT_KEYS: Array<keyof UnitStats> = ['health', 'damage', 'speed', 'move', 'range', 'armor', 'size', 'capacity'];
 const TROOP_UNIT_BUDGET = 120;
 
 function makeAbility(definition: AbilityDefinition): AbilityDefinition {
@@ -148,7 +148,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('ally', 0),
     effects: [statEffect('heal', 20, 'flat')],
-    shortText: 'On kill: heal allies on this hex for 20.',
+    shortText: 'On kill: heal allies overlapping the fallen footprint for 20.',
   }),
   united: makeAbility({
     id: 'united',
@@ -180,7 +180,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: randomTarget('enemy', 0),
     effects: [{ kind: 'strike', amount: 1 }],
-    shortText: 'On death: strike a random enemy on this hex one extra time.',
+    shortText: 'On death: strike a random touching enemy one extra time.',
   }),
   'diggy-hole': makeAbility({
     id: 'diggy-hole',
@@ -260,7 +260,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     'Pack 1',
     'startOfTurn',
     [statEffect('ramp', 1, 'flat')],
-    'Start of turn: gain +1 damage per other friendly unit on this hex until end of turn.',
+    'Start of turn: gain +1 damage per other touching friendly unit until end of turn.',
     turnsDuration(1),
     { repeatPerOtherFriendlyUnitOnHex: true },
   ),
@@ -309,7 +309,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('enemy', 0, { unengaged: true }),
     effects: [redirectEffect()],
-    shortText: 'End of turn: engage unengaged enemies on this hex up to Capacity.',
+    shortText: 'End of turn: engage unengaged enemies in footprint contact up to Capacity.',
   }),
   'vengeance-1': makeAbility({
     id: 'vengeance-1',
@@ -318,7 +318,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
-    shortText: 'When an ally dies on this hex, gain +1 speed and +1 damage for the battle.',
+    shortText: 'When a touching ally dies, gain +1 speed and +1 damage for the battle.',
   }),
   'vengeance-3': makeAbility({
     id: 'vengeance-3',
@@ -327,7 +327,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [statEffect('haste', 3, 'flat'), statEffect('ramp', 3, 'flat')],
-    shortText: 'When an ally dies on this hex, gain +3 speed and +3 damage for the battle.',
+    shortText: 'When a touching ally dies, gain +3 speed and +3 damage for the battle.',
   }),
   'enhance-1': makeAbility({
     id: 'enhance-1',
@@ -437,7 +437,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'onFallen', fallen: { allegiance: 'all', radius: 0, radiusSource: 'selfRange' } },
     duration: battleDuration(),
     effects: [summonEffect('skeleton', 1, true, ['heal-ally-0-7'])],
-    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies on their hex.',
+    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies touching them.',
   }),
   'uses-7-corpse-summon-skeleton': makeAbility({
     id: 'uses-7-corpse-summon-skeleton',
@@ -454,7 +454,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('ally', 0),
     effects: [statEffect('heal', 7, 'flat')],
-    shortText: 'End of turn: heal allies on this hex for 7.',
+    shortText: 'End of turn: heal touching allies for 7.',
   }),
   'death-summon-skeleton': makeAbility({
     id: 'death-summon-skeleton',
@@ -505,7 +505,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: does not count toward allied saturation limits.',
+    shortText: 'Passive: does not count toward allied formation pressure checks.',
   }),
   'alternate-fuel-10': makeAbility({
     id: 'alternate-fuel-10',
@@ -557,7 +557,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: selfTarget(),
     effects: [initiativeSetEffect(100)],
-    shortText: 'When an ally dies on this hex: set initiative to 100.',
+    shortText: 'When a touching ally dies: set initiative to 100.',
   }),
   'packmasters-whistle': makeAbility({
     id: 'packmasters-whistle',
@@ -613,7 +613,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: selfTarget(),
     effects: [initiativeDeltaEffect(1)],
-    shortText: 'Start of turn: gain +1 initiative per other Militia on this hex.',
+    shortText: 'Start of turn: gain +1 initiative per other touching Militia.',
   }),
   'early-riser': makeAbility({
     id: 'early-riser',
@@ -805,7 +805,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: whenever a non-Fading ally dies on this hex, heal Human units on this hex for 15.',
+    shortText: 'Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.',
   }),
   'loot-frenzy': makeAbility({
     id: 'loot-frenzy',
@@ -861,7 +861,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: the first time an enemy moves off this unit's hex, summon 2 elementals on its new hex; if unused, trigger on death instead.",
+    shortText: "Passive: the first time an enemy moves out of contact with this unit, summon 2 elementals at its new position; if unused, trigger on death instead.",
   }),
   'lightning-rods': makeAbility({
     id: 'lightning-rods',
@@ -905,7 +905,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'frontline',
     type: 'soldier',
     attributes: ['melee'],
-    stats: { health: 100, damage: 10, speed: 10, range: 0, armor: 2, size: 1, capacity: 2 },
+    stats: { health: 100, damage: 10, speed: 10, move: 2, range: 0, armor: 2, size: 1, capacity: 2 },
     quantity: 1,
     cost: 24,
     abilityIds: [],
@@ -916,7 +916,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'frontline',
     type: 'champion',
     attributes: ['melee'],
-    stats: { health: 130, damage: 20, speed: 17, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 130, damage: 20, speed: 17, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ['valor-20'],
@@ -927,7 +927,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'frontline',
     type: 'avenger',
     attributes: ['melee'],
-    stats: { health: 200, damage: 6, speed: 10, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 200, damage: 6, speed: 10, move: 1, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 40,
     abilityIds: ['vengeance-3'],
@@ -938,7 +938,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'frontline',
     type: 'beastmaster',
     attributes: ['melee', 'summoner'],
-    stats: { health: 90, damage: 8, speed: 8, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 90, damage: 8, speed: 8, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ['summon-wolf-2'],
@@ -949,7 +949,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'druid',
     attributes: ['caster'],
-    stats: { health: 25, damage: 11, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 11, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 30,
     abilityIds: ['shapeshift-bear'],
@@ -960,7 +960,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'frontline',
     type: 'elemental',
     attributes: ['melee', 'summoned'],
-    stats: { health: 60, damage: 13, speed: 7, range: 2, armor: 5, size: 1, capacity: 3 },
+    stats: { health: 60, damage: 13, speed: 7, move: 1, range: 0, armor: 5, size: 1, capacity: 3 },
     quantity: 1,
     cost: 20,
     abilityIds: [],
@@ -971,7 +971,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'elementalist',
     attributes: ['caster', 'summoner'],
-    stats: { health: 25, damage: 10, speed: 9, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 10, speed: 9, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 30,
     abilityIds: ['charge-4-summon-elemental'],
@@ -982,7 +982,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'frontline',
     type: 'knight',
     attributes: ['melee'],
-    stats: { health: 200, damage: 16, speed: 7, range: 0, armor: 10, size: 2, capacity: 5 },
+    stats: { health: 200, damage: 16, speed: 7, move: 1, range: 0, armor: 10, size: 2, capacity: 5 },
     quantity: 1,
     cost: 60,
     abilityIds: ['taunt'],
@@ -990,10 +990,10 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
   militia: {
     id: 'militia',
     label: 'Militia',
-    role: 'chaff',
+    role: 'pusher',
     type: 'militia',
     attributes: ['melee', 'expendable'],
-    stats: { health: 40, damage: 8, speed: 11, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 40, damage: 8, speed: 11, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 1,
     cost: 10,
     abilityIds: [],
@@ -1004,7 +1004,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'archer',
     attributes: ['ranged'],
-    stats: { health: 30, damage: 11, speed: 11, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 30, damage: 11, speed: 11, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: [],
@@ -1015,7 +1015,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'wizard',
     attributes: ['caster'],
-    stats: { health: 20, damage: 9, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 20, damage: 9, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ['blast-5'],
@@ -1026,7 +1026,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'priest',
     attributes: ['caster'],
-    stats: { health: 25, damage: 7, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 7, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ['mend-4'],
@@ -1037,7 +1037,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'ranger',
     attributes: ['ranged'],
-    stats: { health: 50, damage: 16, speed: 13, range: 3, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 50, damage: 16, speed: 13, move: 3, range: 7, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 60,
     abilityIds: ['self-haste-2'],
@@ -1048,7 +1048,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'necromancer',
     attributes: ['caster', 'summoner'],
-    stats: { health: 40, damage: 16, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 40, damage: 16, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 40,
     abilityIds: ['corpse-summon-skeleton'],
@@ -1056,10 +1056,10 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
   skeleton: {
     id: 'skeleton',
     label: 'Skeleton',
-    role: 'chaff',
+    role: 'pusher',
     type: 'skeleton',
     attributes: ['melee', 'summoned'],
-    stats: { health: 40, damage: 13, speed: 7, range: 2, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 40, damage: 13, speed: 7, move: 2, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 1,
     cost: 20,
     abilityIds: ['bonded', 'fading'],
@@ -1070,7 +1070,7 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
     role: 'backline',
     type: 'shaman',
     attributes: ['caster'],
-    stats: { health: 20, damage: 11, speed: 8, range: 2, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 20, damage: 11, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ['enhance-1'],
@@ -1078,10 +1078,10 @@ export const UNIT_TYPES: Record<UnitTypeId, UnitTypeDefinition> = {
   wolf: {
     id: 'wolf',
     label: 'Wolf',
-    role: 'chaff',
+    role: 'pusher',
     type: 'wolf',
     attributes: ['melee', 'summoned'],
-    stats: { health: 70, damage: 6, speed: 12, range: 2, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 70, damage: 6, speed: 12, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 1,
     cost: 20,
     abilityIds: ['bonded', 'pack-1'],
@@ -1233,7 +1233,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Goblin Behavior',
     tier: 1,
-    description: 'On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.',
+    description: 'On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.',
     effects: [{ kind: 'addAbility', abilityId: 'goblin-farewell' }, { kind: 'addAbility', abilityId: 'snatch-the-moment' }],
   },
   'goblin-pack': {
@@ -1241,7 +1241,7 @@ export const FACTION_UPGRADES: Record<string, FactionUpgradeDefinition> = {
     factionId: 'goblin',
     label: 'Goblin Pack',
     tier: 2,
-    description: 'Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.',
+    description: 'Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.',
     effects: [{ kind: 'addAbility', abilityId: 'pack-1' }],
   },
   'goblin-loot-frenzy': {
@@ -1399,7 +1399,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'beastmaster',
     label: 'Bloodhounds',
     tier: 3,
-    description: 'Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.',
+    description: 'Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }, { kind: 'addAbility', abilityId: 'packmasters-whistle' }],
   },
   'beastmaster-thrill-of-the-hunt': {
@@ -1407,7 +1407,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'beastmaster',
     label: 'Thrill of the Hunt',
     tier: 3,
-    description: 'End of turn: wolves on this Beastmaster hex gain 10 initiative. Whenever any wolf gets a kill, allies on its hex gain +2 damage for the battle.',
+    description: 'End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'thrill-of-the-hunt' }],
   },
   'champion-anointed-executioner': {
@@ -1431,7 +1431,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'knight',
     label: 'Sentinel Runes',
     tier: 3,
-    description: "The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies.",
+    description: "The first time an enemy moves out of contact with a Knight, summon 2 elementals at that unit's new position. If unused, this also triggers when the Knight dies.",
     effects: [{ kind: 'addAbility', abilityId: 'sentinel-runes' }],
   },
   'druid-forest-friends': {
@@ -1479,7 +1479,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'militia',
     label: 'Rat Behavior',
     tier: 3,
-    description: 'Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.',
+    description: 'Start of turn: Militia gain +1 initiative for each other touching Militia. Militia do not count toward allied formation pressure checks.',
     effects: [{ kind: 'addAbility', abilityId: 'rabble-rush' }, { kind: 'addAbility', abilityId: 'scurry' }],
   },
   'militia-dogpile': {
@@ -1730,6 +1730,7 @@ function canReceiveRangeAdjustment(attributes: string[]): boolean {
 export function clampStat(key: keyof UnitStats, value: number): number {
   if (key === 'damage') return fixedMax(value, 0);
   if (key === 'speed') return fixedClamp(value, 1, 100);
+  if (key === 'move') return fixedMax(value, 0);
   if (key === 'range') return fixedMax(value, 0);
   if (key === 'size') return fixedMax(value, 1);
   if (key === 'capacity') return fixedMax(value, 0);
@@ -1754,7 +1755,7 @@ export function composeBaseTroopDefinition(factionId: FactionId, unitTypeId: Uni
       result[key] = clampStat(key, applyAdjustment(unitType.stats[key], faction.statAdjustments[key]));
       return result;
     },
-    { health: 0, damage: 0, speed: 0, range: 0, armor: 0, size: 0, capacity: 0 },
+    { health: 0, damage: 0, speed: 0, move: 0, range: 0, armor: 0, size: 0, capacity: 0 },
   );
   const cost = fixedMax(applyAdjustment(unitType.cost, faction.statAdjustments.cost), 1);
   const abilities = [...unitType.abilityIds, ...faction.abilityIds].map(getAbility);

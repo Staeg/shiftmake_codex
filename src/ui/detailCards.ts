@@ -66,7 +66,7 @@ export type DetailCard =
       }>;
     };
 
-const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
+const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'];
 
 export function parseTroopUnlockId(troopUnlockId: string): [FactionId, UnitTypeId] {
   return troopUnlockId.split('/') as [FactionId, UnitTypeId];
@@ -92,12 +92,12 @@ export function riftTierTooltip(tier: number, gameMode: GameMode): string {
 
 export function riftFitTooltip(fit: number, gameMode: GameMode): string {
   if (gameMode === 'contest') {
-    return `Capacity ${fit} is the Rift's starting hex saturation limit for Contest battles here. If the armies' total unit Size exceeds it, the battlefield may expand.`;
+    return `Capacity ${fit} is legacy Rift pressure metadata for Contest battles here. Battles now place full unit footprints on an explicit map.`;
   }
   if (gameMode === 'ladder') {
-    return `Capacity ${fit} is the Rift's starting hex saturation limit for this Ladder battle. If your force and the Guardians exceed it, the battlefield may expand.`;
+    return `Capacity ${fit} is legacy Rift pressure metadata for this Ladder battle. Battles now place full unit footprints on an explicit map.`;
   }
-  return `Capacity ${fit} is the Rift's starting hex saturation limit. If your assigned troop and the enemies' total unit Size exceeds it, the battlefield may expand.`;
+  return `Capacity ${fit} is legacy Rift pressure metadata. Battles now place full unit footprints on an explicit map.`;
 }
 
 export function formatRiftDisplayId(riftId: string): string {
@@ -133,6 +133,7 @@ export function getStatLabel(key: ExplainedStatKey): string {
     health: 'Health',
     damage: 'Damage',
     speed: 'Speed',
+    move: 'Move',
     range: 'Range',
     armor: 'Armor',
     capacity: 'Capacity',
@@ -145,6 +146,7 @@ export function getStatDescription(key: ExplainedStatKey): string {
     health: 'How much punishment each unit can take before falling.',
     damage: 'How much harm each attack deals before armor and other effects.',
     speed: 'How quickly the unit gains initiative and takes turns.',
+    move: 'How many hexes this unit can travel during ordinary movement and special repositioning.',
     range: 'How many hexes away the unit can attack from.',
     armor: 'Flat damage reduction applied when the unit is hit.',
     capacity: 'How many enemies this unit can hold in melee engagement.',
@@ -170,7 +172,7 @@ export function formatStatModifier(value: { flat?: number; multiplier?: number }
 }
 
 export function buildStatEntries(
-  stats: { health: number; damage: number; speed: number; armor: number; range: number; capacity: number; size?: number },
+  stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number },
   breakdowns?: Partial<Record<ExplainedStatKey | 'quantity', StatBreakdown>>,
   includeSize = false,
   quantity?: number,
@@ -312,7 +314,7 @@ type BuildResolvedUnitDetailOptions = {
   label: string;
   factionId: FactionId;
   unitTypeId: UnitTypeId;
-  stats: { health: number; damage: number; speed: number; armor: number; range: number; capacity: number; size?: number };
+  stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number };
   quantity: number;
   description: string;
   abilities: AbilityDefinition[];

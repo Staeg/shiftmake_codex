@@ -737,7 +737,7 @@
     label: string,
     factionId: FactionId,
     unitTypeId: UnitTypeId,
-    stats: { health: number; damage: number; speed: number; armor: number; range: number; capacity: number; size?: number },
+    stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number },
     quantity: number,
     description: string,
     abilities: AbilityDefinition[],

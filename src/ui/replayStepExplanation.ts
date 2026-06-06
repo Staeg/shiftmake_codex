@@ -44,7 +44,7 @@ function roleIntentLabel(roleIntent: RoleIntentId): string {
 
 function reasonLabel(reasonCode: string): string {
   return {
-    'block-access': 'The unit found a frontline or chaff target that was blocking access to allied backliners.',
+    'block-access': 'The unit found a frontline or Pusher target that was blocking access to allied backliners.',
     'no-frontline-target': 'No frontline screen target remained, so the unit switched to a backline objective.',
     'maintain-backline-commitment': 'The unit had already committed to the enemy backline and stayed on that plan.',
     'opened-backline-lane': 'A lane into the enemy backline was open, so the unit pushed through.',
@@ -77,11 +77,11 @@ function buildMovementSection(explanation: NonNullable<BattleStepExplanation['mo
     lines.push(
       explanation.movementPhase === 'withdraw'
         ? 'This step chose a safer hex before the unit committed to contact again.'
-        : 'This step explains why the unit moved to this hex before attacking or engaging.',
+        : 'This step explains why the unit moved to this destination before attacking or engaging.',
     );
   } else {
     title = 'Engagement Logic';
-    lines.push('This step explains why the unit committed to contact on this hex instead of only repositioning.');
+    lines.push('This step explains why the unit committed to footprint contact instead of only repositioning.');
   }
 
   if (explanation.unitRole) {
@@ -234,7 +234,7 @@ function buildDefaultSection(step: BattleStep): ReplayStepExplanationSection {
     return {
       title: 'Engagement Logic',
       lines: [
-        'This step marks the moment the acting unit tied enemies up on its current hex.',
+        'This step marks the moment the acting unit tied enemies up through footprint contact.',
         'Once engaged, those units can no longer behave like free-moving backliners until the contact changes.',
       ],
     };

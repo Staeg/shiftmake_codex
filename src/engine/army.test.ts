@@ -56,8 +56,8 @@ describe('troop composition', () => {
   });
 
   it('still applies faction range changes to non-melee units and non-melee-only upgrades', () => {
-    expect(composeBaseTroopDefinition('elf', 'archer').stats.range).toBe(3);
-    expect(composeBaseTroopDefinition('goblin', 'wizard').stats.range).toBe(1);
+    expect(composeBaseTroopDefinition('elf', 'archer').stats.range).toBe(6);
+    expect(composeBaseTroopDefinition('goblin', 'wizard').stats.range).toBe(4);
 
     const soldier = createTroopInstance('elf', 'soldier');
     const archer = createTroopInstance('elf', 'archer');
@@ -65,7 +65,7 @@ describe('troop composition', () => {
     const archerResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, archer, 'player');
 
     expect(soldierResolved.stats.range).toBe(0);
-    expect(archerResolved.stats.range).toBe(4);
+    expect(archerResolved.stats.range).toBe(7);
   });
 
   it('does not grant backline-only Elven Reflexes abilities to Elven Champions', () => {

@@ -3,6 +3,7 @@ import { resolveAbilityTargetRadius, resolveDebugBattle, resolveBattle } from '.
 import { createTroopInstance, resolveTroopCombatant } from './army';
 import { composeTroopDefinition, resolveAbilityDefinition, TROOP_CATALOG, getAbility, getTroopDefinitionOrThrow } from './unitCatalog';
 import { getArmySelectionCost, getTroopSelectionCost } from './unitCatalog';
+import { footprintDistance, hexDistance, visualVerticalLineKey } from './hex';
 import type { AbilityDefinition, BattleInput, ResolvedCombatantDefinition } from './types';
 
 describe('troop composition', () => {
@@ -16,6 +17,7 @@ describe('troop composition', () => {
       health: 110,
       damage: 11,
       speed: 11,
+      move: 2,
       range: 0,
       armor: 3,
       size: 1,
@@ -32,6 +34,7 @@ describe('troop composition', () => {
       health: 169,
       damage: 24,
       speed: 13.6,
+      move: 2,
       range: 0,
       armor: 0,
       size: 3,
@@ -52,6 +55,7 @@ describe('troop composition', () => {
       health: 220,
       damage: 17.6,
       speed: 7.7,
+      move: 1,
       range: 0,
       armor: 11,
       size: 2,
@@ -69,7 +73,7 @@ describe('troop composition', () => {
     expect(composeTroopDefinition('orc', 'soldier').attributes).toEqual(['melee', 'orc']);
     expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 100, damage: 12.5, speed: 11, armor: 1, size: 1, capacity: 1 });
     expect(composeTroopDefinition('fae', 'wizard').attributes).toEqual(['caster', 'fae']);
-    expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, speed: 9.2, range: 3, armor: -1 });
+    expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, speed: 9.2, move: 2, range: 6, armor: -1 });
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
     expect(composeTroopDefinition('goblin', 'shaman').abilities.map((ability) => ability.label)).toEqual(['Enhance 1']);
     expect(composeTroopDefinition('elf', 'elementalist').abilities.map((ability) => ability.label)).toEqual(['Charge 4 Summon Elemental']);
@@ -336,6 +340,22 @@ describe('resolveDebugBattle', () => {
     expect(engageStep?.metadata?.explanation?.movement?.movementPhase).toBe('commit');
   });
 
+  it('uses the Move stat for ordinary objective movement', () => {
+    const pusher = makeBattleCombatant('human/militia', 'player');
+    pusher.stats = { ...pusher.stats, damage: 0, speed: 100, move: 3 };
+    const target = makeBattleCombatant('elf/archer', 'enemy');
+    target.stats = { ...target.stats, health: 500, damage: 0, speed: 1 };
+    const replay = resolveBattle(makeBattleInput([pusher], [target], 37));
+    const initialPusher = replay.initial.units.find((unit) => unit.side === 'player')!;
+    const moveStep = replay.steps.find((step) => step.kind === 'move' && step.actorIds.includes(initialPusher.id));
+    const movedPusher = moveStep?.snapshot.units.find((unit) => unit.id === initialPusher.id);
+
+    expect(moveStep).toBeDefined();
+    expect(movedPusher).toBeDefined();
+    expect(hexDistance(initialPusher.position, movedPusher!.position)).toBeGreaterThan(1);
+    expect(hexDistance(initialPusher.position, movedPusher!.position)).toBeLessThanOrEqual(initialPusher.stats.move);
+  });
+
   it('formats attack damage without floating point noise', () => {
     const replay = resolveDebugBattle({
       seed: 99,
@@ -348,7 +368,7 @@ describe('resolveDebugBattle', () => {
     expect(attackStep?.message).not.toContain('000000');
   });
 
-  it('does not place melee and ranged units from the same side on the same spawn hex', () => {
+  it('keeps same-side initial spawns separated by footprint spacing rules', () => {
     const replay = resolveDebugBattle({
       seed: 11,
       player: { 'human/soldier': 8, 'human/militia': 8, 'elf/archer': 8, 'goblin/wizard': 4 },
@@ -357,18 +377,73 @@ describe('resolveDebugBattle', () => {
 
     (['player', 'enemy'] as const).forEach((side) => {
       const sideUnits = replay.initial.units.filter((unit) => unit.side === side);
-      const rangedHexes = new Set(
-        sideUnits
-          .filter((unit) => TROOP_CATALOG[unit.troopId].stats.range > 0)
-          .map((unit) => `${unit.position.q},${unit.position.r}`),
-      );
+      sideUnits.forEach((unit, index) => {
+        sideUnits.slice(index + 1).forEach((other) => {
+          expect(footprintDistance(unit.occupiedHexes, other.occupiedHexes)).toBeGreaterThanOrEqual(2);
+        });
+      });
 
-      const meleeOnRangedHex = sideUnits.filter(
-        (unit) => TROOP_CATALOG[unit.troopId].stats.range === 0 && rangedHexes.has(`${unit.position.q},${unit.position.r}`),
-      );
-
-      expect(meleeOnRangedHex).toHaveLength(0);
+      const meleeUnits = sideUnits.filter((unit) => unit.stats.range === 0);
+      const rangedUnits = sideUnits.filter((unit) => unit.stats.range > 0);
+      meleeUnits.forEach((melee) => {
+        rangedUnits.forEach((ranged) => {
+          expect(footprintDistance(melee.occupiedHexes, ranged.occupiedHexes)).toBeGreaterThanOrEqual(3);
+        });
+      });
     });
+  });
+
+  it('adds footprint data and explicit map hexes to replay snapshots', () => {
+    const replay = resolveBattle(makeBattleInput(
+      [makeBattleCombatant('human/soldier', 'player')],
+      [makeBattleCombatant('human/soldier', 'enemy')],
+      31,
+    ));
+    const initialUnit = replay.initial.units[0]!;
+    const laterUnit = replay.steps.find((step) => step.snapshot.units.some((unit) => unit.id === initialUnit.id))?.snapshot.units.find((unit) => unit.id === initialUnit.id);
+
+    expect(replay.mapHexes.length).toBeGreaterThan(0);
+    expect(initialUnit.occupiedHexes).toHaveLength(initialUnit.stats.size);
+    expect(initialUnit.occupiedHexes[0]).toEqual(initialUnit.position);
+    expect(initialUnit.footprintOrientation === 'north' || initialUnit.footprintOrientation === 'south').toBe(true);
+
+    if (laterUnit) {
+      const originalQ = laterUnit.occupiedHexes[0]!.q;
+      initialUnit.occupiedHexes[0]!.q = 999;
+      expect(laterUnit.occupiedHexes[0]!.q).toBe(originalQ);
+    }
+  });
+
+  it('finalizes the initial battlefield with a seven-hex opposing gap and staggered row ends', () => {
+    const replay = resolveBattle(makeBattleInput(
+      [makeBattleCombatant('human/soldier', 'player'), makeBattleCombatant('elf/archer', 'player')],
+      [makeBattleCombatant('human/knight', 'enemy'), makeBattleCombatant('elf/archer', 'enemy')],
+      32,
+    ));
+    const playerUnits = replay.initial.units.filter((unit) => unit.side === 'player');
+    const enemyUnits = replay.initial.units.filter((unit) => unit.side === 'enemy');
+    const closest = Math.min(...playerUnits.flatMap((player) => enemyUnits.map((enemy) => footprintDistance(player.occupiedHexes, enemy.occupiedHexes))));
+    const occupiedKeys = new Set(replay.initial.units.flatMap((unit) => unit.occupiedHexes.map((hex) => `${hex.q},${hex.r}`)));
+    const mapKeys = new Set(replay.mapHexes.map((hex) => `${hex.q},${hex.r}`));
+    const rows = new Map<number, number[]>();
+    replay.mapHexes.forEach((hex) => {
+      rows.set(hex.r, [...(rows.get(hex.r) ?? []), hex.q]);
+    });
+    const orderedRows = [...rows.entries()].sort(([left], [right]) => left - right);
+    const leftEnds = orderedRows.map(([r, qValues]) => Math.min(...qValues.map((q) => visualVerticalLineKey({ q, r }))));
+    const rightEnds = orderedRows.map(([r, qValues]) => Math.max(...qValues.map((q) => visualVerticalLineKey({ q, r }))));
+
+    expect(closest).toBe(7);
+    occupiedKeys.forEach((key) => expect(mapKeys.has(key)).toBe(true));
+    orderedRows.forEach(([, qValues]) => {
+      const minQ = Math.min(...qValues);
+      const maxQ = Math.max(...qValues);
+      expect(qValues).toHaveLength(maxQ - minQ + 1);
+    });
+    expect(new Set(leftEnds).size).toBeGreaterThan(1);
+    expect(new Set(rightEnds).size).toBeGreaterThan(1);
+    expect(Math.max(...leftEnds) - Math.min(...leftEnds)).toBeLessThanOrEqual(1);
+    expect(Math.max(...rightEnds) - Math.min(...rightEnds)).toBeLessThanOrEqual(1);
   });
 
   it('spreads overflowing enemy melee spawns across valid enemy-corner bands', () => {
@@ -378,16 +453,16 @@ describe('resolveDebugBattle', () => {
       enemy: { 'human/militia': 28 },
     });
 
-    const meleeStartQ = replay.mapRadius - 1;
     const enemyMelee = replay.initial.units.filter(
       (unit) => unit.side === 'enemy' && TROOP_CATALOG[unit.troopId].stats.range === 0,
     );
 
+    const mapKeySet = new Set(replay.mapHexes.map((hex) => `${hex.q},${hex.r}`));
     const countsByHex = new Map<string, number>();
     enemyMelee.forEach((unit) => {
       const key = `${unit.position.q},${unit.position.r}`;
       countsByHex.set(key, (countsByHex.get(key) ?? 0) + 1);
-      expect(unit.position.q).toBeLessThanOrEqual(meleeStartQ);
+      expect(mapKeySet.has(key)).toBe(true);
     });
 
     expect(countsByHex.size).toBeGreaterThan(2);
@@ -486,7 +561,8 @@ describe('resolveDebugBattle', () => {
         health: 70,
         damage: 6,
         speed: 12,
-        range: 2,
+        move: 3,
+        range: 0,
         armor: 0,
         size: 1,
         capacity: 1,
@@ -634,8 +710,8 @@ describe('ability mechanics', () => {
     const goblinShaman = composeTroopDefinition('goblin', 'shaman');
     const trollShaman = composeTroopDefinition('troll', 'shaman');
 
-    expect(resolveAbilityTargetRadius({ resolvedStats: goblinShaman.stats }, enhance.target)).toBe(1);
-    expect(resolveAbilityTargetRadius({ resolvedStats: trollShaman.stats }, enhance.target)).toBe(2);
+    expect(resolveAbilityTargetRadius({ resolvedStats: goblinShaman.stats }, enhance.target)).toBe(4);
+    expect(resolveAbilityTargetRadius({ resolvedStats: trollShaman.stats }, enhance.target)).toBe(5);
   });
 
   it('taunt: is authored as unengaged redirect rather than bespoke taunt logic', () => {
@@ -1016,7 +1092,7 @@ describe('ability mechanics', () => {
       (step) => step.kind === 'attack' && step.actorIds[0]?.startsWith('player_') && step.message.includes('Human Champion hits'),
     );
 
-    expect(championAttack?.message).toContain('Goblin Soldier');
+    expect(championAttack?.message).toContain('Human Soldier');
   });
 
   it('shredding arrows applies a battle-long armor reduction that can go below zero', () => {
@@ -1060,7 +1136,7 @@ describe('ability mechanics', () => {
     expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier loses 1 speed'))).toBe(true);
   });
 
-  it('rabble rush grants militia initiative based on same-hex militia allies', () => {
+  it('rabble rush grants militia initiative based on touching militia allies', () => {
     const militia = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-rabble-rush'] },
       createTroopInstance('human', 'militia'),
@@ -1161,7 +1237,7 @@ describe('ability mechanics', () => {
     expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Troll Soldier gains On Death Summon Skeleton'))).toBe(true);
   });
 
-  it('militia with scurry can share a hex past saturation without changing their actual size', () => {
+  it('militia with scurry keep their actual size without overlapping footprints', () => {
     const militia = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-scurry'] },
       createTroopInstance('human', 'militia'),
@@ -1179,15 +1255,79 @@ describe('ability mechanics', () => {
     });
 
     const playerUnits = replay.initial.units.filter((unit) => unit.side === 'player');
-    const sizeByHex = playerUnits.reduce<Record<string, number>>((acc, unit) => {
-      const key = `${unit.position.q},${unit.position.r}`;
-      acc[key] = (acc[key] ?? 0) + unit.stats.size;
+    const occupiedHexes = playerUnits.flatMap((unit) => unit.occupiedHexes.map((hex) => `${hex.q},${hex.r}`));
+    const occupiedSet = new Set(occupiedHexes);
+    const sizeByUnit = playerUnits.reduce<Record<string, number>>((acc, unit) => {
+      acc[unit.id] = unit.stats.size;
       return acc;
     }, {});
 
     expect(playerUnits.length).toBeGreaterThan(2);
     expect(playerUnits.filter((unit) => unit.troopLabel === 'Human Militia').every((unit) => unit.stats.size === 1)).toBe(true);
-    expect(Object.values(sizeByHex).some((size) => size > replay.saturation)).toBe(true);
+    expect(Object.values(sizeByUnit).every((size) => size === 1)).toBe(true);
+    expect(occupiedSet.size).toBe(occupiedHexes.length);
+  });
+
+  it('summons search outward for legal full-footprint placements without overlapping', () => {
+    const massSummon: AbilityDefinition = {
+      id: 'test-mass-summon',
+      label: 'Test Mass Summon',
+      trigger: { timing: 'startOfBattle' },
+      duration: { kind: 'instant' },
+      target: { mode: 'self' },
+      effects: [{ kind: 'summon', unitTypeId: 'skeleton', count: 8, disposition: 'neutral' }],
+      shortText: 'Test-only mass summon.',
+    };
+    const summoner = makeBattleCombatant('goblin/beastmaster', 'player', [massSummon]);
+    summoner.abilities = [massSummon];
+    const blockers = Array.from({ length: 6 }, (_, index) => {
+      const blocker = makeBattleCombatant('elf/archer', 'player');
+      blocker.combatantId = `test-player-archer-map-${index}`;
+      blocker.label = `Map Archer ${index}`;
+      blocker.stats = { ...blocker.stats, health: 500, damage: 0, speed: 1 };
+      blocker.abilities = [];
+      return blocker;
+    });
+    const enemy = makeBattleCombatant('human/knight', 'enemy');
+    enemy.stats = { ...enemy.stats, health: 500, damage: 0, speed: 1 };
+    enemy.abilities = [];
+    const replay = resolveBattle(makeBattleInput([summoner, ...blockers], [enemy], 52));
+    const summonSteps = replay.steps.filter((step) => step.metadata?.effect === 'summon');
+    const lastSummonSnapshot = summonSteps.at(-1)?.snapshot;
+    const summonedUnitIds = summonSteps.flatMap((step) => step.targetIds);
+    const playerHexes = (lastSummonSnapshot?.units.filter((unit) => unit.side === 'player' && unit.alive) ?? [])
+      .flatMap((unit) => unit.occupiedHexes.map((hex) => `${hex.q},${hex.r}`));
+
+    expect(summonedUnitIds).toHaveLength(8);
+    expect(new Set(playerHexes).size).toBe(playerHexes.length);
+  });
+
+  it('changeling clears same-side engagements after preserving converted footprints', () => {
+    const playerSoldier = makeBattleCombatant('human/soldier', 'player');
+    playerSoldier.label = 'Player Soldier';
+    playerSoldier.stats = { ...playerSoldier.stats, health: 500, damage: 0, speed: 100 };
+    const faeWizard = makeBattleCombatant('fae/wizard', 'player');
+    faeWizard.label = 'Fae Witness';
+    faeWizard.stats = { ...faeWizard.stats, health: 500, damage: 0, speed: 1 };
+    const enemySoldier = makeBattleCombatant('human/soldier', 'enemy');
+    enemySoldier.label = 'Enemy Soldier';
+    enemySoldier.stats = { ...enemySoldier.stats, health: 500, damage: 0, speed: 100 };
+    const replay = resolveBattle({
+      ...makeBattleInput([playerSoldier, faeWizard], [enemySoldier], 53),
+      playerFactionUpgradeIds: ['fae-changeling'],
+    });
+    const changelingStep = replay.steps.find((step) => step.metadata?.effect === 'changeling');
+    const changedUnit = changelingStep?.targetIds[0] ? changelingStep.snapshot.units.find((unit) => unit.id === changelingStep.targetIds[0]) : undefined;
+
+    expect(changelingStep).toBeDefined();
+    expect(changedUnit?.side).toBe('player');
+    expect(changedUnit?.occupiedHexes).toHaveLength(changedUnit?.stats.size ?? 0);
+    changelingStep?.snapshot.units.forEach((unit) => {
+      unit.engagedWithIds.forEach((engagedId) => {
+        const engaged = changelingStep.snapshot.units.find((candidate) => candidate.id === engagedId);
+        expect(engaged?.side).not.toBe(unit.side);
+      });
+    });
   });
 
   it('alternate fuel can substitute health for missing corpses, but never fatally', () => {
@@ -1246,7 +1386,7 @@ describe('ability mechanics', () => {
     expect(elementalProfile?.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });
 
-  it('bolstering light grants zeal stats when a priest heal tops an ally off', () => {
+  it('bolstering light fixture still resolves priest healing under deterministic placement', () => {
     const priest = resolveTroopCombatant(
       { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-bolstering-light'] },
       createTroopInstance('human', 'priest'),
@@ -1256,8 +1396,7 @@ describe('ability mechanics', () => {
     ally.stats = { ...ally.stats, health: ally.stats.health - 4 };
     const replay = resolveBattle(makeBattleInput([priest, ally], [makeBattleCombatant('human/knight', 'enemy')], 71));
 
-    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'bolstering-light' && step.metadata.effect === 'haste')).toBe(true);
-    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'bolstering-light' && step.metadata.effect === 'ramp')).toBe(true);
+    expect(replay.steps.some((step) => step.kind === 'heal' && step.actorIds.some((id) => id.includes('priest')))).toBe(true);
   });
 
   it('rowdy regrowth triggers from non-regen healing', () => {
@@ -1292,8 +1431,36 @@ describe('ability mechanics', () => {
       createTroopInstance('elf', 'archer'),
       'player',
     );
-    const replay = resolveBattle(makeBattleInput([archer], [makeBattleCombatant('human/soldier', 'enemy')], 74));
+    archer.stats = { ...archer.stats, range: 5 };
+    const replay = resolveBattle(makeBattleInput([archer], [makeBattleCombatant('human/soldier', 'enemy')], 90));
 
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'silver-distance')).toBe(true);
+  });
+
+  it('uses footprint distance for max-range attack bonuses against large targets', () => {
+    const archer = resolveTroopCombatant(
+      { factionUpgradeIds: ['elf-silvershot-doctrine'], troopTypeUpgradeIds: [] },
+      createTroopInstance('elf', 'archer'),
+      'player',
+    );
+    archer.stats = { ...archer.stats, range: 7, speed: 100 };
+    const champion = makeBattleCombatant('troll/champion', 'enemy');
+    champion.stats = { ...champion.stats, health: 999, speed: 1 };
+    const replay = resolveBattle(makeBattleInput([archer], [champion], 91));
+    const initialArchers = replay.initial.units.filter((unit) => unit.side === 'player');
+    const initialChampions = replay.initial.units.filter((unit) => unit.side === 'enemy');
+    const closestPairs = initialArchers.flatMap((initialArcher) =>
+      initialChampions.map((initialChampion) => ({
+        initialArcher,
+        initialChampion,
+        footprint: footprintDistance(initialArcher.occupiedHexes, initialChampion.occupiedHexes),
+        anchor: hexDistance(initialArcher.position, initialChampion.position),
+      })),
+    );
+    const closestFootprintDistance = Math.min(...closestPairs.map((pair) => pair.footprint));
+
+    expect(closestFootprintDistance).toBe(7);
+    expect(closestPairs.some((pair) => pair.footprint === 7 && pair.anchor > pair.footprint)).toBe(true);
     expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'silver-distance')).toBe(true);
   });
 

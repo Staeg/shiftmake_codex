@@ -10,13 +10,14 @@ import {
   Texture,
 } from 'pixi.js';
 import type { BattleReplay, BattleStep, BattleUnit, HexCoord } from '../engine/types';
+import { footprintCenter, hexKey } from '../engine/hex';
 
 import projectileUrl from '../assets/sprites/projectile.svg';
 import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../presentation/iconAssets';
 import { loadFactionUnitTextures } from './unitVisuals';
 import type { BattleReportDiagnostic } from '../engine/types';
 
-const HEX_SIZE = 42;
+const HEX_SIZE = 30;
 const UNIT_PIXEL_SIZE = 32;
 const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -33,6 +34,14 @@ const MAX_ZOOM_FACTOR = 3;
 const ZOOM_STEP_FACTOR = 1.18;
 const DRAG_THRESHOLD_PX = 6;
 const OUTLINE_GOLD = { r: 0.95, g: 0.69, b: 0.17 };
+const HEX_EDGE_DIRS: HexCoord[] = [
+  { q: 1, r: 0 },
+  { q: 0, r: 1 },
+  { q: -1, r: 1 },
+  { q: -1, r: 0 },
+  { q: 0, r: -1 },
+  { q: 1, r: -1 },
+];
 
 type PixelPoint = { x: number; y: number };
 type LayoutResult = {
@@ -76,8 +85,15 @@ function getUnitById(units: BattleUnit[], id: string): BattleUnit | undefined {
   return units.find((unit) => unit.id === id);
 }
 
-function hexKey(coord: HexCoord): string {
-  return `${coord.q},${coord.r}`;
+
+function hexCorners(center: PixelPoint, radius = HEX_SIZE): PixelPoint[] {
+  return Array.from({ length: 6 }, (_, i) => {
+    const angle = (Math.PI / 180) * (60 * i - 30);
+    return {
+      x: center.x + radius * Math.cos(angle),
+      y: center.y + radius * Math.sin(angle),
+    };
+  });
 }
 
 function animate(
@@ -155,6 +171,53 @@ function densityScaleForHexUnitCount(unitCount: number): number {
   return Math.max(0.62, compressed);
 }
 
+function footprintPixelBounds(occupiedHexes: HexCoord[]): Bounds {
+  const bounds: Bounds = {
+    minX: Number.POSITIVE_INFINITY,
+    maxX: Number.NEGATIVE_INFINITY,
+    minY: Number.POSITIVE_INFINITY,
+    maxY: Number.NEGATIVE_INFINITY,
+  };
+  occupiedHexes.forEach((hex) => {
+    hexCorners(axialToPixel(hex), HEX_SIZE - 1).forEach((corner) => {
+      bounds.minX = Math.min(bounds.minX, corner.x);
+      bounds.maxX = Math.max(bounds.maxX, corner.x);
+      bounds.minY = Math.min(bounds.minY, corner.y);
+      bounds.maxY = Math.max(bounds.maxY, corner.y);
+    });
+  });
+  if (occupiedHexes.length === 0) {
+    return { minX: -HEX_SIZE, maxX: HEX_SIZE, minY: -HEX_SIZE, maxY: HEX_SIZE };
+  }
+  return bounds;
+}
+
+function unitFootprintVisualTransform(unit: BattleUnit): { scale: number; offset: PixelPoint } {
+  const occupiedHexes = unit.occupiedHexes.length > 0 ? unit.occupiedHexes : [unit.position];
+  if (unit.stats.size <= 1 || occupiedHexes.length <= 1) {
+    return { scale: 1, offset: { x: 0, y: 0 } };
+  }
+  const center = axialToPixel(footprintCenter(occupiedHexes));
+  const bounds = footprintPixelBounds(occupiedHexes);
+  const fitWidth = Math.max(UNIT_PIXEL_SIZE, 2 * Math.min(center.x - bounds.minX, bounds.maxX - center.x));
+  const fitHeight = Math.max(UNIT_PIXEL_SIZE, 2 * Math.min(center.y - bounds.minY, bounds.maxY - center.y));
+  const fittedSize = Math.min(fitWidth, fitHeight) * 0.94;
+  let scale = Math.min(5.8, Math.max(1, fittedSize / UNIT_PIXEL_SIZE));
+  const offset: PixelPoint = { x: 0, y: 0 };
+
+  if ((unit.stats.size === 2 || unit.stats.size === 4) && unit.footprintOrientation === 'north') {
+    offset.y = -HEX_SIZE * (unit.stats.size === 2 ? 0.18 : 0.12);
+    scale *= unit.stats.size === 2 ? 0.97 : 0.98;
+  }
+
+  return { scale, offset };
+}
+
+function unitVisualPosition(unit: BattleUnit, position: PixelPoint): PixelPoint {
+  const offset = unitFootprintVisualTransform(unit).offset;
+  return { x: position.x + offset.x, y: position.y + offset.y };
+}
+
 export class BattleRenderer {
   private app: Application;
 
@@ -163,6 +226,8 @@ export class BattleRenderer {
   private worldLayer = new Container();
 
   private boardLayer = new Container();
+
+  private footprintLayer = new Container();
 
   private unitLayer = new Container();
 
@@ -183,6 +248,8 @@ export class BattleRenderer {
   private unitOutlines = new Map<string, Container<Sprite>>();
 
   private targetMarkers = new Map<string, Graphics>();
+
+  private unitFootprints = new Map<string, Graphics>();
 
   private replay: BattleReplay | null = null;
 
@@ -207,8 +274,6 @@ export class BattleRenderer {
   private isAutoPlayback = false;
 
   private playbackSpeedMs = BASE_STEP_MS;
-
-  private currentMapRadius = 0;
 
   private boardBounds: Bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
@@ -246,7 +311,7 @@ export class BattleRenderer {
     this.tutorialUnitTargetLayer.className = 'battle-tutorial-unit-targets';
     this.tutorialUnitTargetLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.tutorialUnitTargetLayer);
-    this.worldLayer.addChild(this.boardLayer, this.unitLayer, this.effectLayer);
+    this.worldLayer.addChild(this.boardLayer, this.footprintLayer, this.unitLayer, this.effectLayer);
     this.app.stage.addChild(this.worldLayer);
     this.app.stage.eventMode = 'static';
     this.syncStageHitArea();
@@ -319,9 +384,8 @@ export class BattleRenderer {
     this.layoutCache = new WeakMap();
     this.troopProfileMap = new Map(replay.troopProfiles.map((p) => [`${p.side}:${p.troopLabel}`, p]));
     this.currentStep = -1;
-    this.currentMapRadius = replay.mapRadius;
     this.clearLayers();
-    this.drawBoard(replay.mapRadius);
+    this.drawBoard(this.mapHexesForReplay(replay));
     this.resetCameraToFit();
     this.mountUnitSprites(replay.initial.units);
     this.renderSnapshot(replay.initial.units);
@@ -336,7 +400,7 @@ export class BattleRenderer {
   }
 
   resetZoom(): void {
-    if (!this.currentMapRadius) {
+    if (!this.replay) {
       return;
     }
 
@@ -348,7 +412,7 @@ export class BattleRenderer {
   refreshViewport(): void {
     this.syncStageHitArea();
 
-    if (!this.currentMapRadius) {
+    if (!this.replay) {
       this.applyCameraTransform();
       return;
     }
@@ -425,6 +489,7 @@ export class BattleRenderer {
   private clearLayers(): void {
     this.clearEffects();
     this.boardLayer.removeChildren();
+    this.footprintLayer.removeChildren();
     this.unitLayer.removeChildren();
     this.unitSprites.clear();
     this.tutorialUnitTargetLayer.replaceChildren();
@@ -434,6 +499,7 @@ export class BattleRenderer {
     this.fadingUnitIds.clear();
     this.unitOutlines.clear();
     this.targetMarkers.clear();
+    this.unitFootprints.clear();
   }
 
   private reportDiagnostic(diagnostic: BattleReportDiagnostic): void {
@@ -444,34 +510,47 @@ export class BattleRenderer {
     });
   }
 
-  private drawBoard(radius: number): void {
-    const root = new Container();
-    this.boardBounds = this.computeBoardBounds(radius);
-
-    for (let q = -radius; q <= radius; q += 1) {
-      const rMin = Math.max(-radius, -q - radius);
-      const rMax = Math.min(radius, -q + radius);
+  private mapHexesForReplay(replay: BattleReplay): HexCoord[] {
+    if (replay.mapHexes.length > 0) {
+      return replay.mapHexes;
+    }
+    const hexes: HexCoord[] = [];
+    for (let q = -replay.mapRadius; q <= replay.mapRadius; q += 1) {
+      const rMin = Math.max(-replay.mapRadius, -q - replay.mapRadius);
+      const rMax = Math.min(replay.mapRadius, -q + replay.mapRadius);
       for (let r = rMin; r <= rMax; r += 1) {
-        const center = axialToPixel({ q, r });
-        const hex = new Graphics();
-        hex.lineStyle(1, 0x2a3036, 1);
-        hex.beginFill(0x171c20, 0.85);
-
-        for (let i = 0; i < 6; i += 1) {
-          const angle = (Math.PI / 180) * (60 * i - 30);
-          const x = center.x + HEX_SIZE * Math.cos(angle);
-          const y = center.y + HEX_SIZE * Math.sin(angle);
-          if (i === 0) {
-            hex.moveTo(x, y);
-          } else {
-            hex.lineTo(x, y);
-          }
-        }
-        hex.closePath();
-        hex.endFill();
-        root.addChild(hex);
+        hexes.push({ q, r });
       }
     }
+    return hexes;
+  }
+
+  private drawHex(graphics: Graphics, center: PixelPoint, fill: number, fillAlpha: number, stroke: number, strokeAlpha: number, radius = HEX_SIZE): void {
+    graphics.lineStyle(1, stroke, strokeAlpha);
+    graphics.beginFill(fill, fillAlpha);
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (Math.PI / 180) * (60 * i - 30);
+      const x = center.x + radius * Math.cos(angle);
+      const y = center.y + radius * Math.sin(angle);
+      if (i === 0) {
+        graphics.moveTo(x, y);
+      } else {
+        graphics.lineTo(x, y);
+      }
+    }
+    graphics.closePath();
+    graphics.endFill();
+  }
+
+  private drawBoard(mapHexes: HexCoord[]): void {
+    const root = new Container();
+    this.boardBounds = this.computeBoardBounds(mapHexes);
+
+    mapHexes.forEach((coord) => {
+      const hex = new Graphics();
+      this.drawHex(hex, axialToPixel(coord), 0x171c20, 0.85, 0x2a3036, 1);
+      root.addChild(hex);
+    });
 
     this.boardLayer.addChild(root);
   }
@@ -522,6 +601,12 @@ export class BattleRenderer {
       this.unitLayer.addChild(sprite);
       this.unitSprites.set(unit.id, sprite);
       this.unitBaseScales.set(unit.id, baseScale);
+
+      const footprint = new Graphics();
+      footprint.visible = false;
+      this.footprintLayer.addChild(footprint);
+      this.unitFootprints.set(unit.id, footprint);
+
       const tutorialTarget = document.createElement('span');
       tutorialTarget.className = 'battle-tutorial-unit-target';
       tutorialTarget.dataset.tutorialTarget = 'battlefield-unit';
@@ -622,6 +707,33 @@ export class BattleRenderer {
     marker.lineTo(0, 9);
   }
 
+  private drawUnitFootprint(graphics: Graphics, unit: BattleUnit): void {
+    const occupiedHexes = unit.occupiedHexes.length > 0 ? unit.occupiedHexes : [unit.position];
+    const fill = unit.side === 'player' ? 0x3f8ed8 : 0xd85f54;
+    const stroke = unit.side === 'player' ? 0x9ccaf6 : 0xf3aaa3;
+    const occupiedKeys = new Set(occupiedHexes.map(hexKey));
+    graphics.clear();
+    occupiedHexes.forEach((hex) => {
+      this.drawHex(graphics, axialToPixel(hex), fill, unit.stats.size > 1 ? 0.19 : 0.16, fill, 0, HEX_SIZE + 0.35);
+    });
+    occupiedHexes.forEach((hex) => {
+      const corners = hexCorners(axialToPixel(hex), HEX_SIZE + 0.35);
+      HEX_EDGE_DIRS.forEach((dir, index) => {
+        const neighborKey = hexKey({ q: hex.q + dir.q, r: hex.r + dir.r });
+        if (occupiedKeys.has(neighborKey)) {
+          return;
+        }
+        const start = corners[index]!;
+        const end = corners[(index + 1) % 6]!;
+        graphics.lineStyle(unit.stats.size > 1 ? 1.6 : 1, stroke, unit.stats.size > 1 ? 0.38 : 0.22);
+        graphics.moveTo(start.x, start.y);
+        graphics.lineTo(end.x, end.y);
+      });
+    });
+    graphics.visible = true;
+    graphics.alpha = 1;
+  }
+
   private setOutlineScale(outline: Container<Sprite>, xScale: number, yScale: number): void {
     outline.children.forEach((copy) => {
       copy.scale.set(xScale, yScale);
@@ -640,6 +752,16 @@ export class BattleRenderer {
 
   private buildDisplayLayout(units: BattleUnit[]): LayoutResult {
     const aliveUnits = units.filter((unit) => unit.alive);
+    if (aliveUnits.every((unit) => unit.occupiedHexes.length > 0)) {
+      const positions = new Map<string, PixelPoint>();
+      const densityScales = new Map<string, number>();
+      aliveUnits.forEach((unit) => {
+        positions.set(unit.id, axialToPixel(footprintCenter(unit.occupiedHexes)));
+        densityScales.set(unit.id, 1);
+      });
+      return { positions, densityScales };
+    }
+
     const byHex = new Map<string, Set<'player' | 'enemy'>>();
     const byHexCount = new Map<string, number>();
     const byHexAndSide = new Map<string, BattleUnit[]>();
@@ -706,6 +828,7 @@ export class BattleRenderer {
       const sprite = this.unitSprites.get(unit.id);
       const outline = this.unitOutlines.get(unit.id);
       const targetMarker = this.targetMarkers.get(unit.id);
+      const footprint = this.unitFootprints.get(unit.id);
       if (!sprite || !outline || !targetMarker) {
         return;
       }
@@ -715,16 +838,23 @@ export class BattleRenderer {
         sprite.alpha = 0;
         outline.visible = false;
         targetMarker.visible = false;
+        if (footprint) {
+          footprint.visible = false;
+        }
         return;
       }
 
+      if (footprint) {
+        this.drawUnitFootprint(footprint, unit);
+      }
       const pos = layout.positions.get(unit.id) ?? axialToPixel(unit.position);
       const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
       const densityScale = layout.densityScales.get(unit.id) ?? 1;
-      const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale;
-      const yScale = baseScale * densityScale;
+      const visualTransform = unitFootprintVisualTransform(unit);
+      const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualTransform.scale;
+      const yScale = baseScale * densityScale * visualTransform.scale;
 
-      sprite.position.set(pos.x, pos.y);
+      sprite.position.set(pos.x + visualTransform.offset.x, pos.y + visualTransform.offset.y);
       outline.position.set(sprite.x, sprite.y);
       targetMarker.position.set(sprite.x, sprite.y);
       targetMarker.scale.set(densityScale);
@@ -784,7 +914,7 @@ export class BattleRenderer {
         if (!fallen) {
           return;
         }
-        const position = prevLayout.positions.get(fallen.id) ?? nextLayout.positions.get(fallen.id) ?? axialToPixel(fallen.position);
+        const position = unitVisualPosition(fallen, prevLayout.positions.get(fallen.id) ?? nextLayout.positions.get(fallen.id) ?? axialToPixel(fallen.position));
         const densityScale = prevLayout.densityScales.get(fallen.id) ?? nextLayout.densityScales.get(fallen.id) ?? 1;
         this.stopEffects.push(this.fadeOutUnit(fallen, position, densityScale, this.deathFadeDurationMs()));
       });
@@ -823,7 +953,7 @@ export class BattleRenderer {
       const durationMs = this.attackEffectDurationMs();
       this.stopEffects.push(this.jumpUnit(actor.id, durationMs));
 
-      const actorPos = prevLayout.positions.get(actor.id) ?? nextLayout.positions.get(actor.id) ?? axialToPixel(actor.position);
+      const actorPos = unitVisualPosition(actor, prevLayout.positions.get(actor.id) ?? nextLayout.positions.get(actor.id) ?? axialToPixel(actor.position));
       const targets = step.targetIds
         .map((targetId) => getUnitById(prevUnits, targetId) ?? getUnitById(nextUnits, targetId))
         .filter((unit): unit is BattleUnit => Boolean(unit));
@@ -832,7 +962,7 @@ export class BattleRenderer {
       const hitFlashDurationMs = this.scalePlaybackDuration(420);
 
       targets.forEach((target) => {
-        const targetPos = prevLayout.positions.get(target.id) ?? nextLayout.positions.get(target.id) ?? axialToPixel(target.position);
+        const targetPos = unitVisualPosition(target, prevLayout.positions.get(target.id) ?? nextLayout.positions.get(target.id) ?? axialToPixel(target.position));
         if (target.alive) {
           this.stopEffects.push(
             this.holdUnitAtAttackPose(
@@ -879,11 +1009,11 @@ export class BattleRenderer {
         return;
       }
 
-      const start = prevLayout.positions.get(previousUnit.id) ?? axialToPixel(previousUnit.position);
-      const end = nextLayout.positions.get(nextUnit.id) ?? axialToPixel(nextUnit.position);
+      const start = unitVisualPosition(previousUnit, prevLayout.positions.get(previousUnit.id) ?? axialToPixel(previousUnit.position));
+      const end = unitVisualPosition(nextUnit, nextLayout.positions.get(nextUnit.id) ?? axialToPixel(nextUnit.position));
       const routedAround =
-        typeof step.metadata?.routedAroundSaturatedQ === 'number' && typeof step.metadata.routedAroundSaturatedR === 'number'
-          ? { q: step.metadata.routedAroundSaturatedQ, r: step.metadata.routedAroundSaturatedR }
+        typeof step.metadata?.routedAroundBlockedQ === 'number' && typeof step.metadata.routedAroundBlockedR === 'number'
+          ? { q: step.metadata.routedAroundBlockedQ, r: step.metadata.routedAroundBlockedR }
           : null;
       const waypoint = routedAround ? sharedHexVertex(previousUnit.position, nextUnit.position, routedAround) : null;
 
@@ -904,13 +1034,15 @@ export class BattleRenderer {
     const sprite = this.unitSprites.get(unit.id);
     const outline = this.unitOutlines.get(unit.id);
     const targetMarker = this.targetMarkers.get(unit.id);
+    const footprint = this.unitFootprints.get(unit.id);
     if (!sprite) {
       return () => {};
     }
 
     const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
-    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale;
-    const yScale = baseScale * densityScale;
+    const visualScale = unitFootprintVisualTransform(unit).scale;
+    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualScale;
+    const yScale = baseScale * densityScale * visualScale;
     const driftDirection = unit.side === 'enemy' ? 1 : -1;
     const driftX = UNIT_PIXEL_SIZE * 1.2 * driftDirection;
     const launchHeight = UNIT_PIXEL_SIZE * 4.2;
@@ -931,6 +1063,9 @@ export class BattleRenderer {
     if (targetMarker) {
       targetMarker.visible = false;
       targetMarker.alpha = 0;
+    }
+    if (footprint) {
+      footprint.visible = false;
     }
     this.syncUnitAdornments(unit.id, sprite.x, sprite.y);
 
@@ -1034,8 +1169,9 @@ export class BattleRenderer {
       markerAlpha: targetMarker?.alpha ?? 0,
     };
     const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
-    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale;
-    const yScale = baseScale * densityScale;
+    const visualScale = unitFootprintVisualTransform(unit).scale;
+    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualScale;
+    const yScale = baseScale * densityScale * visualScale;
 
     sprite.visible = true;
     sprite.alpha = 1;
@@ -1565,6 +1701,7 @@ export class BattleRenderer {
     this.unitSprites.forEach((sprite, unitId) => {
       const outline = this.unitOutlines.get(unitId);
       const targetMarker = this.targetMarkers.get(unitId);
+      const footprint = this.unitFootprints.get(unitId);
       const alive = this.unitAlive.get(unitId) ?? false;
       if (!alive) {
         if (this.fadingUnitIds.has(unitId)) {
@@ -1574,6 +1711,9 @@ export class BattleRenderer {
           if (targetMarker) {
             targetMarker.visible = false;
           }
+          if (footprint) {
+            footprint.visible = false;
+          }
           return;
         }
         sprite.visible = false;
@@ -1582,6 +1722,9 @@ export class BattleRenderer {
         }
         if (targetMarker) {
           targetMarker.visible = false;
+        }
+        if (footprint) {
+          footprint.visible = false;
         }
         return;
       }
@@ -1606,7 +1749,7 @@ export class BattleRenderer {
     });
   }
 
-  private computeBoardBounds(radius: number): Bounds {
+  private computeBoardBounds(mapHexes: HexCoord[]): Bounds {
     const hexExtentX = HEX_SIZE * Math.cos(Math.PI / 6);
     const hexExtentY = HEX_SIZE;
     const bounds: Bounds = {
@@ -1616,16 +1759,16 @@ export class BattleRenderer {
       maxY: Number.NEGATIVE_INFINITY,
     };
 
-    for (let q = -radius; q <= radius; q += 1) {
-      const rMin = Math.max(-radius, -q - radius);
-      const rMax = Math.min(radius, -q + radius);
-      for (let r = rMin; r <= rMax; r += 1) {
-        const center = axialToPixel({ q, r });
-        bounds.minX = Math.min(bounds.minX, center.x - hexExtentX);
-        bounds.maxX = Math.max(bounds.maxX, center.x + hexExtentX);
-        bounds.minY = Math.min(bounds.minY, center.y - hexExtentY);
-        bounds.maxY = Math.max(bounds.maxY, center.y + hexExtentY);
-      }
+    mapHexes.forEach((hex) => {
+      const center = axialToPixel(hex);
+      bounds.minX = Math.min(bounds.minX, center.x - hexExtentX);
+      bounds.maxX = Math.max(bounds.maxX, center.x + hexExtentX);
+      bounds.minY = Math.min(bounds.minY, center.y - hexExtentY);
+      bounds.maxY = Math.max(bounds.maxY, center.y + hexExtentY);
+    });
+
+    if (mapHexes.length === 0) {
+      return { minX: -hexExtentX, maxX: hexExtentX, minY: -hexExtentY, maxY: hexExtentY };
     }
 
     return bounds;
@@ -1660,10 +1803,12 @@ export class BattleRenderer {
   }
 
   private applyCameraTransform(): void {
+    const boardCenterX = (this.boardBounds.minX + this.boardBounds.maxX) / 2;
+    const boardCenterY = (this.boardBounds.minY + this.boardBounds.maxY) / 2;
     this.worldLayer.scale.set(this.zoom);
     this.worldLayer.position.set(
-      this.app.screen.width / 2 + this.cameraOffset.x,
-      this.app.screen.height / 2 + this.cameraOffset.y,
+      this.app.screen.width / 2 + this.cameraOffset.x - boardCenterX * this.zoom,
+      this.app.screen.height / 2 + this.cameraOffset.y - boardCenterY * this.zoom,
     );
     this.syncTutorialUnitTargets();
   }

@@ -11,7 +11,7 @@ You build a mixed-faction army, preview visible Rifts, assign troops, draft new 
 1. Start a Campaign, Ladder, or Contest vs AI run from one of three save slots.
 2. Pick two free opening factions from the opening offer. Each faction option includes one specific starting troop type; the player chooses the faction, not the troop type.
 3. Enter the planning screen for the current cycle.
-4. Inspect visible Rifts, their mutators, enemy troops, saturation limit, and VP reward directly from the board.
+4. Inspect visible Rifts, their mutators, enemy troops, capacity metadata, and VP reward directly from the board.
 5. Spend carried Essence on troop and upgrade draft claims.
 6. Assign every ready troop to Rifts.
 7. End the cycle to auto-resolve all assigned Rift battles.

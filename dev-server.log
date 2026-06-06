@@ -1,0 +1,40 @@
+
+> shiftmake@0.1.0 dev
+> vite --host 127.0.0.1 --port 5176
+
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m596[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5176[22m/[39m
+[2m12:50:49[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/hex.ts[22m
+[2m12:51:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m12:51:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m12:51:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m12:51:22[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:51:27[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:51:35[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:51:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:51:44[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:51:49[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:51:55[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:04[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:10[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:13[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:18[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:25[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:30[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:37[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m12:52:43[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m16:03:47[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m16:03:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:04:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte, /src/ui/StatBreakdownGrid.svelte, /src/ui/UnitTooltip.svelte[22m
+[2m16:04:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/StatBreakdownGrid.svelte[22m
+[2m16:06:45[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m16:11:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:12:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:24:20[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/engine/battle.ts[22m
+[2m16:24:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:56:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:57:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:57:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m
+[2m16:57:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/ui/App.svelte[22m

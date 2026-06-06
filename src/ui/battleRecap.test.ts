@@ -102,7 +102,7 @@ describe('battleRecap', () => {
 
   it('maps replay role intent metadata into troop roleSummary labels', () => {
     const playerFrontline = makeUnit('p-frontline', 'player', 'Shield Wall');
-    const playerChaff = makeUnit('p-chaff', 'player', 'Militia Swarm', true, 'chaff');
+    const playerPusher = makeUnit('p-pusher', 'player', 'Militia Swarm', true, 'pusher');
     const playerBackline = makeUnit('p-backline', 'player', 'Rangers', true, 'backline');
     const enemy = makeUnit('e-1', 'enemy', 'Raiders');
     const replay: BattleReplay = {
@@ -113,7 +113,7 @@ describe('battleRecap', () => {
       mutatorIds: [],
       mapRadius: 2,
       saturation: 2,
-      initial: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+      initial: { units: [playerFrontline, playerPusher, playerBackline, enemy] },
       steps: [
         {
           index: 0,
@@ -122,16 +122,16 @@ describe('battleRecap', () => {
           targetIds: ['e-1'],
           message: 'frontline screens',
           metadata: { roleIntent: 'screen-frontline' },
-          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+          snapshot: { units: [playerFrontline, playerPusher, playerBackline, enemy] },
         },
         {
           index: 1,
           kind: 'engage',
-          actorIds: ['p-chaff'],
+          actorIds: ['p-pusher'],
           targetIds: ['e-1'],
-          message: 'chaff breaches',
+          message: 'Pusher breaches',
           metadata: { roleIntent: 'breach-backline' },
-          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+          snapshot: { units: [playerFrontline, playerPusher, playerBackline, enemy] },
         },
         {
           index: 2,
@@ -140,16 +140,16 @@ describe('battleRecap', () => {
           targetIds: [],
           message: 'backline retreats',
           metadata: { roleIntent: 'retreat-range' },
-          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+          snapshot: { units: [playerFrontline, playerPusher, playerBackline, enemy] },
         },
         {
           index: 3,
           kind: 'move',
-          actorIds: ['p-chaff'],
+          actorIds: ['p-pusher'],
           targetIds: ['e-1'],
-          message: 'chaff holds',
+          message: 'Pusher holds',
           metadata: { roleIntent: 'hold-backline' },
-          snapshot: { units: [playerFrontline, playerChaff, playerBackline, enemy] },
+          snapshot: { units: [playerFrontline, playerPusher, playerBackline, enemy] },
         },
       ],
       outcome: 'victory',

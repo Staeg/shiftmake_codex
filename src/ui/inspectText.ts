@@ -2,6 +2,7 @@ import type { AbilityDefinition, AbilityEffectDefinition, AbilityTargetDefinitio
 import { getUnitType } from '../engine/unitCatalog';
 
 export const STAT_ICONS: Record<ExplainedStatKey, string> = {
+  move: '🥾',
   health: '❤️',
   damage: '⚔️',
   speed: '⚡',
@@ -25,6 +26,7 @@ export function replaceStatWordsWithIcons(text: string): string {
     .replace(/\bhealth\b/gi, STAT_ICONS.health)
     .replace(/\bdamage\b/gi, STAT_ICONS.damage)
     .replace(/\bspeed\b/gi, STAT_ICONS.speed)
+    .replace(/\bmove\b/gi, STAT_ICONS.move)
     .replace(/\brange\b/gi, STAT_ICONS.range)
     .replace(/\barmor\b/gi, STAT_ICONS.armor)
     .replace(/\bcapacity\b/gi, STAT_ICONS.capacity)
@@ -131,7 +133,7 @@ export function formatRoleExact(role: RoleId): string {
   return {
     frontline:
       'Frontline units block access to allied backline, engage first, and spill into enemy backline when the lane opens.',
-    chaff: 'Chaff units spill into enemy backline whenever possible and stay committed there once they break through.',
-    backline: 'Backline units attack from range and preserve distance when geometry allows instead of holding a crowded hex.',
+    pusher: 'Pusher units spill into enemy backline whenever possible and stay committed there once they break through.',
+    backline: 'Backline units attack from range and preserve distance when geometry allows.',
   }[role];
 }

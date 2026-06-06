@@ -29,7 +29,7 @@ import type {
 
 export const VICTORY_RECOVERY = 1;
 export const DEFEAT_RECOVERY = 1;
-const EXPLAINED_STAT_KEYS: ExplainedStatKey[] = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
+const EXPLAINED_STAT_KEYS: ExplainedStatKey[] = ['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'];
 
 export function createTroopInstance(factionId: FactionId, unitTypeId: UnitTypeId): TroopInstance {
   return {
@@ -342,6 +342,7 @@ export function getResolvedStatBreakdowns(
     health: clampStat('health', unitType.stats.health),
     damage: clampStat('damage', unitType.stats.damage),
     speed: clampStat('speed', unitType.stats.speed),
+    move: clampStat('move', unitType.stats.move),
     armor: clampStat('armor', unitType.stats.armor),
     range: clampStat('range', unitType.stats.range),
     capacity: clampStat('capacity', unitType.stats.capacity),

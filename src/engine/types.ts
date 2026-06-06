@@ -5,7 +5,7 @@ export type TroopTypeId = string;
 export type UpgradeId = string;
 export type AbilityId = string;
 export type MutatorId = string;
-export type RoleId = 'frontline' | 'chaff' | 'backline';
+export type RoleId = 'frontline' | 'pusher' | 'backline';
 export type RoleIntentId =
   | 'screen-frontline'
   | 'fallback-backline'
@@ -15,7 +15,7 @@ export type RoleIntentId =
   | 'advance-range';
 export type SideId = 'player' | 'enemy';
 export type TroopUnlockId = string;
-export type TroopStatKey = 'health' | 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
+export type TroopStatKey = 'health' | 'damage' | 'speed' | 'move' | 'armor' | 'range' | 'capacity';
 export type ExplainedStatKey = TroopStatKey | 'size';
 export type AbilityTiming =
   | 'startOfBattle'
@@ -48,6 +48,7 @@ export interface UnitStats {
   health: number;
   damage: number;
   speed: number;
+  move: number;
   range: number;
   armor: number;
   size: number;
@@ -317,6 +318,8 @@ export interface BattleUnit {
   type: string;
   attributes: string[];
   position: HexCoord;
+  occupiedHexes: HexCoord[];
+  footprintOrientation: 'north' | 'south';
   stats: UnitStats;
   hp: number;
   maxHp: number;
@@ -347,7 +350,7 @@ export interface BattleMovementExplanation {
   targetRole?: RoleId;
   targetHex?: HexCoord;
   destination?: HexCoord;
-  routedAroundSaturatedHex?: HexCoord;
+  routedAroundBlockedHex?: HexCoord;
   keepEnemyInRange?: boolean;
 }
 
@@ -398,8 +401,8 @@ export interface BattleStepMetadata {
   value?: number;
   toQ?: number;
   toR?: number;
-  routedAroundSaturatedQ?: number;
-  routedAroundSaturatedR?: number;
+  routedAroundBlockedQ?: number;
+  routedAroundBlockedR?: number;
   explanation?: BattleStepExplanation;
   [key: string]: number | string | string[] | boolean | BattleStepExplanation | undefined;
 }
@@ -421,6 +424,7 @@ export interface BattleReplay {
   tier: number | null;
   mutatorIds: MutatorId[];
   mapRadius: number;
+  mapHexes: HexCoord[];
   saturation: number;
   initial: BattleStateSnapshot;
   steps: BattleStep[];
@@ -462,7 +466,7 @@ export interface ReplayTroopProfile {
   attributes: string[];
   stats: UnitStats;
   abilities: AbilityDefinition[];
-  statBreakdowns: Record<ExplainedStatKey, StatBreakdown>;
+  statBreakdowns: Partial<Record<ExplainedStatKey, StatBreakdown>>;
 }
 
 export interface StoredReplayPayload {

@@ -1,5 +1,6 @@
 import { resolveBattle } from './battle';
 import { fixed, fixedAdd } from './fixed';
+import { footprintsTouchOrOverlap } from './hex';
 import { clampStat, getAbility, getTroopDefinitionOrThrow, getUnitType } from './unitCatalog';
 import type {
   AbilityDefinition,
@@ -23,7 +24,7 @@ type NumericPercentiles = {
   p90: number;
 };
 
-export type RoleScenarioId = 'frontline-screen' | 'chaff-breach' | 'backline-spacing';
+export type RoleScenarioId = 'frontline-screen' | 'pusher-breach' | 'backline-spacing';
 
 export interface RoleIntentStepFilter {
   actorSide?: SideId;
@@ -131,6 +132,7 @@ function cloneStats(stats: UnitStats): UnitStats {
     health: clampStat('health', stats.health),
     damage: clampStat('damage', stats.damage),
     speed: clampStat('speed', stats.speed),
+    move: clampStat('move', stats.move),
     range: clampStat('range', stats.range),
     armor: clampStat('armor', stats.armor),
     size: clampStat('size', stats.size),
@@ -428,13 +430,13 @@ export function buildRoleScenarioBattleInput(scenarioId: RoleScenarioId, seed: n
           }),
         ],
       );
-    case 'chaff-breach':
+    case 'pusher-breach':
       return buildSimulationBattleInput(
         seed,
         [
           createUnitTypeCombatant('militia', {
-            combatantId: 'player-chaff',
-            label: 'Benchmark Chaff',
+            combatantId: 'player-pusher',
+            label: 'Benchmark Pusher',
             side: 'player',
             stats: { speed: 20 },
             quantity: 1,
@@ -545,7 +547,7 @@ export function extractSimulationMetrics(replay: BattleReplay): SimulationMetric
       const aliveBackline = step.snapshot.units.filter((unit) => unit.alive && unit.role === 'backline');
       const breached = aliveBackline.some((backline) =>
         step.snapshot.units.some(
-          (other) => other.alive && other.side !== backline.side && other.position.q === backline.position.q && other.position.r === backline.position.r,
+          (other) => other.alive && other.side !== backline.side && footprintsTouchOrOverlap(other.occupiedHexes, backline.occupiedHexes),
         ),
       );
       if (breached) {

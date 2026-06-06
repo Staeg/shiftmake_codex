@@ -31,6 +31,7 @@
     health: { name: 'Health', description: 'How much punishment each unit can take before falling.' },
     damage: { name: 'Damage', description: 'How much harm each attack deals before armor and other effects.' },
     speed: { name: 'Speed', description: 'How quickly the unit gains initiative and takes turns.' },
+    move: { name: 'Move', description: 'How many hexes this unit can travel during ordinary movement and special repositioning.' },
     range: { name: 'Range', description: 'How many hexes away the unit can attack from.' },
     armor: { name: 'Armor', description: 'Flat damage reduction applied when the unit is hit.' },
     capacity: { name: 'Capacity', description: 'How many enemies this unit can hold in melee engagement.' },

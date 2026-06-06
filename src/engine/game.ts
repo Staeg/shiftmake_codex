@@ -1339,10 +1339,10 @@ function scoreAiCombatantGroupPower(combatants: ResolvedCombatantDefinition[]): 
 function scoreAiRoleMix(combatants: ResolvedCombatantDefinition[]): number {
   const hasFrontline = combatants.some((combatant) => combatant.role === 'frontline');
   const hasBackline = combatants.some((combatant) => combatant.role === 'backline');
-  const hasChaff = combatants.some((combatant) => combatant.role === 'chaff');
+  const hasPusher = combatants.some((combatant) => combatant.role === 'pusher');
   const hasSupport = combatants.some((combatant) => combatant.attributes.includes('support') || combatant.attributes.includes('healer'));
-  const onlyBacklinePenalty = hasBackline && !hasFrontline && !hasChaff ? -35 : 0;
-  return (hasFrontline ? 30 : -25) + (hasBackline ? 15 : 0) + (hasSupport ? 10 : 0) + (hasChaff ? 8 : 0) + onlyBacklinePenalty;
+  const onlyBacklinePenalty = hasBackline && !hasFrontline && !hasPusher ? -35 : 0;
+  return (hasFrontline ? 30 : -25) + (hasBackline ? 15 : 0) + (hasSupport ? 10 : 0) + (hasPusher ? 8 : 0) + onlyBacklinePenalty;
 }
 
 type StateTroopArray = GameState['troops'];

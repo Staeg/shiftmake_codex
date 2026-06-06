@@ -1,6 +1,20 @@
-import { equalsHex, hexDistance, hexKey, inRadius, neighbors } from './hex';
+import {
+  allHexes,
+  equalsHex,
+  footprintDistance,
+  footprintForSize,
+  footprintsTouchOrOverlap,
+  hexDistance,
+  hexKey,
+  leftmostHex,
+  neighbors,
+  rightmostHex,
+  visualVerticalLineKey,
+  type FootprintOrientation,
+} from './hex';
 import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, formatFixed } from './fixed';
 import { createRng, randomSeed, type Rng } from './rng';
+import { normalizeBattleInput, normalizeRoleId, normalizeUnitStats } from './compat';
 import { clampStat, composeSummonedTroopDefinition, getAbility, getMutator } from './unitCatalog';
 import {
   effectDisposition,
@@ -32,6 +46,7 @@ import type {
   ResolvedCombatantDefinition,
   RoleId,
   SideId,
+  UnitStats,
 } from './types';
 export { resolveAbilityTargetRadius } from './battleAbilityRules';
 export { buildBattleInputFromResolvedCombatants, resolveDebugBattle } from './battleInput';
@@ -63,7 +78,7 @@ type ActiveTimedEffect =
       sourceAbilityId: string;
       sourceUnitId: string;
       remainingTurns: number;
-      stat: 'damage' | 'speed' | 'armor' | 'range' | 'capacity';
+      stat: 'damage' | 'speed' | 'move' | 'armor' | 'range' | 'capacity';
       amountApplied: number;
     }
   | {
@@ -93,20 +108,14 @@ type InternalUnit = {
   type: string;
   attributes: string[];
   position: HexCoord;
+  occupiedHexes: HexCoord[];
+  footprintOrientation: FootprintOrientation;
   hp: number;
   maxHp: number;
   initiative: number;
   alive: boolean;
   engagedWith: Set<string>;
-  resolvedStats: {
-    health: number;
-    damage: number;
-    speed: number;
-    range: number;
-    armor: number;
-    size: number;
-    capacity: number;
-  };
+  resolvedStats: UnitStats;
   resolvedAbilities: RuntimeAbilityState[];
   activeTimedEffects: ActiveTimedEffect[];
   committedBacklineTargetId: string | null;
@@ -149,7 +158,7 @@ interface InternalState {
   summonedProfiles: Map<string, ReplayTroopProfile>;
   steps: BattleStep[];
   mapRadius: number;
-  saturation: number;
+  mapHexes: Set<string>;
   rng: Rng;
   beatCount: number;
   effects: {
@@ -168,15 +177,430 @@ interface InternalState {
   distinctTypeCache: Map<SideId, string[]>;
 }
 
-interface SpawnContext {
-  units: Map<string, InternalUnit>;
-  rng: Rng;
-  saturation: number;
-}
-
 const BASE_MAP_RADIUS = 3;
 const DEFAULT_SATURATION = 10;
 const MAX_BEATS = 1000;
+const MIN_SPAWN_FOOTPRINT_DISTANCE = 2;
+const MIN_MELEE_TO_RANGED_SPAWN_DISTANCE = 3;
+
+function chooseFootprintOrientation(rng: Rng): FootprintOrientation {
+  return rng.next() < 0.5 ? 'north' : 'south';
+}
+
+function recomputeFootprint(unit: InternalUnit): void {
+  unit.occupiedHexes = footprintForSize(unit.position, unit.resolvedStats.size, unit.footprintOrientation);
+}
+
+function mapHexesForRadius(radius: number): HexCoord[] {
+  return allHexes(radius);
+}
+
+function mapRadiusForHexes(hexes: HexCoord[]): number {
+  return Math.max(0, ...hexes.map((hex) => hexDistance(hex, { q: 0, r: 0 })));
+}
+
+function parseHexKey(key: string): HexCoord {
+  const [q, r] = key.split(',').map(Number);
+  return { q: q ?? 0, r: r ?? 0 };
+}
+
+function hexSetToCoords(hexes: Set<string>): HexCoord[] {
+  return [...hexes].map(parseHexKey);
+}
+
+function translateUnit(unit: InternalUnit, delta: HexCoord): void {
+  unit.position = { q: unit.position.q + delta.q, r: unit.position.r + delta.r };
+  recomputeFootprint(unit);
+}
+
+function footprintForUnitAt(unit: Pick<InternalUnit, 'resolvedStats' | 'footprintOrientation'>, anchor: HexCoord): HexCoord[] {
+  return footprintForSize(anchor, unit.resolvedStats.size, unit.footprintOrientation);
+}
+
+function footprintFitsMap(footprint: HexCoord[], mapHexes: Set<string>): boolean {
+  return footprint.every((hex) => mapHexes.has(hexKey(hex)));
+}
+
+function footprintsCollide(left: HexCoord[], right: HexCoord[]): boolean {
+  const rightKeys = new Set(right.map(hexKey));
+  return left.some((hex) => rightKeys.has(hexKey(hex)));
+}
+
+function isFootprintPlacementLegal(state: Pick<InternalState, 'units' | 'mapHexes'>, footprint: HexCoord[], movingUnitId?: string): boolean {
+  if (!footprintFitsMap(footprint, state.mapHexes)) {
+    return false;
+  }
+  return ![...state.units.values()].some((unit) => {
+    if (!unit.alive || unit.id === movingUnitId) {
+      return false;
+    }
+    return footprintsCollide(footprint, unit.occupiedHexes);
+  });
+}
+
+function isUnitAnchorLegal(state: Pick<InternalState, 'units' | 'mapHexes'>, unit: InternalUnit, anchor: HexCoord): boolean {
+  return isFootprintPlacementLegal(state, footprintForUnitAt(unit, anchor), unit.id);
+}
+
+function unitsTouchOrOverlap(left: InternalUnit, right: InternalUnit): boolean {
+  return footprintsTouchOrOverlap(left.occupiedHexes, right.occupiedHexes);
+}
+
+function unitFootprintDistance(left: InternalUnit, right: InternalUnit): number {
+  return footprintDistance(left.occupiedHexes, right.occupiedHexes);
+}
+
+function unitDistanceFromHex(unit: InternalUnit, hex: HexCoord): number {
+  return footprintDistance(unit.occupiedHexes, [hex]);
+}
+
+function unitDistanceFromAnchor(unit: InternalUnit, anchor: HexCoord, target: InternalUnit): number {
+  return footprintDistance(footprintForUnitAt(unit, anchor), target.occupiedHexes);
+}
+
+function unitAtAnchorTouchesUnit(unit: InternalUnit, anchor: HexCoord, target: InternalUnit): boolean {
+  return footprintsTouchOrOverlap(footprintForUnitAt(unit, anchor), target.occupiedHexes);
+}
+
+function unitOverlapsHex(unit: InternalUnit, hex: HexCoord): boolean {
+  return unit.occupiedHexes.some((occupied) => equalsHex(occupied, hex));
+}
+
+function unitOverlapsAnyHex(unit: InternalUnit, hexes: HexCoord[]): boolean {
+  return footprintsCollide(unit.occupiedHexes, hexes);
+}
+
+function unitTouchesHex(unit: InternalUnit, hex: HexCoord): boolean {
+  return unitDistanceFromHex(unit, hex) <= 1;
+}
+
+function unitTouchesAnyHex(unit: InternalUnit, hexes: HexCoord[]): boolean {
+  return footprintDistance(unit.occupiedHexes, hexes) <= 1;
+}
+
+function unitsInRange(actor: InternalUnit, target: InternalUnit, range = actor.resolvedStats.range): boolean {
+  return unitFootprintDistance(actor, target) <= range;
+}
+
+function mirrorHexLeftRight(hex: HexCoord): HexCoord {
+  return { q: -hex.q - hex.r, r: hex.r };
+}
+
+function sideVisualDirection(side: SideId): number {
+  return side === 'player' ? 1 : -1;
+}
+
+function sortedMapAnchors(mapHexes: Set<string>, side: SideId): HexCoord[] {
+  const direction = sideVisualDirection(side);
+  return hexSetToCoords(mapHexes)
+    .sort((left, right) =>
+      direction * (visualVerticalLineKey(left) - visualVerticalLineKey(right)) ||
+      Math.abs(left.r) - Math.abs(right.r) ||
+      left.r - right.r ||
+      left.q - right.q,
+    );
+}
+
+function orientationForAnchor(
+  units: Map<string, InternalUnit>,
+  mapHexes: Set<string>,
+  stats: UnitStats,
+  anchor: HexCoord,
+  rng: Rng,
+): FootprintOrientation | null {
+  const legalOrientations = (['north', 'south'] as FootprintOrientation[]).filter((orientation) =>
+    isFootprintPlacementLegal({ units, mapHexes }, footprintForSize(anchor, stats.size, orientation)),
+  );
+  if (legalOrientations.length === 0) {
+    return null;
+  }
+  return legalOrientations.length === 1 ? legalOrientations[0]! : rng.pick(legalOrientations);
+}
+
+function createPlacedUnit(
+  side: SideId,
+  combatant: ResolvedCombatantDefinition,
+  index: number,
+  anchor: HexCoord,
+  orientation: FootprintOrientation,
+  rng: Rng,
+): InternalUnit {
+  const unitId = `${side}_${combatant.combatantId}_${index}`;
+  return {
+    id: unitId,
+    troopInstanceId: combatant.troopInstanceId,
+    troopLabel: combatant.label,
+    unitTypeId: combatant.unitTypeId,
+    factionId: combatant.factionId,
+    side,
+    summonerUnitId: null,
+    role: combatant.role,
+    type: combatant.type,
+    attributes: [...combatant.attributes],
+    position: { ...anchor },
+    occupiedHexes: footprintForSize(anchor, combatant.stats.size, orientation),
+    footprintOrientation: orientation,
+    hp: combatant.stats.health,
+    maxHp: combatant.stats.health,
+    initiative: fixed(rng.int(11)),
+    alive: true,
+    engagedWith: new Set<string>(),
+    resolvedStats: { ...combatant.stats },
+    resolvedAbilities: combatant.abilities.map(createRuntimeAbilityState),
+    activeTimedEffects: [],
+    committedBacklineTargetId: null,
+    graveVigorBlockedSides: new Set<SideId>(),
+    mercyBeforeDawnUsed: false,
+    stonebloodUsed: false,
+    fadeIntoShadowUsed: false,
+    glamourUsed: false,
+    brambleSnareStacks: 0,
+    bonusStrikeCharges: 0,
+    scavengersHungerKills: 0,
+    sentinelRunesTriggered: false,
+    berserkDeathPending: false,
+    berserkTurnsUntilDeath: 0,
+  };
+}
+
+function minimumDistanceToUnits(footprint: HexCoord[], units: InternalUnit[]): number {
+  if (units.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.min(...units.map((unit) => footprintDistance(footprint, unit.occupiedHexes)));
+}
+
+function sharesVisualVerticalLine(footprint: HexCoord[], reference: HexCoord): boolean {
+  const referenceKey = visualVerticalLineKey(reference);
+  return footprint.some((hex) => visualVerticalLineKey(hex) === referenceKey);
+}
+
+type PlacementCategory = 'ranged' | 'melee';
+
+function placeCombatantCategory(
+  side: SideId,
+  placementSide: SideId,
+  category: PlacementCategory,
+  combatants: ResolvedCombatantDefinition[],
+  units: Map<string, InternalUnit>,
+  mapHexes: Set<string>,
+  rng: Rng,
+  indexOffset: number,
+  rangedUnits: InternalUnit[],
+): InternalUnit[] | null {
+  if (combatants.length === 0) {
+    return [];
+  }
+
+  const placed: InternalUnit[] = [];
+  const shuffled = rng.shuffle(combatants);
+  const anchors = sortedMapAnchors(mapHexes, placementSide);
+  let referenceLineHex: HexCoord | null = null;
+  let meleeReferenceHex: HexCoord | null = null;
+
+  if (category === 'melee' && rangedUnits.length > 0) {
+    const closestRanged = [...rangedUnits].sort((left, right) =>
+      hexDistance({ q: 0, r: 0 }, left.position) - hexDistance({ q: 0, r: 0 }, right.position) ||
+      left.id.localeCompare(right.id),
+    )[0]!;
+    meleeReferenceHex = side === 'player' ? rightmostHex(closestRanged.occupiedHexes) : leftmostHex(closestRanged.occupiedHexes);
+  }
+
+  for (const [offset, combatant] of shuffled.entries()) {
+    const buildCandidatePlacements = (strict: boolean) => anchors
+      .flatMap((anchor) => (['north', 'south'] as FootprintOrientation[]).map((orientation) => {
+        const footprint = footprintForSize(anchor, combatant.stats.size, orientation);
+        if (!isFootprintPlacementLegal({ units, mapHexes }, footprint)) {
+          return null;
+        }
+        const friendlyUnits = [...units.values()].filter((unit) => unit.side === side);
+        const friendlyRanged = friendlyUnits.filter((unit) => unit.resolvedStats.range > 0);
+        if (minimumDistanceToUnits(footprint, friendlyUnits) < MIN_SPAWN_FOOTPRINT_DISTANCE) {
+          return null;
+        }
+        if (strict && category === 'ranged' && placed.length > 0) {
+          if (referenceLineHex && !sharesVisualVerticalLine(footprint, referenceLineHex)) {
+            return null;
+          }
+        }
+        if (strict && category === 'melee') {
+          if (meleeReferenceHex && placed.length === 0 && footprintDistance(footprint, [meleeReferenceHex]) < 5) {
+            return null;
+          }
+          if (referenceLineHex && placed.length > 0 && !sharesVisualVerticalLine(footprint, referenceLineHex)) {
+            return null;
+          }
+        }
+        if (category === 'melee' && minimumDistanceToUnits(footprint, friendlyRanged) < MIN_MELEE_TO_RANGED_SPAWN_DISTANCE) {
+          return null;
+        }
+        return {
+          anchor,
+          orientation,
+          footprint,
+          centerDistance: hexDistance(anchor, { q: 0, r: 0 }),
+          edgeScore: sideVisualDirection(placementSide) * visualVerticalLineKey(anchor),
+        };
+      }))
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+      .sort((left, right) => {
+        if (category === 'melee' && meleeReferenceHex && placed.length === 0) {
+          const leftGap = Math.abs(footprintDistance(left.footprint, [meleeReferenceHex]) - 5);
+          const rightGap = Math.abs(footprintDistance(right.footprint, [meleeReferenceHex]) - 5);
+          if (leftGap !== rightGap) return leftGap - rightGap;
+        }
+        return left.edgeScore - right.edgeScore || left.centerDistance - right.centerDistance || left.anchor.r - right.anchor.r || left.anchor.q - right.anchor.q;
+      });
+    const candidatePlacements = buildCandidatePlacements(true);
+    const relaxedCandidatePlacements = candidatePlacements.length > 0 ? candidatePlacements : buildCandidatePlacements(false);
+
+    if (relaxedCandidatePlacements.length === 0) {
+      return null;
+    }
+
+    const selected = relaxedCandidatePlacements[0]!;
+    const unit = createPlacedUnit(side, combatant, indexOffset + offset, selected.anchor, selected.orientation, rng);
+    units.set(unit.id, unit);
+    placed.push(unit);
+    if (!referenceLineHex) {
+      referenceLineHex = placementSide === 'player' ? leftmostHex(unit.occupiedHexes) : rightmostHex(unit.occupiedHexes);
+    }
+  }
+
+  return placed;
+}
+
+function placeUnitsForSide(
+  side: SideId,
+  combatants: ResolvedCombatantDefinition[],
+  units: Map<string, InternalUnit>,
+  mapHexes: Set<string>,
+  rng: Rng,
+  placementSide: SideId = side,
+): boolean {
+  const existingUnitIds = new Set(units.keys());
+  const rollback = () => {
+    [...units.keys()].forEach((unitId) => {
+      if (!existingUnitIds.has(unitId)) {
+        units.delete(unitId);
+      }
+    });
+  };
+  const ranged = combatants.filter((combatant) => combatant.stats.range > 0);
+  const melee = combatants.filter((combatant) => combatant.stats.range === 0);
+  const rangedPlaced = placeCombatantCategory(side, placementSide, 'ranged', ranged, units, mapHexes, rng, 0, []);
+  if (!rangedPlaced) {
+    rollback();
+    return false;
+  }
+  const meleePlaced = placeCombatantCategory(side, placementSide, 'melee', melee, units, mapHexes, rng, ranged.length, rangedPlaced);
+  if (!meleePlaced) {
+    rollback();
+    return false;
+  }
+  return true;
+}
+
+function expandedMapHexes(mapHexes: Set<string>, placementSide: SideId, margin: number): Set<string> {
+  const current = hexSetToCoords(mapHexes);
+  if (current.length === 0) {
+    return new Set(mapHexesForRadius(BASE_MAP_RADIUS + margin).map(hexKey));
+  }
+  const qValues = current.map((hex) => hex.q);
+  const rValues = current.map((hex) => hex.r);
+  const minQ = Math.min(...qValues) - (placementSide === 'player' ? margin : 0);
+  const maxQ = Math.max(...qValues) + (placementSide === 'enemy' ? margin : 0);
+  const minR = Math.min(...rValues) - margin;
+  const maxR = Math.max(...rValues) + margin;
+  const next = new Set<string>();
+  for (let q = minQ; q <= maxQ; q += 1) {
+    for (let r = minR; r <= maxR; r += 1) {
+      next.add(hexKey({ q, r }));
+    }
+  }
+  return next;
+}
+
+function placeUnitsForSideWithMapExpansion(
+  side: SideId,
+  combatants: ResolvedCombatantDefinition[],
+  units: Map<string, InternalUnit>,
+  mapHexes: Set<string>,
+  rng: Rng,
+  placementSide: SideId,
+): Set<string> {
+  for (let margin = 0; margin <= 100; margin += 1) {
+    const candidateMapHexes = margin === 0 ? mapHexes : expandedMapHexes(mapHexes, placementSide, margin);
+    if (placeUnitsForSide(side, combatants, units, candidateMapHexes, rng, placementSide)) {
+      return candidateMapHexes;
+    }
+  }
+  throw new Error(`Failed to place ${side} units after expanding the explicit battlefield.`);
+}
+
+function closestOpposingFootprintDistance(units: Map<string, InternalUnit>): number {
+  const players = [...units.values()].filter((unit) => unit.side === 'player');
+  const enemies = [...units.values()].filter((unit) => unit.side === 'enemy');
+  if (players.length === 0 || enemies.length === 0) {
+    return 7;
+  }
+  let closest = Number.POSITIVE_INFINITY;
+  players.forEach((player) => {
+    enemies.forEach((enemy) => {
+      closest = Math.min(closest, footprintDistance(player.occupiedHexes, enemy.occupiedHexes));
+    });
+  });
+  return closest;
+}
+
+function translateSide(units: Map<string, InternalUnit>, side: SideId, delta: HexCoord): void {
+  units.forEach((unit) => {
+    if (unit.side === side) {
+      translateUnit(unit, delta);
+    }
+  });
+}
+
+function filledMapFromUnitBounds(units: Map<string, InternalUnit>): HexCoord[] {
+  const occupied = [...units.values()].flatMap((unit) => unit.occupiedHexes);
+  if (occupied.length === 0) {
+    return mapHexesForRadius(BASE_MAP_RADIUS);
+  }
+  const visualLineValues = occupied.map(visualVerticalLineKey);
+  const rValues = occupied.map((hex) => hex.r);
+  const minVisualLine = Math.min(...visualLineValues) - 2;
+  const maxVisualLine = Math.max(...visualLineValues) + 2;
+  const minR = Math.min(...rValues);
+  const maxR = Math.max(...rValues);
+  const lineForRowAtOrBelow = (line: number, r: number) => line - Math.abs(line - r) % 2;
+  const lineForRowAtOrAbove = (line: number, r: number) => line + Math.abs(line - r) % 2;
+  const hexes: HexCoord[] = [];
+  for (let r = minR; r <= maxR; r += 1) {
+    const rowMinLine = lineForRowAtOrBelow(minVisualLine, r);
+    const rowMaxLine = lineForRowAtOrAbove(maxVisualLine, r);
+    const rowMinQ = (rowMinLine - r) / 2;
+    const rowMaxQ = (rowMaxLine - r) / 2;
+    for (let q = rowMinQ; q <= rowMaxQ; q += 1) {
+      hexes.push({ q, r });
+    }
+  }
+  return hexes;
+}
+
+function finalizeInitialMap(units: Map<string, InternalUnit>): { mapHexes: HexCoord[]; mapRadius: number } {
+  let distance = closestOpposingFootprintDistance(units);
+  let guard = 0;
+  while (distance !== 7 && guard < 100) {
+    translateSide(units, 'enemy', { q: distance < 7 ? 1 : -1, r: 0 });
+    distance = closestOpposingFootprintDistance(units);
+    guard += 1;
+  }
+  if (distance !== 7) {
+    throw new Error(`Failed to finalize battlefield gap: closest opposing footprint distance is ${distance}`);
+  }
+  const mapHexes = filledMapFromUnitBounds(units);
+  return { mapHexes, mapRadius: mapRadiusForHexes(mapHexes) };
+}
 
 function makeReplayId(seed: number, riftId: string | null): string {
   return `${riftId ?? 'debug'}-${seed}`;
@@ -265,6 +689,8 @@ function cloneSnapshot(units: Map<string, InternalUnit>): BattleStateSnapshot {
       type: unit.type,
       attributes: [...unit.attributes],
       position: { ...unit.position },
+      occupiedHexes: unit.occupiedHexes.map((hex) => ({ ...hex })),
+      footprintOrientation: unit.footprintOrientation,
       stats: { ...unit.resolvedStats },
       hp: fixed(unit.hp),
       maxHp: fixed(unit.maxHp),
@@ -325,10 +751,6 @@ function createRuntimeAbilityState(ability: AbilityDefinition): RuntimeAbilitySt
   };
 }
 
-function countsTowardAllySaturationFromAbilities(abilities: AbilityDefinition[] | RuntimeAbilityState[]): boolean {
-  return !abilities.some((entry) => ('definition' in entry ? entry.definition.id : entry.id) === 'scurry');
-}
-
 function buildTroopProfiles(
   input: BattleInput,
   summonedProfiles: Map<string, ReplayTroopProfile>,
@@ -378,6 +800,7 @@ function buildTroopProfiles(
           health: { stat: 'health', finalValue: stats.health, lines: [{ label: 'Resolved', value: stats.health, kind: 'base' }] },
           damage: { stat: 'damage', finalValue: stats.damage, lines: [{ label: 'Resolved', value: stats.damage, kind: 'base' }] },
           speed: { stat: 'speed', finalValue: stats.speed, lines: [{ label: 'Resolved', value: stats.speed, kind: 'base' }] },
+          ...(combatant.role === 'frontline' ? { move: { stat: 'move' as const, finalValue: stats.move, lines: [{ label: 'Resolved', value: stats.move, kind: 'base' as const }] } } : {}),
           armor: { stat: 'armor', finalValue: stats.armor, lines: [{ label: 'Resolved', value: stats.armor, kind: 'base' }] },
           range: { stat: 'range', finalValue: stats.range, lines: [{ label: 'Resolved', value: stats.range, kind: 'base' }] },
           capacity: { stat: 'capacity', finalValue: stats.capacity, lines: [{ label: 'Resolved', value: stats.capacity, kind: 'base' }] },
@@ -613,9 +1036,9 @@ function buildMovementExplanation(kind: 'move' | 'engage', actor: InternalUnit |
         ? { q: metadata.targetHexQ, r: metadata.targetHexR }
         : undefined,
     destination: hasDestination ? { q: metadata.toQ as number, r: metadata.toR as number } : undefined,
-    routedAroundSaturatedHex:
-      typeof metadata.routedAroundSaturatedQ === 'number' && typeof metadata.routedAroundSaturatedR === 'number'
-        ? { q: metadata.routedAroundSaturatedQ, r: metadata.routedAroundSaturatedR }
+    routedAroundBlockedHex:
+      typeof metadata.routedAroundBlockedQ === 'number' && typeof metadata.routedAroundBlockedR === 'number'
+        ? { q: metadata.routedAroundBlockedQ, r: metadata.routedAroundBlockedR }
         : undefined,
     keepEnemyInRange: effect === 'skirmishersStep' ? true : undefined,
   };
@@ -711,189 +1134,6 @@ function emitRoleIntentStep(
   buildStep(state, kind, [actor.id], targets.map((target) => target.id), message, metadata);
 }
 
-function startingCorner(side: SideId, radius: number): HexCoord {
-  return side === 'player' ? { q: -radius, r: 0 } : { q: radius, r: 0 };
-}
-
-function meleeStart(side: SideId, radius: number): HexCoord {
-  return side === 'player' ? { q: -radius + 1, r: 0 } : { q: radius - 1, r: 0 };
-}
-
-function expandSpawnCells(
-  side: SideId,
-  origin: HexCoord,
-  radius: number,
-  activeCells: HexCoord[],
-  activeCellKeys: Set<string>,
-  forbidden: Set<string>,
-): boolean {
-  const enemyCorner = startingCorner(side === 'player' ? 'enemy' : 'player', radius);
-  const originEnemyDistance = hexDistance(origin, enemyCorner);
-  const frontier = new Map<string, HexCoord>();
-  const baseCells = activeCells.length > 0 ? activeCells : [origin];
-
-  baseCells.forEach((cell) => {
-    neighbors(cell)
-      .filter((neighbor) => inRadius(neighbor, radius))
-      .forEach((neighbor) => {
-        const key = hexKey(neighbor);
-        if (forbidden.has(key) || activeCellKeys.has(key)) {
-          return;
-        }
-        frontier.set(key, neighbor);
-      });
-  });
-
-  if (frontier.size === 0) {
-    return false;
-  }
-
-  const candidates = [...frontier.values()];
-  const bestDelta = Math.min(...candidates.map((cell) => Math.abs(hexDistance(cell, enemyCorner) - originEnemyDistance)));
-  const nextCells = candidates.filter((cell) => Math.abs(hexDistance(cell, enemyCorner) - originEnemyDistance) === bestDelta);
-
-  nextCells.forEach((cell) => {
-    const key = hexKey(cell);
-    if (!activeCellKeys.has(key)) {
-      activeCells.push(cell);
-      activeCellKeys.add(key);
-    }
-  });
-
-  return nextCells.length > 0;
-}
-
-function placeUnitWithExpandableCells(
-  combatant: ResolvedCombatantDefinition,
-  side: SideId,
-  origin: HexCoord,
-  radius: number,
-  activeCells: HexCoord[],
-  activeCellKeys: Set<string>,
-  context: SpawnContext,
-  forbidden: Set<string>,
-  occupancy: Map<string, number>,
-): HexCoord | null {
-  const size = countsTowardAllySaturationFromAbilities(combatant.abilities) ? combatant.stats.size : 0;
-  if (size > context.saturation) {
-    return null;
-  }
-
-  while (true) {
-    const candidates = activeCells
-      .map((cell) => {
-        const key = hexKey(cell);
-        if (forbidden.has(key)) {
-          return null;
-        }
-        const used = occupancy.get(key) ?? 0;
-        if (fixedAdd(used, size) > context.saturation) {
-          return null;
-        }
-        return { cell, used, utilization: fixed(used / context.saturation) };
-      })
-      .filter((item): item is { cell: HexCoord; used: number; utilization: number } => item !== null);
-
-    if (candidates.length > 0) {
-      let minUtil = Infinity;
-      let minUsed = Infinity;
-      const best: Array<{ cell: HexCoord; used: number; utilization: number }> = [];
-      for (const item of candidates) {
-        if (item.utilization < minUtil || (item.utilization === minUtil && item.used < minUsed)) {
-          minUtil = item.utilization;
-          minUsed = item.used;
-          best.length = 0;
-          best.push(item);
-        } else if (item.utilization === minUtil && item.used === minUsed) {
-          best.push(item);
-        }
-      }
-      const selected = context.rng.pick(best).cell;
-      const key = hexKey(selected);
-      occupancy.set(key, fixedAdd(occupancy.get(key) ?? 0, size));
-      return selected;
-    }
-
-    if (!expandSpawnCells(side, origin, radius, activeCells, activeCellKeys, forbidden)) {
-      return null;
-    }
-  }
-}
-
-function spawnGroup(
-  side: SideId,
-  combatants: ResolvedCombatantDefinition[],
-  origin: HexCoord,
-  radius: number,
-  context: SpawnContext,
-  forbidden: Set<string>,
-): Set<string> | null {
-  if (combatants.length === 0) {
-    return new Set<string>();
-  }
-
-  const totalGroupSize = fixedSum(
-    combatants.map((combatant) => (countsTowardAllySaturationFromAbilities(combatant.abilities) ? combatant.stats.size : 0)),
-  );
-  const targetCellCount = Math.max(1, Math.ceil(totalGroupSize / context.saturation));
-  const originKey = hexKey(origin);
-  const activeCells: HexCoord[] = forbidden.has(originKey) ? [] : [origin];
-  const activeCellKeys = new Set<string>(forbidden.has(originKey) ? [] : [originKey]);
-  const occupancy = new Map<string, number>();
-  const usedHexes = new Set<string>();
-
-  while (activeCells.length < targetCellCount) {
-    if (!expandSpawnCells(side, origin, radius, activeCells, activeCellKeys, forbidden)) {
-      break;
-    }
-  }
-
-  combatants.forEach((combatant, index) => {
-    const slot = placeUnitWithExpandableCells(combatant, side, origin, radius, activeCells, activeCellKeys, context, forbidden, occupancy);
-    if (!slot) {
-      throw new Error('Failed to spawn combatant');
-    }
-
-    const unitId = `${side}_${combatant.combatantId}_${index}`;
-    usedHexes.add(hexKey(slot));
-    context.units.set(unitId, {
-      id: unitId,
-      troopInstanceId: combatant.troopInstanceId,
-      troopLabel: combatant.label,
-      unitTypeId: combatant.unitTypeId,
-      factionId: combatant.factionId,
-      side,
-      summonerUnitId: null,
-      role: combatant.role,
-      type: combatant.type,
-      attributes: [...combatant.attributes],
-      position: { ...slot },
-      hp: combatant.stats.health,
-      maxHp: combatant.stats.health,
-      initiative: fixed(context.rng.int(11)),
-      alive: true,
-      engagedWith: new Set<string>(),
-      resolvedStats: { ...combatant.stats },
-      resolvedAbilities: combatant.abilities.map(createRuntimeAbilityState),
-      activeTimedEffects: [],
-      committedBacklineTargetId: null,
-      graveVigorBlockedSides: new Set<SideId>(),
-      mercyBeforeDawnUsed: false,
-      stonebloodUsed: false,
-      fadeIntoShadowUsed: false,
-      glamourUsed: false,
-      brambleSnareStacks: 0,
-      bonusStrikeCharges: 0,
-      scavengersHungerKills: 0,
-      sentinelRunesTriggered: false,
-      berserkDeathPending: false,
-      berserkTurnsUntilDeath: 0,
-    });
-  });
-
-  return usedHexes;
-}
-
 function expandCombatants(combatants: ResolvedCombatantDefinition[]): ResolvedCombatantDefinition[] {
   return combatants.flatMap((combatant) =>
     Array.from({ length: combatant.quantity }, (_, index) => ({
@@ -904,31 +1144,11 @@ function expandCombatants(combatants: ResolvedCombatantDefinition[]): ResolvedCo
   );
 }
 
-function spawnUnitsForSide(
-  side: SideId,
-  combatants: ResolvedCombatantDefinition[],
-  radius: number,
-  context: SpawnContext,
-  placementSide: SideId = side,
-): boolean {
-  const ranged = combatants.filter((combatant) => combatant.stats.range > 0);
-  const melee = combatants.filter((combatant) => combatant.stats.range === 0);
-  const meleeForbidden = new Set<string>();
-
-  const rangedHexes = spawnGroup(side, ranged, startingCorner(placementSide, radius), radius, context, new Set<string>());
-  if (!rangedHexes) {
-    return false;
-  }
-  rangedHexes.forEach((key) => meleeForbidden.add(key));
-  const meleeHexes = spawnGroup(side, melee, meleeStart(placementSide, radius), radius, context, meleeForbidden);
-  return meleeHexes !== null;
-}
-
 function shouldDelayForDiggyHole(input: BattleInput, combatant: ResolvedCombatantDefinition): boolean {
   return combatant.factionId === 'dwarf' && inputSideHasFactionUpgrade(input, combatant.side, 'dwarf-diggy-hole');
 }
 
-function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, InternalUnit>; mapRadius: number; pendingDiggyHoleCombatants: Record<SideId, ResolvedCombatantDefinition[]> } {
+function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, InternalUnit>; mapRadius: number; mapHexes: HexCoord[]; pendingDiggyHoleCombatants: Record<SideId, ResolvedCombatantDefinition[]> } {
   let radius = BASE_MAP_RADIUS;
   const playerExpanded = expandCombatants(input.playerCombatants);
   const enemyExpanded = expandCombatants(input.enemyCombatants);
@@ -938,18 +1158,18 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
   };
   const playerUnits = playerExpanded.filter((combatant) => !shouldDelayForDiggyHole(input, combatant));
   const enemyUnits = enemyExpanded.filter((combatant) => !shouldDelayForDiggyHole(input, combatant));
-  const saturation = input.saturation ?? DEFAULT_SATURATION;
-
-  while (true) {
+  for (let attempts = 0; attempts <= 100; attempts += 1) {
     const units = new Map<string, InternalUnit>();
-    const context: SpawnContext = { units, rng, saturation };
-    const playerOk = spawnUnitsForSide('player', playerUnits, radius, context);
-    const enemyOk = playerOk && spawnUnitsForSide('enemy', enemyUnits, radius, context);
+    const mapHexes = new Set(mapHexesForRadius(radius).map(hexKey));
+    const playerOk = placeUnitsForSide('player', playerUnits, units, mapHexes, rng);
+    const enemyOk = playerOk && placeUnitsForSide('enemy', enemyUnits, units, mapHexes, rng);
     if (playerOk && enemyOk) {
-      return { units, mapRadius: radius, pendingDiggyHoleCombatants };
+      const finalized = finalizeInitialMap(units);
+      return { units, mapRadius: finalized.mapRadius, mapHexes: finalized.mapHexes, pendingDiggyHoleCombatants };
     }
     radius += 1;
   }
+  throw new Error('Failed to place initial battle units after expanding the explicit battlefield.');
 }
 
 function getAliveUnits(state: InternalState, side?: SideId): InternalUnit[] {
@@ -978,10 +1198,31 @@ function clearStaleEngagements(state: InternalState): void {
   state.units.forEach((unit) => {
     unit.engagedWith.forEach((enemyId) => {
       const enemy = state.units.get(enemyId);
-      if (!enemy?.alive || !equalsHex(enemy.position, unit.position)) {
+      if (!enemy?.alive || enemy.side === unit.side || !unitsTouchOrOverlap(enemy, unit)) {
         unit.engagedWith.delete(enemyId);
+        enemy?.engagedWith.delete(unit.id);
       }
     });
+  });
+}
+
+function clearBacklineCommitmentsTo(state: InternalState, targetId: string): void {
+  state.units.forEach((unit) => {
+    if (unit.committedBacklineTargetId === targetId) {
+      unit.committedBacklineTargetId = null;
+    }
+  });
+}
+
+function clearInvalidBacklineCommitments(state: InternalState): void {
+  state.units.forEach((unit) => {
+    if (!unit.committedBacklineTargetId) {
+      return;
+    }
+    const target = state.units.get(unit.committedBacklineTargetId);
+    if (!target?.alive || target.side === unit.side || target.role !== 'backline') {
+      unit.committedBacklineTargetId = null;
+    }
   });
 }
 
@@ -996,7 +1237,7 @@ function availableCapacity(state: InternalState, unit: InternalUnit): number {
 }
 
 function enemyUnitsOnHex(state: InternalState, unit: InternalUnit): InternalUnit[] {
-  return getAliveUnits(state).filter((other) => other.side !== unit.side && equalsHex(other.position, unit.position));
+  return getAliveUnits(state).filter((other) => other.side !== unit.side && unitsTouchOrOverlap(other, unit));
 }
 
 function nonEngagedEnemiesOnHex(state: InternalState, unit: InternalUnit): InternalUnit[] {
@@ -1146,7 +1387,7 @@ function shouldTubthump(target: InternalUnit, stat: 'speed' | 'damage', amount: 
 
 function findProtectingPriest(state: InternalState, target: InternalUnit): InternalUnit | null {
   const priests = getAliveUnits(state, target.side).filter(
-    (ally) => hasAbility(ally, 'mercy-before-dawn') && hexDistance(ally.position, target.position) <= ally.resolvedStats.range,
+    (ally) => hasAbility(ally, 'mercy-before-dawn') && unitsInRange(ally, target),
   );
   return pickNearestUnit(state, target, priests);
 }
@@ -1242,7 +1483,7 @@ function getDistanceDamageBonus(actor: InternalUnit, target: InternalUnit, conte
   if (context.mode !== 'ranged' || !hasAbility(actor, 'long-shot-doctrine') || !isRangedOrCaster(actor)) {
     return { damage: 0, initiative: 0 };
   }
-  const distance = hexDistance(actor.position, target.position);
+  const distance = unitFootprintDistance(actor, target);
   return { damage: distance, initiative: distance * 2 };
 }
 
@@ -1876,16 +2117,16 @@ function getBlastDefaultTargets(state: InternalState, actor: InternalUnit, event
   if (!event.attackTarget) {
     return [];
   }
-  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, event.attackTarget!.position));
+  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, event.attackTarget!));
 }
 
 function blastTargetsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): InternalUnit[] {
-  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord));
+  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitOverlapsHex(unit, coord));
 }
 
 function chooseAdjacentBlastHex(state: InternalState, actor: InternalUnit, origin: HexCoord, visited: Set<string>): HexCoord | null {
   const options = neighbors(origin)
-    .filter((coord) => inRadius(coord, state.mapRadius))
+    .filter((coord) => state.mapHexes.has(hexKey(coord)))
     .filter((coord) => !visited.has(hexKey(coord)))
     .filter((coord) => blastTargetsOnHex(state, actor, coord).length > 0);
   return options.length > 0 ? pickRandomHex(state, options) : null;
@@ -1901,7 +2142,7 @@ function getHealDefaultTargets(
   target: AbilityTargetDefinition | undefined,
 ): InternalUnit[] {
   const candidates = getAliveUnits(state, actor.side)
-    .filter((unit) => hexDistance(actor.position, unit.position) <= actor.resolvedStats.range)
+    .filter((unit) => unitsInRange(actor, unit))
     .filter((unit) => unit.hp < unit.maxHp);
   const filtered = prioritizeCandidates(filterTargetCandidates(candidates, target?.filters), target?.filters);
   if (filtered.length === 0) {
@@ -1946,7 +2187,7 @@ function getTargetCandidates(
     const candidates = getAliveUnits(state).filter((unit) => {
       if (allegiance === 'ally' && unit.side !== actor.side) return false;
       if (allegiance === 'enemy' && unit.side === actor.side) return false;
-      return hexDistance(actor.position, unit.position) <= radius;
+      return unitFootprintDistance(actor, unit) <= radius;
     });
     return prioritizeCandidates(filterTargetCandidates(candidates, target.filters), target.filters);
   }
@@ -1996,7 +2237,7 @@ function canTriggerAbility(state: InternalState, actor: InternalUnit, runtime: R
     if (!matchesFallenTrigger(actor, event.fallenUnit, trigger.fallen.allegiance)) {
       return false;
     }
-    if (hexDistance(actor.position, event.fallenUnit.position) > resolveFallenTriggerRadius(actor, trigger)) {
+    if (unitDistanceFromHex(actor, event.fallenUnit.position) > resolveFallenTriggerRadius(actor, trigger)) {
       return false;
     }
   }
@@ -2025,7 +2266,7 @@ function getAbilityRepeatCount(state: InternalState, actor: InternalUnit, runtim
     return Math.max(0, getDistinctFriendlyUnitTypes(state, actor).filter((type) => type !== actor.type).length);
   }
   if (runtime.definition.trigger.repeatPerOtherFriendlyUnitOnHex) {
-    return getAliveUnits(state, actor.side).filter((ally) => ally.id !== actor.id && equalsHex(ally.position, actor.position)).length;
+    return getAliveUnits(state, actor.side).filter((ally) => ally.id !== actor.id && unitsTouchOrOverlap(ally, actor)).length;
   }
   return 1;
 }
@@ -2049,6 +2290,7 @@ function recordSummonedProfile(state: InternalState, unit: InternalUnit): void {
       health: { stat: 'health', finalValue: unit.resolvedStats.health, lines: [{ label: 'Summoned', value: unit.resolvedStats.health, kind: 'base' }] },
       damage: { stat: 'damage', finalValue: unit.resolvedStats.damage, lines: [{ label: 'Summoned', value: unit.resolvedStats.damage, kind: 'base' }] },
       speed: { stat: 'speed', finalValue: unit.resolvedStats.speed, lines: [{ label: 'Summoned', value: unit.resolvedStats.speed, kind: 'base' }] },
+      ...(unit.role === 'frontline' ? { move: { stat: 'move' as const, finalValue: unit.resolvedStats.move, lines: [{ label: 'Summoned', value: unit.resolvedStats.move, kind: 'base' as const }] } } : {}),
       armor: { stat: 'armor', finalValue: unit.resolvedStats.armor, lines: [{ label: 'Summoned', value: unit.resolvedStats.armor, kind: 'base' }] },
       range: { stat: 'range', finalValue: unit.resolvedStats.range, lines: [{ label: 'Summoned', value: unit.resolvedStats.range, kind: 'base' }] },
       capacity: { stat: 'capacity', finalValue: unit.resolvedStats.capacity, lines: [{ label: 'Summoned', value: unit.resolvedStats.capacity, kind: 'base' }] },
@@ -2057,19 +2299,24 @@ function recordSummonedProfile(state: InternalState, unit: InternalUnit): void {
   });
 }
 
-function tryFindSummonHex(state: InternalState, actor: InternalUnit, origin: HexCoord, size: number): HexCoord | null {
-  const candidatePool = [origin, ...state.rng.shuffle(neighbors(origin).filter((coord) => inRadius(coord, state.mapRadius)))];
-  const hexOccupancy = new Map<string, number>();
-  for (const unit of getAliveUnits(state, actor.side)) {
-    if (!countsTowardAllySaturationFromAbilities(unit.resolvedAbilities)) {
-      continue;
+function tryFindSummonPlacement(state: InternalState, origin: HexCoord, size: number): { hex: HexCoord; orientation: FootprintOrientation } | null {
+  const originKey = hexKey(origin);
+  const mapCandidates = hexSetToCoords(state.mapHexes)
+    .filter((coord) => hexKey(coord) !== originKey)
+    .map((coord) => ({ coord, distance: hexDistance(origin, coord), tie: state.rng.next() }))
+    .sort((left, right) => left.distance - right.distance || left.tie - right.tie)
+    .map((entry) => entry.coord);
+  const candidatePool = state.mapHexes.has(originKey) ? [origin, ...mapCandidates] : mapCandidates;
+  for (const coord of candidatePool) {
+    const orientations = state.rng.shuffle<FootprintOrientation>(['north', 'south']);
+    const orientation = orientations.find((candidateOrientation) =>
+      isFootprintPlacementLegal(state, footprintForSize(coord, size, candidateOrientation)),
+    );
+    if (orientation) {
+      return { hex: coord, orientation };
     }
-    const key = hexKey(unit.position);
-    hexOccupancy.set(key, fixedAdd(hexOccupancy.get(key) ?? 0, unit.resolvedStats.size));
   }
-  return (
-    candidatePool.find((coord) => fixedAdd(hexOccupancy.get(hexKey(coord)) ?? 0, size) <= state.saturation) ?? null
-  );
+  return null;
 }
 
 function applyCarrionChoir(state: InternalState, actor: InternalUnit, corpsePosition: HexCoord): void {
@@ -2077,7 +2324,7 @@ function applyCarrionChoir(state: InternalState, actor: InternalUnit, corpsePosi
     return;
   }
   getAliveUnits(state)
-    .filter((unit) => unit.side !== actor.side && hexDistance(unit.position, corpsePosition) <= 1)
+    .filter((unit) => unit.side !== actor.side && unitDistanceFromHex(unit, corpsePosition) <= 1)
     .forEach((unit) => {
       unit.resolvedStats.armor = clampStat('armor', fixedSub(unit.resolvedStats.armor, 1));
       unit.resolvedStats.damage = fixedMax(fixedSub(unit.resolvedStats.damage, 1), 0);
@@ -2098,8 +2345,8 @@ function summonUnit(
   origin: HexCoord,
 ): boolean {
   const troop = composeSummonedTroopDefinition(actor.factionId, effect.unitTypeId);
-  const summonHex = tryFindSummonHex(state, actor, origin, troop.stats.size);
-  if (!summonHex) {
+  const summonPlacement = tryFindSummonPlacement(state, origin, troop.stats.size);
+  if (!summonPlacement) {
     return false;
   }
   const summonIndex = [...state.units.values()].filter((unit) => unit.side === actor.side && unit.troopLabel === troop.label).length + 1;
@@ -2122,7 +2369,9 @@ function summonUnit(
     role: troop.role,
     type: troop.type,
     attributes: [...troop.attributes],
-    position: { ...summonHex },
+    position: { ...summonPlacement.hex },
+    occupiedHexes: footprintForSize(summonPlacement.hex, troop.stats.size, summonPlacement.orientation),
+    footprintOrientation: summonPlacement.orientation,
     hp: troop.stats.health,
     maxHp: troop.stats.health,
     initiative: fixedMax(effect.initialInitiative ?? (hasAbility(actor, 'early-riser') && effect.unitTypeId === 'skeleton' ? 100 : 0), 0),
@@ -2196,9 +2445,9 @@ function triggerSentinelRunes(state: InternalState, knight: InternalUnit, origin
   }
 }
 
-function handleMoveOffKnightHex(state: InternalState, mover: InternalUnit, from: HexCoord, to: HexCoord): void {
+function handleMoveOffKnightHex(state: InternalState, mover: InternalUnit, previousFootprint: HexCoord[], to: HexCoord): void {
   getAliveUnits(state)
-    .filter((unit) => unit.side !== mover.side && equalsHex(unit.position, from) && hasAbility(unit, 'sentinel-runes'))
+    .filter((unit) => unit.side !== mover.side && footprintsTouchOrOverlap(unit.occupiedHexes, previousFootprint) && hasAbility(unit, 'sentinel-runes'))
     .forEach((knight) => {
       triggerSentinelRunes(state, knight, to, `${knight.troopLabel} triggers Sentinel Runes.`);
     });
@@ -2206,10 +2455,12 @@ function handleMoveOffKnightHex(state: InternalState, mover: InternalUnit, from:
 
 function relocateUnit(state: InternalState, actor: InternalUnit, destination: HexCoord): void {
   const previousPosition = { ...actor.position };
+  const previousFootprint = actor.occupiedHexes.map((hex) => ({ ...hex }));
   removeAllEngagements(state, actor);
   actor.position = { ...destination };
+  recomputeFootprint(actor);
   if (!equalsHex(previousPosition, destination)) {
-    handleMoveOffKnightHex(state, actor, previousPosition, destination);
+    handleMoveOffKnightHex(state, actor, previousFootprint, destination);
   }
 }
 
@@ -2235,7 +2486,7 @@ function applyBlastSequence(
     hasAbility(actor, 'lightning-rods') ?
       fixedAdd(
         amount,
-        getAliveUnits(state).filter((unit) => unit.type === 'elemental' && equalsHex(unit.position, origin)).length,
+        getAliveUnits(state).filter((unit) => unit.type === 'elemental' && unitOverlapsHex(unit, origin)).length,
       )
     : amount;
 
@@ -2532,7 +2783,7 @@ function performLivingCircuit(state: InternalState, actor: InternalUnit): void {
     return;
   }
   const elementals = getAliveUnits(state, actor.side).filter(
-    (unit) => unit.type === 'elemental' && hexDistance(actor.position, unit.position) <= actor.resolvedStats.range,
+    (unit) => unit.type === 'elemental' && unitsInRange(actor, unit),
   );
   if (elementals.length === 0) {
     return;
@@ -2556,7 +2807,7 @@ function performThrillOfTheHunt(state: InternalState, actor: InternalUnit): void
     return;
   }
   getAliveUnits(state, actor.side)
-    .filter((unit) => unit.type === 'wolf' && equalsHex(unit.position, actor.position))
+    .filter((unit) => unit.type === 'wolf' && unitsTouchOrOverlap(unit, actor))
     .forEach((wolf) => {
       applyInitiativeDelta(state, actor, wolf, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
         kind: 'initiativeDelta',
@@ -2588,7 +2839,7 @@ function performPackmastersWhistle(state: InternalState, actor: InternalUnit): v
   if (!hasAbility(actor, 'packmasters-whistle') || actor.engagedWith.size === 0) {
     return;
   }
-  const wolf = getAliveUnits(state, actor.side).find((ally) => ally.type === 'wolf' && equalsHex(ally.position, actor.position));
+  const wolf = getAliveUnits(state, actor.side).find((ally) => ally.type === 'wolf' && unitsTouchOrOverlap(ally, actor));
   const engagedTarget = [...actor.engagedWith].map((unitId) => state.units.get(unitId)).find((unit): unit is InternalUnit => Boolean(unit?.alive));
   if (!wolf || !engagedTarget || wolf.engagedWith.has(engagedTarget.id) || engagedTarget.resolvedStats.size > availableCapacity(state, wolf)) {
     return;
@@ -2623,7 +2874,7 @@ function performWarDrums(state: InternalState, actor: InternalUnit): void {
   const eligible = prioritizeCandidates(
     getAliveUnits(state, actor.side).filter(
       (unit) =>
-        hexDistance(actor.position, unit.position) <= actor.resolvedStats.range &&
+        unitsInRange(actor, unit) &&
         !hasMatchingIdentityTag(unit, ['caster']) &&
         (!isBlockedByGraveVigor(actor, unit, hasteEffect) || !isBlockedByGraveVigor(actor, unit, rampEffect)),
     ),
@@ -2633,7 +2884,7 @@ function performWarDrums(state: InternalState, actor: InternalUnit): void {
   }
   const target = state.rng.pick(eligible);
   getAliveUnits(state, actor.side)
-    .filter((unit) => equalsHex(unit.position, target.position))
+    .filter((unit) => unitsTouchOrOverlap(unit, target))
     .forEach((unit) => {
       const runtime = createRuntimeAbilityState(getAbility('war-drums'));
       if (!isBlockedByGraveVigor(actor, unit, hasteEffect) && applyHaste(state, actor, unit, runtime, hasteEffect)) {
@@ -2665,7 +2916,7 @@ function performHoldTheStandard(state: InternalState, fallen: InternalUnit): voi
     return;
   }
   getAliveUnits(state, fallen.side)
-    .filter((unit) => hasAbility(unit, 'hold-the-standard') && equalsHex(unit.position, fallen.position))
+    .filter((unit) => hasAbility(unit, 'hold-the-standard') && unitsTouchOrOverlap(unit, fallen))
     .forEach((unit) => {
       healUnit(state, unit, unit, createRuntimeAbilityState(getAbility('hold-the-standard')), {
         kind: 'heal',
@@ -2676,9 +2927,9 @@ function performHoldTheStandard(state: InternalState, fallen: InternalUnit): voi
     });
 }
 
-function performLootFrenzy(state: InternalState, actor: InternalUnit, position: HexCoord): void {
+function performLootFrenzy(state: InternalState, actor: InternalUnit, fallenFootprint: HexCoord[]): void {
   getAliveUnits(state, actor.side)
-    .filter((unit) => equalsHex(unit.position, position))
+    .filter((unit) => unitOverlapsAnyHex(unit, fallenFootprint))
     .forEach((unit) => {
       healUnit(state, actor, unit, createRuntimeAbilityState(getAbility('loot-frenzy')), {
         kind: 'heal',
@@ -2694,9 +2945,9 @@ function performLootFrenzy(state: InternalState, actor: InternalUnit, position: 
     });
 }
 
-function performThrillKillBuff(state: InternalState, actor: InternalUnit, position: HexCoord): void {
+function performThrillKillBuff(state: InternalState, actor: InternalUnit, fallenFootprint: HexCoord[]): void {
   getAliveUnits(state, actor.side)
-    .filter((unit) => equalsHex(unit.position, position))
+    .filter((unit) => unitTouchesAnyHex(unit, fallenFootprint))
     .forEach((unit) => {
       applyRamp(state, actor, unit, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
         kind: 'ramp',
@@ -2709,9 +2960,9 @@ function performThrillKillBuff(state: InternalState, actor: InternalUnit, positi
 
 function performLastWitness(state: InternalState, killer: InternalUnit, fallen: InternalUnit): void {
   getAliveUnits(state, fallen.side)
-    .filter((unit) => unit.id !== fallen.id && hasAbility(unit, 'last-witness') && equalsHex(unit.position, fallen.position))
+    .filter((unit) => unit.id !== fallen.id && hasAbility(unit, 'last-witness') && unitsTouchOrOverlap(unit, fallen))
     .forEach((unit) => {
-      if (!killer.alive || !equalsHex(killer.position, fallen.position)) {
+      if (!killer.alive || !unitsTouchOrOverlap(killer, fallen)) {
         return;
       }
       attack(state, unit, killer, 'melee', false, 1, 'strike');
@@ -2746,6 +2997,7 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   target.hp = 0;
   state.distinctTypeCache.delete(target.side);
   removeAllEngagements(state, target);
+  clearBacklineCommitmentsTo(state, target.id);
   if (!hasAbility(target, 'fading')) {
     state.corpses.set(target.id, { ...target.position });
   }
@@ -2767,7 +3019,7 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   performScavengersHunger(state, actor, target);
   if (hasAbility(actor, 'snatch-the-moment')) {
     getAliveUnits(state)
-      .filter((unit) => unit.side !== actor.side && equalsHex(unit.position, target.position))
+      .filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, target))
       .forEach((unit) => {
         unit.initiative = fixedMax(fixedSub(unit.initiative, 20), 0);
         buildStep(state, 'buff', [actor.id], [unit.id], `${unit.troopLabel} loses 20 initiative.`, {
@@ -2779,15 +3031,15 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
       });
   }
   if (hasAbility(actor, 'loot-frenzy')) {
-    performLootFrenzy(state, actor, target.position);
+    performLootFrenzy(state, actor, target.occupiedHexes);
   }
   if (actor.type === 'wolf' && sideHasTroopTypeUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
-    performThrillKillBuff(state, actor, target.position);
+    performThrillKillBuff(state, actor, target.occupiedHexes);
   }
   if (hasAbility(actor, 'crushing-sweep') && context.mode === 'melee') {
     const splash = actor.resolvedStats.size * 5;
     getAliveUnits(state)
-      .filter((unit) => unit.side !== actor.side && equalsHex(unit.position, target.position))
+      .filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, target))
       .forEach((unit) => {
         const inflictedSplash = canTakeDamage(unit) ? splash : 0;
         if (inflictedSplash > 0) {
@@ -2847,6 +3099,7 @@ function handleEnvironmentalDeath(
   target.hp = 0;
   state.distinctTypeCache.delete(target.side);
   removeAllEngagements(state, target);
+  clearBacklineCommitmentsTo(state, target.id);
   if (!hasAbility(target, 'fading')) {
     state.corpses.set(target.id, { ...target.position });
   }
@@ -2894,7 +3147,7 @@ function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: Inte
   }
   const candidates = getAliveUnits(state)
     .filter((unit) => unit.side !== target.side && unit.id !== target.id)
-    .filter((unit) => hexDistance(target.position, unit.position) <= target.resolvedStats.range);
+    .filter((unit) => unitsInRange(target, unit));
   if (candidates.length === 0) {
     return false;
   }
@@ -2946,7 +3199,7 @@ function attack(
   }
   const attackContext: AttackContext = { mode, category };
   let attackDamage = actor.resolvedStats.damage;
-  const distanceToTarget = hexDistance(actor.position, target.position);
+  const distanceToTarget = unitFootprintDistance(actor, target);
   const heartseekerActive = hasAbility(actor, 'heartseeker') && target.engagedWith.size === 0;
   if (heartseekerActive) {
     attackDamage = fixedMul(attackDamage, 2);
@@ -3086,7 +3339,7 @@ function pileOn(state: InternalState, actor: InternalUnit): boolean {
   }
   const prioritized = candidates.filter((enemy) =>
     getAliveUnits(state, actor.side)
-      .filter((ally) => ally.id !== actor.id && equalsHex(ally.position, actor.position))
+      .filter((ally) => ally.id !== actor.id && unitsTouchOrOverlap(ally, actor))
       .some((ally) => ally.engagedWith.has(enemy.id)),
   );
   attack(state, actor, chooseAttackTarget(state, actor, prioritized.length > 0 ? prioritized : candidates), 'melee');
@@ -3118,22 +3371,27 @@ function drawAttention(state: InternalState, actor: InternalUnit, roles: RoleId[
   return fight(state, actor) || engagedTargets.length > 0;
 }
 
-function allySizeOnHex(state: InternalState, side: SideId, coord: HexCoord, exceptId?: string): number {
-  return fixedSum(
-    getAliveUnits(state, side)
-      .filter((unit) => equalsHex(unit.position, coord) && unit.id !== exceptId && countsTowardAllySaturationFromAbilities(unit.resolvedAbilities))
-      .map((unit) => unit.resolvedStats.size),
-  );
+function validAdjacentMovementHexes(state: InternalState, actor: InternalUnit): HexCoord[] {
+  return neighbors(actor.position)
+    .filter((coord) => state.mapHexes.has(hexKey(coord)))
+    .filter((coord) => isUnitAnchorLegal(state, actor, coord));
 }
 
 function validMovementHexes(state: InternalState, actor: InternalUnit): HexCoord[] {
-  return neighbors(actor.position)
-    .filter((coord) => inRadius(coord, state.mapRadius))
-    .filter((coord) => fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) <= state.saturation);
+  const maxSteps = Math.max(0, Math.floor(actor.resolvedStats.move));
+  if (maxSteps <= 0) {
+    return [];
+  }
+  return reachableAnchorsWithinMove(state, actor, maxSteps).map((entry) => entry.coord);
 }
 
-function isSaturatedForMovement(state: InternalState, actor: InternalUnit, coord: HexCoord): boolean {
-  return fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) > state.saturation;
+function moveUnitPreservingEngagements(unit: InternalUnit, destination: HexCoord): void {
+  unit.position = { ...destination };
+  recomputeFootprint(unit);
+}
+
+function isBlockedForMovement(state: InternalState, actor: InternalUnit, coord: HexCoord): boolean {
+  return !isUnitAnchorLegal(state, actor, coord);
 }
 
 function getEnemyUnits(state: InternalState, actor: InternalUnit, roles: RoleId[] = []): InternalUnit[] {
@@ -3150,16 +3408,16 @@ function pickNearestUnit(state: InternalState, actor: InternalUnit, candidates: 
   if (candidates.length === 0) {
     return null;
   }
-  const nearestDistance = Math.min(...candidates.map((candidate) => hexDistance(actor.position, candidate.position)));
-  return state.rng.pick(candidates.filter((candidate) => hexDistance(actor.position, candidate.position) === nearestDistance));
+  const nearestDistance = Math.min(...candidates.map((candidate) => unitFootprintDistance(actor, candidate)));
+  return state.rng.pick(candidates.filter((candidate) => unitFootprintDistance(actor, candidate) === nearestDistance));
 }
 
 function countFriendlyFrontlineUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
-  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'frontline' && equalsHex(unit.position, coord)).length;
+  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unit.role === 'frontline' && unitAtAnchorTouchesUnit(actor, coord, unit)).length;
 }
 
 function countFriendlyUnitsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): number {
-  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && equalsHex(unit.position, coord)).length;
+  return getAliveUnits(state, actor.side).filter((unit) => unit.id !== actor.id && unitAtAnchorTouchesUnit(actor, coord, unit)).length;
 }
 
 function pickRandomHex(state: InternalState, candidates: HexCoord[]): HexCoord {
@@ -3190,23 +3448,248 @@ function pickBestMovementHex(
   return pickRandomHex(state, finalists);
 }
 
-function allMapHexes(radius: number): HexCoord[] {
-  const coords: HexCoord[] = [];
-  for (let q = -radius; q <= radius; q += 1) {
-    for (let r = -radius; r <= radius; r += 1) {
-      const coord = { q, r };
-      if (inRadius(coord, radius)) {
-        coords.push(coord);
-      }
+function reachableAnchorsWithinMove(
+  state: InternalState,
+  actor: InternalUnit,
+  maxSteps: number,
+  includeBlockedDestinations = false,
+): Array<{ coord: HexCoord; steps: number }> {
+  const startKey = hexKey(actor.position);
+  const visited = new Set<string>([startKey]);
+  const reachable: Array<{ coord: HexCoord; steps: number }> = [];
+  const queue: Array<{ coord: HexCoord; steps: number }> = [{ coord: actor.position, steps: 0 }];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current.steps >= maxSteps) {
+      continue;
     }
+    neighbors(current.coord).forEach((coord) => {
+      const key = hexKey(coord);
+      if (visited.has(key) || !footprintFitsMap(footprintForUnitAt(actor, coord), state.mapHexes)) {
+        return;
+      }
+      visited.add(key);
+      const entry = { coord, steps: current.steps + 1 };
+      if (isUnitAnchorLegal(state, actor, coord)) {
+        reachable.push(entry);
+        queue.push(entry);
+      } else if (includeBlockedDestinations) {
+        reachable.push(entry);
+      }
+    });
   }
-  return coords;
+  return reachable;
+}
+
+function footprintCollidesAny(footprint: HexCoord[], footprints: HexCoord[][]): boolean {
+  return footprints.some((other) => footprintsCollide(footprint, other));
+}
+
+type FrontlinePushCandidate = {
+  anchor: HexCoord;
+  steps: number;
+  pushed: Array<{ unit: InternalUnit; destination: HexCoord; footprint: HexCoord[]; steps: number }>;
+  engagedSize: number;
+  newlyEngagedCount: number;
+  reasonCode: string;
+};
+
+function findPushedEnemyDestination(
+  state: InternalState,
+  enemy: InternalUnit,
+  actorFootprint: HexCoord[],
+  occupiedFootprints: HexCoord[][],
+  maxSteps: number,
+): { destination: HexCoord; footprint: HexCoord[]; steps: number } | null {
+  const visited = new Set<string>([hexKey(enemy.position)]);
+  const queue: Array<{ coord: HexCoord; steps: number }> = [{ coord: enemy.position, steps: 0 }];
+  const candidates: Array<{ destination: HexCoord; footprint: HexCoord[]; steps: number; contactDistance: number }> = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current.steps >= maxSteps) {
+      continue;
+    }
+    neighbors(current.coord).forEach((coord) => {
+      const key = hexKey(coord);
+      if (visited.has(key)) {
+        return;
+      }
+      visited.add(key);
+      const steps = current.steps + 1;
+      const footprint = footprintForUnitAt(enemy, coord);
+      if (footprintFitsMap(footprint, state.mapHexes)) {
+        const contactDistance = footprintDistance(footprint, actorFootprint);
+        if (contactDistance <= 1 && !footprintsCollide(footprint, actorFootprint) && !footprintCollidesAny(footprint, occupiedFootprints)) {
+          candidates.push({ destination: coord, footprint, steps, contactDistance });
+        }
+      }
+      queue.push({ coord, steps });
+    });
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+  candidates.sort((left, right) => left.steps - right.steps || right.contactDistance - left.contactDistance || left.destination.r - right.destination.r || left.destination.q - right.destination.q);
+  const selected = candidates[0]!;
+  return { destination: selected.destination, footprint: selected.footprint, steps: selected.steps };
+}
+
+function buildFrontlinePushCandidate(
+  state: InternalState,
+  actor: InternalUnit,
+  anchor: HexCoord,
+  steps: number,
+  preEngaged: InternalUnit[],
+): FrontlinePushCandidate | null {
+  const actorFootprint = footprintForUnitAt(actor, anchor);
+  const preEngagedIds = new Set(preEngaged.map((enemy) => enemy.id));
+  const blockingEnemies = getAliveUnits(state)
+    .filter((unit) => unit.side !== actor.side)
+    .filter((unit) => footprintsCollide(actorFootprint, unit.occupiedHexes));
+  if (blockingEnemies.some((enemy) => !preEngagedIds.has(enemy.id) || enemy.resolvedStats.size >= actor.resolvedStats.size)) {
+    return null;
+  }
+
+  const pushedIds = new Set(blockingEnemies.map((enemy) => enemy.id));
+  const fixedFootprints = getAliveUnits(state)
+    .filter((unit) => unit.id !== actor.id && !pushedIds.has(unit.id))
+    .map((unit) => unit.occupiedHexes);
+  if (footprintCollidesAny(actorFootprint, fixedFootprints)) {
+    return null;
+  }
+
+  const pushed: FrontlinePushCandidate['pushed'] = [];
+  const occupiedForPushes = [...fixedFootprints, actorFootprint];
+  for (const enemy of blockingEnemies) {
+    const maxPushSteps = actor.resolvedStats.move - steps;
+    if (maxPushSteps <= 0) {
+      return null;
+    }
+    const placement = findPushedEnemyDestination(state, enemy, actorFootprint, occupiedForPushes, maxPushSteps);
+    if (!placement) {
+      return null;
+    }
+    pushed.push({ unit: enemy, ...placement });
+    occupiedForPushes.push(placement.footprint);
+  }
+
+  const footprintForEnemy = (enemy: InternalUnit) => pushed.find((entry) => entry.unit.id === enemy.id)?.footprint ?? enemy.occupiedHexes;
+  if (!preEngaged.every((enemy) => footprintsTouchOrOverlap(actorFootprint, footprintForEnemy(enemy)))) {
+    return null;
+  }
+
+  const touchingEnemies = getAliveUnits(state)
+    .filter((unit) => unit.side !== actor.side)
+    .filter((enemy) => footprintsTouchOrOverlap(actorFootprint, footprintForEnemy(enemy)));
+  const engagedSize = Math.min(actor.resolvedStats.capacity, fixedSum(touchingEnemies.map((enemy) => enemy.resolvedStats.size)));
+  const newlyEngagedCount = touchingEnemies.filter((enemy) => !preEngagedIds.has(enemy.id)).length;
+  const currentEngagedSize = Math.min(actor.resolvedStats.capacity, fixedSum(preEngaged.map((enemy) => enemy.resolvedStats.size)));
+  if (engagedSize <= currentEngagedSize && newlyEngagedCount === 0) {
+    return null;
+  }
+
+  return {
+    anchor,
+    steps,
+    pushed,
+    engagedSize,
+    newlyEngagedCount,
+    reasonCode: pushed.length > 0 ? 'frontline-push-through' : 'frontline-reposition-capacity',
+  };
+}
+
+function tryFrontlinePushThrough(state: InternalState, actor: InternalUnit): boolean {
+  if (actor.role !== 'frontline' || actor.engagedWith.size === 0 || availableCapacity(state, actor) <= 0 || actor.resolvedStats.move <= 0) {
+    return false;
+  }
+  const preEngaged = [...actor.engagedWith]
+    .map((enemyId) => state.units.get(enemyId))
+    .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive));
+  if (preEngaged.length === 0) {
+    return false;
+  }
+
+  const candidates = reachableAnchorsWithinMove(state, actor, actor.resolvedStats.move, true)
+    .map((entry) => buildFrontlinePushCandidate(state, actor, entry.coord, entry.steps, preEngaged))
+    .filter((candidate): candidate is FrontlinePushCandidate => Boolean(candidate));
+  if (candidates.length === 0) {
+    return false;
+  }
+
+  candidates.sort(
+    (left, right) =>
+      right.engagedSize - left.engagedSize ||
+      right.newlyEngagedCount - left.newlyEngagedCount ||
+      left.steps - right.steps ||
+      left.pushed.length - right.pushed.length ||
+      left.anchor.r - right.anchor.r ||
+      left.anchor.q - right.anchor.q,
+  );
+  const selected = candidates[0]!;
+  selected.pushed.forEach((push) => moveUnitPreservingEngagements(push.unit, push.destination));
+  moveUnitPreservingEngagements(actor, selected.anchor);
+  clearStaleEngagements(state);
+  getAliveUnits(state)
+    .filter((unit) => unit.side !== actor.side && !actor.engagedWith.has(unit.id) && unitsTouchOrOverlap(actor, unit))
+    .sort((left, right) => left.resolvedStats.size - right.resolvedStats.size || left.id.localeCompare(right.id))
+    .forEach((enemy) => {
+      if (enemy.resolvedStats.size <= availableCapacity(state, actor)) {
+        createEngagement(state, actor, enemy);
+      }
+    });
+  buildStep(
+    state,
+    'move',
+    [actor.id],
+    selected.pushed.map((push) => push.unit.id),
+    selected.pushed.length > 0 ? `${actor.troopLabel} pushes through the melee.` : `${actor.troopLabel} repositions to hold more enemies.`,
+    {
+      reasonCode: selected.reasonCode,
+      toQ: actor.position.q,
+      toR: actor.position.r,
+      pushedUnitIds: selected.pushed.map((push) => push.unit.id),
+      engagedSize: selected.engagedSize,
+      newlyEngagedCount: selected.newlyEngagedCount,
+    },
+  );
+  return true;
+}
+
+function tryPusherBreakthrough(state: InternalState, actor: InternalUnit): boolean {
+  if (actor.role !== 'pusher' || actor.engagedWith.size === 0) {
+    return false;
+  }
+  const candidates = [...actor.engagedWith]
+    .map((enemyId) => state.units.get(enemyId))
+    .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive))
+    .filter((enemy) => enemy.resolvedStats.size < actor.resolvedStats.size)
+    .filter((enemy) =>
+      getAliveUnits(state, actor.side).some((ally) => ally.id !== actor.id && ally.engagedWith.has(enemy.id)),
+    );
+  if (candidates.length === 0) {
+    return false;
+  }
+  const target = chooseAttackTarget(state, actor, candidates);
+  actor.engagedWith.delete(target.id);
+  target.engagedWith.delete(actor.id);
+  actor.committedBacklineTargetId = null;
+  buildStep(state, 'move', [actor.id], [target.id], `${actor.troopLabel} breaks through ${target.troopLabel}.`, {
+    reasonCode: 'pusher-breakthrough',
+    targetRole: target.role,
+    targetHexQ: target.position.q,
+    targetHexR: target.position.r,
+  });
+  return true;
+}
+
+function allStateMapHexes(state: InternalState): HexCoord[] {
+  return hexSetToCoords(state.mapHexes);
 }
 
 function randomLegalRelocationHex(state: InternalState, actor: InternalUnit): HexCoord | null {
-  const candidates = allMapHexes(state.mapRadius).filter(
-    (coord) => !equalsHex(coord, actor.position) && fixedAdd(allySizeOnHex(state, actor.side, coord, actor.id), actor.resolvedStats.size) <= state.saturation,
-  );
+  const candidates = allStateMapHexes(state).filter((coord) => !equalsHex(coord, actor.position) && isUnitAnchorLegal(state, actor, coord));
   if (candidates.length === 0) {
     return null;
   }
@@ -3234,10 +3717,10 @@ function applyWhimsy(state: InternalState, actor: InternalUnit): void {
 function getScreenPriority(state: InternalState, actor: InternalUnit, candidate: InternalUnit): number {
   const alliedBackline = getAlliedBackline(state, actor);
   if (alliedBackline.length === 0) {
-    return hexDistance(actor.position, candidate.position);
+    return unitFootprintDistance(actor, candidate);
   }
-  const backlineDistance = Math.min(...alliedBackline.map((unit) => hexDistance(unit.position, candidate.position)));
-  const actorDistance = hexDistance(actor.position, candidate.position);
+  const backlineDistance = Math.min(...alliedBackline.map((unit) => unitFootprintDistance(unit, candidate)));
+  const actorDistance = unitFootprintDistance(actor, candidate);
   return backlineDistance * 100 + actorDistance;
 }
 
@@ -3260,7 +3743,7 @@ type RoleObjective = {
 };
 
 function pickFrontlineObjective(state: InternalState, actor: InternalUnit): RoleObjective | null {
-  const screeningTargets = getEnemyUnits(state, actor, ['frontline', 'chaff']);
+  const screeningTargets = getEnemyUnits(state, actor, ['frontline', 'pusher']);
   if (screeningTargets.length > 0) {
     const bestPriority = Math.min(...screeningTargets.map((target) => getScreenPriority(state, actor, target)));
     const priorityTiedTargets = screeningTargets.filter((target) => getScreenPriority(state, actor, target) === bestPriority);
@@ -3284,7 +3767,7 @@ function pickFrontlineObjective(state: InternalState, actor: InternalUnit): Role
   };
 }
 
-function pickChaffObjective(state: InternalState, actor: InternalUnit): RoleObjective | null {
+function pickPusherObjective(state: InternalState, actor: InternalUnit): RoleObjective | null {
   const committedTarget = actor.committedBacklineTargetId ? state.units.get(actor.committedBacklineTargetId) : null;
   if (committedTarget?.alive && committedTarget.side !== actor.side && committedTarget.role === 'backline') {
     return {
@@ -3342,12 +3825,12 @@ function moveToward(
   if (options.length === 0) {
     return false;
   }
-  const currentDistance = hexDistance(actor.position, target.position);
+  const currentDistance = unitFootprintDistance(actor, target);
   const scored = options.map((coord) => {
-    const enemiesHere = getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord));
+    const enemiesHere = getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitAtAnchorTouchesUnit(actor, coord, unit));
     return {
       coord,
-      distance: hexDistance(coord, target.position),
+      distance: unitDistanceFromAnchor(actor, coord, target),
       nonEngagedEnemies: enemiesHere.filter((unit) => unit.engagedWith.size === 0).length,
     };
   });
@@ -3365,14 +3848,14 @@ function moveToward(
   if (equalsHex(selected.coord, actor.position)) {
     return false;
   }
-  const saturatedPreference = neighbors(actor.position)
-    .filter((coord) => inRadius(coord, state.mapRadius))
-    .filter((coord) => isSaturatedForMovement(state, actor, coord))
+  const blockedPreference = neighbors(actor.position)
+    .filter((coord) => state.mapHexes.has(hexKey(coord)))
+    .filter((coord) => isBlockedForMovement(state, actor, coord))
     .map((coord) => {
-      const enemiesHere = getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord));
+      const enemiesHere = getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitAtAnchorTouchesUnit(actor, coord, unit));
       return {
         coord,
-        distance: hexDistance(coord, target.position),
+        distance: unitDistanceFromAnchor(actor, coord, target),
         nonEngagedEnemies: enemiesHere.filter((unit) => unit.engagedWith.size === 0).length,
       };
     })
@@ -3382,10 +3865,10 @@ function moveToward(
     .sort((a, b) => a.distance - b.distance || a.nonEngagedEnemies - b.nonEngagedEnemies)[0]?.coord;
   relocateUnit(state, actor, selected.coord);
   const routeMetadata =
-    saturatedPreference && hexDistance(saturatedPreference, actor.position) === 1
+    blockedPreference && hexDistance(blockedPreference, actor.position) === 1
       ? {
-          routedAroundSaturatedQ: saturatedPreference.q,
-          routedAroundSaturatedR: saturatedPreference.r,
+          routedAroundBlockedQ: blockedPreference.q,
+          routedAroundBlockedR: blockedPreference.r,
         }
       : {};
   if (roleIntent && reasonCode && targetRole) {
@@ -3406,7 +3889,7 @@ function moveToward(
 }
 
 function enemiesInRange(state: InternalState, actor: InternalUnit): InternalUnit[] {
-  return getAliveUnits(state).filter((enemy) => enemy.side !== actor.side && hexDistance(actor.position, enemy.position) <= actor.resolvedStats.range);
+  return getAliveUnits(state).filter((enemy) => enemy.side !== actor.side && unitsInRange(actor, enemy));
 }
 
 function nearestEnemyDistance(state: InternalState, actor: InternalUnit): number | null {
@@ -3414,13 +3897,13 @@ function nearestEnemyDistance(state: InternalState, actor: InternalUnit): number
   if (enemies.length === 0) {
     return null;
   }
-  return Math.min(...enemies.map((enemy) => hexDistance(actor.position, enemy.position)));
+  return Math.min(...enemies.map((enemy) => unitFootprintDistance(actor, enemy)));
 }
 
 function engageObjective(state: InternalState, actor: InternalUnit, objective: RoleObjective): boolean {
-  const preferredRoles = objective.targetRole === 'backline' ? ['backline'] : ['frontline', 'chaff'];
+  const preferredRoles = objective.targetRole === 'backline' ? ['backline'] : ['frontline', 'pusher'];
   if (enemyUnitsOnHex(state, actor).some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
-    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles);
+    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles, actor.role === 'pusher');
     if (engagedTargets.length > 0) {
       emitRoleIntentStep(state, 'engage', actor, engagedTargets, `${actor.troopLabel} ${formatRoleIntentMessage(objective.roleIntent)}.`, {
         roleIntent: objective.roleIntent,
@@ -3429,6 +3912,9 @@ function engageObjective(state: InternalState, actor: InternalUnit, objective: R
         targetHexQ: objective.target.position.q,
         targetHexR: objective.target.position.r,
       });
+      if (actor.role === 'pusher' && tryPusherBreakthrough(state, actor)) {
+        return true;
+      }
     }
     return fight(state, actor) || engagedTargets.length > 0;
   }
@@ -3439,7 +3925,7 @@ function engageObjective(state: InternalState, actor: InternalUnit, objective: R
     return moved;
   }
   if (enemiesOnCell.some((enemy) => matchesRoleFilter(enemy, preferredRoles))) {
-    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles);
+    const engagedTargets = engageEnemiesOnHex(state, actor, preferredRoles, actor.role === 'pusher');
     if (engagedTargets.length > 0) {
       emitRoleIntentStep(state, 'engage', actor, engagedTargets, `${actor.troopLabel} ${formatRoleIntentMessage(objective.roleIntent)}.`, {
         roleIntent: objective.roleIntent,
@@ -3448,6 +3934,9 @@ function engageObjective(state: InternalState, actor: InternalUnit, objective: R
         targetHexQ: objective.target.position.q,
         targetHexR: objective.target.position.r,
       });
+      if (actor.role === 'pusher' && tryPusherBreakthrough(state, actor)) {
+        return true;
+      }
     }
     return fight(state, actor) || engagedTargets.length > 0 || moved;
   }
@@ -3459,8 +3948,8 @@ function scoreRetreatHex(state: InternalState, actor: InternalUnit, coord: HexCo
   if (enemies.length === 0) {
     return 0;
   }
-  const nearestEnemy = Math.min(...enemies.map((enemy) => hexDistance(coord, enemy.position)));
-  const totalEnemyDistance = enemies.reduce((sum, enemy) => sum + hexDistance(coord, enemy.position), 0);
+  const nearestEnemy = Math.min(...enemies.map((enemy) => unitDistanceFromAnchor(actor, coord, enemy)));
+  const totalEnemyDistance = enemies.reduce((sum, enemy) => sum + unitDistanceFromAnchor(actor, coord, enemy), 0);
   return nearestEnemy * 100 + totalEnemyDistance;
 }
 
@@ -3474,8 +3963,8 @@ function retreatFromEngagement(
 ): boolean {
   const options = validMovementHexes(state, actor).filter(
     (coord) =>
-      getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord)).length === 0 &&
-      (!requireEnemyInRange || getEnemyUnits(state, actor).some((enemy) => hexDistance(coord, enemy.position) <= actor.resolvedStats.range)),
+      getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitAtAnchorTouchesUnit(actor, coord, unit)).length === 0 &&
+      (!requireEnemyInRange || getEnemyUnits(state, actor).some((enemy) => unitDistanceFromAnchor(actor, coord, enemy) <= actor.resolvedStats.range)),
   );
   if (options.length === 0) {
     return false;
@@ -3516,7 +4005,7 @@ function skirmisherRetreat(state: InternalState, actor: InternalUnit): boolean {
 function retreat(state: InternalState, actor: InternalUnit): boolean {
   const target = pickNearestUnit(state, actor, getEnemyUnits(state, actor));
   const options = validMovementHexes(state, actor).filter(
-    (coord) => getAliveUnits(state).filter((unit) => unit.side !== actor.side && equalsHex(unit.position, coord)).length === 0,
+    (coord) => getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitAtAnchorTouchesUnit(actor, coord, unit)).length === 0,
   );
   if (options.length > 0) {
     const selected = pickBestMovementHex(state, actor, options, (coord) => scoreRetreatHex(state, actor, coord));
@@ -3553,22 +4042,22 @@ function carefulAdvance(state: InternalState, actor: InternalUnit): boolean {
     return false;
   }
   const options = validMovementHexes(state, actor).filter((coord) => {
-    const becomesCloser = hexDistance(coord, target.position) < hexDistance(actor.position, target.position);
+    const becomesCloser = unitDistanceFromAnchor(actor, coord, target) < unitFootprintDistance(actor, target);
     if (!becomesCloser) {
       return false;
     }
-    const alliesOnTarget = getAliveUnits(state, actor.side).filter((ally) => equalsHex(ally.position, coord));
+    const alliesOnTarget = getAliveUnits(state, actor.side).filter((ally) => unitAtAnchorTouchesUnit(actor, coord, ally));
     return alliesOnTarget.every((ally) => ally.resolvedStats.range >= actor.resolvedStats.range);
   });
   if (options.length === 0) {
     return false;
   }
-  const currentDistance = hexDistance(actor.position, target.position);
+  const currentDistance = unitFootprintDistance(actor, target);
   const selected = pickBestMovementHex(
     state,
     actor,
     options,
-    (coord) => currentDistance - hexDistance(coord, target.position),
+    (coord) => currentDistance - unitDistanceFromAnchor(actor, coord, target),
   );
   if (!selected) {
     return false;
@@ -3595,7 +4084,7 @@ function applyQuakes(state: InternalState): void {
   }
 
   state.rng.shuffle(getAliveUnits(state)).forEach((unit) => {
-    const options = validMovementHexes(state, unit);
+    const options = validAdjacentMovementHexes(state, unit);
     if (options.length === 0) {
       return;
     }
@@ -3655,11 +4144,8 @@ function spawnPendingDiggyHoleUnits(state: InternalState): void {
     }
 
     const before = new Set(state.units.keys());
-    const context: SpawnContext = { units: state.units, rng: state.rng, saturation: state.saturation };
     const placementSide: SideId = side === 'player' ? 'enemy' : 'player';
-    while (!spawnUnitsForSide(side, pending, state.mapRadius, context, placementSide)) {
-      state.mapRadius += 1;
-    }
+    state.mapHexes = placeUnitsForSideWithMapExpansion(side, pending, state.units, state.mapHexes, state.rng, placementSide);
     state.pendingDiggyHoleCombatants[side] = [];
     const spawned = [...state.units.values()].filter((unit) => !before.has(unit.id));
     spawned.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
@@ -3704,11 +4190,16 @@ function applyChangeling(state: InternalState): void {
       const unit = state.rng.pick(units);
       removeAllEngagements(state, unit);
       unit.side = side;
+      unit.committedBacklineTargetId = null;
       unit.initiative = 0;
       changed.push(unit);
     });
     state.changelingTriggeredSides.add(side);
     if (changed.length > 0) {
+      clearStaleEngagements(state);
+      clearInvalidBacklineCommitments(state);
+      changed.forEach((unit) => state.distinctTypeCache.delete(unit.side));
+      state.distinctTypeCache.delete(enemySide);
       buildStep(
         state,
         'buff',
@@ -3744,26 +4235,53 @@ function executeTurnActions(state: InternalState, actor: InternalUnit): void {
     .map((enemyId) => state.units.get(enemyId))
     .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive));
   if (engagedEnemies.length > 0) {
-    attack(state, actor, chooseAttackTarget(state, actor, engagedEnemies), 'melee');
-    return;
+    if (actor.role === 'frontline' && tryFrontlinePushThrough(state, actor)) {
+      return;
+    }
+    if (actor.role === 'pusher' && tryPusherBreakthrough(state, actor)) {
+      const remainingEngagedEnemies = [...actor.engagedWith]
+        .map((enemyId) => state.units.get(enemyId))
+        .filter((enemy): enemy is InternalUnit => Boolean(enemy?.alive));
+      if (remainingEngagedEnemies.length > 0) {
+        attack(state, actor, chooseAttackTarget(state, actor, remainingEngagedEnemies), 'melee');
+        return;
+      }
+    } else {
+      attack(state, actor, chooseAttackTarget(state, actor, engagedEnemies), 'melee');
+      return;
+    }
   }
 
-  if (actor.role === 'frontline') {
-    const objective = pickFrontlineObjective(state, actor);
+  if (actor.role === 'pusher') {
+    const sameHexEnemies = enemyUnitsOnHex(state, actor);
+    if (sameHexEnemies.length > 0) {
+      const engagedTargets = engageEnemiesOnHex(state, actor, [], true);
+      if (engagedTargets.length > 0) {
+        buildStep(state, 'engage', [actor.id], engagedTargets.map((target) => target.id), `${actor.troopLabel} engages enemies.`, {
+          reasonCode: 'pusher-contact-engage',
+          targetRole: engagedTargets[0]?.role,
+          targetHexQ: engagedTargets[0]?.position.q,
+          targetHexR: engagedTargets[0]?.position.r,
+        });
+      }
+      const preferredTargets = sameHexEnemies.filter((enemy) => enemy.role === 'backline');
+      attack(state, actor, chooseAttackTarget(state, actor, preferredTargets.length > 0 ? preferredTargets : sameHexEnemies), 'melee');
+      return;
+    }
+    const objective = pickPusherObjective(state, actor);
     if (objective) {
       engageObjective(state, actor, objective);
     }
     return;
   }
 
-  if (actor.role === 'chaff') {
-    const sameHexEnemies = enemyUnitsOnHex(state, actor);
-    if (sameHexEnemies.length > 0) {
-      const preferredTargets = sameHexEnemies.filter((enemy) => enemy.role === 'backline');
-      attack(state, actor, chooseAttackTarget(state, actor, preferredTargets.length > 0 ? preferredTargets : sameHexEnemies), 'melee');
-      return;
-    }
-    const objective = pickChaffObjective(state, actor);
+  if (engagedEnemies.length > 0) {
+    attack(state, actor, chooseAttackTarget(state, actor, engagedEnemies), 'melee');
+    return;
+  }
+
+  if (actor.role === 'frontline') {
+    const objective = pickFrontlineObjective(state, actor);
     if (objective) {
       engageObjective(state, actor, objective);
     }
@@ -3811,11 +4329,11 @@ function isBattleOver(state: InternalState): boolean {
   return !playerPresent || !enemyPresent;
 }
 
-export function resolveBattle(input: BattleInput): BattleReplay {
+export function resolveBattle(rawInput: BattleInput): BattleReplay {
+  const input = normalizeBattleInput(rawInput);
   const seed = input.seed ?? randomSeed();
   const rng = createRng(seed);
   const init = initializeUnits(input, rng);
-  const saturation = input.saturation ?? DEFAULT_SATURATION;
   const state: InternalState = {
     units: init.units,
     pendingDiggyHoleCombatants: init.pendingDiggyHoleCombatants,
@@ -3824,7 +4342,7 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     summonedProfiles: new Map<string, ReplayTroopProfile>(),
     steps: [],
     mapRadius: init.mapRadius,
-    saturation,
+    mapHexes: new Set(init.mapHexes.map(hexKey)),
     rng,
     beatCount: 0,
     effects: buildEffects(input.mutatorIds),
@@ -3875,7 +4393,8 @@ export function resolveBattle(input: BattleInput): BattleReplay {
     tier: input.tier,
     mutatorIds: [...input.mutatorIds],
     mapRadius: state.mapRadius,
-    saturation: state.saturation,
+    mapHexes: hexSetToCoords(state.mapHexes),
+    saturation: input.saturation ?? DEFAULT_SATURATION,
     initial,
     steps: state.steps,
     outcome: resolveBattleOutcome(state),

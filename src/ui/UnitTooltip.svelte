@@ -62,11 +62,13 @@
             ? display.stats?.armor ?? 0
             : stat === 'speed'
               ? display.stats?.speed ?? 0
-              : stat === 'range'
-                ? display.stats?.range ?? 0
-                : stat === 'size'
-                  ? display.stats?.size ?? 0
-                  : display.stats?.capacity ?? 0;
+              : stat === 'move'
+                ? display.stats?.move ?? 0
+                : stat === 'range'
+                  ? display.stats?.range ?? 0
+                  : stat === 'size'
+                    ? display.stats?.size ?? 0
+                    : display.stats?.capacity ?? 0;
 
     return {
       stat,
@@ -81,6 +83,7 @@
         { key: 'damage' as const, label: statIcon('damage'), value: formatFixed(display.stats.damage), breakdown: mergedBreakdown('damage') },
         { key: 'armor' as const, label: statIcon('armor'), value: formatFixed(display.stats.armor), breakdown: mergedBreakdown('armor') },
         { key: 'speed' as const, label: statIcon('speed'), value: formatFixed(display.stats.speed), breakdown: mergedBreakdown('speed') },
+        { key: 'move' as const, label: statIcon('move'), value: formatFixed(display.stats.move), breakdown: mergedBreakdown('move') },
         { key: 'range' as const, label: statIcon('range'), value: formatFixed(display.stats.range), breakdown: mergedBreakdown('range') },
         { key: 'size' as const, label: statIcon('size'), value: formatFixed(display.stats.size), breakdown: mergedBreakdown('size') },
         { key: 'capacity' as const, label: statIcon('capacity'), value: formatFixed(display.stats.capacity), breakdown: mergedBreakdown('capacity') },
@@ -105,7 +108,7 @@
       return null;
     }
     const statBreakdowns = Object.fromEntries(
-      (['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'] as const).map((stat) => [
+      (['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'] as const).map((stat) => [
         stat,
         { stat, finalValue: preview.troop.stats[stat], lines: [{ label: 'Summoned', value: preview.troop.stats[stat], kind: 'base' as const }] },
       ]),
@@ -225,6 +228,7 @@
             { key: 'health', label: statIcon('health'), value: formatFixed(hoveredSummonProfile.stats.health), breakdown: hoveredSummonProfile.statBreakdowns.health },
             { key: 'damage', label: statIcon('damage'), value: formatFixed(hoveredSummonProfile.stats.damage), breakdown: hoveredSummonProfile.statBreakdowns.damage },
             { key: 'speed', label: statIcon('speed'), value: formatFixed(hoveredSummonProfile.stats.speed), breakdown: hoveredSummonProfile.statBreakdowns.speed },
+            { key: 'move', label: statIcon('move'), value: formatFixed(hoveredSummonProfile.stats.move), breakdown: hoveredSummonProfile.statBreakdowns.move },
             { key: 'armor', label: statIcon('armor'), value: formatFixed(hoveredSummonProfile.stats.armor), breakdown: hoveredSummonProfile.statBreakdowns.armor },
           ]}
           columns={2}

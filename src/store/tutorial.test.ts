@@ -95,7 +95,7 @@ describe('tutorial fixtures', () => {
     expect(profiles.length).toBeGreaterThan(0);
     expect(write?.replay.input.playerCombatants.some((combatant) => combatant.abilities.length > 0)).toBe(true);
     expect(new Set(write?.replay.input.enemyCombatants.map((combatant) => combatant.role))).toEqual(
-      new Set(['chaff', 'backline']),
+      new Set(['pusher', 'backline']),
     );
   });
 

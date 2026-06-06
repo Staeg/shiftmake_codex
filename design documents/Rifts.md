@@ -72,11 +72,11 @@ Current rules:
 
 This means enemy Rifts can use off-roster faction and troop-type pairings just like player unlocks can.
 
-## Saturation
+## Capacity metadata
 
-Each Rift gets a random saturation value from `3` to `15`.
+Each Rift still stores a legacy `saturation` value from `3` to `15`.
 
-This value is passed into the battle resolver and directly changes movement and spawn density.
+This value is passed into battle inputs and replay payloads for compatibility and reporting. Normal battle placement and movement now use explicit `mapHexes` plus full unit footprints instead of same-hex saturation occupancy.
 
 ## Assignment limits
 
@@ -105,7 +105,7 @@ The reward preview in the UI should therefore show:
 - tier
 - mutators
 - enemy army
-- saturation
+- saturation compatibility metadata
 - VP reward
 
 ## Lifecycle note
@@ -122,7 +122,7 @@ Each Ladder Rift-set stores:
 - Cycle
 - tier
 - mutator ids
-- saturation
+- saturation compatibility metadata
 - VP value
 - Guardian faction and troop-type identities
 - Guardian faction upgrade ids

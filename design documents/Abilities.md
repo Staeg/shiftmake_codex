@@ -189,7 +189,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `endOfTurn`
 - instant
 - `target: aoe ally 0`
-- Effect: heal allies on this hex for 7
+- Effect: heal touching allies for 7
 
 ### Blast 5
 
@@ -331,7 +331,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - turns 1
 - `target: self`
 - `trigger modifier: repeatPerOtherFriendlyUnitOnHex`
-- Effect: gain +1 damage per other friendly unit on this hex until end of turn
+- Effect: gain +1 damage per other touching friendly unit until end of turn
 
 ### Power of Friendship
 
@@ -375,7 +375,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Scurry
 
 - `passive`
-- Effect: ignore allied saturation limits for spawning and movement occupancy checks
+- Effect: ignore legacy allied formation pressure checks; full-footprint placement still cannot overlap living units
 
 ### Grave Vigor Corpse Mark
 
@@ -442,7 +442,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `onKill`
 - instant
 - `target: aoe ally 0`
-- Effect: heal allies on this hex for 20
+- Effect: heal touching allies for 20
 
 ### Vengeance 1
 
