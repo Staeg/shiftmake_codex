@@ -4,19 +4,19 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-**Shiftmake** is a browser-based, primarily singleplayer turn-based strategy game with light pixel art graphics. The design documents are in `design documents/Overview.md`, `design documents/Unit details.md`, `design documents/Battle details.md`, `design documents/Overworld.md`, and `design documents/Rifts.md`. The full technical spec is in `TECHNICAL.md` - read it before writing any code. After implementing any changes that contradict one of the markdown documents, update those documents.
+**Shiftmake** is a browser-based turn-based strategy game with light pixel art graphics. The design documents are in `design documents/Overview.md`, `design documents/Unit details.md`, `design documents/Battle details.md`, `design documents/Overworld.md`, and `design documents/Rifts.md`. The full technical spec is in `TECHNICAL.md` - read it before writing any code. After implementing any changes that contradict one of the markdown documents, update those documents.
 
 ### Core Concept
 
-The player commands a patchwork army of multiple factions/races. **Rifts** (portals to new worlds) open periodically — the player chooses which troops to send through each Rift, knowing the reward and the enemy composition in advance. By default, only one troop per faction and one troop per troop type can enter a Rift at a time.
+The player commands a patchwork army of multiple factions/races. **Rifts** (portals to new worlds) open periodically - the player chooses which troops to send through each Rift, knowing the VP reward, mutators, and enemy composition in advance. By default, only one troop per faction and one troop per troop type can enter a Rift at a time.
 
 Battles are auto-resolved but fully observable (the player can replay exactly how they played out). Skill expression comes from resource efficiency and building synergies.
 
 ### Key Game Loops
 
-1. **Strategic layer**: Select which troop to send into each available Rift, balancing risk vs. reward and faction availability.
-2. **Upgrade layer**: Spend conquered resources to enlist new factions, form new troops, increase troop size, or upgrade factions/unit types globally.
-3. **Battle layer**: Auto-resolved; both victories and defeats trigger a recovery period (defeats take longer). Units do not permanently die.
+1. **Strategic layer**: Select which troop to send into each available Rift, balancing risk vs. VP reward, mutators, enemy composition, and faction availability.
+2. **Progression layer**: Spend Essence on combined troop-and-upgrade drafts, scheduled faction unlocks, and global faction or troop-type upgrades.
+3. **Battle layer**: Auto-resolved; both victories and defeats make troops ready next cycle by default. Units do not permanently die.
 
 ### Faction & Unit System
 

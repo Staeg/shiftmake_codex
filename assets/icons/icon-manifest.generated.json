@@ -171,7 +171,7 @@
       "name": "Blood Oath",
       "owner": null,
       "tier": null,
-      "mechanic": "When an ally dies on this hex: set initiative to 100.",
+      "mechanic": "When a touching ally dies: set initiative to 100.",
       "trigger": "onFallen; near fallen ally unit",
       "target": "self",
       "effects": [
@@ -183,7 +183,7 @@
         "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there."
+        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact."
       ],
       "sourceAbilityIds": [
         "blood-oath"
@@ -462,7 +462,7 @@
       "name": "Corpse Summon Skeleton",
       "owner": null,
       "tier": null,
-      "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies on their hex.",
+      "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal touching allies.",
       "trigger": "onFallen; near fallen all unit",
       "target": null,
       "effects": [
@@ -491,7 +491,7 @@
       "name": "Crushing Sweep",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: melee kills deal splash damage equal to 5 times this unit size to other enemies on that hex.",
+      "mechanic": "Passive: melee kills deal splash damage equal to 5 times this unit size to enemies touching the fallen unit.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -502,7 +502,7 @@
         "melee"
       ],
       "relatedUpgradeContexts": [
-        "Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size."
+        "Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size."
       ],
       "sourceAbilityIds": [
         "crushing-sweep"
@@ -825,7 +825,7 @@
       "name": "Goblin Farewell",
       "owner": null,
       "tier": null,
-      "mechanic": "On death: strike a random enemy on this hex one extra time.",
+      "mechanic": "On death: strike a random touching enemy one extra time.",
       "trigger": "onDeath",
       "target": "random; enemy; radius 0",
       "effects": [
@@ -839,7 +839,7 @@
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative."
+        "Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative."
       ],
       "sourceAbilityIds": [
         "goblin-farewell"
@@ -904,7 +904,7 @@
       "name": "Hold the Standard",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: whenever a non-Fading ally dies on this hex, heal Human units on this hex for 15.",
+      "mechanic": "Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -914,7 +914,7 @@
         "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies on a Human hex, Human units on that hex heal 15."
+        "Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15."
       ],
       "sourceAbilityIds": [
         "hold-the-standard"
@@ -928,7 +928,7 @@
       "name": "Last Witness",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: when an ally dies on this unit hex, strike the killer twice if it is still there.",
+      "mechanic": "Passive: when a touching ally dies, strike the killer twice if still in contact.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -939,7 +939,7 @@
         "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there."
+        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact."
       ],
       "sourceAbilityIds": [
         "last-witness"
@@ -1030,7 +1030,7 @@
       "name": "Loot Frenzy",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: when this unit gets a kill, allies on that hex heal 10 and gain 30 initiative.",
+      "mechanic": "Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1041,7 +1041,7 @@
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Loot Frenzy (Goblins, tier 3): When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative."
+        "Loot Frenzy (Goblins, tier 3): When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative."
       ],
       "sourceAbilityIds": [
         "loot-frenzy"
@@ -1107,7 +1107,7 @@
       "name": "Pack 1",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of turn: gain +1 damage per other friendly unit on this hex until end of turn.",
+      "mechanic": "Start of turn: gain +1 damage per other touching friendly unit until end of turn.",
       "trigger": "startOfTurn; scales per other friendly unit on hex",
       "target": "self",
       "effects": [
@@ -1120,7 +1120,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Goblin Pack (Goblins, tier 2): Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn."
+        "Goblin Pack (Goblins, tier 2): Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn."
       ],
       "sourceAbilityIds": [
         "pack-1"
@@ -1134,7 +1134,7 @@
       "name": "Packmaster's Whistle",
       "owner": null,
       "tier": null,
-      "mechanic": "End of turn: if engaged, a wolf on this unit hex redirects an engaged enemy and heals 10.",
+      "mechanic": "End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1149,7 +1149,7 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10."
+        "Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10."
       ],
       "sourceAbilityIds": [
         "packmasters-whistle"
@@ -1223,8 +1223,8 @@
       "name": "Rabble Rush",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of turn: gain +1 initiative per other Militia on this hex.",
-      "trigger": "startOfTurn; scales per other friendly unit on hex",
+      "mechanic": "Start of turn: gain +1 initiative per other touching Militia.",
+      "trigger": "startOfTurn; scales per other touching friendly unit",
       "target": "self",
       "effects": [
         "initiative +1"
@@ -1235,7 +1235,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits."
+        "Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them."
       ],
       "sourceAbilityIds": [
         "rabble-rush"
@@ -1262,7 +1262,7 @@
         "melee"
       ],
       "relatedUpgradeContexts": [
-        "Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size."
+        "Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size."
       ],
       "sourceAbilityIds": [
         "ramp-1"
@@ -1378,7 +1378,7 @@
       "name": "Scurry",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: does not count toward allied saturation limits.",
+      "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints, not allied saturation limits.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1388,7 +1388,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits."
+        "Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them."
       ],
       "sourceAbilityIds": [
         "scurry"
@@ -1682,7 +1682,7 @@
       "name": "Snatch the Moment",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: on kill, enemies on that hex lose 20 initiative.",
+      "mechanic": "Passive: on kill, enemies touching the fallen unit lose 20 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1694,7 +1694,7 @@
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative."
+        "Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative."
       ],
       "sourceAbilityIds": [
         "snatch-the-moment"
@@ -1906,7 +1906,7 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10."
+        "Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10."
       ],
       "sourceAbilityIds": [
         "summon-wolf-2-blood"
@@ -1920,7 +1920,7 @@
       "name": "Taunt",
       "owner": null,
       "tier": null,
-      "mechanic": "End of turn: engage unengaged enemies on this hex up to Capacity.",
+      "mechanic": "End of turn: engage unengaged enemies in footprint contact up to Capacity.",
       "trigger": "endOfTurn",
       "target": "aoe; enemy; radius 0; unengaged",
       "effects": [
@@ -1971,7 +1971,7 @@
       "name": "Thrill of the Hunt",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: end of turn, wolves on this unit hex gain 10 initiative; any wolf kill gives allies on that hex +2 damage for the battle.",
+      "mechanic": "Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1982,7 +1982,7 @@
         "summon"
       ],
       "relatedUpgradeContexts": [
-        "Thrill of the Hunt (Beastmaster, tier 3): End of turn: wolves on this Beastmaster hex gain 10 initiative. Whenever any wolf gets a kill, allies on its hex gain +2 damage for the battle."
+        "Thrill of the Hunt (Beastmaster, tier 3): End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle."
       ],
       "sourceAbilityIds": [
         "thrill-of-the-hunt"
@@ -2073,7 +2073,7 @@
       "name": "Valor 20",
       "owner": null,
       "tier": null,
-      "mechanic": "On kill: heal allies on this hex for 20.",
+      "mechanic": "On kill: heal allies touching the fallen unit for 20.",
       "trigger": "onKill",
       "target": "aoe; ally; radius 0",
       "effects": [
@@ -2097,7 +2097,7 @@
       "name": "Vengeance 3",
       "owner": null,
       "tier": null,
-      "mechanic": "When an ally dies on this hex, gain +3 speed and +3 damage for the battle.",
+      "mechanic": "When a touching ally dies, gain +3 speed and +3 damage for the battle.",
       "trigger": "onFallen; near fallen ally unit",
       "target": "self",
       "effects": [
@@ -2394,7 +2394,7 @@
       "name": "Goblin Behavior",
       "owner": "Goblins",
       "tier": 1,
-      "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.",
+      "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.",
       "trigger": "onDeath",
       "target": "random; enemy; radius 0",
       "effects": [
@@ -2422,7 +2422,7 @@
       "name": "Goblin Pack",
       "owner": "Goblins",
       "tier": 2,
-      "mechanic": "Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.",
+      "mechanic": "Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.",
       "trigger": "startOfTurn; scales per other friendly unit on hex",
       "target": "self",
       "effects": [
@@ -2448,7 +2448,7 @@
       "name": "Loot Frenzy",
       "owner": "Goblins",
       "tier": 3,
-      "mechanic": "When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative.",
+      "mechanic": "When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2498,7 +2498,7 @@
       "name": "Hold the Standard",
       "owner": "Humans",
       "tier": 2,
-      "mechanic": "Whenever a non-Fading ally dies on a Human hex, Human units on that hex heal 15.",
+      "mechanic": "Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2627,7 +2627,7 @@
       "name": "Roll the Boulder",
       "owner": "Trolls",
       "tier": 1,
-      "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.",
+      "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.",
       "trigger": "endOfTurn",
       "target": "self",
       "effects": [
@@ -2900,7 +2900,7 @@
       "name": "Witness",
       "owner": "Avenger",
       "tier": 3,
-      "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.",
+      "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.",
       "trigger": "onFallen; near fallen ally unit",
       "target": "self",
       "effects": [
@@ -2926,7 +2926,7 @@
       "name": "Bloodhounds",
       "owner": "Beastmaster",
       "tier": 3,
-      "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.",
+      "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.",
       "trigger": "startOfBattle",
       "target": "self",
       "effects": [
@@ -2957,7 +2957,7 @@
       "name": "Thrill of the Hunt",
       "owner": "Beastmaster",
       "tier": 3,
-      "mechanic": "End of turn: wolves on this Beastmaster hex gain 10 initiative. Whenever any wolf gets a kill, allies on its hex gain +2 damage for the battle.",
+      "mechanic": "End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3214,8 +3214,8 @@
       "name": "Rat Behavior",
       "owner": "Militia",
       "tier": 3,
-      "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.",
-      "trigger": "startOfTurn; scales per other friendly unit on hex",
+      "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia touching them.",
+      "trigger": "startOfTurn; scales per other touching friendly unit",
       "target": "self",
       "effects": [
         "initiative +1"

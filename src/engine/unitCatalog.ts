@@ -1383,7 +1383,7 @@ export const TROOP_TYPE_UPGRADES: Record<string, TroopTypeUpgradeDefinition> = {
     unitTypeId: 'avenger',
     label: 'Witness',
     tier: 3,
-    description: 'When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.',
+    description: 'When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.',
     effects: [{ kind: 'addAbility', abilityId: 'blood-oath' }, { kind: 'addAbility', abilityId: 'last-witness' }],
   },
   'beastmaster-bloodhounds': {

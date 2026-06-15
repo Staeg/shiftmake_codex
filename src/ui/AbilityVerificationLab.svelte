@@ -83,6 +83,7 @@
     }
 
     renderer = new BattleRenderer(battleHost);
+    renderer.setHexInspectionVisible(true);
     await renderer.init();
     syncRenderer();
   }

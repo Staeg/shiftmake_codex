@@ -99,7 +99,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "When an ally dies on this hex: set initiative to 100.",
+    "mechanic": "When a touching ally dies: set initiative to 100.",
     "gameplayTags": [
       "base-ability",
       "initiative",
@@ -265,7 +265,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies on their hex.",
+    "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal touching allies.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -281,7 +281,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: melee kills deal splash damage equal to 5 times this unit size to other enemies on that hex.",
+    "mechanic": "Passive: melee kills deal splash damage equal to 5 times this unit size to enemies touching the fallen unit.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -467,7 +467,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On death: strike a random enemy on this hex one extra time.",
+    "mechanic": "On death: strike a random touching enemy one extra time.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -511,7 +511,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: whenever a non-Fading ally dies on this hex, heal Human units on this hex for 15.",
+    "mechanic": "Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.",
     "gameplayTags": [
       "base-ability",
       "healing",
@@ -524,7 +524,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when an ally dies on this unit hex, strike the killer twice if it is still there.",
+    "mechanic": "Passive: when a touching ally dies, strike the killer twice if still in contact.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -582,7 +582,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when this unit gets a kill, allies on that hex heal 10 and gain 30 initiative.",
+    "mechanic": "Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -626,7 +626,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of turn: gain +1 damage per other friendly unit on this hex until end of turn.",
+    "mechanic": "Start of turn: gain +1 damage per other touching friendly unit until end of turn.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -640,7 +640,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: if engaged, a wolf on this unit hex redirects an engaged enemy and heals 10.",
+    "mechanic": "End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -690,7 +690,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of turn: gain +1 initiative per other Militia on this hex.",
+    "mechanic": "Start of turn: gain +1 initiative per other touching Militia.",
     "gameplayTags": [
       "base-ability",
       "initiative",
@@ -775,7 +775,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: does not count toward allied saturation limits.",
+    "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints, not allied saturation limits.",
     "gameplayTags": [
       "base-ability",
       "initiative",
@@ -940,7 +940,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: on kill, enemies on that hex lose 20 initiative.",
+    "mechanic": "Passive: on kill, enemies touching the fallen unit lose 20 initiative.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1073,7 +1073,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: engage unengaged enemies on this hex up to Capacity.",
+    "mechanic": "End of turn: engage unengaged enemies in footprint contact up to Capacity.",
     "gameplayTags": [
       "base-ability",
       "initiative",
@@ -1102,7 +1102,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: end of turn, wolves on this unit hex gain 10 initiative; any wolf kill gives allies on that hex +2 damage for the battle.",
+    "mechanic": "Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1158,7 +1158,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On kill: heal allies on this hex for 20.",
+    "mechanic": "On kill: heal allies touching the fallen unit for 20.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1171,7 +1171,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "When an ally dies on this hex, gain +3 speed and +3 damage for the battle.",
+    "mechanic": "When a touching ally dies, gain +3 speed and +3 damage for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1388,7 +1388,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Goblins",
     "tier": 1,
-    "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.",
+    "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.",
     "gameplayTags": [
       "faction-upgrade",
       "goblins",
@@ -1404,7 +1404,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Goblins",
     "tier": 2,
-    "mechanic": "Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.",
+    "mechanic": "Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.",
     "gameplayTags": [
       "faction-upgrade",
       "goblins",
@@ -1419,7 +1419,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Goblins",
     "tier": 3,
-    "mechanic": "When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative.",
+    "mechanic": "When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
     "gameplayTags": [
       "faction-upgrade",
       "goblins",
@@ -1461,7 +1461,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Humans",
     "tier": 2,
-    "mechanic": "Whenever a non-Fading ally dies on a Human hex, Human units on that hex heal 15.",
+    "mechanic": "Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.",
     "gameplayTags": [
       "faction-upgrade",
       "humans",
@@ -1560,7 +1560,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "faction_upgrade",
     "owner": "Trolls",
     "tier": 1,
-    "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.",
+    "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.",
     "gameplayTags": [
       "faction-upgrade",
       "trolls",
@@ -1763,7 +1763,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_type_upgrade",
     "owner": "Avenger",
     "tier": 3,
-    "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.",
+    "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.",
     "gameplayTags": [
       "troop-type-upgrade",
       "avenger",
@@ -1788,7 +1788,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_type_upgrade",
     "owner": "Beastmaster",
     "tier": 3,
-    "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.",
+    "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.",
     "gameplayTags": [
       "troop-type-upgrade",
       "beastmaster",
@@ -1807,7 +1807,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_type_upgrade",
     "owner": "Beastmaster",
     "tier": 3,
-    "mechanic": "End of turn: wolves on this Beastmaster hex gain 10 initiative. Whenever any wolf gets a kill, allies on its hex gain +2 damage for the battle.",
+    "mechanic": "End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.",
     "gameplayTags": [
       "troop-type-upgrade",
       "beastmaster",
@@ -2019,7 +2019,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_type_upgrade",
     "owner": "Militia",
     "tier": 3,
-    "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.",
+    "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia touching them.",
     "gameplayTags": [
       "troop-type-upgrade",
       "militia",

@@ -56,7 +56,7 @@ Implemented mutators:
 - `Heavy Air`: ranged attacks deal 50% damage
 - `Animated`: all units lose `Fading`
 - `Corrosion`: all units start with 0 armor and cannot have positive armor during that battle
-- `Quakes`: every 10 beats, each unit is moved to a random adjacent hex if one fits
+- `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor position if its full footprint fits
 - `Decay`: every beat, each unit loses 1 HP ignoring armor
 
 ## Enemy generation

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Shiftmake is a browser-based singleplayer turn-based strategy game where the player manages a patchwork army across a series of Rift battles. The current project focus is tightening the existing experience so the interface feels clean and readable, battlefield roles behave intuitively, and a full run stays tense and fair from opening to late cycles.
+Shiftmake is a browser-based turn-based strategy game where the player manages a patchwork army across a series of Rift battles. The current project focus is tightening the existing experience so the interface feels clean and readable, battlefield roles behave intuitively, and a full run stays tense and fair from opening to late cycles.
 
 ## Core Value
 
@@ -15,7 +15,7 @@ The game should feel strategically legible and satisfying from moment to moment,
 - [x] Player can start and play a browser-based singleplayer campaign run with local save slots and replayable battles - existing
 - [x] Player can assign troops to visible Rifts and resolve deterministic auto-battles with observable replays - existing
 - [x] Player can recruit from faction and troop offers, apply upgrades, and progress through a 10-cycle campaign structure - existing
-- [x] Frontline, chaff, and backline roles now behave with engine-authored intent that matches their names and replay presentation - validated in Phase 2: Intuitive Battlefield Roles
+- [x] Frontline, pusher, and backline roles now behave with engine-authored intent that matches their names and replay presentation - validated in Phase 2: Intuitive Battlefield Roles
 
 ### Active
 
@@ -35,7 +35,7 @@ Shiftmake already has a functioning brownfield browser implementation built with
 The milestone order remains:
 1. Improve the UI and remove layout friction
 2. Rework role behavior so unit intent fully matches what the role names imply
-3. Run a broader balance pass across campaign pacing, including Rift army composition and progression rewards such as Essence and unlock flow
+3. Run a broader balance pass across campaign pacing, including Rift army composition, Essence cadence, and unlock flow
 
 Phase 2 is now complete. The battle engine emits typed role-intent metadata, deterministic role-behavior tests and seed sweeps are in place, and replay consumers surface role intent directly from engine-authored data. The next active work is the campaign pacing and economy pass in Phase 3.
 
@@ -43,7 +43,7 @@ Phase 2 is now complete. The battle engine emits typed role-intent metadata, det
 
 - Tech stack: TypeScript + Vite + Svelte + PixiJS
 - Architecture: `src/engine/` must remain pure TypeScript with zero DOM or rendering dependencies
-- Product scope: Primary target remains the browser singleplayer experience
+- Product scope: Primary target remains the browser experience, with Campaign, Ladder, and Contest modes sharing core rules
 - Persistence: Current save and replay storage uses `localStorage`
 
 ## Key Decisions

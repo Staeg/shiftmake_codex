@@ -28,10 +28,12 @@ const BASE_DEATH_FADE_MS = 2000;
 const HIT_FLASH_RED = 0xff1f24;
 const HIT_FLASH_PEAK = 0.9;
 const VIEWPORT_PADDING = 18;
+const UNIT_VIEWPORT_PADDING = 22;
 const DEFAULT_FIT_SCALE = 1.2;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 3;
 const ZOOM_STEP_FACTOR = 1.18;
+const AUTO_ZOOM_EPSILON = 0.0001;
 const DRAG_THRESHOLD_PX = 6;
 const OUTLINE_GOLD = { r: 0.95, g: 0.69, b: 0.17 };
 const HEX_EDGE_DIRS: HexCoord[] = [
@@ -192,10 +194,10 @@ function footprintPixelBounds(occupiedHexes: HexCoord[]): Bounds {
   return bounds;
 }
 
-function unitFootprintVisualTransform(unit: BattleUnit): { scale: number; offset: PixelPoint } {
+function unitFootprintVisualTransform(unit: BattleUnit): { scaleX: number; scaleY: number; offset: PixelPoint } {
   const occupiedHexes = unit.occupiedHexes.length > 0 ? unit.occupiedHexes : [unit.position];
   if (unit.stats.size <= 1 || occupiedHexes.length <= 1) {
-    return { scale: 1, offset: { x: 0, y: 0 } };
+    return { scaleX: 1.32, scaleY: 1.46, offset: { x: 0, y: -HEX_SIZE * 0.03 } };
   }
   const center = axialToPixel(footprintCenter(occupiedHexes));
   const bounds = footprintPixelBounds(occupiedHexes);
@@ -210,7 +212,7 @@ function unitFootprintVisualTransform(unit: BattleUnit): { scale: number; offset
     scale *= unit.stats.size === 2 ? 0.97 : 0.98;
   }
 
-  return { scale, offset };
+  return { scaleX: scale, scaleY: scale, offset };
 }
 
 function unitVisualPosition(unit: BattleUnit, position: PixelPoint): PixelPoint {
@@ -275,6 +277,8 @@ export class BattleRenderer {
 
   private playbackSpeedMs = BASE_STEP_MS;
 
+  private hexInspectionVisible = false;
+
   private boardBounds: Bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
   private baseFitZoom = 1;
@@ -312,6 +316,7 @@ export class BattleRenderer {
     this.tutorialUnitTargetLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.tutorialUnitTargetLayer);
     this.worldLayer.addChild(this.boardLayer, this.footprintLayer, this.unitLayer, this.effectLayer);
+    this.applyHexInspectionVisibility();
     this.app.stage.addChild(this.worldLayer);
     this.app.stage.eventMode = 'static';
     this.syncStageHitArea();
@@ -363,6 +368,14 @@ export class BattleRenderer {
     this.playbackSpeedMs = nextSpeedMs;
   }
 
+  setHexInspectionVisible(visible: boolean): void {
+    if (this.hexInspectionVisible === visible) {
+      return;
+    }
+    this.hexInspectionVisible = visible;
+    this.applyHexInspectionVisibility();
+  }
+
   destroy(): void {
     this.clearEffects();
     if (this.pendingViewportRefreshFrame !== null) {
@@ -389,6 +402,7 @@ export class BattleRenderer {
     this.resetCameraToFit();
     this.mountUnitSprites(replay.initial.units);
     this.renderSnapshot(replay.initial.units);
+    this.fitCameraToVisibleUnits();
   }
 
   zoomIn(): void {
@@ -424,6 +438,7 @@ export class BattleRenderer {
     this.zoom = this.clampZoom(this.baseFitZoom * relativeZoom);
     this.clampCameraOffset();
     this.applyCameraTransform();
+    this.fitCameraToVisibleUnits();
   }
 
   setHighlights(strongIds: string[], faintIds: string[]): void {
@@ -456,6 +471,7 @@ export class BattleRenderer {
     }
 
     this.renderSnapshot(snapshot);
+    this.fitCameraToVisibleUnits();
     this.applyHighlights();
 
     if (normalized >= 0 && normalized !== previous) {
@@ -508,6 +524,11 @@ export class BattleRenderer {
       step: this.currentStep,
       ...diagnostic,
     });
+  }
+
+  private applyHexInspectionVisibility(): void {
+    this.boardLayer.visible = this.hexInspectionVisible;
+    this.footprintLayer.visible = this.hexInspectionVisible;
   }
 
   private mapHexesForReplay(replay: BattleReplay): HexCoord[] {
@@ -851,8 +872,8 @@ export class BattleRenderer {
       const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
       const densityScale = layout.densityScales.get(unit.id) ?? 1;
       const visualTransform = unitFootprintVisualTransform(unit);
-      const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualTransform.scale;
-      const yScale = baseScale * densityScale * visualTransform.scale;
+      const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualTransform.scaleX;
+      const yScale = baseScale * densityScale * visualTransform.scaleY;
 
       sprite.position.set(pos.x + visualTransform.offset.x, pos.y + visualTransform.offset.y);
       outline.position.set(sprite.x, sprite.y);
@@ -1040,9 +1061,9 @@ export class BattleRenderer {
     }
 
     const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
-    const visualScale = unitFootprintVisualTransform(unit).scale;
-    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualScale;
-    const yScale = baseScale * densityScale * visualScale;
+    const visualTransform = unitFootprintVisualTransform(unit);
+    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualTransform.scaleX;
+    const yScale = baseScale * densityScale * visualTransform.scaleY;
     const driftDirection = unit.side === 'enemy' ? 1 : -1;
     const driftX = UNIT_PIXEL_SIZE * 1.2 * driftDirection;
     const launchHeight = UNIT_PIXEL_SIZE * 4.2;
@@ -1169,9 +1190,9 @@ export class BattleRenderer {
       markerAlpha: targetMarker?.alpha ?? 0,
     };
     const baseScale = this.unitBaseScales.get(unit.id) ?? 1;
-    const visualScale = unitFootprintVisualTransform(unit).scale;
-    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualScale;
-    const yScale = baseScale * densityScale * visualScale;
+    const visualTransform = unitFootprintVisualTransform(unit);
+    const xScale = (unit.side === 'enemy' ? -1 : 1) * baseScale * densityScale * visualTransform.scaleX;
+    const yScale = baseScale * densityScale * visualTransform.scaleY;
 
     sprite.visible = true;
     sprite.alpha = 1;
@@ -1747,6 +1768,95 @@ export class BattleRenderer {
         targetMarker.position.set(sprite.x, sprite.y);
       }
     });
+  }
+
+  private visibleUnitWorldBounds(): Bounds | null {
+    const bounds: Bounds = {
+      minX: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    };
+    let hasVisibleUnit = false;
+
+    this.unitSprites.forEach((sprite, unitId) => {
+      if (!this.unitAlive.get(unitId) || !sprite.visible || sprite.alpha <= 0) {
+        return;
+      }
+
+      const halfWidth = Math.abs(sprite.scale.x) * sprite.texture.width * 0.5;
+      const halfHeight = Math.abs(sprite.scale.y) * sprite.texture.height * 0.5;
+      bounds.minX = Math.min(bounds.minX, sprite.x - halfWidth);
+      bounds.maxX = Math.max(bounds.maxX, sprite.x + halfWidth);
+      bounds.minY = Math.min(bounds.minY, sprite.y - halfHeight);
+      bounds.maxY = Math.max(bounds.maxY, sprite.y + halfHeight);
+      hasVisibleUnit = true;
+    });
+
+    return hasVisibleUnit ? bounds : null;
+  }
+
+  private fitCameraToVisibleUnits(): void {
+    const unitBounds = this.visibleUnitWorldBounds();
+    if (!unitBounds) {
+      return;
+    }
+
+    const availableWidth = Math.max(1, this.app.screen.width - UNIT_VIEWPORT_PADDING * 2);
+    const availableHeight = Math.max(1, this.app.screen.height - UNIT_VIEWPORT_PADDING * 2);
+    const boundsWidth = Math.max(1, unitBounds.maxX - unitBounds.minX);
+    const boundsHeight = Math.max(1, unitBounds.maxY - unitBounds.minY);
+    const fitZoom = this.clampZoom(Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight));
+    const nextZoom = fitZoom > this.zoom ? this.largestSteppedZoomThatFits(fitZoom) : fitZoom;
+    const shouldRecenter = !this.boundsFitViewport(unitBounds);
+
+    if (Math.abs(nextZoom - this.zoom) <= AUTO_ZOOM_EPSILON && !shouldRecenter) {
+      return;
+    }
+
+    this.zoom = nextZoom;
+    this.centerCameraOnBounds(unitBounds);
+    this.clampCameraOffset();
+    this.applyCameraTransform();
+  }
+
+  private boundsFitViewport(bounds: Bounds): boolean {
+    const minX = this.worldLayer.x + bounds.minX * this.zoom;
+    const maxX = this.worldLayer.x + bounds.maxX * this.zoom;
+    const minY = this.worldLayer.y + bounds.minY * this.zoom;
+    const maxY = this.worldLayer.y + bounds.maxY * this.zoom;
+
+    return (
+      minX >= UNIT_VIEWPORT_PADDING &&
+      maxX <= this.app.screen.width - UNIT_VIEWPORT_PADDING &&
+      minY >= UNIT_VIEWPORT_PADDING &&
+      maxY <= this.app.screen.height - UNIT_VIEWPORT_PADDING
+    );
+  }
+
+  private largestSteppedZoomThatFits(fitZoom: number): number {
+    let nextZoom = this.zoom;
+
+    while (nextZoom * ZOOM_STEP_FACTOR <= fitZoom + AUTO_ZOOM_EPSILON) {
+      nextZoom *= ZOOM_STEP_FACTOR;
+    }
+
+    if (fitZoom > nextZoom + AUTO_ZOOM_EPSILON && fitZoom / nextZoom < ZOOM_STEP_FACTOR) {
+      return fitZoom;
+    }
+
+    return this.clampZoom(nextZoom);
+  }
+
+  private centerCameraOnBounds(bounds: Bounds): void {
+    const boardCenterX = (this.boardBounds.minX + this.boardBounds.maxX) / 2;
+    const boardCenterY = (this.boardBounds.minY + this.boardBounds.maxY) / 2;
+    const boundsCenterX = (bounds.minX + bounds.maxX) / 2;
+    const boundsCenterY = (bounds.minY + bounds.maxY) / 2;
+    this.cameraOffset = {
+      x: (boardCenterX - boundsCenterX) * this.zoom,
+      y: (boardCenterY - boundsCenterY) * this.zoom,
+    };
   }
 
   private computeBoardBounds(mapHexes: HexCoord[]): Bounds {

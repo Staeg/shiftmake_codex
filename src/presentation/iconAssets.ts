@@ -121,3 +121,18 @@ export function getUpgradeIconUrl(upgradeId: UpgradeId): string {
 export function getMutatorIconUrl(mutatorId: MutatorId): string {
   return iconUrl('rift_mutator', mutatorId);
 }
+
+export function getPreloadableGameIconUrls(): string[] {
+  return [
+    ...new Set(
+      [...iconUrls.entries()]
+        .filter(
+          ([path]) =>
+            path.includes('/rift_mutator/') ||
+            ((path.includes('/faction_upgrade/') || path.includes('/troop_type_upgrade/')) && path.endsWith('.svg')),
+        )
+        .map(([, url]) => url)
+        .filter((url) => url.length > 0),
+    ),
+  ];
+}

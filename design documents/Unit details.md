@@ -49,7 +49,7 @@ Footprint sizes:
 - Cost: 40
 - Troop upgrades:
   - `Sevenfold` (tier 2): consume nearby corpses to summon skeletons, up to 7 times
-  - `Witness` (tier 3): when a nearby ally falls, set initiative to 100; when an ally dies on the Avenger's hex, strike the killer once if it is still there
+  - `Witness` (tier 3): when a nearby ally falls, set initiative to 100; when an ally dies touching the Avenger, strike the killer once if it is still there
 
 ### Beastmaster
 

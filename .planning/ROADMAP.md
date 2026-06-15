@@ -7,8 +7,8 @@ This milestone follows the explicit project priority order for the existing brow
 ## Phases
 
 - [ ] **Phase 1: Compact UI Layouts** - Make the main browser flows fit cleanly on one screen with clearer, denser information layout.
-- [x] **Phase 2: Intuitive Battlefield Roles** - Rework frontline, chaff, and backline behavior so battles read the way players expect. (Completed 2026-04-02)
-- [ ] **Phase 3: Full-Run Campaign Balance** - Tune progression, Rift scaling, and rewards so a normal run stays fair and tense throughout.
+- [x] **Phase 2: Intuitive Battlefield Roles** - Rework frontline, pusher, and backline behavior so battles read the way players expect. (Completed 2026-04-02)
+- [ ] **Phase 3: Full-Run Campaign Balance** - Tune progression, Rift scaling, Essence cadence, and unlock flow so a normal run stays fair and tense throughout.
 
 ## Phase Details
 
@@ -29,13 +29,13 @@ This milestone follows the explicit project priority order for the existing brow
 - [ ] 01-05-PLAN.md - Close replay control sizing, dead-space, and click-lock consistency gaps from UAT
 
 ### Phase 2: Intuitive Battlefield Roles
-**Goal**: Battle roles behave and replay clearly enough that frontline, chaff, and backline intent matches player intuition without leaking gameplay logic out of the pure engine.
+**Goal**: Battle roles behave and replay clearly enough that frontline, pusher, and backline intent matches player intuition without leaking gameplay logic out of the pure engine.
 **Depends on**: Phase 1
 **Requirements**: ROLE-01, ROLE-02, ROLE-03, ROLE-04, ROLE-05, ROLE-06
 **Success Criteria**:
 1. Frontline units absorb enemy attention and block access paths in normal battle states so allied backline units are harder to reach.
 2. Frontline units redirect into reachable enemy backline targets when no enemy frontline position is available instead of idling or wasting turns.
-3. Chaff units push past the frontline when legal, prefer spilling into enemy backline targets, and stay committed there once they arrive unless combat state prevents it.
+3. Pusher units break through the frontline when legal, prefer spilling into enemy backline targets, and stay committed there once they arrive unless combat state prevents it.
 4. Backline units preserve distance when battlefield geometry allows, and the resulting replay makes each role's intent understandable to the player.
 **Plans**: 3 plans
 - [x] 02-01-PLAN.md - Lock the engine role contract with scenario tests, typed replay intent metadata, and heuristic refactors
@@ -43,14 +43,14 @@ This milestone follows the explicit project priority order for the existing brow
 - [x] 02-03-PLAN.md - Surface role intent in replay copy, event log badges, and recap summaries
 
 ### Phase 3: Full-Run Campaign Balance
-**Goal**: Campaign pacing stays strategically readable, survivable, and tense from early cycles through late cycles through tuned Rift scaling, rewards, and unlock flow.
+**Goal**: Campaign pacing stays strategically readable, survivable, and tense from early cycles through late cycles through tuned Rift scaling, Essence cadence, and unlock flow.
 **Depends on**: Phase 2
 **Requirements**: BAL-01, BAL-02, BAL-03, BAL-04, BAL-05
 **Success Criteria**:
 1. Player feels meaningful pressure in the opening cycles of a normal run without hitting an immediate wall.
 2. Player still faces real tension in later cycles instead of cruising through a steamroll.
 3. Rift enemy compositions scale across the run without sharp unfair spikes that break campaign readability.
-4. Essence income and related progression rewards support steady strategic growth without starving or overfeeding the player.
+4. Essence income, draft costs, and unlock timing support steady strategic growth without starving or overfeeding the player.
 5. Unlock pacing supports multiple viable build directions during a run while keeping the campaign readable and survivable.
 **Plans**: 3 plans
 - [ ] 03-01-PLAN.md - Add campaign-level balance instrumentation and deterministic policy-driven simulation reports

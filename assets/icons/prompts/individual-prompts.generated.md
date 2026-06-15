@@ -166,8 +166,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Blood Oath
 Category: Ability
-Mechanic: When an ally dies on this hex: set initiative to 100.
-Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.
+Mechanic: When a touching ally dies: set initiative to 100.
+Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
 Trigger: onFallen; near fallen ally unit
 Target: self
 Mechanical effects: set initiative to 100
@@ -463,7 +463,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Corpse Summon Skeleton
 Category: Ability
-Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies on their hex.
+Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal touching allies.
 Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.
 Trigger: onFallen; near fallen all unit
 Mechanical effects: summon 1 skeleton
@@ -491,8 +491,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Crushing Sweep
 Category: Ability
-Mechanic: Passive: melee kills deal splash damage equal to 5 times this unit size to other enemies on that hex.
-Upgrade context: Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.
+Mechanic: Passive: melee kills deal splash damage equal to 5 times this unit size to enemies touching the fallen unit.
+Upgrade context: Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
 Visual tags: damage, initiative, melee
 
 Requirements:
@@ -836,8 +836,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Goblin Farewell
 Category: Ability
-Mechanic: On death: strike a random enemy on this hex one extra time.
-Upgrade context: Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.
+Mechanic: On death: strike a random touching enemy one extra time.
+Upgrade context: Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
 Trigger: onDeath
 Target: random; enemy; radius 0
 Mechanical effects: 1 extra strike
@@ -917,8 +917,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Hold the Standard
 Category: Ability
-Mechanic: Passive: whenever a non-Fading ally dies on this hex, heal Human units on this hex for 15.
-Upgrade context: Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies on a Human hex, Human units on that hex heal 15.
+Mechanic: Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.
+Upgrade context: Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.
 Visual tags: healing, corpse
 
 Requirements:
@@ -943,8 +943,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Last Witness
 Category: Ability
-Mechanic: Passive: when an ally dies on this unit hex, strike the killer twice if it is still there.
-Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.
+Mechanic: Passive: when a touching ally dies, strike the killer twice if still in contact.
+Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
 Visual tags: damage, initiative, corpse
 
 Requirements:
@@ -1047,8 +1047,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Loot Frenzy
 Category: Ability
-Mechanic: Passive: when this unit gets a kill, allies on that hex heal 10 and gain 30 initiative.
-Upgrade context: Loot Frenzy (Goblins, tier 3): When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative.
+Mechanic: Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative.
+Upgrade context: Loot Frenzy (Goblins, tier 3): When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.
 Visual tags: damage, initiative, healing
 
 Requirements:
@@ -1127,8 +1127,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Pack 1
 Category: Ability
-Mechanic: Start of turn: gain +1 damage per other friendly unit on this hex until end of turn.
-Upgrade context: Goblin Pack (Goblins, tier 2): Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.
+Mechanic: Start of turn: gain +1 damage per other touching friendly unit until end of turn.
+Upgrade context: Goblin Pack (Goblins, tier 2): Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.
 Trigger: startOfTurn; scales per other friendly unit on hex
 Target: self
 Mechanical effects: ramp 1
@@ -1156,8 +1156,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Packmaster's Whistle
 Category: Ability
-Mechanic: End of turn: if engaged, a wolf on this unit hex redirects an engaged enemy and heals 10.
-Upgrade context: Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.
+Mechanic: End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.
+Upgrade context: Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
 Visual tags: damage, initiative, healing, summon, melee, synergy, defense
 
 Requirements:
@@ -1240,9 +1240,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Rabble Rush
 Category: Ability
-Mechanic: Start of turn: gain +1 initiative per other Militia on this hex.
-Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.
-Trigger: startOfTurn; scales per other friendly unit on hex
+Mechanic: Start of turn: gain +1 initiative per other touching Militia.
+Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them.
+Trigger: startOfTurn; scales per other touching friendly unit
 Target: self
 Mechanical effects: initiative +1
 Visual tags: initiative, synergy
@@ -1270,7 +1270,7 @@ Create the next Shiftmake icon in the same style.
 Name: Ramp 1
 Category: Ability
 Mechanic: End of turn: gain +1 damage for the battle.
-Upgrade context: Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.
+Upgrade context: Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
 Trigger: endOfTurn
 Target: self
 Mechanical effects: ramp 1
@@ -1404,8 +1404,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Scurry
 Category: Ability
-Mechanic: Passive: does not count toward allied saturation limits.
-Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.
+Mechanic: Passive: this unit is quick and expendable; current battle legality uses footprints, not allied saturation limits.
+Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them.
 Visual tags: initiative, synergy
 
 Requirements:
@@ -1706,8 +1706,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Snatch the Moment
 Category: Ability
-Mechanic: Passive: on kill, enemies on that hex lose 20 initiative.
-Upgrade context: Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.
+Mechanic: Passive: on kill, enemies touching the fallen unit lose 20 initiative.
+Upgrade context: Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
 Visual tags: damage, initiative, corpse, debuff
 
 Requirements:
@@ -1923,7 +1923,7 @@ Create the next Shiftmake icon in the same style.
 Name: Summon Wolf 2
 Category: Ability
 Mechanic: Start of battle: summon 2 wolves on this unit or adjacent hexes. Those wolves summon 1 more wolf on each kill, and new wolves inherit that effect.
-Upgrade context: Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.
+Upgrade context: Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
 Trigger: startOfBattle
 Target: self
 Mechanical effects: summon 2 wolfs
@@ -1951,7 +1951,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Taunt
 Category: Ability
-Mechanic: End of turn: engage unengaged enemies on this hex up to Capacity.
+Mechanic: End of turn: engage unengaged enemies in footprint contact up to Capacity.
 Trigger: endOfTurn
 Target: aoe; enemy; radius 0; unengaged
 Mechanical effects: redirect into engagement
@@ -2005,8 +2005,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Thrill of the Hunt
 Category: Ability
-Mechanic: Passive: end of turn, wolves on this unit hex gain 10 initiative; any wolf kill gives allies on that hex +2 damage for the battle.
-Upgrade context: Thrill of the Hunt (Beastmaster, tier 3): End of turn: wolves on this Beastmaster hex gain 10 initiative. Whenever any wolf gets a kill, allies on its hex gain +2 damage for the battle.
+Mechanic: Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle.
+Upgrade context: Thrill of the Hunt (Beastmaster, tier 3): End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.
 Visual tags: damage, initiative, summon
 
 Requirements:
@@ -2111,7 +2111,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Valor 20
 Category: Ability
-Mechanic: On kill: heal allies on this hex for 20.
+Mechanic: On kill: heal allies touching the fallen unit for 20.
 Trigger: onKill
 Target: aoe; ally; radius 0
 Mechanical effects: heal 20
@@ -2139,7 +2139,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Vengeance 3
 Category: Ability
-Mechanic: When an ally dies on this hex, gain +3 speed and +3 damage for the battle.
+Mechanic: When a touching ally dies, gain +3 speed and +3 damage for the battle.
 Trigger: onFallen; near fallen ally unit
 Target: self
 Mechanical effects: haste 3, ramp 3
@@ -2469,7 +2469,7 @@ Name: Goblin Behavior
 Category: Faction upgrade
 Owner: Goblins
 Tier: 1
-Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy on its hex. When a goblin gets a kill, all enemies on that hex lose 20 initiative.
+Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
 Trigger: onDeath
 Target: random; enemy; radius 0
 Mechanical effects: 1 extra strike
@@ -2499,7 +2499,7 @@ Name: Goblin Pack
 Category: Faction upgrade
 Owner: Goblins
 Tier: 2
-Mechanic: Start of turn: each goblin unit gains +1 damage per other friendly unit on its hex until end of turn.
+Mechanic: Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.
 Trigger: startOfTurn; scales per other friendly unit on hex
 Target: self
 Mechanical effects: ramp 1
@@ -2529,7 +2529,7 @@ Name: Loot Frenzy
 Category: Faction upgrade
 Owner: Goblins
 Tier: 3
-Mechanic: When a Goblin gets a kill, allies on that hex heal 10 and gain 30 initiative.
+Mechanic: When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.
 Visual tags: goblins, damage, initiative, healing
 
 Requirements:
@@ -2583,7 +2583,7 @@ Name: Hold the Standard
 Category: Faction upgrade
 Owner: Humans
 Tier: 2
-Mechanic: Whenever a non-Fading ally dies on a Human hex, Human units on that hex heal 15.
+Mechanic: Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.
 Visual tags: humans, healing, corpse
 
 Requirements:
@@ -2724,7 +2724,7 @@ Name: Roll the Boulder
 Category: Faction upgrade
 Owner: Trolls
 Tier: 1
-Mechanic: End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, all other enemies on that hex take damage equal to 5 times that troll's size.
+Mechanic: End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
 Trigger: endOfTurn
 Target: self
 Mechanical effects: ramp 1
@@ -3063,7 +3063,7 @@ Name: Witness
 Category: Troop-type upgrade
 Owner: Avenger
 Tier: 3
-Mechanic: When a nearby ally falls, set this Avenger initiative to 100. When an ally dies on this Avenger hex, it strikes the killer once if the killer is still there.
+Mechanic: When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
 Trigger: onFallen; near fallen ally unit
 Target: self
 Mechanical effects: set initiative to 100
@@ -3093,7 +3093,7 @@ Name: Bloodhounds
 Category: Troop-type upgrade
 Owner: Beastmaster
 Tier: 3
-Mechanic: Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf on its hex redirects the engaged unit and is healed for 10.
+Mechanic: Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
 Trigger: startOfBattle
 Target: self
 Mechanical effects: summon 2 wolfs
@@ -3123,7 +3123,7 @@ Name: Thrill of the Hunt
 Category: Troop-type upgrade
 Owner: Beastmaster
 Tier: 3
-Mechanic: End of turn: wolves on this Beastmaster hex gain 10 initiative. Whenever any wolf gets a kill, allies on its hex gain +2 damage for the battle.
+Mechanic: End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.
 Visual tags: beastmaster, damage, initiative, summon
 
 Requirements:
@@ -3396,8 +3396,8 @@ Name: Rat Behavior
 Category: Troop-type upgrade
 Owner: Militia
 Tier: 3
-Mechanic: Start of turn: Militia gain +1 initiative for each other Militia on their hex. Militia do not count toward allied saturation limits.
-Trigger: startOfTurn; scales per other friendly unit on hex
+Mechanic: Start of turn: Militia gain +1 initiative for each other Militia touching them.
+Trigger: startOfTurn; scales per other touching friendly unit
 Target: self
 Mechanical effects: initiative +1
 Visual tags: militia, initiative, synergy

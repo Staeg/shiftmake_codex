@@ -9,8 +9,9 @@ function recolorImage(image: HTMLImageElement, colorMap: Map<string, [number, nu
 }
 
 export async function loadFactionUnitTextures(onDiagnostic?: DiagnosticSink): Promise<Record<string, Texture>> {
+  const unitTypeIds = Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[];
   const images = await Promise.all(
-    (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).map(async (unitTypeId) => {
+    unitTypeIds.map(async (unitTypeId) => {
       try {
         return [unitTypeId, await loadImage(UNIT_SPRITE_URLS[unitTypeId])] as const;
       } catch (error) {
@@ -30,7 +31,7 @@ export async function loadFactionUnitTextures(onDiagnostic?: DiagnosticSink): Pr
   const byUnitType = new Map<UnitTypeId, HTMLImageElement | null>(images);
   const textures: Record<string, Texture> = {};
 
-  (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).forEach((unitTypeId) => {
+  unitTypeIds.forEach((unitTypeId) => {
     const image = byUnitType.get(unitTypeId);
     if (!image) {
       onDiagnostic?.({

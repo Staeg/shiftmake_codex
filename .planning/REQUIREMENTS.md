@@ -13,17 +13,17 @@
 
 - [x] **ROLE-01**: Frontline units prioritize occupying enemy attention and blocking access paths so enemy units are less able to reach allied backline units
 - [x] **ROLE-02**: Frontline units fall back to engaging reachable enemy backline targets when no enemy frontline space is available, instead of wasting turns
-- [x] **ROLE-03**: Chaff units attempt to overrun enemy frontline positioning and spill into any reachable targets, prioritizing enemy backline units when possible
-- [x] **ROLE-04**: Chaff units remain committed to enemy backline positions once they reach them unless combat state forces a different legal move
+- [x] **ROLE-03**: Pusher units attempt to break through enemy frontline positioning and spill into any reachable targets, prioritizing enemy backline units when possible
+- [x] **ROLE-04**: Pusher units remain committed to enemy backline positions once they reach them unless combat state forces a different legal move
 - [x] **ROLE-05**: Backline units prefer to stay at range and continue preserving distance from enemy threats whenever battlefield geometry allows
-- [x] **ROLE-06**: Replays make the resulting frontline, chaff, and backline behavior readable enough that the role intent feels intuitive to the player
+- [x] **ROLE-06**: Replays make the resulting frontline, pusher, and backline behavior readable enough that the role intent feels intuitive to the player
 
 ### Campaign Balance
 
 - [ ] **BAL-01**: A normal campaign run presents meaningful pressure in the opening cycles without feeling like an immediate wall
 - [ ] **BAL-02**: A normal campaign run remains tense in later cycles without collapsing into a player steamroll
 - [ ] **BAL-03**: Rift army composition scales in a way that supports fair challenge across the whole run rather than sharp difficulty spikes
-- [ ] **BAL-04**: Essence gain and related progression rewards support steady strategic growth without starving or overfeeding the player
+- [ ] **BAL-04**: Essence gain, draft costs, and unlock cadence support steady strategic growth without starving or overfeeding the player
 - [ ] **BAL-05**: Unlock and progression pacing supports build variety across a run while keeping the campaign readable and survivable
 
 ## v2 Requirements

@@ -29,6 +29,11 @@ type PaletteRole = 'primary' | 'secondary' | 'glow';
 type PaletteRamp = [number, number, number];
 type UnitPaletteRules = Partial<Record<PaletteRole, string[]>>;
 type FactionPaletteProfile = Record<PaletteRole, PaletteRamp>;
+export type AssetLoadProgress = {
+  completed: number;
+  total: number;
+  label: string;
+};
 
 export const UNIT_SPRITE_URLS: Record<UnitTypeId, string> = {
   archer: archerUrl,
@@ -284,15 +289,23 @@ export function recolorImageToCanvas(image: HTMLImageElement, colorMap: Map<stri
   return canvas;
 }
 
-export async function loadFactionUnitPortraitUrls(): Promise<Record<string, string>> {
+export async function loadFactionUnitPortraitUrls(onProgress?: (progress: AssetLoadProgress) => void): Promise<Record<string, string>> {
+  const unitTypeIds = Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[];
+  let completed = 0;
+  onProgress?.({ completed, total: unitTypeIds.length, label: 'Preparing unit portraits' });
   const images = await Promise.all(
-    (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).map(async (unitTypeId) => [unitTypeId, await loadImage(UNIT_SPRITE_URLS[unitTypeId])] as const),
+    unitTypeIds.map(async (unitTypeId) => {
+      const image = await loadImage(UNIT_SPRITE_URLS[unitTypeId]);
+      completed += 1;
+      onProgress?.({ completed, total: unitTypeIds.length, label: `Loaded ${unitTypeId}` });
+      return [unitTypeId, image] as const;
+    }),
   );
 
   const byUnitType = new Map<UnitTypeId, HTMLImageElement>(images);
   const portraits: Record<string, string> = {};
 
-  (Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[]).forEach((unitTypeId) => {
+  unitTypeIds.forEach((unitTypeId) => {
     const image = byUnitType.get(unitTypeId);
     if (!image) {
       return;

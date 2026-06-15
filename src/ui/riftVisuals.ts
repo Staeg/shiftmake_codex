@@ -52,3 +52,7 @@ export function getRiftVisual(rift: Pick<RiftInstance, 'seed' | 'tier'>): RiftVi
     filter,
   };
 }
+
+export function getRiftSpriteUrls(): string[] {
+  return [...RIFT_SPRITES];
+}

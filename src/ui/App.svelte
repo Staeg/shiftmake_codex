@@ -52,7 +52,7 @@
   import { describeTroopUnlock, getAvailableTroopUnlockIds, upgradeAffectsTroop } from '../engine/upgrades';
   import type { BattleRenderer as BattleRendererType, ReplayStepNavigationKind, UnitPointerInfo } from '../rendering/BattleRenderer';
   import { buildBattlePresentationTimeline, type BattlePresentationTimeline } from '../rendering/battlePresentationTimeline';
-  import { getFactionSpriteUrl, loadFactionUnitPortraitUrls, UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
+  import { getFactionSpriteUrl, UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
   import { getConfiguredMultiplayerServerUrl, hasConfiguredMultiplayerServerUrl, inferShareableMultiplayerServerUrl, normalizeMultiplayerServerUrl } from '../config/multiplayer';
   import { gameStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
   import { getTutorialStepCenterMode, getTutorialStepSurface, type TutorialStepId } from '../store/tutorial';
@@ -66,6 +66,7 @@
   import ReplayStepExplanation from './ReplayStepExplanation.svelte';
   import { buildReplayStepExplanationView } from './replayStepExplanation';
   import { getRiftVisual } from './riftVisuals';
+  import { preloadGameAssets, type GameAssetPreloadProgress } from './gameAssetPreloader';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
   import TutorialPopup from './TutorialPopup.svelte';
@@ -170,13 +171,15 @@
     units: ReplayHealthUnit[];
   };
 
+  type LoadingProgressState = GameAssetPreloadProgress;
+
   const ARCHIVE_PARTICIPANT_FALLBACK: Record<SideId, { kind: BattleParticipantKind; label: string }> = {
     player: { kind: 'player', label: 'Player' },
     enemy: { kind: 'neutral', label: 'Neutral Guardians' },
   };
   const SINGLEPLAYER_GAME_MODES: GameMode[] = ['campaign', 'ladder', 'contest'];
-  const RIFT_BATTLE_ANIMATION_MS = 7600;
-  const RIFT_BATTLE_LATE_PHASE_DELAY_MS = 3700;
+  const RIFT_BATTLE_ANIMATION_MS = 2812;
+  const RIFT_BATTLE_LATE_PHASE_DELAY_MS = 925;
   const RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS = 200;
 
   const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
@@ -203,6 +206,7 @@
   let battleHost: HTMLDivElement | null = null;
   let renderer: BattleRendererType | null = null;
   let rendererInitPromise: Promise<void> | null = null;
+  let gameAssetProgress: LoadingProgressState = { active: false, completed: 0, total: 1, label: 'Preparing game images' };
   let renderedReplayId: string | null = null;
   let renderedStep = Number.NaN;
   let renderedHighlightKey = '';
@@ -324,6 +328,10 @@
   }
 
   async function resumeTutorial(): Promise<void> {
+    if (gameAssetProgress.active) {
+      return;
+    }
+    await prepareGameAssets();
     gameStore.resumeTutorial();
     await tick();
     const step = $gameStore.tutorialProgress?.step;
@@ -340,6 +348,22 @@
     if (step) {
       navigateToTutorialStepView(step);
     }
+  }
+
+  async function startTutorial(): Promise<void> {
+    if (gameAssetProgress.active) {
+      return;
+    }
+    await prepareGameAssets();
+    gameStore.startTutorial();
+  }
+
+  async function restartTutorial(): Promise<void> {
+    if (gameAssetProgress.active) {
+      return;
+    }
+    await prepareGameAssets();
+    gameStore.restartTutorial();
   }
 
   function tutorialSceneLockActive(): boolean {
@@ -1001,6 +1025,7 @@
     }
 
     renderer.setPlaybackTiming($gameStore.autoPlay, $gameStore.speedMs);
+    renderer.setHexInspectionVisible(!replayEventLogCollapsed);
 
     if (renderedReplayId !== $gameStore.loadedReplay.id) {
       renderer.setReplay($gameStore.loadedReplay);
@@ -1037,6 +1062,31 @@
   function handleResize(): void {
     viewportHeight = window.innerHeight;
     renderer?.refreshViewport();
+  }
+
+  function loadingProgressPercent(progress: LoadingProgressState): number {
+    if (progress.total <= 0) {
+      return progress.active ? 8 : 100;
+    }
+    return Math.max(0, Math.min(100, Math.round((progress.completed / progress.total) * 100)));
+  }
+
+  async function prepareGameAssets(): Promise<void> {
+    gameAssetProgress = { active: true, completed: 0, total: 1, label: 'Preparing game images' };
+    const result = await preloadGameAssets((progress) => {
+      gameAssetProgress = progress;
+    });
+    portraits = result.portraits;
+    result.diagnostics.forEach(rememberRendererDiagnostic);
+    gameAssetProgress = { active: false, completed: 1, total: 1, label: 'Game images ready' };
+  }
+
+  async function runAfterGameAssetPreload(action: () => void): Promise<void> {
+    if (gameAssetProgress.active) {
+      return;
+    }
+    await prepareGameAssets();
+    action();
   }
 
   function runManualReplayAction(action: () => void, navigationKind: ReplayStepNavigationKind = 'manual-step'): void {
@@ -1076,11 +1126,13 @@
       return;
     }
     resetZoneState();
-    if (slot.status === 'occupied') {
-      gameStore.loadSlot(slot.slotId);
-      return;
-    }
-    gameStore.startNewCampaign(slot.slotId, 'campaign');
+    void runAfterGameAssetPreload(() => {
+      if (slot.status === 'occupied') {
+        gameStore.loadSlot(slot.slotId);
+        return;
+      }
+      gameStore.startNewCampaign(slot.slotId, 'campaign');
+    });
   }
 
   function openNewGameMenu(slot: SaveSlotSummary): void {
@@ -1124,7 +1176,7 @@
   function startSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
     if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
       resetZoneState();
-      gameStore.startTutorialOpening();
+      void runAfterGameAssetPreload(() => gameStore.startTutorialOpening());
       return;
     }
     if (tutorialSceneLockActive()) {
@@ -1132,13 +1184,13 @@
       return;
     }
     resetZoneState();
-    gameStore.startNewCampaign(slot.slotId, gameMode);
+    void runAfterGameAssetPreload(() => gameStore.startNewCampaign(slot.slotId, gameMode));
   }
 
   function restartSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
     if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
       resetZoneState();
-      gameStore.startTutorialOpening();
+      void runAfterGameAssetPreload(() => gameStore.startTutorialOpening());
       return;
     }
     if (tutorialSceneLockActive()) {
@@ -1146,7 +1198,7 @@
       return;
     }
     resetZoneState();
-    gameStore.startNewCampaign(slot.slotId, gameMode);
+    void runAfterGameAssetPreload(() => gameStore.startNewCampaign(slot.slotId, gameMode));
   }
 
   function createMultiplayerContest(): void {
@@ -2404,19 +2456,6 @@
       multiplayerRoomCode = linkedRoom;
       mainMenuView = 'multiplayer';
     }
-    void loadFactionUnitPortraitUrls()
-      .then((loaded) => {
-        portraits = loaded;
-      })
-      .catch((error) => {
-        rememberRendererDiagnostic({
-          source: 'assets',
-          severity: 'error',
-          code: 'portrait_generation_failed',
-          message: error instanceof Error ? error.message : 'Failed to generate unit portraits.',
-        });
-      });
-
     window.addEventListener('resize', handleResize);
     return () => {
       clearAutoTimer();
@@ -2447,6 +2486,10 @@
 
   $: if (renderer && $gameStore.screen === 'replay' && $gameStore.loadedReplay) {
     syncRenderer();
+  }
+
+  $: if (renderer) {
+    renderer.setHexInspectionVisible($gameStore.screen === 'replay' && !!$gameStore.loadedReplay && !replayEventLogCollapsed);
   }
 
   $: if ($gameStore.screen === 'replay' && $gameStore.loadedReplay && $gameStore.autoPlay) {
@@ -3165,13 +3208,13 @@
             <p>The tutorial save can resume its guided steps or restart from the fixed tutorial state.</p>
             <div class="actions-grid">
               <button class="primary" on:click={resumeTutorial}>Resume Tutorial</button>
-              <button on:click={() => gameStore.restartTutorial()}>Restart Tutorial</button>
+              <button on:click={restartTutorial}>Restart Tutorial</button>
             </div>
           {:else}
             <p>Shiftmake is a strategy game about building a mixed-faction army and sending it through Rifts — portals to contested worlds. Each cycle, you inspect open Rifts, assign ready troops, and end the cycle to resolve all battles automatically.</p>
             <p>Skill lives in preparation, not in the fight itself. Rifts are fully previewable before you commit: you can see the enemy composition, modifiers that change battle rules, and the reward tier. Battles play out on their own, but you can replay each one in full detail afterward.</p>
             <p>A run lasts 10 cycles. You score Victory Points by winning Rifts, spend Essence to draft new troops and upgrades, and gradually expand your roster by unlocking new factions. The tutorial walks through these mechanics using a fixed Contest vs AI run.</p>
-            <button class="primary" on:click={() => gameStore.startTutorial()}>Start Tutorial</button>
+            <button class="primary" on:click={startTutorial}>Start Tutorial</button>
           {/if}
         </section>
       {:else if mainMenuView === 'multiplayer'}
@@ -5890,6 +5933,19 @@
   </main>
 {/if}
 
+{#if !verificationLabMode && gameAssetProgress.active}
+  <div class="loading-screen game-loading-screen" role="status" aria-live="polite">
+    <div class="loading-panel">
+      <p class="eyebrow">Shiftmake</p>
+      <h2>Loading Game</h2>
+      <div class="loading-progress-track" aria-label="Game image loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={loadingProgressPercent(gameAssetProgress)} role="progressbar">
+        <span style={`width:${loadingProgressPercent(gameAssetProgress)}%`}></span>
+      </div>
+      <p>{gameAssetProgress.label}</p>
+    </div>
+  </div>
+{/if}
+
 {#if initiativeTooltip}
   <div class="initiative-tooltip" style={`left:${initiativeTooltip.x}px; top:${initiativeTooltip.y}px;`} role="tooltip">
     <strong>{initiativeTooltip.label}</strong>
@@ -7043,12 +7099,12 @@
   }
 
   .rift-force-combatant-group.phase-now {
-    animation: rift-force-group-now 7.6s ease-in-out both;
+    animation: rift-force-group-now 2.812s ease-in-out both;
   }
 
   .rift-force-combatant-group.phase-late {
     opacity: 0;
-    animation: rift-force-group-late 7.6s ease-in-out both;
+    animation: rift-force-group-late 2.812s ease-in-out both;
   }
 
   .rift-force-combatant-group.force-loses-now.phase-now {
@@ -7103,16 +7159,16 @@
     display: grid;
     place-items: center;
     opacity: 0;
-    animation: battle-phase 7.6s ease-in-out both;
+    animation: battle-phase 2.812s ease-in-out both;
   }
 
   .rift-battle-phase.phase-late {
-    animation-delay: 3.7s;
+    animation-delay: 0.925s;
   }
 
   .phase-late .clash-sword,
   .phase-late .clash-spark {
-    animation-delay: 3.7s;
+    animation-delay: 0.925s;
   }
 
   .clash-swords {
@@ -7167,7 +7223,7 @@
     --sword-ready-rotate: 90deg;
     --sword-clash-rotate: 42deg;
     --sword-break-rotate: 128deg;
-    animation: sword-clash 7.6s cubic-bezier(0.2, 0.9, 0.26, 1) both;
+    animation: sword-clash 2.812s cubic-bezier(0.2, 0.9, 0.26, 1) both;
   }
 
   .right-sword {
@@ -7176,7 +7232,7 @@
     --sword-ready-rotate: -90deg;
     --sword-clash-rotate: -42deg;
     --sword-break-rotate: -128deg;
-    animation: sword-clash 7.6s cubic-bezier(0.2, 0.9, 0.26, 1) both;
+    animation: sword-clash 2.812s cubic-bezier(0.2, 0.9, 0.26, 1) both;
   }
 
   .left-loses .left-sword,
@@ -7194,7 +7250,7 @@
       0 0 12px rgba(255, 231, 154, 0.95),
       0 0 26px rgba(229, 92, 60, 0.58);
     opacity: 0;
-    animation: clash-spark 7.6s ease-out both;
+    animation: clash-spark 2.812s ease-out both;
   }
 
   @keyframes rift-force-group-now {
@@ -7207,7 +7263,7 @@
 
   @keyframes rift-force-group-now-loses {
     0%,
-    84% {
+    56.8% {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: none;
@@ -7221,7 +7277,7 @@
 
   @keyframes rift-force-group-now-loses-late {
     0%,
-    88% {
+    59.5% {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: none;
@@ -7235,11 +7291,11 @@
 
   @keyframes rift-force-group-late {
     0%,
-    48% {
+    32.4% {
       opacity: 0;
       transform: translateY(-0.15rem) scale(0.9);
     }
-    58%,
+    39.2%,
     100% {
       opacity: 1;
       transform: translateY(0) scale(1);
@@ -7248,13 +7304,13 @@
 
   @keyframes rift-force-group-late-loses {
     0%,
-    48% {
+    32.4% {
       opacity: 0;
       transform: translateY(-0.15rem) scale(0.9);
       filter: none;
     }
-    58%,
-    88% {
+    39.2%,
+    59.5% {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: none;
@@ -7271,8 +7327,8 @@
     100% {
       opacity: 0;
     }
-    8%,
-    82% {
+    5.4%,
+    55.4% {
       opacity: 1;
     }
   }
@@ -7282,21 +7338,21 @@
       opacity: 0;
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(0.92);
     }
-    16% {
+    10.8% {
       opacity: 1;
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
     }
-    28%,
-    48% {
+    18.9%,
+    32.4% {
       opacity: 1;
       transform: translateX(0) rotate(var(--sword-clash-rotate)) scale(1.08);
     }
-    38% {
+    25.7% {
       opacity: 1;
       transform: translateX(var(--sword-retreat-x)) rotate(var(--sword-ready-rotate)) scale(1);
     }
-    72%,
-    84% {
+    48.6%,
+    56.8% {
       opacity: 1;
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
     }
@@ -7312,28 +7368,28 @@
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(0.92);
       clip-path: inset(0);
     }
-    16% {
+    10.8% {
       opacity: 1;
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
       clip-path: inset(0);
     }
-    28%,
-    48% {
+    18.9%,
+    32.4% {
       opacity: 1;
       transform: translateX(0) rotate(var(--sword-clash-rotate)) scale(1.08);
       clip-path: inset(0);
     }
-    38% {
+    25.7% {
       opacity: 1;
       transform: translateX(var(--sword-retreat-x)) rotate(var(--sword-ready-rotate)) scale(1);
       clip-path: inset(0);
     }
-    72% {
+    48.6% {
       opacity: 1;
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
       clip-path: inset(0);
     }
-    84% {
+    56.8% {
       opacity: 1;
       transform: translateX(var(--sword-start-x)) rotate(var(--sword-break-rotate)) scale(1);
       clip-path: polygon(0 0, 52% 0, 45% 100%, 0 100%);
@@ -7347,16 +7403,16 @@
 
   @keyframes clash-spark {
     0%,
-    22%,
-    42%,
-    54%,
+    14.9%,
+    28.4%,
+    36.5%,
     100% {
       opacity: 0;
       transform: scale(0.4);
     }
-    28%,
-    48%,
-    60% {
+    18.9%,
+    32.4%,
+    40.5% {
       opacity: 1;
       transform: scale(1.25);
     }
@@ -9819,6 +9875,60 @@
       radial-gradient(circle at 50% 20%, rgba(46, 70, 89, 0.9), transparent 42%),
       linear-gradient(180deg, #10202c, #08101a 62%, #06090f);
     box-shadow: inset 0 0 0 1px rgba(201, 171, 124, 0.06);
+  }
+
+  .loading-screen {
+    display: grid;
+    place-items: center;
+    color: #f4f7fb;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(54, 87, 114, 0.52), transparent 36%),
+      linear-gradient(180deg, rgba(8, 13, 21, 0.96), rgba(5, 8, 13, 0.98));
+  }
+
+  .game-loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+  }
+
+  .loading-panel {
+    width: min(24rem, calc(100% - 2rem));
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.1rem;
+    border: 1px solid rgba(165, 188, 207, 0.24);
+    border-radius: var(--ui-panel-radius);
+    background: rgba(10, 17, 26, 0.84);
+    box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.34);
+  }
+
+  .loading-panel h2 {
+    font-size: 1.2rem;
+    line-height: 1.2;
+  }
+
+  .loading-panel p:last-child {
+    min-height: 1.25rem;
+    color: #cbd8e3;
+    font-size: 0.88rem;
+  }
+
+  .loading-progress-track {
+    width: 100%;
+    height: 0.6rem;
+    overflow: hidden;
+    border-radius: 999px;
+    border: 1px solid rgba(203, 216, 227, 0.18);
+    background: rgba(5, 9, 15, 0.72);
+  }
+
+  .loading-progress-track span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #71c6d1, #e4c170);
+    transition: width 160ms ease;
   }
 
   .replay-ability-rails {

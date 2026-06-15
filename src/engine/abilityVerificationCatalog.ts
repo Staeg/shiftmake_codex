@@ -360,7 +360,7 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     ],
     manualChecks: [
       'Confirm Regen is gone after Stoneblood triggers.',
-      'Confirm Crushing Sweep only fires on melee kills and only hits the other enemies on that hex.',
+      'Confirm Crushing Sweep only fires on melee kills and only hits enemies touching the fallen unit.',
     ],
   },
 ];
