@@ -3,8 +3,8 @@ import {
   applyCycleOutcomes,
   assignTroopToRift,
   claimOpeningTroop,
-  getOpeningFactionOptionIds,
-  getOpeningFactionStarterTroopUnlockIds,
+  getOpeningRaceOptionIds,
+  getOpeningRaceStarterTroopUnlockIds,
   resolveAssignedRifts,
   startNewGame,
   startOpeningCampaign,
@@ -35,8 +35,8 @@ export type TutorialAction =
   | 'replay-end'
   | 'singleplayer'
   | 'start-contest'
-  | 'faction-select'
-  | 'faction-deselect'
+  | 'race-select'
+  | 'race-deselect'
   | 'future-select'
   | 'future-deselect'
   | 'starter-pending'
@@ -338,13 +338,13 @@ export function recordTutorialAction(progress: TutorialProgress, action: Tutoria
 }
 
 function chooseOpeningPair(game: GameState): TroopUnlockId[] {
-  const starters = getOpeningFactionStarterTroopUnlockIds(game);
-  const candidates = getOpeningFactionOptionIds(game).map((factionId) => starters[factionId]);
+  const starters = getOpeningRaceStarterTroopUnlockIds(game);
+  const candidates = getOpeningRaceOptionIds(game).map((raceId) => starters[raceId]);
   const first = candidates[0]!;
-  const [firstFactionId, firstUnitTypeId] = first.split('/');
+  const [firstRaceId, firstUnitClassId] = first.split('/');
   const second = candidates.find((candidate) => {
-    const [factionId, unitTypeId] = candidate.split('/');
-    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+    const [raceId, unitClassId] = candidate.split('/');
+    return raceId !== firstRaceId && unitClassId !== firstUnitClassId;
   });
   return second ? [first, second] : [first, candidates[1]!];
 }

@@ -67,7 +67,7 @@ UNIT_RECOLOR_RULES: dict[str, dict[str, list[str]]] = {
 }
 
 
-FACTION_PALETTES: dict[str, dict[str, tuple[int, int, int]]] = {
+RACE_PALETTES: dict[str, dict[str, tuple[int, int, int]]] = {
     "human": {"primary": (0x4E2331, 0x935066, 0xE29B8B), "secondary": (0x6C4F1F, 0xC08C37, 0xF5D37C), "glow": (0x24415A, 0x4D82A8, 0xB9DEF6)},
     "elf": {"primary": (0x18362D, 0x2F7D64, 0x8DE0B4), "secondary": (0x45626D, 0x8AA8B5, 0xE2F5F2), "glow": (0x1F5B5E, 0x4AB6AE, 0xC5FFF5)},
     "goblin": {"primary": (0x3A2808, 0x8C5C12, 0xD4A030), "secondary": (0x5F2C1D, 0xB35731, 0xF2A06B), "glow": (0x403A0A, 0x908812, 0xE8E030)},
@@ -118,17 +118,17 @@ def sample_ramp(ramp: tuple[int, int, int], index: int, count: int) -> str:
     return rgb_hex(tuple(round(start[i] + (end[i] - start[i]) * local) for i in range(3)))
 
 
-def build_color_map(unit: str, faction: str) -> dict[str, str]:
+def build_color_map(unit: str, race: str) -> dict[str, str]:
     color_map: dict[str, str] = {}
     for role, colors in UNIT_RECOLOR_RULES[unit].items():
         sorted_colors = sorted(colors, key=luminance)
         for index, source in enumerate(sorted_colors):
-            color_map[source.upper()] = sample_ramp(FACTION_PALETTES[faction][role], index, len(sorted_colors))
+            color_map[source.upper()] = sample_ramp(RACE_PALETTES[race][role], index, len(sorted_colors))
     return color_map
 
 
-def recolor(image: Image.Image, unit: str, faction: str) -> Image.Image:
-    color_map = {hex_rgb(source): hex_rgb(target) for source, target in build_color_map(unit, faction).items()}
+def recolor(image: Image.Image, unit: str, race: str) -> Image.Image:
+    color_map = {hex_rgb(source): hex_rgb(target) for source, target in build_color_map(unit, race).items()}
     out = image.copy().convert("RGBA")
     pixels = out.load()
     for y in range(out.height):
@@ -390,21 +390,21 @@ def save_contact_sheet(images: dict[str, Image.Image], path: Path) -> None:
 
 def save_recolor_sheet(images: dict[str, Image.Image], path: Path) -> None:
     font = ImageFont.load_default()
-    factions = ["human", "elf", "goblin", "troll"]
+    races = ["human", "elf", "goblin", "troll"]
     cell_w = 88
     cell_h = 62
-    cols = 1 + len(factions)
+    cols = 1 + len(races)
     rows = 1 + len(UNIT_ORDER)
     sheet = Image.new("RGBA", (cols * cell_w, rows * cell_h), "#f0f2f5")
     draw = ImageDraw.Draw(sheet)
     draw.text((8, 22), "unit", fill="#222222", font=font)
-    for c, faction in enumerate(factions, start=1):
-        draw.text((c * cell_w + 8, 22), faction, fill="#222222", font=font)
+    for c, race in enumerate(races, start=1):
+        draw.text((c * cell_w + 8, 22), race, fill="#222222", font=font)
     for r, unit in enumerate(UNIT_ORDER, start=1):
         y = r * cell_h
         draw.text((8, y + 22), unit, fill="#222222", font=font)
-        for c, faction in enumerate(factions, start=1):
-            sprite = recolor(images[unit], unit, faction).resize((FRAME_SIZE * 2, FRAME_SIZE * 2), Image.Resampling.NEAREST)
+        for c, race in enumerate(races, start=1):
+            sprite = recolor(images[unit], unit, race).resize((FRAME_SIZE * 2, FRAME_SIZE * 2), Image.Resampling.NEAREST)
             sheet.alpha_composite(sprite, (c * cell_w + 12, y - 1))
     for c in range(cols):
         for r in range(rows):
@@ -437,7 +437,7 @@ def main() -> None:
         image.save(OUT_DIR / f"{unit}.png")
 
     save_contact_sheet(images, REVIEW_DIR / "procedural-neutral-contact-sheet.png")
-    save_recolor_sheet(images, REVIEW_DIR / "procedural-faction-recolor-sheet.png")
+    save_recolor_sheet(images, REVIEW_DIR / "procedural-race-recolor-sheet.png")
     print(f"Wrote {len(UNIT_ORDER)} sprites to {OUT_DIR}")
     print(f"Wrote review sheets to {REVIEW_DIR}")
 

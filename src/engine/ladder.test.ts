@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBattleInputFromResolvedCombatants } from './battle';
-import { assignTroopToRift, claimOpeningTroop, getOpeningFactionStarterTroopUnlockIds, startNewGame, startOpeningCampaign } from './game';
+import { assignTroopToRift, claimOpeningTroop, getOpeningRaceStarterTroopUnlockIds, startNewGame, startOpeningCampaign } from './game';
 import { buildHarvestedLadderPayload, generateBaselineLadderPayload, ladderRiftSetToRiftInstances, validateLadderRiftSetPayload } from './ladder';
 import type { RiftResolutionRecord } from './types';
 
@@ -28,8 +28,8 @@ describe('Ladder Rift-set payloads', () => {
         rifts[0]!.saturation,
         [],
         [],
-        rifts[0]!.enemyFactionUpgradeIds ?? [],
-        rifts[0]!.enemyTroopTypeUpgradeIds ?? [],
+        rifts[0]!.enemyRaceUpgradeIds ?? [],
+        rifts[0]!.enemyTroopClassUpgradeIds ?? [],
         [],
         rifts[0]!.enemyArmy,
       ),
@@ -38,19 +38,19 @@ describe('Ladder Rift-set payloads', () => {
 
   it('tags unknown catalog ids as compatibility issues', () => {
     const payload = generateBaselineLadderPayload(1234, 1);
-    payload.rifts[0]!.guardians[0]!.factionId = 'missing-faction';
-    payload.rifts[0]!.guardians[0]!.unitTypeId = 'missing-type';
-    payload.rifts[0]!.guardians[0]!.factionUpgradeIds = ['missing-faction-upgrade'];
-    payload.rifts[0]!.guardians[0]!.troopTypeUpgradeIds = ['missing-type-upgrade'];
+    payload.rifts[0]!.guardians[0]!.raceId = 'missing-race';
+    payload.rifts[0]!.guardians[0]!.unitClassId = 'missing-unit-class';
+    payload.rifts[0]!.guardians[0]!.raceUpgradeIds = ['missing-race-upgrade'];
+    payload.rifts[0]!.guardians[0]!.troopClassUpgradeIds = ['missing-unit-class-upgrade'];
     payload.rifts[0]!.mutatorIds = ['missing-mutator'];
 
     const issues = validateLadderRiftSetPayload(payload, 1);
     expect(issues.map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
-        'unknown_faction',
-        'unknown_unit_type',
-        'unknown_faction_upgrade',
-        'unknown_troop_type_upgrade',
+        'unknown_race',
+        'unknown_unit_class',
+        'unknown_race_upgrade',
+        'unknown_troop_class_upgrade',
         'unknown_mutator',
       ]),
     );
@@ -58,7 +58,7 @@ describe('Ladder Rift-set payloads', () => {
 
   it('stores victorious player troops and upgrade snapshots when harvesting conquered Rifts', () => {
     const opening = startNewGame(1234, 'ladder');
-    const starters = getOpeningFactionStarterTroopUnlockIds(opening);
+    const starters = getOpeningRaceStarterTroopUnlockIds(opening);
     const [firstTroopUnlockId, secondTroopUnlockId] = [starters.human!, starters.elf!];
     const prepared = startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(opening, firstTroopUnlockId), secondTroopUnlockId));
     const payload = generateBaselineLadderPayload(9999, 1);
@@ -72,8 +72,8 @@ describe('Ladder Rift-set payloads', () => {
     const assigned = assignTroopToRift(
       {
         ...prepared,
-        factionUpgradeIds: ['human-hold-the-standard'],
-        troopTypeUpgradeIds: ['soldier-shield-drill'],
+        raceUpgradeIds: ['human-hold-the-standard'],
+        troopClassUpgradeIds: ['soldier-shield-drill'],
         openRifts,
       },
       prepared.troops[0]!.id,
@@ -101,10 +101,10 @@ describe('Ladder Rift-set payloads', () => {
 
     expect(harvested.rifts[0]!.guardians).toEqual([
       {
-        factionId: prepared.troops[0]!.factionId,
-        unitTypeId: prepared.troops[0]!.unitTypeId,
-        factionUpgradeIds: ['human-hold-the-standard'],
-        troopTypeUpgradeIds: ['soldier-shield-drill'],
+        raceId: prepared.troops[0]!.raceId,
+        unitClassId: prepared.troops[0]!.unitClassId,
+        raceUpgradeIds: ['human-hold-the-standard'],
+        troopClassUpgradeIds: ['soldier-shield-drill'],
       },
     ]);
     expect(harvested.rifts[1]!.guardians).toEqual(payload.rifts[1]!.guardians);

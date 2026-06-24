@@ -1,7 +1,7 @@
 import { resolveBattle } from './battle';
 import { fixed, fixedAdd } from './fixed';
 import { footprintsTouchOrOverlap } from './hex';
-import { clampStat, getAbility, getTroopDefinitionOrThrow, getUnitType } from './unitCatalog';
+import { clampStat, getAbility, getTroopDefinitionOrThrow, getUnitClass } from './unitCatalog';
 import type {
   AbilityDefinition,
   BattleInput,
@@ -9,13 +9,13 @@ import type {
   BattleReplay,
   BattleStateSnapshot,
   BattleStep,
-  FactionId,
+  RaceId,
   ResolvedCombatantDefinition,
   RoleId,
   RoleIntentId,
   SideId,
   UnitStats,
-  UnitTypeId,
+  UnitClassId,
 } from './types';
 
 type NumericPercentiles = {
@@ -38,10 +38,10 @@ export interface SyntheticCombatantOptions {
   label: string;
   side: SideId;
   role: RoleId;
-  type: string;
+  unitClassTag: string;
   stats: UnitStats;
-  unitTypeId?: UnitTypeId;
-  factionId?: FactionId;
+  unitClassId?: UnitClassId;
+  raceId?: RaceId;
   troopInstanceId?: string | null;
   attributes?: string[];
   abilities?: AbilityDefinition[];
@@ -55,8 +55,8 @@ export interface CatalogCombatantOptions {
   side: SideId;
 }
 
-export interface UnitTypeCombatantOptions extends CatalogCombatantOptions {
-  factionId?: FactionId;
+export interface UnitClassCombatantOptions extends CatalogCombatantOptions {
+  raceId?: RaceId;
   label?: string;
   stats?: Partial<UnitStats>;
   attributes?: string[];
@@ -257,12 +257,12 @@ function isSummonStep(step: BattleStep): boolean {
 export function createSyntheticCombatant(options: SyntheticCombatantOptions): ResolvedCombatantDefinition {
   return {
     combatantId: options.combatantId,
-    factionId: options.factionId ?? 'simulation',
-    unitTypeId: options.unitTypeId ?? options.type,
+    raceId: options.raceId ?? 'simulation',
+    unitClassId: options.unitClassId ?? options.unitClassTag,
     troopInstanceId: options.troopInstanceId ?? null,
     label: options.label,
     role: options.role,
-    type: options.type,
+    unitClassTag: options.unitClassTag,
     attributes: [...(options.attributes ?? [])],
     stats: cloneStats(options.stats),
     abilities: [...(options.abilities ?? [])],
@@ -276,12 +276,12 @@ export function createCatalogTroopCombatant(troopId: string, options: CatalogCom
   const troop = getTroopDefinitionOrThrow(troopId);
   return {
     combatantId: options.combatantId ?? `${options.side}-${troopId}`,
-    factionId: troop.factionId,
-    unitTypeId: troop.unitTypeId,
+    raceId: troop.raceId,
+    unitClassId: troop.unitClassId,
     troopInstanceId: null,
     label: troop.label,
     role: troop.role,
-    type: troop.type,
+    unitClassTag: troop.unitClassTag,
     attributes: [...troop.attributes],
     stats: cloneStats(troop.stats),
     abilities: [...troop.abilities],
@@ -291,25 +291,25 @@ export function createCatalogTroopCombatant(troopId: string, options: CatalogCom
   };
 }
 
-export function createUnitTypeCombatant(unitTypeId: UnitTypeId, options: UnitTypeCombatantOptions): ResolvedCombatantDefinition {
-  const unitType = getUnitType(unitTypeId);
+export function createUnitClassCombatant(unitClassId: UnitClassId, options: UnitClassCombatantOptions): ResolvedCombatantDefinition {
+  const unitClass = getUnitClass(unitClassId);
   const abilities =
     options.abilities ??
-    (options.includeBaseAbilities === false ? [] : unitType.abilityIds.map((abilityId) => getAbility(abilityId)));
+    (options.includeBaseAbilities === false ? [] : unitClass.abilityIds.map((abilityId) => getAbility(abilityId)));
 
   return createSyntheticCombatant({
-    combatantId: options.combatantId ?? `${options.side}-${unitTypeId}`,
-    factionId: options.factionId ?? 'simulation',
-    unitTypeId,
-    label: options.label ?? unitType.label,
+    combatantId: options.combatantId ?? `${options.side}-${unitClassId}`,
+    raceId: options.raceId ?? 'simulation',
+    unitClassId,
+    label: options.label ?? unitClass.label,
     side: options.side,
-    role: unitType.role,
-    type: unitType.type,
-    attributes: options.attributes ?? [...unitType.attributes],
-    stats: { ...unitType.stats, ...options.stats },
+    role: unitClass.role,
+    unitClassTag: unitClass.unitClassTag,
+    attributes: options.attributes ?? [...unitClass.attributes],
+    stats: { ...unitClass.stats, ...options.stats },
     abilities,
-    quantity: options.quantity ?? unitType.quantity,
-    cost: unitType.cost,
+    quantity: options.quantity ?? unitClass.quantity,
+    cost: unitClass.cost,
   });
 }
 
@@ -434,7 +434,7 @@ export function buildRoleScenarioBattleInput(scenarioId: RoleScenarioId, seed: n
       return buildSimulationBattleInput(
         seed,
         [
-          createUnitTypeCombatant('militia', {
+          createUnitClassCombatant('militia', {
             combatantId: 'player-pusher',
             label: 'Benchmark Pusher',
             side: 'player',

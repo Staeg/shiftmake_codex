@@ -2,15 +2,15 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   ABILITIES,
-  FACTION_UPGRADES,
-  FACTIONS,
+  RACE_UPGRADES,
+  RACES,
   MUTATORS,
-  TROOP_TYPE_UPGRADES,
-  UNIT_TYPES,
+  TROOP_CLASS_UPGRADES,
+  UNIT_CLASSES,
 } from '../src/engine/unitCatalog';
 import type { AbilityDefinition, AbilityEffectDefinition, AbilityId, UpgradeId } from '../src/engine/types';
 
-type IconKind = 'ability' | 'faction_upgrade' | 'troop_type_upgrade' | 'rift_mutator';
+type IconKind = 'ability' | 'race_upgrade' | 'troop_class_upgrade' | 'rift_mutator';
 
 interface IconManifestItem {
   id: string;
@@ -38,7 +38,7 @@ Use this as the shared art direction for generated upgrade, ability, and Rift-mu
 
 ## Game Context
 
-Shiftmake is a browser-based, singleplayer turn-based strategy game with light pixel art graphics. The player commands a patchwork army from multiple factions and sends troops through Rifts into auto-resolved battles. Icons should feel tactical, readable, and game-system-forward rather than like full illustrations.
+Shiftmake is a browser-based, singleplayer turn-based strategy game with light pixel art graphics. The player commands a patchwork army from multiple races and sends troops through Rifts into auto-resolved battles. Icons should feel tactical, readable, and game-system-forward rather than like full illustrations.
 
 ## Global Icon Rules
 
@@ -69,7 +69,7 @@ Shiftmake is a browser-based, singleplayer turn-based strategy game with light p
 - Corpses and death triggers: bones, fading silhouettes, dark violet or sickly green accents.
 - Range and precision: arrows, crosshair shapes, long sight lines.
 - Debuffs: cracked armor, downward motion, draining color.
-- Faction synergies: banners, grouped silhouettes, faction-coded materials.
+- Race synergies: banners, grouped silhouettes, race-coded materials.
 - Rift mutators: environmental symbols that affect the whole battle.
 
 ## Negative Prompt
@@ -87,16 +87,16 @@ Use this after generating each batch.
 - Still communicates the broad mechanic at 32x32.
 - Contains no text, letters, numbers, captions, or watermarking.
 - Has a strong central silhouette.
-- Has one obvious gameplay category: damage, healing, summon, defense, mobility, initiative, corpse, debuff, faction synergy, or Rift environment.
-- Is distinct from nearby mechanics in the same unit or faction family.
+- Has one obvious gameplay category: damage, healing, summon, defense, mobility, initiative, corpse, debuff, race synergy, or Rift environment.
+- Is distinct from nearby mechanics in the same unit or race family.
 - Does not depend on tiny detail to make sense.
 
 ## Batch Review
 
 - Similar mechanics share a visual grammar without becoming identical.
 - Tier 3 icons can feel more intense than tier 1 or tier 2 icons, but should not become busier.
-- Faction upgrades feel related to their faction without requiring portraits.
-- Troop-type upgrades feel tied to the troop's combat job.
+- Race upgrades feel related to their race without requiring portraits.
+- Troop-class upgrades feel tied to the troop's combat job.
 - Base abilities are simple enough to work as reusable iconography.
 
 ## Suggested Iteration Notes
@@ -134,7 +134,7 @@ function formatTrigger(ability: AbilityDefinition | null): string | null {
   if (trigger.chargeEvery) details.push(`charge every ${trigger.chargeEvery} turns`);
   if (trigger.maxUses) details.push(`max ${trigger.maxUses} uses`);
   if (trigger.condition) details.push(`condition ${trigger.condition}`);
-  if (trigger.repeatPerDistinctFriendlyTroopType) details.push('scales per other friendly troop type');
+  if (trigger.repeatPerDistinctFriendlyTroopClass) details.push('scales per other friendly troop class');
   if (trigger.repeatPerOtherFriendlyUnitOnHex) details.push('scales per other friendly unit on hex');
   if (trigger.fallen) details.push(`near fallen ${trigger.fallen.allegiance} unit`);
   if (trigger.effectApplication?.effectKinds?.length) details.push(`after ${trigger.effectApplication.effectKinds.join('/')} effect`);
@@ -149,9 +149,9 @@ function formatTarget(ability: AbilityDefinition | null): string | null {
   if (target.allegiance) parts.push(target.allegiance);
   if (target.radius !== undefined) parts.push(`radius ${target.radius}`);
   if (target.radiusSource) parts.push(`radius from ${target.radiusSource}`);
-  if (target.filters?.onlyTypes?.length) parts.push(`only ${target.filters.onlyTypes.join(', ')}`);
-  if (target.filters?.notTypes?.length) parts.push(`not ${target.filters.notTypes.join(', ')}`);
-  if (target.filters?.prioritizeTypes?.length) parts.push(`prioritize ${target.filters.prioritizeTypes.join(', ')}`);
+  if (target.filters?.onlyClasses?.length) parts.push(`only ${target.filters.onlyClasses.join(', ')}`);
+  if (target.filters?.notClasses?.length) parts.push(`not ${target.filters.notClasses.join(', ')}`);
+  if (target.filters?.prioritizeClasses?.length) parts.push(`prioritize ${target.filters.prioritizeClasses.join(', ')}`);
   if (target.filters?.unengaged) parts.push('unengaged');
   return parts.join('; ');
 }
@@ -180,7 +180,7 @@ function formatEffect(effect: AbilityEffectDefinition): string {
     case 'strike':
       return `${effect.amount} extra strike${effect.amount === 1 ? '' : 's'}`;
     case 'summon':
-      return `summon ${effect.count} ${effect.unitTypeId}${effect.count === 1 ? '' : 's'}`;
+      return `summon ${effect.count} ${effect.unitClassId}${effect.count === 1 ? '' : 's'}`;
     case 'redirect':
       return 'redirect into engagement';
   }
@@ -204,7 +204,7 @@ function abilityTags(ability: AbilityDefinition | null, mechanic: string, effect
   addIf('melee', /\bmelee|engage|retaliate|taunt|capacity/);
   addIf('debuff', /\breduce|lose|loss|set initiative to 0|harmful|snare|concussive|ensorcel/);
   addIf('movement', /\bmove|retreat|spawn|relocate|diggy|step|quakes/);
-  addIf('synergy', /\ballied|friendly|same hex|troop type|pack|combined|united|warcry/);
+  addIf('synergy', /\ballied|friendly|same hex|troop class|pack|combined|united|warcry/);
   addIf('transformation', /\bshapeshift|bear|form|changes sides|changeling/);
   addIf('defense', /\bsurvive|immune|redirect|taunt|shield|armor|damage is split|stoneblood/);
   return unique(tags);
@@ -223,7 +223,7 @@ function primaryAbility(ids: AbilityId[]): AbilityDefinition | null {
   return id ? (ABILITIES[id] ?? null) : null;
 }
 
-type UpgradeForIcon = (typeof FACTION_UPGRADES)[string] | (typeof TROOP_TYPE_UPGRADES)[string];
+type UpgradeForIcon = (typeof RACE_UPGRADES)[string] | (typeof TROOP_CLASS_UPGRADES)[string];
 
 function formatStatModifier(stat: string, modifier: { flat?: number; multiplier?: number }): string {
   const parts: string[] = [];
@@ -253,41 +253,41 @@ function formatDirectUpgradeEffects(upgrade: UpgradeForIcon): string[] {
 }
 
 function formatUpgradeContext(
-  kind: 'faction_upgrade' | 'troop_type_upgrade',
+  kind: 'race_upgrade' | 'troop_class_upgrade',
   upgrade: UpgradeForIcon,
 ): string {
   const owner =
-    kind === 'faction_upgrade'
-      ? FACTIONS[(upgrade as (typeof FACTION_UPGRADES)[string]).factionId]?.label
-      : UNIT_TYPES[(upgrade as (typeof TROOP_TYPE_UPGRADES)[string]).unitTypeId]?.label;
+    kind === 'race_upgrade'
+      ? RACES[(upgrade as (typeof RACE_UPGRADES)[string]).raceId]?.label
+      : UNIT_CLASSES[(upgrade as (typeof TROOP_CLASS_UPGRADES)[string]).unitClassId]?.label;
   const directEffects = formatDirectUpgradeEffects(upgrade);
   const context = `${upgrade.label}${owner ? ` (${owner}, tier ${upgrade.tier})` : ''}: ${upgrade.description}`;
   return directEffects.length > 0 ? `${context} Direct upgrade effects: ${directEffects.join(', ')}.` : context;
 }
 
 function relatedUpgradeContextsForAbility(abilityId: AbilityId): string[] {
-  const factionContexts = Object.values(FACTION_UPGRADES)
+  const raceContexts = Object.values(RACE_UPGRADES)
     .filter((upgrade) => sourceAbilityIdsForEffects(upgrade.effects).includes(abilityId))
-    .map((upgrade) => formatUpgradeContext('faction_upgrade', upgrade));
-  const troopTypeContexts = Object.values(TROOP_TYPE_UPGRADES)
+    .map((upgrade) => formatUpgradeContext('race_upgrade', upgrade));
+  const troopClassContexts = Object.values(TROOP_CLASS_UPGRADES)
     .filter((upgrade) => sourceAbilityIdsForEffects(upgrade.effects).includes(abilityId))
-    .map((upgrade) => formatUpgradeContext('troop_type_upgrade', upgrade));
-  return [...factionContexts, ...troopTypeContexts];
+    .map((upgrade) => formatUpgradeContext('troop_class_upgrade', upgrade));
+  return [...raceContexts, ...troopClassContexts];
 }
 
 function makeUpgradeItem(
-  kind: 'faction_upgrade' | 'troop_type_upgrade',
+  kind: 'race_upgrade' | 'troop_class_upgrade',
   upgrade: UpgradeForIcon,
 ): IconManifestItem {
   const sourceAbilityIds = sourceAbilityIdsForEffects(upgrade.effects);
   const ability = primaryAbility(sourceAbilityIds);
   const owner =
-    kind === 'faction_upgrade'
-      ? FACTIONS[(upgrade as (typeof FACTION_UPGRADES)[string]).factionId]?.label
-      : UNIT_TYPES[(upgrade as (typeof TROOP_TYPE_UPGRADES)[string]).unitTypeId]?.label;
+    kind === 'race_upgrade'
+      ? RACES[(upgrade as (typeof RACE_UPGRADES)[string]).raceId]?.label
+      : UNIT_CLASSES[(upgrade as (typeof TROOP_CLASS_UPGRADES)[string]).unitClassId]?.label;
   const effects = [...formatDirectUpgradeEffects(upgrade), ...(ability ? ability.effects.map(formatEffect) : [])];
   const tags = unique([
-    kind === 'faction_upgrade' ? 'faction-upgrade' : 'troop-type-upgrade',
+    kind === 'race_upgrade' ? 'race-upgrade' : 'troop-class-upgrade',
     ...(owner ? [slugify(owner)] : []),
     ...abilityTags(ability, upgrade.description, effects),
   ]);
@@ -375,10 +375,10 @@ function formatKind(kind: IconKind): string {
   switch (kind) {
     case 'ability':
       return 'Ability';
-    case 'faction_upgrade':
-      return 'Faction upgrade';
-    case 'troop_type_upgrade':
-      return 'Troop-type upgrade';
+    case 'race_upgrade':
+      return 'Race upgrade';
+    case 'troop_class_upgrade':
+      return 'Troop-class upgrade';
     case 'rift_mutator':
       return 'Rift mutator';
   }
@@ -386,7 +386,7 @@ function formatKind(kind: IconKind): string {
 
 function formatPromptContent(item: IconManifestItem): string {
   const visualTags = item.gameplayTags.filter(
-    (tag) => !['base-ability', 'faction-upgrade', 'troop-type-upgrade', 'rift-mutator'].includes(tag),
+    (tag) => !['base-ability', 'race-upgrade', 'troop-class-upgrade', 'rift-mutator'].includes(tag),
   );
   const lines = [
     `Name: ${item.name}`,
@@ -423,15 +423,15 @@ function groupBy<T>(values: T[], key: (value: T) => string): Record<string, T[]>
 }
 
 const upgradeItems = [
-  ...Object.values(FACTION_UPGRADES).map((upgrade) => makeUpgradeItem('faction_upgrade', upgrade)),
-  ...Object.values(TROOP_TYPE_UPGRADES).map((upgrade) => makeUpgradeItem('troop_type_upgrade', upgrade)),
+  ...Object.values(RACE_UPGRADES).map((upgrade) => makeUpgradeItem('race_upgrade', upgrade)),
+  ...Object.values(TROOP_CLASS_UPGRADES).map((upgrade) => makeUpgradeItem('troop_class_upgrade', upgrade)),
 ];
 
 const upgradeAbilityIds = new Set<UpgradeId>(upgradeItems.flatMap((item) => item.sourceAbilityIds));
 const baseAbilityIds = new Set<AbilityId>(
-  Object.values(UNIT_TYPES)
-    .flatMap((unitType) => unitType.abilityIds)
-    .concat(Object.values(FACTIONS).flatMap((faction) => faction.abilityIds)),
+  Object.values(UNIT_CLASSES)
+    .flatMap((unitClass) => unitClass.abilityIds)
+    .concat(Object.values(RACES).flatMap((race) => race.abilityIds)),
 );
 const abilityItems = Object.values(ABILITIES)
   .filter((ability) => baseAbilityIds.has(ability.id) || upgradeAbilityIds.has(ability.id))
@@ -449,8 +449,8 @@ const manifest = {
   counts: {
     total: items.length,
     abilities: abilityItems.length,
-    factionUpgrades: Object.keys(FACTION_UPGRADES).length,
-    troopTypeUpgrades: Object.keys(TROOP_TYPE_UPGRADES).length,
+    raceUpgrades: Object.keys(RACE_UPGRADES).length,
+    troopClassUpgrades: Object.keys(TROOP_CLASS_UPGRADES).length,
     riftMutators: mutatorItems.length,
   },
   items,
@@ -491,8 +491,8 @@ writeText(join(OUTPUT_ROOT, 'prompts', 'contact-sheets.generated.md'), `# Shiftm
 
 [
   'ability',
-  'faction_upgrade',
-  'troop_type_upgrade',
+  'race_upgrade',
+  'troop_class_upgrade',
   'rift_mutator',
 ].forEach((kind) => writeText(join(FINAL_ROOT, kind, '.gitkeep'), ''));
 

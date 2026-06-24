@@ -56,8 +56,8 @@ function buildEnemyArmy(tier, seed) {
     const enemyGroupCount = Math.min(tier, 3) + 1;
     const selections = rng.shuffle([...ALL_TROOP_UNLOCK_IDS]).slice(0, enemyGroupCount);
     return selections.map((troopUnlockId, index) => {
-        const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
-        return resolveEnemyCombatant([], [], factionId, unitTypeId, tier, `rift-${seed}-${index}`);
+        const [raceId, unitClassId] = splitTroopUnlockId(troopUnlockId);
+        return resolveEnemyCombatant([], [], raceId, unitClassId, tier, `rift-${seed}-${index}`);
     });
 }
 function pickRiftSaturation(seed) {

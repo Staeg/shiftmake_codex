@@ -1,23 +1,23 @@
 import { createTroopInstance, getTroopQuantityBreakdown } from '../engine/army';
 import { formatFixed } from '../engine/fixed';
 import {
-  FACTION_UPGRADES,
+  RACE_UPGRADES,
   getAbility,
-  getFaction,
+  getRace,
   getMutator,
   getSummonedUnitPreviews,
-  getTroopTypeUpgrade,
-  getUnitType,
+  getTroopClassUpgrade,
+  getUnitClass,
 } from '../engine/unitCatalog';
 import type {
   AbilityDefinition,
   ExplainedStatKey,
-  FactionId,
+  RaceId,
   GameMode,
   RiftInstance,
   RoleId,
   StatBreakdown,
-  UnitTypeId,
+  UnitClassId,
   UpgradeId,
 } from '../engine/types';
 import { displayIcon, formatAbilityDescription, statIcon } from './inspectText';
@@ -34,7 +34,7 @@ export type StatEntry = {
 export type DetailCard =
   | {
       detailKey: string;
-      kind: 'mutator' | 'faction' | 'upgrade' | 'rift';
+      kind: 'mutator' | 'race' | 'upgrade' | 'rift';
       label: string;
       description: string;
       iconKind?: 'upgrade' | 'mutator';
@@ -49,8 +49,8 @@ export type DetailCard =
       description: string;
       portraitUrl: string;
       quantity: number;
-      factionId: FactionId;
-      unitTypeId: UnitTypeId;
+      raceId: RaceId;
+      unitClassId: UnitClassId;
       role: RoleId;
       stats: StatEntry[];
       abilities: Array<{
@@ -68,8 +68,8 @@ export type DetailCard =
 
 const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'];
 
-export function parseTroopUnlockId(troopUnlockId: string): [FactionId, UnitTypeId] {
-  return troopUnlockId.split('/') as [FactionId, UnitTypeId];
+export function parseTroopUnlockId(troopUnlockId: string): [RaceId, UnitClassId] {
+  return troopUnlockId.split('/') as [RaceId, UnitClassId];
 }
 
 export function slotPhaseLabel(phase?: string | null): string {
@@ -111,20 +111,20 @@ export function formatRiftDisplayId(riftId: string): string {
 }
 
 export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; description: string; bucket: string } {
-  if (upgradeId in FACTION_UPGRADES) {
-    const upgrade = FACTION_UPGRADES[upgradeId]!;
+  if (upgradeId in RACE_UPGRADES) {
+    const upgrade = RACE_UPGRADES[upgradeId]!;
     return {
       label: upgrade.label,
       description: upgrade.description,
-      bucket: `${getFaction(upgrade.factionId).label} faction upgrade`,
+      bucket: `${getRace(upgrade.raceId).label} race upgrade`,
     };
   }
 
-  const upgrade = getTroopTypeUpgrade(upgradeId);
+  const upgrade = getTroopClassUpgrade(upgradeId);
   return {
     label: upgrade.label,
     description: upgrade.description,
-    bucket: `${getUnitType(upgrade.unitTypeId).label} troop upgrade`,
+    bucket: `${getUnitClass(upgrade.unitClassId).label} troop upgrade`,
   };
 }
 
@@ -201,11 +201,11 @@ export function buildStatEntries(
   return entries;
 }
 
-export function describeFactionModifiers(factionId: FactionId): string[] {
-  const faction = getFaction(factionId);
+export function describeRaceModifiers(raceId: RaceId): string[] {
+  const race = getRace(raceId);
   const parts: string[] = [];
 
-  Object.entries(faction.statAdjustments).forEach(([key, adjustment]) => {
+  Object.entries(race.statAdjustments).forEach(([key, adjustment]) => {
     if (!adjustment) {
       return;
     }
@@ -235,7 +235,7 @@ export function describeFactionModifiers(factionId: FactionId): string[] {
     }
   });
 
-  faction.abilityIds.forEach((abilityId) => {
+  race.abilityIds.forEach((abilityId) => {
     const ability = getAbility(abilityId);
     parts.push(`${ability.label}: ${formatAbilityDescription(ability)}`);
   });
@@ -243,9 +243,9 @@ export function describeFactionModifiers(factionId: FactionId): string[] {
   return parts.length > 0 ? parts : ['No special modifiers.'];
 }
 
-export function buildFactionDetail(factionId: FactionId): DetailCard {
-  const faction = getFaction(factionId);
-  const nonStatModifiers = faction.abilityIds.map((abilityId) => {
+export function buildRaceDetail(raceId: RaceId): DetailCard {
+  const race = getRace(raceId);
+  const nonStatModifiers = race.abilityIds.map((abilityId) => {
     const ability = getAbility(abilityId);
     return `${ability.label}: ${formatAbilityDescription(ability)}`;
   });
@@ -254,14 +254,14 @@ export function buildFactionDetail(factionId: FactionId): DetailCard {
     label: displayIcon(key),
     name: getStatLabel(key),
     description: getStatDescription(key),
-    value: formatStatModifier(faction.statAdjustments[key]),
+    value: formatStatModifier(race.statAdjustments[key]),
     breakdown: null,
   })).filter((entry) => entry.value !== '0');
 
   return {
-    detailKey: `faction:${factionId}`,
-    kind: 'faction',
-    label: faction.label,
+    detailKey: `race:${raceId}`,
+    kind: 'race',
+    label: race.label,
     description: nonStatModifiers.join(' '),
     stats,
   };
@@ -312,14 +312,14 @@ export function buildUpgradeDetail(upgradeId: UpgradeId): DetailCard {
 type BuildResolvedUnitDetailOptions = {
   detailKey: string;
   label: string;
-  factionId: FactionId;
-  unitTypeId: UnitTypeId;
+  raceId: RaceId;
+  unitClassId: UnitClassId;
   stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number };
   quantity: number;
   description: string;
   abilities: AbilityDefinition[];
   statBreakdowns?: Partial<Record<ExplainedStatKey | 'quantity', StatBreakdown>>;
-  getFactionUnitPortrait: (factionId: FactionId, unitTypeId: UnitTypeId) => string;
+  getRaceUnitPortrait: (raceId: RaceId, unitClassId: UnitClassId) => string;
 };
 
 export function buildResolvedUnitDetail(options: BuildResolvedUnitDetailOptions): DetailCard {
@@ -338,35 +338,35 @@ export function buildResolvedUnitDetail(options: BuildResolvedUnitDetailOptions)
             : 'Troop Inspector',
     label: options.label,
     description: safeDescription,
-    portraitUrl: options.getFactionUnitPortrait(options.factionId, options.unitTypeId),
+    portraitUrl: options.getRaceUnitPortrait(options.raceId, options.unitClassId),
     quantity: options.quantity,
-    factionId: options.factionId,
-    unitTypeId: options.unitTypeId,
-    role: getUnitType(options.unitTypeId).role,
+    raceId: options.raceId,
+    unitClassId: options.unitClassId,
+    role: getUnitClass(options.unitClassId).role,
     stats: buildStatEntries(
       options.stats,
       {
         ...(options.statBreakdowns ?? {}),
-        quantity: getTroopQuantityBreakdown(createTroopInstance(options.factionId, options.unitTypeId)),
+        quantity: getTroopQuantityBreakdown(createTroopInstance(options.raceId, options.unitClassId)),
       },
       true,
       options.quantity,
     ),
     abilities: options.abilities.map((ability) => {
-      const summoned = getSummonedUnitPreviews(ability, options.factionId).map((preview) => ({
-        key: `${ability.id}:${preview.unitTypeId}:${preview.count}:${preview.grantedAbilityIds.join(',')}`,
+      const summoned = getSummonedUnitPreviews(ability, options.raceId).map((preview) => ({
+        key: `${ability.id}:${preview.unitClassId}:${preview.count}:${preview.grantedAbilityIds.join(',')}`,
         label: preview.troop.label,
         count: preview.count,
         detail: buildResolvedUnitDetail({
-          detailKey: `summon-preview:${options.detailKey}:${ability.id}:${preview.unitTypeId}:${preview.grantedAbilityIds.join(',')}`,
+          detailKey: `summon-preview:${options.detailKey}:${ability.id}:${preview.unitClassId}:${preview.grantedAbilityIds.join(',')}`,
           label: preview.troop.label,
-          factionId: preview.troop.factionId,
-          unitTypeId: preview.troop.unitTypeId,
+          raceId: preview.troop.raceId,
+          unitClassId: preview.troop.unitClassId,
           stats: preview.troop.stats,
           quantity: preview.troop.quantity,
           description: `${preview.count > 1 ? `${preview.count} units. ` : ''}${preview.consumesCorpse ? 'Requires a corpse. ' : ''}Summoned by ${ability.label}.`,
           abilities: preview.troop.abilities,
-          getFactionUnitPortrait: options.getFactionUnitPortrait,
+          getRaceUnitPortrait: options.getRaceUnitPortrait,
         }),
       }));
       return {

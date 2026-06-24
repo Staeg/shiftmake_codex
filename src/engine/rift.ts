@@ -1,7 +1,7 @@
 import { createRng } from './rng';
 import { ALL_TROOP_UNLOCK_IDS, MUTATORS, getMutator } from './unitCatalog';
 import { resolveEnemyCombatant } from './army';
-import type { FactionId, GameState, MutatorId, RiftInstance, TroopUnlockId, UnitTypeId } from './types';
+import type { RaceId, GameState, MutatorId, RiftInstance, TroopUnlockId, UnitClassId } from './types';
 
 const CYCLE_RIFT_TIERS: number[][] = [
   [2, 1, 1, 1],
@@ -31,8 +31,8 @@ function createDerivedRng(seed: number, salt: number) {
   return createRng(mixSeed(deriveSeed(seed, salt)));
 }
 
-function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [FactionId, UnitTypeId] {
-  return troopUnlockId.split('/') as [FactionId, UnitTypeId];
+function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [RaceId, UnitClassId] {
+  return troopUnlockId.split('/') as [RaceId, UnitClassId];
 }
 
 export function getCycleTierSchedule(cycleNumber: number): number[] {
@@ -69,8 +69,8 @@ function buildEnemyArmy(tier: number, seed: number) {
   const selections = rng.shuffle([...ALL_TROOP_UNLOCK_IDS]).slice(0, enemyGroupCount);
 
   return selections.map((troopUnlockId, index) => {
-    const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
-    return resolveEnemyCombatant([], [], factionId, unitTypeId, tier, `rift-${seed}-${index}`);
+    const [raceId, unitClassId] = splitTroopUnlockId(troopUnlockId);
+    return resolveEnemyCombatant([], [], raceId, unitClassId, tier, `rift-${seed}-${index}`);
   });
 }
 

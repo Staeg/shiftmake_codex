@@ -5,11 +5,11 @@ import { Worker } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 import {
   createEmptyPermutationAggregate,
-  filterEligiblePermutationUnitTypeIds,
+  filterEligiblePermutationUnitClassIds,
   finalizePermutationAggregate,
   generatePermutationMatchups,
   generatePermutationTeams,
-  getEligiblePermutationUnitTypeIds,
+  getEligiblePermutationUnitClassIds,
   renderPermutationReport,
   resolvePermutationTroops,
   runPermutationBatch,
@@ -20,7 +20,7 @@ import {
   type PermutationMatchup,
   type PermutationTeamSize,
 } from '../src/engine/permutationReport';
-import type { UnitTypeId } from '../src/engine/types';
+import type { UnitClassId } from '../src/engine/types';
 
 const DEFAULT_RUN_COUNT = 10;
 const DEFAULT_BATCH_SIZE: Record<PermutationTeamSize, number> = {
@@ -33,14 +33,14 @@ interface ScriptOptions {
   runCount: number;
   workerCount: number;
   resume: boolean;
-  unitTypeIds?: UnitTypeId[];
+  unitClassIds?: UnitClassId[];
 }
 
 interface CheckpointFile {
   configHash: string;
   teamSize: PermutationTeamSize;
   runCount: number;
-  unitTypeIds: UnitTypeId[];
+  unitClassIds: UnitClassId[];
   completedMatchupKeys: string[];
   aggregate: PermutationAggregate;
 }
@@ -63,20 +63,20 @@ function parseArgs(): ScriptOptions {
   const workersArg = args.find((arg) => arg.startsWith('--workers='));
   const runsArg = args.find((arg) => arg.startsWith('--runs='));
   const outputDirArg = args.find((arg) => arg.startsWith('--outputDir='));
-  const unitTypeIdsArg = args.find((arg) => arg.startsWith('--unitTypeIds='));
+  const unitClassIdsArg = args.find((arg) => arg.startsWith('--unitClassIds='));
 
   return {
     outputDir: outputDirArg ? outputDirArg.slice('--outputDir='.length) : resolve(process.cwd(), 'balance_results'),
     runCount: runsArg ? Math.max(1, Number.parseInt(runsArg.slice('--runs='.length), 10) || DEFAULT_RUN_COUNT) : DEFAULT_RUN_COUNT,
     workerCount: workersArg ? Math.max(1, Number.parseInt(workersArg.slice('--workers='.length), 10) || 1) : 1,
     resume: args.includes('--resume'),
-    ...(unitTypeIdsArg
+    ...(unitClassIdsArg
       ? {
-          unitTypeIds: unitTypeIdsArg
-            .slice('--unitTypeIds='.length)
+          unitClassIds: unitClassIdsArg
+            .slice('--unitClassIds='.length)
             .split(',')
-            .map((unitTypeId) => unitTypeId.trim())
-            .filter((unitTypeId): unitTypeId is UnitTypeId => unitTypeId.length > 0),
+            .map((unitClassId) => unitClassId.trim())
+            .filter((unitClassId): unitClassId is UnitClassId => unitClassId.length > 0),
         }
       : {}),
   };
@@ -90,8 +90,8 @@ function chunkMatchups(matchups: PermutationMatchup[], batchSize: number): Permu
   return chunks;
 }
 
-function createConfigHash(teamSize: PermutationTeamSize, runCount: number, unitTypeIds: UnitTypeId[]): string {
-  return createHash('sha1').update(JSON.stringify({ teamSize, runCount, unitTypeIds })).digest('hex');
+function createConfigHash(teamSize: PermutationTeamSize, runCount: number, unitClassIds: UnitClassId[]): string {
+  return createHash('sha1').update(JSON.stringify({ teamSize, runCount, unitClassIds })).digest('hex');
 }
 
 async function readCheckpoint(checkpointPath: string): Promise<CheckpointFile | null> {
@@ -108,7 +108,7 @@ async function writeCheckpoint(
   configHash: string,
   teamSize: PermutationTeamSize,
   runCount: number,
-  unitTypeIds: UnitTypeId[],
+  unitClassIds: UnitClassId[],
   completedMatchupKeys: Set<string>,
   aggregate: PermutationAggregate,
 ): Promise<void> {
@@ -116,7 +116,7 @@ async function writeCheckpoint(
     configHash,
     teamSize,
     runCount,
-    unitTypeIds,
+    unitClassIds,
     completedMatchupKeys: [...completedMatchupKeys].sort(),
     aggregate: serializePermutationAggregate(aggregate),
   };
@@ -127,7 +127,7 @@ async function runBatchInWorker(
   workerPath: string,
   teamSize: PermutationTeamSize,
   runCount: number,
-  unitTypeIds: UnitTypeId[],
+  unitClassIds: UnitClassId[],
   matchups: PermutationMatchup[],
 ): Promise<BatchResult> {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -143,7 +143,7 @@ async function runBatchInWorker(
     worker.postMessage({
       teamSize,
       runCount,
-      unitTypeIds,
+      unitClassIds,
       matchups,
     });
   });
@@ -154,7 +154,7 @@ async function processBatches(
   teamSize: PermutationTeamSize,
   runCount: number,
   workerCount: number,
-  unitTypeIds: UnitTypeId[],
+  unitClassIds: UnitClassId[],
   batches: PermutationMatchup[][],
   aggregate: PermutationAggregate,
   completedMatchupKeys: Set<string>,
@@ -175,21 +175,21 @@ async function processBatches(
 
     let result: BatchResult;
     if (!useWorkers) {
-      result = runPermutationBatch(teamSize, batch, runCount, unitTypeIds);
+      result = runPermutationBatch(teamSize, batch, runCount, unitClassIds);
     } else {
       try {
-        result = await runBatchInWorker(workerPath, teamSize, runCount, unitTypeIds, batch);
+        result = await runBatchInWorker(workerPath, teamSize, runCount, unitClassIds, batch);
       } catch (error) {
         console.warn(`Worker startup failed for ${teamSize}v${teamSize}; falling back to serial execution.`, error);
         useWorkers = false;
-        result = runPermutationBatch(teamSize, batch, runCount, unitTypeIds);
+        result = runPermutationBatch(teamSize, batch, runCount, unitClassIds);
       }
     }
 
     mergePermutationAggregates(aggregate, result.aggregate);
     result.results.forEach((entry) => completedMatchupKeys.add(entry.matchupKey));
     completedBatches += 1;
-    await writeCheckpoint(checkpointPath, configHash, teamSize, runCount, unitTypeIds, completedMatchupKeys, aggregate);
+    await writeCheckpoint(checkpointPath, configHash, teamSize, runCount, unitClassIds, completedMatchupKeys, aggregate);
     if (completedBatches === 1 || completedBatches === totalBatches || completedBatches % progressInterval === 0) {
       console.log(
         `[${teamSize}v${teamSize}] Completed ${completedBatches}/${totalBatches} batches, ${completedMatchupKeys.size} / ${
@@ -212,7 +212,7 @@ export async function generatePermutationReportFiles(teamSize: PermutationTeamSi
   const jsonPath = resolve(outputDir, `${stem}.json`);
   const checkpointPath = resolve(outputDir, `${stem}.checkpoint.json`);
   const workerPath = resolve(process.cwd(), 'dist-scripts', 'scripts', 'permutationWorker.js');
-  const eligibleTroops = options.unitTypeIds ? filterEligiblePermutationUnitTypeIds(options.unitTypeIds) : getEligiblePermutationUnitTypeIds();
+  const eligibleTroops = options.unitClassIds ? filterEligiblePermutationUnitClassIds(options.unitClassIds) : getEligiblePermutationUnitClassIds();
   const configHash = createConfigHash(teamSize, options.runCount, eligibleTroops);
   const teams = generatePermutationTeams(teamSize, eligibleTroops);
   const matchups = generatePermutationMatchups(teams);
@@ -230,7 +230,7 @@ export async function generatePermutationReportFiles(teamSize: PermutationTeamSi
       checkpoint.configHash === configHash &&
       checkpoint.teamSize === teamSize &&
       checkpoint.runCount === options.runCount &&
-      JSON.stringify(checkpoint.unitTypeIds) === JSON.stringify(eligibleTroops)
+      JSON.stringify(checkpoint.unitClassIds) === JSON.stringify(eligibleTroops)
     ) {
       aggregate = checkpoint.aggregate;
       completedMatchupKeys = new Set(checkpoint.completedMatchupKeys);
@@ -289,7 +289,7 @@ export function getPermutationScriptConfigPreview(teamSize: PermutationTeamSize)
   runCount: number;
 } {
   const options = parseArgs();
-  const eligibleTroops = options.unitTypeIds ? filterEligiblePermutationUnitTypeIds(options.unitTypeIds) : getEligiblePermutationUnitTypeIds();
+  const eligibleTroops = options.unitClassIds ? filterEligiblePermutationUnitClassIds(options.unitClassIds) : getEligiblePermutationUnitClassIds();
   const teams = generatePermutationTeams(teamSize, eligibleTroops);
   const matchups = generatePermutationMatchups(teams);
   return {

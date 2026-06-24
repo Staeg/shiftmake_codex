@@ -1,4 +1,4 @@
-import { getFaction } from '../engine/unitCatalog';
+import { getRace } from '../engine/unitCatalog';
 import { deserializeGameState, serializeGameState, startNewGame } from '../engine/game';
 import { resolveBattle } from '../engine/battle';
 import type {
@@ -22,7 +22,7 @@ export interface SaveSlotSummary {
   gameMode: GameMode | null;
   cycleNumber: number | null;
   phase: CampaignPhase | null;
-  factionLabel: string | null;
+  raceLabel: string | null;
   lastPlayedAt: string | null;
 }
 
@@ -121,19 +121,19 @@ function summarizeSlot(slotId: SaveSlotId, game: GameState | null, updatedAt: st
       gameMode: null,
       cycleNumber: null,
       phase: null,
-      factionLabel: null,
+      raceLabel: null,
       lastPlayedAt: updatedAt,
     };
   }
 
-  const leadFactionId = game.unlockedFactionIds[0] ?? null;
+  const leadRaceId = game.unlockedRaceIds[0] ?? null;
   return {
     slotId,
     status: 'occupied',
     gameMode: game.gameMode ?? 'campaign',
     cycleNumber: game.cycleNumber,
     phase: game.phase,
-    factionLabel: leadFactionId ? getFaction(leadFactionId).label : null,
+    raceLabel: leadRaceId ? getRace(leadRaceId).label : null,
     lastPlayedAt: updatedAt,
   };
 }

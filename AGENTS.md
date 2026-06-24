@@ -8,27 +8,28 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ### Core Concept
 
-The player commands a patchwork army of multiple factions/races. **Rifts** (portals to new worlds) open periodically - the player chooses which troops to send through each Rift, knowing the VP reward, mutators, and enemy composition in advance. By default, only one troop per faction and one troop per troop type can enter a Rift at a time.
+The player commands a patchwork army of multiple races. **Rifts** (portals to new worlds) open periodically - the player chooses which troops to send through each Rift, knowing the VP reward, mutators, and enemy composition in advance. By default, only one troop per race and one troop per troop class can enter a Rift at a time.
 
 Battles are auto-resolved but fully observable (the player can replay exactly how they played out). Skill expression comes from resource efficiency and building synergies.
 
 ### Key Game Loops
 
-1. **Strategic layer**: Select which troop to send into each available Rift, balancing risk vs. VP reward, mutators, enemy composition, and faction availability.
-2. **Progression layer**: Spend Essence on combined troop-and-upgrade drafts, scheduled faction unlocks, and global faction or troop-type upgrades.
+1. **Strategic layer**: Select which troop to send into each available Rift, balancing risk vs. VP reward, mutators, enemy composition, and race availability.
+2. **Progression layer**: Spend Essence on combined troop-and-upgrade drafts, scheduled race unlocks, and global race or troop-class upgrades.
 3. **Battle layer**: Auto-resolved; both victories and defeats make troops ready next cycle by default. Units do not permanently die.
 
-### Faction & Unit System
+### Race & Unit System
 
-- **Factions** (e.g., Elves, Trolls) each have default recruitable troop types.
-- **Troops** are a specific unit type within a faction (e.g., Elven Archers, Troll Berserkers).
-- Rifts can unlock unorthodox faction+unit combinations not available through normal recruitment.
-- Upgrades apply either across all units in a faction, or across all factions for a given unit type.
+- **Races** (e.g., Elves, Trolls) each have default recruitable unit classes.
+- **Troops** are race-and-unit-class groups (e.g., Elven Archers, Troll Berserkers).
+- Rifts can unlock unorthodox race+unit combinations not available through normal recruitment.
+- Upgrades apply either across all units in a race, or across all races for a given unit class.
 
 ### Platform Targets
 
 - **Primary**: Browser (web)
-- **Stretch goals**: Multiplayer, Android/iOS ports
+- **Implemented adjacent platform work**: Multiplayer support
+- **Future platform work not started**: Android/iOS ports
 
 ## Stack
 

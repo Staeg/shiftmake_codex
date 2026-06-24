@@ -1,6 +1,6 @@
 import { getTroopStartingQuantity } from './unitCatalog';
 import type { ArmyDebugSelection } from './debugTypes';
-import type { TroopTypeId } from './types';
+import type { UnitClassId } from './types';
 
 export interface AbilityVerificationSignal {
   id: string;
@@ -16,20 +16,20 @@ export interface AbilityVerificationScenario {
   seed: number;
   player: ArmyDebugSelection;
   enemy: ArmyDebugSelection;
-  playerFactionUpgradeIds: string[];
-  playerTroopTypeUpgradeIds: string[];
-  enemyFactionUpgradeIds: string[];
-  enemyTroopTypeUpgradeIds: string[];
+  playerRaceUpgradeIds: string[];
+  playerTroopClassUpgradeIds: string[];
+  enemyRaceUpgradeIds: string[];
+  enemyTroopClassUpgradeIds: string[];
   coveredAbilityIds: string[];
   signals: AbilityVerificationSignal[];
   manualChecks: string[];
 }
 
-function selection(entries: Partial<Record<TroopTypeId, number>>): ArmyDebugSelection {
+function selection(entries: Partial<Record<UnitClassId, number>>): ArmyDebugSelection {
   return { ...entries };
 }
 
-function startCount(troopId: TroopTypeId, multiplier = 1): number {
+function startCount(troopId: UnitClassId, multiplier = 1): number {
   return getTroopStartingQuantity(troopId) * multiplier;
 }
 
@@ -67,10 +67,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 24,
     player: selection({ 'human/archer': startCount('human/archer') }),
     enemy: selection({ 'human/soldier': startCount('human/soldier') }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['archer-pinning-volley'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['archer-pinning-volley'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['pinning-volley'],
     signals: [{ id: 'slow', label: 'Speed reduction applied', match: 'loses 1 speed' }],
     manualChecks: ['Confirm the speed loss persists on later turns rather than expiring immediately.'],
@@ -83,10 +83,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 48,
     player: selection({ 'human/archer': startCount('human/archer') }),
     enemy: selection({ 'human/archer': startCount('human/archer') }),
-    playerFactionUpgradeIds: ['human-tubthumping'],
-    playerTroopTypeUpgradeIds: [],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: ['archer-pinning-volley'],
+    playerRaceUpgradeIds: ['human-tubthumping'],
+    playerTroopClassUpgradeIds: [],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: ['archer-pinning-volley'],
     coveredAbilityIds: ['tubthumping'],
     signals: [{ id: 'flip', label: 'Debuff inverted into buff', match: 'Human Archer gains +1 speed.' }],
     manualChecks: ['Confirm the protected Human unit never receives the matching "loses 1 speed" event.'],
@@ -102,10 +102,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'human/archer': startCount('human/archer'),
     }),
     enemy: selection({ 'elf/archer': startCount('elf/archer', 2) }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['soldier-shield-drill'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['soldier-shield-drill'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['shield-drill'],
     signals: [],
     manualChecks: [
@@ -124,10 +124,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'human/militia': startCount('human/militia'),
     }),
     enemy: selection({ 'human/knight': startCount('human/knight') }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['avenger-blood-oath'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['avenger-blood-oath'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['blood-oath'],
     signals: [{ id: 'spike', label: 'Initiative set to 100', match: 'initiative to 100' }],
     manualChecks: ['Confirm the Avenger acts immediately after the allied death instead of waiting for the next normal beat.'],
@@ -140,10 +140,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 74,
     player: selection({ 'goblin/beastmaster': startCount('goblin/beastmaster') }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 2) }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['beastmaster-packmasters-whistle'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['beastmaster-packmasters-whistle'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['packmasters-whistle'],
     signals: [{ id: 'whistle', label: 'Wolf answers the whistle', match: 'whistle' }],
     manualChecks: [
@@ -159,10 +159,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 77,
     player: selection({ 'elf/druid': startCount('elf/druid') }),
     enemy: selection({ 'human/knight': startCount('human/knight', 2) }),
-    playerFactionUpgradeIds: ['elf-elven-reflexes'],
-    playerTroopTypeUpgradeIds: ['druid-true-form', 'druid-thornhide'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: ['elf-elven-reflexes'],
+    playerTroopClassUpgradeIds: ['druid-true-form', 'druid-thornhide'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['shapeshift-bear-2', 'thornhide', 'fade-into-shadow'],
     signals: [
       { id: 'shape', label: 'Shapeshift fires', match: 'becomes frontline.' },
@@ -185,10 +185,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'human/knight': startCount('human/knight'),
     }),
     enemy: selection({ 'human/knight': startCount('human/knight', 2) }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['elementalist-arc-conductor'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['elementalist-arc-conductor'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['arc-conductor'],
     signals: [
       { id: 'summon', label: 'Elemental is summoned', match: 'summons Elemental' },
@@ -207,10 +207,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'human/priest': startCount('human/priest'),
     }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 2) }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['knight-dine-in-hell'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['knight-dine-in-hell'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['retaliate'],
     signals: [],
     manualChecks: [
@@ -226,10 +226,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 25,
     player: selection({ 'human/militia': startCount('human/militia', 2) }),
     enemy: selection({ 'human/knight': startCount('human/knight') }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['militia-rabble-rush'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['militia-rabble-rush'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['rabble-rush'],
     signals: [{ id: 'initiative', label: 'Militia gains initiative', match: 'gains 1 initiative' }],
     manualChecks: ['Confirm the bonus scales from other touching Militia, not from all allies globally.'],
@@ -242,10 +242,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 90,
     player: selection({ 'troll/necromancer': startCount('troll/necromancer') }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 2) }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['necromancer-early-riser', 'necromancer-carrion-choir'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['necromancer-early-riser', 'necromancer-carrion-choir'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['early-riser', 'carrion-choir'],
     signals: [
       { id: 'skeleton', label: 'Skeleton is summoned', match: 'summons Skeleton' },
@@ -267,10 +267,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'human/militia': startCount('human/militia'),
     }),
     enemy: selection({ 'human/knight': startCount('human/knight') }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['priest-mercy-before-dawn'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['priest-mercy-before-dawn'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['mercy-before-dawn'],
     signals: [{ id: 'save', label: 'Ally saved at 1 HP', match: 'preserves Human Militia at 1 HP' }],
     manualChecks: [
@@ -286,10 +286,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 95,
     player: selection({ 'elf/ranger': startCount('elf/ranger') }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 2) }),
-    playerFactionUpgradeIds: ['elf-silvershot-doctrine'],
-    playerTroopTypeUpgradeIds: ['ranger-skirmishers-step', 'ranger-heartseeker'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: ['elf-silvershot-doctrine'],
+    playerTroopClassUpgradeIds: ['ranger-skirmishers-step', 'ranger-heartseeker'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['skirmishers-step', 'heartseeker', 'long-shot-doctrine'],
     signals: [{ id: 'retreat', label: 'Ranger retreats after firing', match: 'retreats to preserve range' }],
     manualChecks: [
@@ -308,10 +308,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'troll/soldier': startCount('troll/soldier', 2),
     }),
     enemy: selection({ 'human/knight': startCount('human/knight') }),
-    playerFactionUpgradeIds: [],
-    playerTroopTypeUpgradeIds: ['shaman-war-drums'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: [],
+    playerTroopClassUpgradeIds: ['shaman-war-drums'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['war-drums'],
     signals: [
       { id: 'speed', label: 'Enhance grants speed', match: 'gains +1 speed' },
@@ -330,10 +330,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
       'goblin/soldier': startCount('goblin/soldier'),
     }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 3) }),
-    playerFactionUpgradeIds: ['goblin-behavior'],
-    playerTroopTypeUpgradeIds: ['wizard-spell-echo'],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: ['goblin-behavior'],
+    playerTroopClassUpgradeIds: ['wizard-spell-echo'],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['spell-echo', 'snatch-the-moment'],
     signals: [{ id: 'drain', label: 'Kill drains initiative', match: 'loses 20 initiative' }],
     manualChecks: [
@@ -349,10 +349,10 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 104,
     player: selection({ 'troll/soldier': startCount('troll/soldier') }),
     enemy: selection({ 'human/soldier': startCount('human/soldier', 3) }),
-    playerFactionUpgradeIds: ['troll-mossblood', 'troll-roll-the-boulder'],
-    playerTroopTypeUpgradeIds: [],
-    enemyFactionUpgradeIds: [],
-    enemyTroopTypeUpgradeIds: [],
+    playerRaceUpgradeIds: ['troll-mossblood', 'troll-roll-the-boulder'],
+    playerTroopClassUpgradeIds: [],
+    enemyRaceUpgradeIds: [],
+    enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ['stoneblood', 'crushing-sweep'],
     signals: [
       { id: 'stoneblood', label: 'Troll survives at 25 HP', match: 'stays at 25 HP' },

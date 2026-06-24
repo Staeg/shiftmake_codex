@@ -75,14 +75,14 @@ describe('rift generation', () => {
     const rifts = Array.from({ length: 15 }, (_, index) => generateCycleRifts({ campaignSeed: 300 + index, cycleNumber: 6 + index })).flat();
 
     rifts.forEach((rift) => {
-      const unlockIds = rift.enemyArmy.map((combatant) => `${combatant.factionId}/${combatant.unitTypeId}`);
+      const unlockIds = rift.enemyArmy.map((combatant) => `${combatant.raceId}/${combatant.unitClassId}`);
       const expectedEnemyGroups = Math.min(rift.tier, 3) + 1;
 
       expect(rift.enemyArmy).toHaveLength(expectedEnemyGroups);
       expect(new Set(unlockIds).size).toBe(rift.enemyArmy.length);
 
       rift.enemyArmy.forEach((combatant) => {
-        const playerTroop = composeBaseTroopDefinition(combatant.factionId, combatant.unitTypeId);
+        const playerTroop = composeBaseTroopDefinition(combatant.raceId, combatant.unitClassId);
         expect(playerTroop.attributes).not.toContain('summoned');
         expect(combatant.quantity).toBe(playerTroop.quantity);
       });

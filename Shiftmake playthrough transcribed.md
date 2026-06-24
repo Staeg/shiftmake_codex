@@ -36,7 +36,7 @@ But anyway, now we're back here. Yeah OK, so debug is not for me. Main menu
 I won't click, but rival info.
 OK, so I don't have a rival currently yet. I guess the AI hasn't started up
 or whatever.
-Factions and troops looks like it's just showing me the ones that I have.
+Races and troops looks like it's just showing me the ones that I have.
 And when I hover over it, it gives me.
 More.
 But they can't hover over the ones. OK OK so these are probably the future
@@ -102,18 +102,18 @@ want to be a subcategory of what I want that part of the audio file part is.
 Speaker 2 00:06:06
 Helpful. OK, yes. So basically it sounds like Rifts is like the actual
 game. Mm-hmm. Thing that's happening.
-And I want factions and troops to be something like.
+And I want races and troops to be something like.
 OK, there's two ways actually that this could be could work. You could have
 end cycle only on the rift tab and have it kind of clear that rift is the
 main thing. Like like if it were a slightly different interface that could
-be like the center heading and factions and shoot could be like a thing
+be like the center heading and races and shoot could be like a thing
 that you can pull out.
 That's a way you could.
 Speaker 3 00:06:39
 Show it. OK, OK, OK, OK, OK the this is already very useful. This just
 should not be on the.
 Speaker 2 00:06:45
-Factions on the factions. And since it's confusing because I'm like yeah,
+Races on the races. And since it's confusing because I'm like yeah,
 yeah, yeah, Yep, Yep, Yep, Yep.
 Speaker 3 00:06:51
 Yep, very good, very good. Cool. Keep going.
@@ -305,7 +305,7 @@ Like it makes me think, oh, there's not like a list of things that you add
 for elves. It's like calculate based on something else maybe.
 Speaker 3 00:16:54
 That's a very reasonable assumption. That's not what's happening. OK, there
-are some attributes for which the race or faction uh-huh gives you a flat
+are some attributes for which the race or race uh-huh gives you a flat
 bonus, and there is a different category of thing for which it gives you a
 percentage bonus.
 Speaker 2 00:17:10
@@ -797,7 +797,7 @@ No, you can't do that because it still says Encycle.
 OK, so I guess I just end the cycle inward button.
 No troops are assigned.
 Maybe that's wrong.
-Oh, I should be first doing the thing under Factions and Troops to do this.
+Oh, I should be first doing the thing under Races and Troops to do this.
 Ensuite berserk bloodhounds.
 I like ANTS message by name.
 So I'm going to do that.
@@ -857,33 +857,33 @@ Speaker 3 00:45:06
 OK, OK.
 OK, well look at it. You won.
 Yeah, yeah, this is a different screen. There should be an animation that
-explains what's happening. You now get another faction.
-Uh, the faction comes.
+explains what's happening. You now get another race.
+Uh, the race comes.
 Speaker 2 00:45:20
 I want words 'cause I don't.
 Speaker 3 00:45:21
 Have any doors yet? Uh, bookmark, uh, make it uh, so that the unlocked
-factions, uh, sorry, the unlocked troops from previous battles are included
+races, uh, sorry, the unlocked troops from previous battles are included
 in the, uh, native roster or so that it's less differentiated.
 Anyway.
 Speaker 2 00:45:42
 Defeated enemy among.
 Speaker 3 00:45:44
-So the concept is each faction has five kinds of troops that they might
+So the concept is each race has five kinds of troops that they might
 have accessible by default. But every time you defeat something in a rift,
 Yeah, you unlock it for future opportunities, which makes it so that you
 might want to hunt down, like, really cool synergies that are not available
 by default. OK. This night included. Yeah.
 So what this is supposed to look like is it shows you which 5 come with the
-faction by default, and then which other things come because you defeated
+race by default, and then which other things come because you defeated
 them previously, and then from the total pool of both of the default and
 the things that you've defeated, it selects 2.
-Free to start with when you unlock the faction.
+Free to start with when you unlock the race.
 Speaker 2 00:46:32
 OK.
 Speaker 3 00:46:32
 So if you choose the fate you will have the fee knight and the Fey Ranger.
-Rangers are a Faye staple because they are like a very range based faction.
+Rangers are a Faye staple because they are like a very range based race.
 But because you randomly ended up killing a fee knight, you also have
 access to the fee knight. Fee Knights by the way, very *** **** very bad
 Knights. Like among the worst nights that you can find. No so if you choose.
@@ -909,7 +909,7 @@ Speaker 2 00:47:36
 OK.
 OK, I noticed that if there's only one I can choose, I want warning.
 Speaker 3 00:47:43
-OK, when unlocking new factions at the start of cycle 3 and cycle 7
+OK, when unlocking new races at the start of cycle 3 and cycle 7
 bookmark, you need a confirmation button. Do not just.
 Lock it in. Lock it in at a single click of a button.
 Speaker 2 00:48:00
@@ -1202,7 +1202,7 @@ compatriots are killed. Yep.
 But in a fairway.
 Speaker 3 01:02:15
 OK, so that part slides a little bit.
-Their faction or race just determines what stat bonuses or minuses they
+Their race or race just determines what stat bonuses or minuses they
 have.
 Speaker 2 01:02:28
 OK, so some companies the same emotional state, but it's like modified by
@@ -1223,7 +1223,7 @@ manifestation and this is like the the attitude or the like.
 The the directional like asper as not aspiration but I don't.
 Speaker 3 01:03:19
 Know there's like contemplated having like a a pop up panel of like the
-default like if this did not have a faction or it would look like. But
+default like if this did not have a race or it would look like. But
 yeah, I just started.
 Speaker 2 01:03:28
 The idea also something that like you'll build the intuition and that would
@@ -1276,13 +1276,13 @@ That you that's correct.
 Speaker 2 01:05:35
 OK, this. Is there anything else that blocks you? Yes, you.
 Speaker 3 01:05:38
-Cannot send the same faction into one rift, and you cannot send the same
-troop type in the like you cannot have three different druids.
+Cannot send the same race into one rift, and you cannot send the same
+troop class in the like you cannot have three different druids.
 Speaker 2 01:05:47
 This and you can't duplicate.
 Speaker 3 01:05:48
 That, yes, exactly. OK. And this is like you want to make your one category
-of creature better, whether it's the faction or the troop type. Yeah, but
+of creature better, whether it's the race or the troop class. Yeah, but
 you cannot ever double down so.
 This encourages you to spread out and create different kinds of cool things.
 Speaker 2 01:06:06
@@ -1338,7 +1338,7 @@ Like there is like a guy and there are, but the choices of guy or of like
 version of the guy are a different race than he is.
 Speaker 3 01:08:36
 They're just entirely distinct.
-So you can unlock a new uh uh, troop of some particular faction.
+So you can unlock a new uh uh, troop of some particular race.
 OK. And separately, you can unlock an upgrade which will affect either all
 troops of a certain kind or all troops or. Oh, OK, I.
 Speaker 2 01:08:55
@@ -1381,8 +1381,8 @@ Interact with us, interact with us for a little bit and then I'll respond,
 OK.
 Speaker 2 01:10:49
 OK.
-So these are my factions and.
-Groups, factions and troops. I think I already asked about this but I
+So these are my races and.
+Groups, races and troops. I think I already asked about this but I
 forgot. OK? Anyway, uh, don't answer this. It's not a question, I'm just
 thinking out loud. Umm OK.
 So I have and this is an ability. This is upgrade. Oh wait, it's a OK.
@@ -1566,12 +1566,12 @@ Tells you that there is a there's something wrong. It offers a way for you
 to fix it, but if you really want to keep going, it just allows you to keep
 going.
 Speaker 2 01:20:58
-And then here at cycle 7 you can select another faction, yes, different
+And then here at cycle 7 you can select another race, yes, different
 than the.
 Thing where I go in and spend for things, I just get it automatically.
 Yeah, so.
 Speaker 3 01:21:12
-At cycle 3 and cycle 7 you unlock a new faction that comes pre equipped
+At cycle 3 and cycle 7 you unlock a new race that comes pre equipped
 with some troops that are already already upgraded. And yeah.
 Speaker 2 01:21:20
 I will do this, but I'm not.
@@ -1628,11 +1628,11 @@ Speaker 3 01:23:11
 You actually.
 Speaker 2 01:23:12
 I want on and well if if Encycle isn't there.
-In the factions it's not an issue but I would like it to like snap to
+In the races it's not an issue but I would like it to like snap to
 wrists when I click.
 Speaker 3 01:23:20
 And cycle. Otherwise, uh, bookmark, make end cycle, uh, either snap to rift
-or just not show up on the factions and troops menu.
+or just not show up on the races and troops menu.
 Speaker 2 01:23:31
 OK cool, so now I'm in cycle 11.
 I already won or not the one like finished the game.
@@ -1691,7 +1691,7 @@ dir=3D"auto">Whoops, Yep, I okay, I should have selected the one that was o=
 ngoing. Yep. But anyway, now we&#39;re back here. Yeah OK, so debug is not =
 for me. Main menu I won&#39;t click, but rival info.</div><div dir=3D"auto"=
 >OK, so I don&#39;t have a rival currently yet. I guess the AI hasn&#39;t s=
-tarted up or whatever.</div><div dir=3D"auto">Factions and troops looks lik=
+tarted up or whatever.</div><div dir=3D"auto">Races and troops looks lik=
 e it&#39;s just showing me the ones that I have.</div><div dir=3D"auto">And=
  when I hover over it, it gives me.</div><div dir=3D"auto">More.</div><div =
 dir=3D"auto">But they can&#39;t hover over the ones. OK OK so these are pro=
@@ -1745,16 +1745,16 @@ h would you want to be a subcategory of what I want that part of the audio =
 file part is.</div><div dir=3D"auto">Speaker 2 00:06:06</div><div dir=3D"au=
 to">Helpful. OK, yes. So basically it sounds like Rifts is like the actual =
 game. Mm-hmm. Thing that&#39;s happening.</div><div dir=3D"auto">And I want=
- factions and troops to be something like.</div><div dir=3D"auto">OK, there=
+ races and troops to be something like.</div><div dir=3D"auto">OK, there=
 &#39;s two ways actually that this could be could work. You could have end =
 cycle only on the rift tab and have it kind of clear that rift is the main =
 thing. Like like if it were a slightly different interface that could be li=
-ke the center heading and factions and shoot could be like a thing that you=
+ke the center heading and races and shoot could be like a thing that you=
  can pull out.</div><div dir=3D"auto">That&#39;s a way you could.</div><div=
  dir=3D"auto">Speaker 3 00:06:39</div><div dir=3D"auto">Show it. OK, OK, OK=
 , OK, OK the this is already very useful. This just should not be on the.</=
-div><div dir=3D"auto">Speaker 2 00:06:45</div><div dir=3D"auto">Factions on=
- the factions. And since it&#39;s confusing because I&#39;m like yeah, yeah=
+div><div dir=3D"auto">Speaker 2 00:06:45</div><div dir=3D"auto">Races on=
+ the races. And since it&#39;s confusing because I&#39;m like yeah, yeah=
 , yeah, Yep, Yep, Yep, Yep.</div><div dir=3D"auto">Speaker 3 00:06:51</div>=
 <div dir=3D"auto">Yep, very good, very good. Cool. Keep going.</div><div di=
 r=3D"auto">Speaker 2 00:06:56</div><div dir=3D"auto">OK. So I&#39;m going t=
@@ -1906,7 +1906,7 @@ div dir=3D"auto">Like it makes me think, oh, there&#39;s not like a list of=
  things that you add for elves. It&#39;s like calculate based on something =
 else maybe.</div><div dir=3D"auto">Speaker 3 00:16:54</div><div dir=3D"auto=
 ">That&#39;s a very reasonable assumption. That&#39;s not what&#39;s happen=
-ing. OK, there are some attributes for which the race or faction uh-huh giv=
+ing. OK, there are some attributes for which the race or race uh-huh giv=
 es you a flat bonus, and there is a different category of thing for which i=
 t gives you a percentage bonus.</div><div dir=3D"auto">Speaker 2 00:17:10</=
 div><div dir=3D"auto">Oh, so it&#39;s a flat number percentage, but the per=
@@ -2310,7 +2310,7 @@ r=3D"auto">And then I guess I can end. Wait, there&#39;s ready troop here?<=
 ycle.</div><div dir=3D"auto">OK, so I guess I just end the cycle inward but=
 ton.</div><div dir=3D"auto">No troops are assigned.</div><div dir=3D"auto">=
 Maybe that&#39;s wrong.</div><div dir=3D"auto">Oh, I should be first doing =
-the thing under Factions and Troops to do this.</div><div dir=3D"auto">Ensu=
+the thing under Races and Troops to do this.</div><div dir=3D"auto">Ensu=
 ite berserk bloodhounds.</div><div dir=3D"auto">I like ANTS message by name=
 .</div><div dir=3D"auto">So I&#39;m going to do that.</div><div dir=3D"auto=
 ">Umm, now do I do anything else? I think that&#39;s it. So I go back to th=
@@ -2356,28 +2356,28 @@ hat happens in cycle?</div><div dir=3D"auto">Battles result.</div><div dir=
 =3D"auto">Speaker 3 00:45:06</div><div dir=3D"auto">OK, OK.</div><div dir=
 =3D"auto">OK, well look at it. You won.</div><div dir=3D"auto">Yeah, yeah, =
 this is a different screen. There should be an animation that explains what=
-&#39;s happening. You now get another faction.</div><div dir=3D"auto">Uh, t=
-he faction comes.</div><div dir=3D"auto">Speaker 2 00:45:20</div><div dir=
+&#39;s happening. You now get another race.</div><div dir=3D"auto">Uh, t=
+he race comes.</div><div dir=3D"auto">Speaker 2 00:45:20</div><div dir=
 =3D"auto">I want words &#39;cause I don&#39;t.</div><div dir=3D"auto">Speak=
 er 3 00:45:21</div><div dir=3D"auto">Have any doors yet? Uh, bookmark, uh, =
-make it uh, so that the unlocked factions, uh, sorry, the unlocked troops f=
+make it uh, so that the unlocked races, uh, sorry, the unlocked troops f=
 rom previous battles are included in the, uh, native roster or so that it&#=
 39;s less differentiated.</div><div dir=3D"auto">Anyway.</div><div dir=3D"a=
 uto">Speaker 2 00:45:42</div><div dir=3D"auto">Defeated enemy among.</div><=
 div dir=3D"auto">Speaker 3 00:45:44</div><div dir=3D"auto">So the concept i=
-s each faction has five kinds of troops that they might have accessible by =
+s each race has five kinds of troops that they might have accessible by =
 default. But every time you defeat something in a rift, Yeah, you unlock it=
  for future opportunities, which makes it so that you might want to hunt do=
 wn, like, really cool synergies that are not available by default. OK. This=
  night included. Yeah.</div><div dir=3D"auto">So what this is supposed to l=
-ook like is it shows you which 5 come with the faction by default, and then=
+ook like is it shows you which 5 come with the race by default, and then=
  which other things come because you defeated them previously, and then fro=
 m the total pool of both of the default and the things that you&#39;ve defe=
 ated, it selects 2.</div><div dir=3D"auto">Free to start with when you unlo=
-ck the faction.</div><div dir=3D"auto">Speaker 2 00:46:32</div><div dir=3D"=
+ck the race.</div><div dir=3D"auto">Speaker 2 00:46:32</div><div dir=3D"=
 auto">OK.</div><div dir=3D"auto">Speaker 3 00:46:32</div><div dir=3D"auto">=
 So if you choose the fate you will have the fee knight and the Fey Ranger. =
-Rangers are a Faye staple because they are like a very range based faction.=
+Rangers are a Faye staple because they are like a very range based race.=
  But because you randomly ended up killing a fee knight, you also have acce=
 ss to the fee knight. Fee Knights by the way, very *** **** very bad Knight=
 s. Like among the worst nights that you can find. No so if you choose.</div=
@@ -2638,7 +2638,7 @@ obably like they all probably have vengeance or something similar. That lik=
 e means that they are stronger. They&#39;re like very like angry if they&#3=
 9;re compatriots are killed. Yep.</div><div dir=3D"auto">But in a fairway.<=
 /div><div dir=3D"auto">Speaker 3 01:02:15</div><div dir=3D"auto">OK, so tha=
-t part slides a little bit.</div><div dir=3D"auto">Their faction or race ju=
+t part slides a little bit.</div><div dir=3D"auto">Their race or race ju=
 st determines what stat bonuses or minuses they have.</div><div dir=3D"auto=
 ">Speaker 2 01:02:28</div><div dir=3D"auto">OK, so some companies the same =
 emotional state, but it&#39;s like modified by their physical.</div><div di=
@@ -2656,7 +2656,7 @@ anifestation and this is like the the attitude or the like.</div><div dir=
 =3D"auto">The the directional like asper as not aspiration but I don&#39;t.=
 </div><div dir=3D"auto">Speaker 3 01:03:19</div><div dir=3D"auto">Know ther=
 e&#39;s like contemplated having like a a pop up panel of like the default =
-like if this did not have a faction or it would look like. But yeah, I just=
+like if this did not have a race or it would look like. But yeah, I just=
  started.</div><div dir=3D"auto">Speaker 2 01:03:28</div><div dir=3D"auto">=
 The idea also something that like you&#39;ll build the intuition and that w=
 ould be cool itself. Yep. Yeah. OK, OK.</div><div dir=3D"auto">Speaker 3 01=
@@ -2699,13 +2699,13 @@ ir=3D"auto">Yes. Is this true of all of them?</div><div dir=3D"auto">Speake=
 r 3 01:05:33</div><div dir=3D"auto">That you that&#39;s correct.</div><div =
 dir=3D"auto">Speaker 2 01:05:35</div><div dir=3D"auto">OK, this. Is there a=
 nything else that blocks you? Yes, you.</div><div dir=3D"auto">Speaker 3 01=
-:05:38</div><div dir=3D"auto">Cannot send the same faction into one rift, a=
-nd you cannot send the same troop type in the like you cannot have three di=
+:05:38</div><div dir=3D"auto">Cannot send the same race into one rift, a=
+nd you cannot send the same troop class in the like you cannot have three di=
 fferent druids.</div><div dir=3D"auto">Speaker 2 01:05:47</div><div dir=3D"=
 auto">This and you can&#39;t duplicate.</div><div dir=3D"auto">Speaker 3 01=
 :05:48</div><div dir=3D"auto">That, yes, exactly. OK. And this is like you =
 want to make your one category of creature better, whether it&#39;s the fac=
-tion or the troop type. Yeah, but you cannot ever double down so.</div><div=
+tion or the troop class. Yeah, but you cannot ever double down so.</div><div=
  dir=3D"auto">This encourages you to spread out and create different kinds =
 of cool things.</div><div dir=3D"auto">Speaker 2 01:06:06</div><div dir=3D"=
 auto">Right, OK, this makes sense. If those are the only two things that ev=
@@ -2752,7 +2752,7 @@ nding something.</div><div dir=3D"auto">Like there is like a guy and there =
 are, but the choices of guy or of like version of the guy are a different r=
 ace than he is.</div><div dir=3D"auto">Speaker 3 01:08:36</div><div dir=3D"=
 auto">They&#39;re just entirely distinct.</div><div dir=3D"auto">So you can=
- unlock a new uh uh, troop of some particular faction.</div><div dir=3D"aut=
+ unlock a new uh uh, troop of some particular race.</div><div dir=3D"aut=
 o">OK. And separately, you can unlock an upgrade which will affect either a=
 ll troops of a certain kind or all troops or. Oh, OK, I.</div><div dir=3D"a=
 uto">Speaker 2 01:08:55</div><div dir=3D"auto">Thought I was selecting one =
@@ -2785,8 +2785,8 @@ ht sidebar.</div><div dir=3D"auto">Speaker 2 01:10:41</div><div dir=3D"auto=
 ">What are these guys here for?</div><div dir=3D"auto">Speaker 3 01:10:45</=
 div><div dir=3D"auto">Interact with us, interact with us for a little bit a=
 nd then I&#39;ll respond, OK.</div><div dir=3D"auto">Speaker 2 01:10:49</di=
-v><div dir=3D"auto">OK.</div><div dir=3D"auto">So these are my factions and=
-.</div><div dir=3D"auto">Groups, factions and troops. I think I already ask=
+v><div dir=3D"auto">OK.</div><div dir=3D"auto">So these are my races and=
+.</div><div dir=3D"auto">Groups, races and troops. I think I already ask=
 ed about this but I forgot. OK? Anyway, uh, don&#39;t answer this. It&#39;s=
  not a question, I&#39;m just thinking out loud. Umm OK.</div><div dir=3D"a=
 uto">So I have and this is an ability. This is upgrade. Oh wait, it&#39;s a=
@@ -2932,10 +2932,10 @@ d or try?</div><div dir=3D"auto">Doesn&#39;t end after a certain number, so=
  you that there is a there&#39;s something wrong. It offers a way for you t=
 o fix it, but if you really want to keep going, it just allows you to keep =
 going.</div><div dir=3D"auto">Speaker 2 01:20:58</div><div dir=3D"auto">And=
- then here at cycle 7 you can select another faction, yes, different than t=
+ then here at cycle 7 you can select another race, yes, different than t=
 he.</div><div dir=3D"auto">Thing where I go in and spend for things, I just=
  get it automatically. Yeah, so.</div><div dir=3D"auto">Speaker 3 01:21:12<=
-/div><div dir=3D"auto">At cycle 3 and cycle 7 you unlock a new faction that=
+/div><div dir=3D"auto">At cycle 3 and cycle 7 you unlock a new race that=
  comes pre equipped with some troops that are already already upgraded. And=
  yeah.</div><div dir=3D"auto">Speaker 2 01:21:20</div><div dir=3D"auto">I w=
 ill do this, but I&#39;m not.</div><div dir=3D"auto">Speaker 3 01:21:22</di=
@@ -2982,7 +2982,7 @@ ly.</div><div dir=3D"auto">Speaker 2 01:23:12</div><div dir=3D"auto">I want=
 actions it&#39;s not an issue but I would like it to like snap to wrists wh=
 en I click.</div><div dir=3D"auto">Speaker 3 01:23:20</div><div dir=3D"auto=
 ">And cycle. Otherwise, uh, bookmark, make end cycle, uh, either snap to ri=
-ft or just not show up on the factions and troops menu.</div><div dir=3D"au=
+ft or just not show up on the races and troops menu.</div><div dir=3D"au=
 to">Speaker 2 01:23:31</div><div dir=3D"auto">OK cool, so now I&#39;m in cy=
 cle 11.</div><div dir=3D"auto">I already won or not the one like finished t=
 he game.</div><div dir=3D"auto">Speaker 3 01:23:41</div><div dir=3D"auto">Y=

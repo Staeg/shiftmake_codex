@@ -1,15 +1,15 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
   import {
-    FACTIONS,
+    RACES,
     getArmySelectionCost,
     getTroopStartingQuantity,
     getTroopUnlockId,
     TROOP_CATALOG,
-    UNLOCKABLE_UNIT_TYPE_IDS,
-    UNIT_TYPES,
+    UNLOCKABLE_UNIT_CLASS_IDS,
+    UNIT_CLASSES,
   } from '../engine/unitCatalog';
-  import type { FactionId, TroopTypeId, UnitTypeId } from '../engine/types';
+  import type { RaceId, UnitClassId } from '../engine/types';
   import type { ArmyDebugSelection } from '../engine/debugTypes';
 
   export let player: ArmyDebugSelection;
@@ -17,7 +17,7 @@
   export let seedInput = '';
   export let replaySeed: number | null = null;
 
-  export let onSetArmy: (side: 'player' | 'enemy', key: TroopTypeId, value: number) => void;
+  export let onSetArmy: (side: 'player' | 'enemy', key: UnitClassId, value: number) => void;
   export let onSetSeed: (value: string) => void;
   export let onRunBattle: () => void;
   export let onRestart: () => void;
@@ -27,23 +27,23 @@
     enemy: 'Enemy Army',
   } as const;
 
-  const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
-  const DEFAULT_UNIT_TYPE_ID = UNLOCKABLE_UNIT_TYPE_IDS[0];
+  const RACE_IDS = Object.keys(RACES) as RaceId[];
+  const DEFAULT_UNIT_CLASS_ID = UNLOCKABLE_UNIT_CLASS_IDS[0];
 
   let addMenuSide: 'player' | 'enemy' | null = null;
-  let selectedFactionId: FactionId = FACTION_IDS[0];
-  let selectedUnitTypeId: UnitTypeId = DEFAULT_UNIT_TYPE_ID;
+  let selectedRaceId: RaceId = RACE_IDS[0];
+  let selectedUnitClassId: UnitClassId = DEFAULT_UNIT_CLASS_ID;
 
-  function visibleTroops(selection: ArmyDebugSelection): TroopTypeId[] {
+  function visibleTroops(selection: ArmyDebugSelection): UnitClassId[] {
     return Object.entries(selection)
       .filter(([, count]) => (count ?? 0) > 0)
-      .map(([troopId]) => troopId as TroopTypeId)
+      .map(([troopId]) => troopId as UnitClassId)
       .sort((a, b) => TROOP_CATALOG[a].label.localeCompare(TROOP_CATALOG[b].label));
   }
 
   function handleArmyChange(
     side: 'player' | 'enemy',
-    key: TroopTypeId,
+    key: UnitClassId,
     event: Event,
   ): void {
     const input = event.currentTarget as HTMLInputElement;
@@ -57,25 +57,25 @@
 
   function openAddMenu(side: 'player' | 'enemy'): void {
     addMenuSide = side;
-    selectedFactionId = FACTION_IDS[0];
-    selectedUnitTypeId = DEFAULT_UNIT_TYPE_ID;
+    selectedRaceId = RACE_IDS[0];
+    selectedUnitClassId = DEFAULT_UNIT_CLASS_ID;
   }
 
   function closeAddMenu(): void {
     addMenuSide = null;
   }
 
-  function handleFactionChange(event: Event): void {
+  function handleRaceChange(event: Event): void {
     const input = event.currentTarget as HTMLSelectElement;
-    selectedFactionId = input.value as FactionId;
-    if (!UNLOCKABLE_UNIT_TYPE_IDS.includes(selectedUnitTypeId)) {
-      selectedUnitTypeId = DEFAULT_UNIT_TYPE_ID;
+    selectedRaceId = input.value as RaceId;
+    if (!UNLOCKABLE_UNIT_CLASS_IDS.includes(selectedUnitClassId)) {
+      selectedUnitClassId = DEFAULT_UNIT_CLASS_ID;
     }
   }
 
-  function handleUnitTypeChange(event: Event): void {
+  function handleTroopClassChange(event: Event): void {
     const input = event.currentTarget as HTMLSelectElement;
-    selectedUnitTypeId = input.value as UnitTypeId;
+    selectedUnitClassId = input.value as UnitClassId;
   }
 
   function addSelectedTroop(): void {
@@ -83,7 +83,7 @@
       return;
     }
 
-    const troopId = getTroopUnlockId(selectedFactionId, selectedUnitTypeId);
+    const troopId = getTroopUnlockId(selectedRaceId, selectedUnitClassId);
     const currentCount = (addMenuSide === 'player' ? player : enemy)[troopId] ?? 0;
     onSetArmy(addMenuSide, troopId, currentCount + getTroopStartingQuantity(troopId));
     closeAddMenu();
@@ -91,14 +91,14 @@
 
   $: playerVisibleTroops = visibleTroops(player);
   $: enemyVisibleTroops = visibleTroops(enemy);
-  $: availableUnitTypeIds = UNLOCKABLE_UNIT_TYPE_IDS;
+  $: availableUnitClassIds = UNLOCKABLE_UNIT_CLASS_IDS;
   $: playerTotalCost = getArmySelectionCost(player);
   $: enemyTotalCost = getArmySelectionCost(enemy);
 </script>
 
 <section class="panel">
   <h2>Debug Setup</h2>
-  <p class="hint">Only active troop combinations are shown. Use + to add a faction and unit type.</p>
+  <p class="hint">Only active troop combinations are shown. Use + to add a race and troop class.</p>
 
   <div class="army-grid">
     {#each ['player', 'enemy'] as side}
@@ -136,19 +136,19 @@
 
       <div class="add-menu-grid">
         <label>
-          <span>Faction</span>
-          <select value={selectedFactionId} on:change={handleFactionChange}>
-            {#each FACTION_IDS as factionId}
-              <option value={factionId}>{FACTIONS[factionId].label}</option>
+          <span>Race</span>
+          <select value={selectedRaceId} on:change={handleRaceChange}>
+            {#each RACE_IDS as raceId}
+              <option value={raceId}>{RACES[raceId].label}</option>
             {/each}
           </select>
         </label>
 
         <label>
-          <span>Unit Type</span>
-          <select value={selectedUnitTypeId} on:change={handleUnitTypeChange}>
-            {#each availableUnitTypeIds as unitTypeId}
-              <option value={unitTypeId}>{UNIT_TYPES[unitTypeId].label}</option>
+          <span>Troop Class</span>
+          <select value={selectedUnitClassId} on:change={handleTroopClassChange}>
+            {#each availableUnitClassIds as unitClassId}
+              <option value={unitClassId}>{UNIT_CLASSES[unitClassId].label}</option>
             {/each}
           </select>
         </label>
@@ -156,7 +156,7 @@
 
       <div class="add-preview">
         <span>Will add</span>
-        <strong>{TROOP_CATALOG[getTroopUnlockId(selectedFactionId, selectedUnitTypeId)].label}</strong>
+        <strong>{TROOP_CATALOG[getTroopUnlockId(selectedRaceId, selectedUnitClassId)].label}</strong>
         <small>to {SIDE_LABELS[addMenuSide]}</small>
       </div>
 

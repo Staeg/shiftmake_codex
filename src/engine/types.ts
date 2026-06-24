@@ -1,7 +1,6 @@
-export type UnitTypeId = string;
-export type FactionId = string;
+export type UnitClassId = string;
+export type RaceId = string;
 export type TroopId = string;
-export type TroopTypeId = string;
 export type UpgradeId = string;
 export type AbilityId = string;
 export type MutatorId = string;
@@ -30,7 +29,7 @@ export type AbilityTiming =
   | 'passive';
 export type AbilityAllegiance = 'ally' | 'enemy' | 'all';
 export type AbilityMagnitudeMode = 'flat' | 'percent';
-export type CampaignPhase = 'opening_unlock' | 'faction_unlock' | 'troop_type_unlock' | 'planning' | 'game_over';
+export type CampaignPhase = 'opening_unlock' | 'race_unlock' | 'troop_class_unlock' | 'planning' | 'game_over';
 export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 'expired';
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
 export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
@@ -60,7 +59,7 @@ export interface AbilityTriggerDefinition {
   chargeEvery?: number;
   maxUses?: number;
   condition?: 'forsaken';
-  repeatPerDistinctFriendlyTroopType?: boolean;
+  repeatPerDistinctFriendlyTroopClass?: boolean;
   repeatPerTouchingFriendlyUnit?: boolean;
   fallen?: {
     allegiance: AbilityAllegiance;
@@ -74,9 +73,9 @@ export interface AbilityTriggerDefinition {
 }
 
 export interface AbilityTargetFilters {
-  notTypes?: string[];
-  onlyTypes?: string[];
-  prioritizeTypes?: string[];
+  notClasses?: string[];
+  onlyClasses?: string[];
+  prioritizeClasses?: string[];
   unengaged?: boolean;
 }
 
@@ -146,7 +145,7 @@ export type AbilityEffectDefinition =
     }>
   | EffectWithDisposition<{
       kind: 'summon';
-      unitTypeId: UnitTypeId;
+      unitClassId: UnitClassId;
       count: number;
       consumeFallenUnitCorpse?: boolean;
       grantedAbilityIds?: AbilityId[];
@@ -168,11 +167,11 @@ export interface AbilityDefinition {
   shortText: string;
 }
 
-export interface UnitTypeDefinition {
-  id: UnitTypeId;
+export interface UnitClassDefinition {
+  id: UnitClassId;
   label: string;
   role: RoleId;
-  type: string;
+  unitClassTag: string;
   attributes: string[];
   stats: UnitStats;
   quantity: number;
@@ -180,8 +179,8 @@ export interface UnitTypeDefinition {
   abilityIds: AbilityId[];
 }
 
-export interface FactionDefinition {
-  id: FactionId;
+export interface RaceDefinition {
+  id: RaceId;
   label: string;
   singularLabel: string;
   addedAttributes: string[];
@@ -189,9 +188,9 @@ export interface FactionDefinition {
   abilityIds: AbilityId[];
 }
 
-export interface FactionUpgradeDefinition {
+export interface RaceUpgradeDefinition {
   id: UpgradeId;
-  factionId: FactionId;
+  raceId: RaceId;
   label: string;
   tier: 1 | 2 | 3;
   description: string;
@@ -212,9 +211,9 @@ export interface FactionUpgradeDefinition {
   >;
 }
 
-export interface TroopTypeUpgradeDefinition {
+export interface TroopClassUpgradeDefinition {
   id: UpgradeId;
-  unitTypeId: UnitTypeId;
+  unitClassId: UnitClassId;
   label: string;
   tier: 1 | 2 | 3;
   description: string;
@@ -241,11 +240,11 @@ export interface TroopTypeUpgradeDefinition {
 
 export interface TroopDefinition {
   id: string;
-  factionId: FactionId;
-  unitTypeId: UnitTypeId;
+  raceId: RaceId;
+  unitClassId: UnitClassId;
   label: string;
   role: RoleId;
-  type: string;
+  unitClassTag: string;
   attributes: string[];
   stats: UnitStats;
   quantity: number;
@@ -255,20 +254,20 @@ export interface TroopDefinition {
 
 export interface TroopInstance {
   id: TroopId;
-  factionId: FactionId;
-  unitTypeId: UnitTypeId;
+  raceId: RaceId;
+  unitClassId: UnitClassId;
   recoveryCyclesRemaining: number;
   assignmentRiftId: string | null;
 }
 
 export interface ResolvedCombatantDefinition {
   combatantId: string;
-  factionId: FactionId;
-  unitTypeId: UnitTypeId;
+  raceId: RaceId;
+  unitClassId: UnitClassId;
   troopInstanceId: TroopId | null;
   label: string;
   role: RoleId;
-  type: string;
+  unitClassTag: string;
   attributes: string[];
   stats: UnitStats;
   abilities: AbilityDefinition[];
@@ -285,10 +284,10 @@ export interface BattleInput {
   mutatorIds: MutatorId[];
   saturation?: number;
   sideParticipants?: BattleSideParticipants;
-  playerFactionUpgradeIds?: UpgradeId[];
-  playerTroopTypeUpgradeIds?: UpgradeId[];
-  enemyFactionUpgradeIds?: UpgradeId[];
-  enemyTroopTypeUpgradeIds?: UpgradeId[];
+  playerRaceUpgradeIds?: UpgradeId[];
+  playerTroopClassUpgradeIds?: UpgradeId[];
+  enemyRaceUpgradeIds?: UpgradeId[];
+  enemyTroopClassUpgradeIds?: UpgradeId[];
   playerCombatants: ResolvedCombatantDefinition[];
   enemyCombatants: ResolvedCombatantDefinition[];
 }
@@ -311,11 +310,11 @@ export interface BattleUnit {
   troopInstanceId: TroopId | null;
   troopId: string;
   troopLabel: string;
-  unitTypeId: UnitTypeId;
-  factionId: FactionId;
+  unitClassId: UnitClassId;
+  raceId: RaceId;
   side: SideId;
   role: RoleId;
-  type: string;
+  unitClassTag: string;
   attributes: string[];
   position: HexCoord;
   occupiedHexes: HexCoord[];
@@ -459,10 +458,10 @@ export interface StatBreakdown {
 export interface ReplayTroopProfile {
   side: SideId;
   troopLabel: string;
-  unitTypeId: UnitTypeId;
-  factionId: FactionId;
+  unitClassId: UnitClassId;
+  raceId: RaceId;
   role: RoleId;
-  type: string;
+  unitClassTag: string;
   attributes: string[];
   stats: UnitStats;
   abilities: AbilityDefinition[];
@@ -570,6 +569,10 @@ export interface ReplayIndexEntry {
   estimatedBytes: number;
   finalPlayerAlive?: number;
   finalEnemyAlive?: number;
+  finalPlayerHp?: number;
+  finalPlayerMaxHp?: number;
+  finalEnemyHp?: number;
+  finalEnemyMaxHp?: number;
   summaryOnly?: boolean;
   resultDrift?: {
     checkedAt: string;
@@ -591,19 +594,19 @@ export interface UpgradeDraftOffer {
   optionUpgradeIds: UpgradeId[];
 }
 
-export interface FactionUnlockOffer {
-  kind: 'faction_unlock';
+export interface RaceUnlockOffer {
+  kind: 'race_unlock';
   cycleNumber: number;
-  optionFactionIds: FactionId[];
-  upgradeIdsByFactionId: Record<FactionId, UpgradeId[]>;
+  optionRaceIds: RaceId[];
+  upgradeIdsByRaceId: Record<RaceId, UpgradeId[]>;
   troopUnlockChoiceCount: number;
-  troopUnlockIdsByFactionId: Record<FactionId, TroopUnlockId[]>;
+  troopUnlockIdsByRaceId: Record<RaceId, TroopUnlockId[]>;
 }
 
-export interface TroopTypeUnlockOffer {
-  kind: 'troop_type_unlock';
+export interface TroopClassUnlockOffer {
+  kind: 'troop_class_unlock';
   cycleNumber: number;
-  factionId: FactionId;
+  raceId: RaceId;
   remainingChoices: number;
   optionTroopUnlockIds: TroopUnlockId[];
 }
@@ -615,8 +618,8 @@ export interface RiftInstance {
   tier: number;
   mutatorIds: MutatorId[];
   enemyArmy: ResolvedCombatantDefinition[];
-  enemyFactionUpgradeIds?: UpgradeId[];
-  enemyTroopTypeUpgradeIds?: UpgradeId[];
+  enemyRaceUpgradeIds?: UpgradeId[];
+  enemyTroopClassUpgradeIds?: UpgradeId[];
   victoryPoints: number;
   saturation: number;
   state: RiftState;
@@ -626,10 +629,10 @@ export interface RiftInstance {
 }
 
 export interface LadderGuardianSnapshot {
-  factionId: FactionId;
-  unitTypeId: UnitTypeId;
-  factionUpgradeIds: UpgradeId[];
-  troopTypeUpgradeIds: UpgradeId[];
+  raceId: RaceId;
+  unitClassId: UnitClassId;
+  raceUpgradeIds: UpgradeId[];
+  troopClassUpgradeIds: UpgradeId[];
 }
 
 export interface LadderRiftPayload {
@@ -656,10 +659,10 @@ export interface LadderCompatibilityIssue {
     | 'invalid_tier'
     | 'invalid_saturation'
     | 'invalid_victory_points'
-    | 'unknown_faction'
-    | 'unknown_unit_type'
-    | 'unknown_faction_upgrade'
-    | 'unknown_troop_type_upgrade'
+    | 'unknown_race'
+    | 'unknown_unit_class'
+    | 'unknown_race_upgrade'
+    | 'unknown_troop_class_upgrade'
     | 'unknown_mutator'
     | 'missing_guardians';
   message: string;
@@ -691,16 +694,16 @@ export interface LadderState {
 export interface ContestPlayerState {
   victoryPoints: number;
   essence: number;
-  unlockedFactionIds: FactionId[];
+  unlockedRaceIds: RaceId[];
   unlockedTroopUnlockIds: TroopUnlockId[];
   recentTroopUnlockIds: TroopUnlockId[];
   troops: TroopInstance[];
-  factionUpgradeIds: UpgradeId[];
-  troopTypeUpgradeIds: UpgradeId[];
+  raceUpgradeIds: UpgradeId[];
+  troopClassUpgradeIds: UpgradeId[];
   activeTroopOffer: TroopDraftOffer | null;
   activeUpgradeOffer: UpgradeDraftOffer | null;
-  activeFactionUnlockOffer: FactionUnlockOffer | null;
-  activeTroopTypeUnlockOffer: TroopTypeUnlockOffer | null;
+  activeRaceUnlockOffer: RaceUnlockOffer | null;
+  activeTroopClassUnlockOffer: TroopClassUnlockOffer | null;
   troopOfferRolls: number;
   upgradeOfferRolls: number;
 }
@@ -725,16 +728,16 @@ export interface GameState {
   phase: CampaignPhase;
   essence: number;
   victoryPoints: number;
-  unlockedFactionIds: FactionId[];
+  unlockedRaceIds: RaceId[];
   unlockedTroopUnlockIds: TroopUnlockId[];
   recentTroopUnlockIds: TroopUnlockId[];
   troops: TroopInstance[];
-  factionUpgradeIds: UpgradeId[];
-  troopTypeUpgradeIds: UpgradeId[];
+  raceUpgradeIds: UpgradeId[];
+  troopClassUpgradeIds: UpgradeId[];
   activeTroopOffer: TroopDraftOffer | null;
   activeUpgradeOffer: UpgradeDraftOffer | null;
-  activeFactionUnlockOffer: FactionUnlockOffer | null;
-  activeTroopTypeUnlockOffer: TroopTypeUnlockOffer | null;
+  activeRaceUnlockOffer: RaceUnlockOffer | null;
+  activeTroopClassUnlockOffer: TroopClassUnlockOffer | null;
   troopOfferRolls: number;
   upgradeOfferRolls: number;
   postgameDismissed: boolean;
@@ -748,8 +751,8 @@ export interface ValidationIssue {
   kind:
     | 'troop_recovering'
     | 'duplicate_assignment'
-    | 'same_faction_conflict'
-    | 'same_type_conflict'
+    | 'same_race_conflict'
+    | 'same_class_conflict'
     | 'no_troops_assigned'
     | 'idle_troops_remaining'
     | 'holding_only_no_new_attack'
@@ -815,7 +818,7 @@ export interface LoadGameResult {
 }
 
 export interface LoadGameRepairReport {
-  missingFactionIds: string[];
+  missingRaceIds: string[];
   missingTroopUnlockIds: string[];
   missingTroopInstanceIds: string[];
   missingUpgradeIds: string[];

@@ -1,15 +1,15 @@
 import { resolveEnemyCombatant } from './army';
 import { generateCycleRifts } from './rift';
 import {
-  FACTION_UPGRADES,
-  FACTIONS,
+  RACE_UPGRADES,
+  RACES,
   MUTATORS,
-  TROOP_TYPE_UPGRADES,
-  UNIT_TYPES,
-  getTroopTypeUpgrade,
+  TROOP_CLASS_UPGRADES,
+  UNIT_CLASSES,
+  getTroopClassUpgrade,
 } from './unitCatalog';
 import type {
-  FactionId,
+  RaceId,
   GameState,
   LadderCompatibilityIssue,
   LadderDrawResult,
@@ -21,7 +21,7 @@ import type {
   RiftInstance,
   RiftResolutionRecord,
   TroopInstance,
-  UnitTypeId,
+  UnitClassId,
   UpgradeId,
 } from './types';
 
@@ -32,12 +32,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isKnownTroopTypeUpgradeId(value: string): boolean {
-  if (value in TROOP_TYPE_UPGRADES) {
+function isKnownTroopClassUpgradeId(value: string): boolean {
+  if (value in TROOP_CLASS_UPGRADES) {
     return true;
   }
   try {
-    getTroopTypeUpgrade(value);
+    getTroopClassUpgrade(value);
     return true;
   } catch {
     return false;
@@ -63,24 +63,24 @@ function validateGuardian(guardian: unknown, path: string): LadderCompatibilityI
   }
 
   const issues: LadderCompatibilityIssue[] = [];
-  if (typeof guardian.factionId !== 'string' || !(guardian.factionId in FACTIONS)) {
-    issues.push(issue('unknown_faction', `${path}.factionId`, 'Guardian faction is not known.', typeof guardian.factionId === 'string' ? guardian.factionId : null));
+  if (typeof guardian.raceId !== 'string' || !(guardian.raceId in RACES)) {
+    issues.push(issue('unknown_race', `${path}.raceId`, 'Guardian race is not known.', typeof guardian.raceId === 'string' ? guardian.raceId : null));
   }
-  if (typeof guardian.unitTypeId !== 'string' || !(guardian.unitTypeId in UNIT_TYPES)) {
-    issues.push(issue('unknown_unit_type', `${path}.unitTypeId`, 'Guardian unit type is not known.', typeof guardian.unitTypeId === 'string' ? guardian.unitTypeId : null));
+  if (typeof guardian.unitClassId !== 'string' || !(guardian.unitClassId in UNIT_CLASSES)) {
+    issues.push(issue('unknown_unit_class', `${path}.unitClassId`, 'Guardian unit class is not known.', typeof guardian.unitClassId === 'string' ? guardian.unitClassId : null));
   }
 
-  const factionUpgradeIds = Array.isArray(guardian.factionUpgradeIds) ? guardian.factionUpgradeIds : [];
-  factionUpgradeIds.forEach((upgradeId, index) => {
-    if (typeof upgradeId !== 'string' || !(upgradeId in FACTION_UPGRADES)) {
-      issues.push(issue('unknown_faction_upgrade', `${path}.factionUpgradeIds[${index}]`, 'Guardian faction upgrade is not known.', typeof upgradeId === 'string' ? upgradeId : null));
+  const raceUpgradeIds = Array.isArray(guardian.raceUpgradeIds) ? guardian.raceUpgradeIds : [];
+  raceUpgradeIds.forEach((upgradeId, index) => {
+    if (typeof upgradeId !== 'string' || !(upgradeId in RACE_UPGRADES)) {
+      issues.push(issue('unknown_race_upgrade', `${path}.raceUpgradeIds[${index}]`, 'Guardian race upgrade is not known.', typeof upgradeId === 'string' ? upgradeId : null));
     }
   });
 
-  const troopTypeUpgradeIds = Array.isArray(guardian.troopTypeUpgradeIds) ? guardian.troopTypeUpgradeIds : [];
-  troopTypeUpgradeIds.forEach((upgradeId, index) => {
-    if (typeof upgradeId !== 'string' || !isKnownTroopTypeUpgradeId(upgradeId)) {
-      issues.push(issue('unknown_troop_type_upgrade', `${path}.troopTypeUpgradeIds[${index}]`, 'Guardian troop-type upgrade is not known.', typeof upgradeId === 'string' ? upgradeId : null));
+  const troopClassUpgradeIds = Array.isArray(guardian.troopClassUpgradeIds) ? guardian.troopClassUpgradeIds : [];
+  troopClassUpgradeIds.forEach((upgradeId, index) => {
+    if (typeof upgradeId !== 'string' || !isKnownTroopClassUpgradeId(upgradeId)) {
+      issues.push(issue('unknown_troop_class_upgrade', `${path}.troopClassUpgradeIds[${index}]`, 'Guardian troop-class upgrade is not known.', typeof upgradeId === 'string' ? upgradeId : null));
     }
   });
 
@@ -140,28 +140,28 @@ export function ladderRiftSetToRiftInstances(draw: LadderDrawResult): RiftInstan
     mutatorIds: [...rift.mutatorIds],
     enemyArmy: rift.guardians.map((guardian, index) =>
       resolveEnemyCombatant(
-        guardian.factionUpgradeIds,
-        guardian.troopTypeUpgradeIds,
-        guardian.factionId,
-        guardian.unitTypeId,
+        guardian.raceUpgradeIds,
+        guardian.troopClassUpgradeIds,
+        guardian.raceId,
+        guardian.unitClassId,
         rift.tier,
         `${rift.id}-guardian-${index + 1}`,
       ),
     ),
-    enemyFactionUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.factionUpgradeIds))],
-    enemyTroopTypeUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.troopTypeUpgradeIds))],
+    enemyRaceUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.raceUpgradeIds))],
+    enemyTroopClassUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.troopClassUpgradeIds))],
     victoryPoints: rift.victoryPoints,
     saturation: rift.saturation,
     state: 'discovered',
   }));
 }
 
-function combatantToGuardian(combatant: { factionId: FactionId; unitTypeId: UnitTypeId }, factionUpgradeIds: UpgradeId[] = [], troopTypeUpgradeIds: UpgradeId[] = []): LadderGuardianSnapshot {
+function combatantToGuardian(combatant: { raceId: RaceId; unitClassId: UnitClassId }, raceUpgradeIds: UpgradeId[] = [], troopClassUpgradeIds: UpgradeId[] = []): LadderGuardianSnapshot {
   return {
-    factionId: combatant.factionId,
-    unitTypeId: combatant.unitTypeId,
-    factionUpgradeIds: [...factionUpgradeIds],
-    troopTypeUpgradeIds: [...troopTypeUpgradeIds],
+    raceId: combatant.raceId,
+    unitClassId: combatant.unitClassId,
+    raceUpgradeIds: [...raceUpgradeIds],
+    troopClassUpgradeIds: [...troopClassUpgradeIds],
   };
 }
 
@@ -177,7 +177,7 @@ export function riftInstancesToLadderPayload(rifts: RiftInstance[]): LadderRiftS
       saturation: rift.saturation,
       victoryPoints: rift.victoryPoints,
       guardians: rift.enemyArmy.map((combatant) =>
-        combatantToGuardian(combatant, rift.enemyFactionUpgradeIds ?? [], rift.enemyTroopTypeUpgradeIds ?? []),
+        combatantToGuardian(combatant, rift.enemyRaceUpgradeIds ?? [], rift.enemyTroopClassUpgradeIds ?? []),
       ),
     })),
   };
@@ -187,12 +187,12 @@ export function generateBaselineLadderPayload(campaignSeed: number, cycleNumber:
   return riftInstancesToLadderPayload(generateCycleRifts({ campaignSeed, cycleNumber }));
 }
 
-function troopToGuardian(troop: TroopInstance, state: Pick<GameState, 'factionUpgradeIds' | 'troopTypeUpgradeIds'>): LadderGuardianSnapshot {
+function troopToGuardian(troop: TroopInstance, state: Pick<GameState, 'raceUpgradeIds' | 'troopClassUpgradeIds'>): LadderGuardianSnapshot {
   return {
-    factionId: troop.factionId,
-    unitTypeId: troop.unitTypeId,
-    factionUpgradeIds: [...state.factionUpgradeIds],
-    troopTypeUpgradeIds: [...state.troopTypeUpgradeIds],
+    raceId: troop.raceId,
+    unitClassId: troop.unitClassId,
+    raceUpgradeIds: [...state.raceUpgradeIds],
+    troopClassUpgradeIds: [...state.troopClassUpgradeIds],
   };
 }
 
@@ -223,7 +223,7 @@ export function buildHarvestedLadderPayload(state: GameState, records: RiftResol
             conqueredGuardians.length > 0
               ? conqueredGuardians
               : rift.enemyArmy.map((combatant) =>
-                  combatantToGuardian(combatant, rift.enemyFactionUpgradeIds ?? [], rift.enemyTroopTypeUpgradeIds ?? []),
+                  combatantToGuardian(combatant, rift.enemyRaceUpgradeIds ?? [], rift.enemyTroopClassUpgradeIds ?? []),
                 ),
         };
       }),

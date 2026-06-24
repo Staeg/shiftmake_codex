@@ -14,7 +14,7 @@ import { footprintCenter, hexKey } from '../engine/hex';
 
 import projectileUrl from '../assets/sprites/projectile.svg';
 import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../presentation/iconAssets';
-import { loadFactionUnitTextures } from './unitVisuals';
+import { loadRaceUnitTextures } from './unitVisuals';
 import type { BattleReportDiagnostic } from '../engine/types';
 
 const HEX_SIZE = 30;
@@ -339,7 +339,7 @@ export class BattleRenderer {
   }
 
   async init(): Promise<void> {
-    this.textures = await loadFactionUnitTextures((diagnostic) => this.reportDiagnostic(diagnostic));
+    this.textures = await loadRaceUnitTextures((diagnostic) => this.reportDiagnostic(diagnostic));
     try {
       this.textures.projectile = await Assets.load(projectileUrl);
     } catch (error) {
@@ -581,7 +581,7 @@ export class BattleRenderer {
       if (this.unitSprites.has(unit.id)) {
         return;
       }
-      const textureKey = `${unit.factionId}/${unit.unitTypeId}`;
+      const textureKey = `${unit.raceId}/${unit.unitClassId}`;
       const texture = this.textures[textureKey] ?? Texture.WHITE;
       if (!this.textures[textureKey]) {
         this.reportDiagnostic({

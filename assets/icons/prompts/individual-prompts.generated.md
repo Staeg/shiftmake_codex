@@ -752,8 +752,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Forsaken 80
 Category: Ability
-Mechanic: Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.
-Upgrade context: Elven Forsaken (Elves, tier 3): Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed.
+Mechanic: Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and speed.
+Upgrade context: Elven Forsaken (Elves, tier 3): Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.
 Trigger: startOfBattle; condition forsaken
 Target: self
 Mechanical effects: bolster 80%, haste 80%, ramp 80%
@@ -1211,9 +1211,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Power of Friendship
 Category: Ability
-Mechanic: Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop type in this battle.
-Upgrade context: Human Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle.
-Trigger: startOfBattle; scales per other friendly troop type
+Mechanic: Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop class in this battle.
+Upgrade context: Human Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.
+Trigger: startOfBattle; scales per other friendly troop class
 Target: self
 Mechanical effects: bolster 20%, haste 20%, ramp 20%
 Visual tags: damage, speed, healing, synergy
@@ -2057,7 +2057,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: United
 Category: Ability
-Mechanic: Overworld: troops of this faction may enter the same Rift together.
+Mechanic: Overworld: troops of this race may enter the same Rift together.
 Upgrade context: Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.
 Visual tags: damage, speed, debuff, synergy
 
@@ -2212,13 +2212,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Diggy Hole
 
-Save approved image as: `assets/icons/final/faction_upgrade/dwarf-diggy-hole.png`
+Save approved image as: `assets/icons/final/race_upgrade/dwarf-diggy-hole.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Diggy Hole
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Dwarves
 Tier: 1
 Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.
@@ -2239,13 +2239,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Ale and Hearty
 
-Save approved image as: `assets/icons/final/faction_upgrade/dwarf-ale-and-hearty.png`
+Save approved image as: `assets/icons/final/race_upgrade/dwarf-ale-and-hearty.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Ale and Hearty
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Dwarves
 Tier: 2
 Mechanic: Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.
@@ -2267,13 +2267,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Stall Warts
 
-Save approved image as: `assets/icons/final/faction_upgrade/dwarf-stall-warts.png`
+Save approved image as: `assets/icons/final/race_upgrade/dwarf-stall-warts.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Stall Warts
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Dwarves
 Tier: 3
 Mechanic: Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.
@@ -2294,13 +2294,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Elven Reflexes
 
-Save approved image as: `assets/icons/final/faction_upgrade/elf-elven-reflexes.png`
+Save approved image as: `assets/icons/final/race_upgrade/elf-elven-reflexes.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Elven Reflexes
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Elves
 Tier: 1
 Mechanic: All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.
@@ -2322,13 +2322,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Silvershot Doctrine
 
-Save approved image as: `assets/icons/final/faction_upgrade/elf-silvershot-doctrine.png`
+Save approved image as: `assets/icons/final/race_upgrade/elf-silvershot-doctrine.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Silvershot Doctrine
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Elves
 Tier: 2
 Mechanic: Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.
@@ -2349,16 +2349,16 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Elven Forsaken
 
-Save approved image as: `assets/icons/final/faction_upgrade/elven-forsaken.png`
+Save approved image as: `assets/icons/final/race_upgrade/elven-forsaken.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Elven Forsaken
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Elves
 Tier: 3
-Mechanic: Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed.
+Mechanic: Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.
 Trigger: startOfBattle; condition forsaken
 Target: self
 Mechanical effects: bolster 80%, haste 80%, ramp 80%
@@ -2379,13 +2379,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Glamour
 
-Save approved image as: `assets/icons/final/faction_upgrade/fae-glamour.png`
+Save approved image as: `assets/icons/final/race_upgrade/fae-glamour.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Glamour
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Fae
 Tier: 2
 Mechanic: Once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range as if the Fae unit made that attack.
@@ -2406,13 +2406,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Changeling
 
-Save approved image as: `assets/icons/final/faction_upgrade/fae-changeling.png`
+Save approved image as: `assets/icons/final/race_upgrade/fae-changeling.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Changeling
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Fae
 Tier: 3
 Mechanic: If a Fae troop was brought to battle, after beat 12 a random enemy unit from each enemy troop changes sides.
@@ -2433,13 +2433,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Whimsy
 
-Save approved image as: `assets/icons/final/faction_upgrade/fae-whimsy.png`
+Save approved image as: `assets/icons/final/race_upgrade/fae-whimsy.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Whimsy
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Fae
 Tier: 3
 Mechanic: Whenever a Fae unit takes damage, it is relocated to a random hex.
@@ -2460,13 +2460,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Goblin Behavior
 
-Save approved image as: `assets/icons/final/faction_upgrade/goblin-behavior.png`
+Save approved image as: `assets/icons/final/race_upgrade/goblin-behavior.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Goblin Behavior
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Goblins
 Tier: 1
 Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
@@ -2490,13 +2490,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Goblin Pack
 
-Save approved image as: `assets/icons/final/faction_upgrade/goblin-pack.png`
+Save approved image as: `assets/icons/final/race_upgrade/goblin-pack.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Goblin Pack
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Goblins
 Tier: 2
 Mechanic: Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.
@@ -2520,13 +2520,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Loot Frenzy
 
-Save approved image as: `assets/icons/final/faction_upgrade/goblin-loot-frenzy.png`
+Save approved image as: `assets/icons/final/race_upgrade/goblin-loot-frenzy.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Loot Frenzy
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Goblins
 Tier: 3
 Mechanic: When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.
@@ -2547,13 +2547,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Tubthumping
 
-Save approved image as: `assets/icons/final/faction_upgrade/human-tubthumping.png`
+Save approved image as: `assets/icons/final/race_upgrade/human-tubthumping.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Tubthumping
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Humans
 Tier: 1
 Mechanic: Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.
@@ -2574,13 +2574,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Hold the Standard
 
-Save approved image as: `assets/icons/final/faction_upgrade/human-hold-the-standard.png`
+Save approved image as: `assets/icons/final/race_upgrade/human-hold-the-standard.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Hold the Standard
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Humans
 Tier: 2
 Mechanic: Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.
@@ -2601,17 +2601,17 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Human Combined Arms
 
-Save approved image as: `assets/icons/final/faction_upgrade/human-combined-arms.png`
+Save approved image as: `assets/icons/final/race_upgrade/human-combined-arms.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Human Combined Arms
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Humans
 Tier: 2
-Mechanic: Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle.
-Trigger: startOfBattle; scales per other friendly troop type
+Mechanic: Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.
+Trigger: startOfBattle; scales per other friendly troop class
 Target: self
 Mechanical effects: bolster 20%, haste 20%, ramp 20%
 Visual tags: humans, damage, speed, healing, synergy
@@ -2631,13 +2631,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Seeing Red
 
-Save approved image as: `assets/icons/final/faction_upgrade/orc-seeing-red.png`
+Save approved image as: `assets/icons/final/race_upgrade/orc-seeing-red.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Seeing Red
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Orcs
 Tier: 1
 Mechanic: Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.
@@ -2661,13 +2661,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## First Blood
 
-Save approved image as: `assets/icons/final/faction_upgrade/orc-first-blood.png`
+Save approved image as: `assets/icons/final/race_upgrade/orc-first-blood.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: First Blood
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Orcs
 Tier: 2
 Mechanic: Orc units attack their target whenever they engage, in addition to the normal engagement attack.
@@ -2688,13 +2688,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Berserk
 
-Save approved image as: `assets/icons/final/faction_upgrade/orc-berserk.png`
+Save approved image as: `assets/icons/final/race_upgrade/orc-berserk.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Berserk
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Orcs
 Tier: 3
 Mechanic: When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.
@@ -2715,13 +2715,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Roll the Boulder
 
-Save approved image as: `assets/icons/final/faction_upgrade/troll-roll-the-boulder.png`
+Save approved image as: `assets/icons/final/race_upgrade/troll-roll-the-boulder.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Roll the Boulder
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Trolls
 Tier: 1
 Mechanic: End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
@@ -2745,13 +2745,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Mossblood
 
-Save approved image as: `assets/icons/final/faction_upgrade/troll-mossblood.png`
+Save approved image as: `assets/icons/final/race_upgrade/troll-mossblood.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Mossblood
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Trolls
 Tier: 2
 Mechanic: The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.
@@ -2772,13 +2772,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Rowdy Regrowth
 
-Save approved image as: `assets/icons/final/faction_upgrade/troll-rowdy-regrowth.png`
+Save approved image as: `assets/icons/final/race_upgrade/troll-rowdy-regrowth.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Rowdy Regrowth
-Category: Faction upgrade
+Category: Race upgrade
 Owner: Trolls
 Tier: 2
 Mechanic: Whenever a Troll is healed, it gains 20 initiative.
@@ -2995,13 +2995,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Crippling Shots
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/archer-crippling-shots.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/archer-crippling-shots.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Crippling Shots
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Archer
 Tier: 3
 Mechanic: On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.
@@ -3025,13 +3025,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Sevenfold
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/avenger-sevenfold.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/avenger-sevenfold.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Sevenfold
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Avenger
 Tier: 2
 Mechanic: Whenever a nearby unit leaves a corpse, each Avenger may consume it to summon a skeleton there, up to 7 times per battle.
@@ -3054,13 +3054,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Witness
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/avenger-witness.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/avenger-witness.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Witness
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Avenger
 Tier: 3
 Mechanic: When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
@@ -3084,13 +3084,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Bloodhounds
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/beastmaster-bloodhounds.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/beastmaster-bloodhounds.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Bloodhounds
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Beastmaster
 Tier: 3
 Mechanic: Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
@@ -3114,13 +3114,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Thrill of the Hunt
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/beastmaster-thrill-of-the-hunt.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/beastmaster-thrill-of-the-hunt.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Thrill of the Hunt
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Beastmaster
 Tier: 3
 Mechanic: End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.
@@ -3141,13 +3141,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Anointed Executioner
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/champion-anointed-executioner.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/champion-anointed-executioner.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Anointed Executioner
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Champion
 Tier: 3
 Mechanic: Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.
@@ -3168,13 +3168,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## True Form
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/druid-true-form.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/druid-true-form.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: True Form
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Druid
 Tier: 2
 Mechanic: Druid's Shapeshift can now trigger an additional time.
@@ -3198,13 +3198,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Ent's Visage
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/druid-ents-visage.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/druid-ents-visage.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Ent's Visage
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Druid
 Tier: 3
 Mechanic: After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.
@@ -3225,13 +3225,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Forest Friends
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/druid-forest-friends.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/druid-forest-friends.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Forest Friends
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Druid
 Tier: 3
 Mechanic: End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.
@@ -3252,13 +3252,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Crackling Mitosis
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/elementalist-crackling-mitosis.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/elementalist-crackling-mitosis.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Crackling Mitosis
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Elementalist
 Tier: 3
 Mechanic: When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
@@ -3279,13 +3279,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Living Circuit
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/elementalist-living-circuit.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/elementalist-living-circuit.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Living Circuit
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Elementalist
 Tier: 3
 Mechanic: End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.
@@ -3306,13 +3306,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Dine in Hell
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/knight-dine-in-hell.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/knight-dine-in-hell.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Dine in Hell
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Knight
 Tier: 3
 Mechanic: Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
@@ -3333,13 +3333,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Sentinel Runes
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/knight-sentinel-runes.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/knight-sentinel-runes.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Sentinel Runes
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Knight
 Tier: 3
 Mechanic: The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies.
@@ -3360,13 +3360,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Dogpile
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/militia-dogpile.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/militia-dogpile.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Dogpile
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Militia
 Tier: 3
 Mechanic: When Militia attack an enemy engaged by at least 3 allies, they strike 1 extra time.
@@ -3387,13 +3387,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Rat Behavior
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/militia-rat-behavior.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/militia-rat-behavior.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Rat Behavior
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Militia
 Tier: 3
 Mechanic: Start of turn: Militia gain +1 initiative for each other Militia touching them.
@@ -3417,13 +3417,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Explosion Corpse
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/necromancer-explosion-corpse.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/necromancer-explosion-corpse.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Explosion Corpse
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
 Mechanic: Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
@@ -3444,13 +3444,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Hemomancy
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/necromancer-hemomancy.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/necromancer-hemomancy.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Hemomancy
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
 Mechanic: Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.
@@ -3471,13 +3471,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Bolstering Light
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/priest-bolstering-light.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/priest-bolstering-light.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Bolstering Light
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
 Mechanic: When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.
@@ -3498,13 +3498,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Mercy Before Dawn
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/priest-mercy-before-dawn.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/priest-mercy-before-dawn.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Mercy Before Dawn
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
 Mechanic: The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.
@@ -3525,13 +3525,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## On the Hunt
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/ranger-on-the-hunt.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/ranger-on-the-hunt.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: On the Hunt
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Ranger
 Tier: 3
 Mechanic: On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
@@ -3555,13 +3555,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Shadow's Embrace
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/ranger-shadows-embrace.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/ranger-shadows-embrace.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Shadow's Embrace
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Ranger
 Tier: 3
 Mechanic: After attacking, Rangers move to the safest hex that still keeps an enemy in range. Ranger attacks against unengaged targets deal double damage.
@@ -3582,13 +3582,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## War Drums
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/shaman-war-drums.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/shaman-war-drums.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: War Drums
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Shaman
 Tier: 2
 Mechanic: Enhance 1 affects all allies on the chosen ally hex instead of one random ally.
@@ -3609,13 +3609,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Grave Vigor
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/shaman-grave-vigor.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/shaman-grave-vigor.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Grave Vigor
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Shaman
 Tier: 3
 Mechanic: Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death, gains 1 extra strike on its next normal attack if the effect was Enhance, and then ignores future beneficial effects and targeting from units with Grave Vigor.
@@ -3639,13 +3639,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Shield Drill
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/soldier-shield-drill.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/soldier-shield-drill.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Shield Drill
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Soldier
 Tier: 3
 Mechanic: Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers.
@@ -3667,13 +3667,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Spell Echo
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/wizard-spell-echo.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/wizard-spell-echo.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Spell Echo
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Wizard
 Tier: 2
 Mechanic: Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain.
@@ -3694,13 +3694,13 @@ text, letters, numbers, caption, logo, watermark, photorealistic, card art, trad
 
 ## Storm Rods
 
-Save approved image as: `assets/icons/final/troop_type_upgrade/wizard-storm-rods.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/wizard-storm-rods.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
 Name: Storm Rods
-Category: Troop-type upgrade
+Category: Troop-class upgrade
 Owner: Wizard
 Tier: 3
 Mechanic: Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.

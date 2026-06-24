@@ -58,7 +58,7 @@ The battle engine also supports passive runtime hooks that are still replay-visi
 - receive-side modifiers such as doubled healing or stat gains
 - move-off-hex triggers such as `Sentinel Runes`
 - per-shapeshift triggers such as `Forest Friends` and `Bramble Snare`
-- side-wide summon synergies that can affect future wolves or elementals even if the original source troop type is absent from that specific battle
+- side-wide summon synergies that can affect future wolves or elementals even if the original source troop class is absent from that specific battle
 - target gating such as `Grave Vigor`, which removes already affected allies from later beneficial targeting by Grave Vigor Shamans
 
 ## Combat rules

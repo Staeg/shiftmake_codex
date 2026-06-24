@@ -1,12 +1,12 @@
-# Unit details
+# Unit Details
 
-This document lists the current base unit types before faction modifiers, faction upgrades, or troop-type upgrades are applied.
+This document lists the current base unit classes before race modifiers, race upgrades, or troop-class upgrades are applied.
 
 Summoned units do not have their own unlockable upgrades.
 
 ## Stat meanings
 
-- `type`: primary troop identity
+- `unitClassTag`: primary unit class identity
 - `attributes`: secondary tags
 - `health`: HP before death
 - `damage`: base normal attack damage
@@ -17,8 +17,8 @@ Summoned units do not have their own unlockable upgrades.
 - `size`: footprint scale and how much enemy capacity is needed to engage the unit
 - `capacity`: how much total enemy size the unit can engage
 - `role`: autonomous behavior profile
-- `cost`: base troop cost before faction cost modifiers
-- `quantity`: derived after faction resolution as `120 / resolved cost`
+- `cost`: base troop cost before race cost modifiers
+- `quantity`: derived after race resolution as `120 / resolved cost`
 
 Footprint sizes:
 
@@ -28,7 +28,7 @@ Footprint sizes:
 - Size 4 occupies the size-2 triangle plus one surrounding layer.
 - Size 5 occupies a 19-hex radius-2 footprint.
 
-## Base unit types
+## Base Unit Classes
 
 ### Archer
 
@@ -206,18 +206,18 @@ Footprint sizes:
 - Abilities: `Bonded`, `Pack 1`
 - Cost: 20
 
-## Current faction upgrades
+## Current race upgrades
 
 ### Humans
 
 - `Tubthumping` (tier 1): multiple Human troops may enter the same Rift; harmful damage or speed reductions become `+1` instead
-- `Human Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop type in the battle
+- `Human Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop class in the battle
 - `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
 
 ### Elves
 
 - `Elven Reflexes` (tier 1): all non-melee Elven troops gain +1 range; the first time an Elven backline unit is engaged each battle, it retreats 1 hex for free
-- `Elven Forsaken` (tier 3): if fighting alone with no other friendly troop types, gain +80% health, damage, and speed
+- `Elven Forsaken` (tier 3): if fighting alone with no other friendly troop classes, gain +80% health, damage, and speed
 - `Silvershot Doctrine` (tier 2): ranged and caster attacks gain +1 damage and +2 initiative per hex of distance; attacks made from max range make the target lose 30 initiative
 
 ### Goblins
@@ -252,8 +252,7 @@ Footprint sizes:
 
 ## Notes
 
-- Base unit costs are faction-neutral. Resolved troop cost can change after faction modifiers.
-- Because quantity is derived from resolved cost, Goblin troops are usually larger than equivalent troops from other factions.
-- Stat upgrades were removed from the game. Only faction upgrades and troop-type upgrades remain.
-- The Soldier upgrade `Just a bunch of guys` was removed from the game.
+- Base unit costs are race-neutral. Resolved troop cost can change after race modifiers.
+- Because quantity is derived from resolved cost, Goblin troops are usually larger than equivalent troops from other races.
+- Stat upgrades were removed from the game. Only race upgrades and troop-class upgrades remain.
 - Some summon-facing upgrades are side-wide in battle resolution. For example, wolves created by Druids or Rangers still benefit from owned wolf synergies such as `Thrill of the Hunt`, even if no Beastmaster is present in that battle.

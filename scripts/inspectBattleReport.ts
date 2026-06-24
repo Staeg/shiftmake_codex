@@ -49,7 +49,7 @@ function describeUnit(unit: BattleUnit): string {
   return [
     unit.id,
     `${unit.side} ${unit.troopLabel}`,
-    `${unit.factionId}/${unit.unitTypeId}`,
+    `${unit.raceId}/${unit.unitClassId}`,
     `hp=${unit.hp}/${unit.maxHp}`,
     `alive=${unit.alive}`,
     `pos=${unit.position.q},${unit.position.r}`,

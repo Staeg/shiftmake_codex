@@ -3,10 +3,10 @@ import {
   applyContestPlayerProgress,
   applyScheduledUnlockToContestProgress,
   assignTroopToRift,
-  claimFactionUnlockOffer,
+  claimRaceUnlockOffer,
   claimOpeningTroop,
   claimTroopOffer,
-  claimTroopTypeUnlockOffer,
+  claimTroopClassUnlockOffer,
   claimUpgradeOffer,
   clearTroopAssignment,
   extractContestPlayerProgress,
@@ -25,7 +25,7 @@ import type {
   ContestPlayerId,
   ContestPlayerState,
   ContestRiftController,
-  FactionId,
+  RaceId,
   GameState,
   TroopId,
   TroopUnlockId,
@@ -57,7 +57,7 @@ export interface ContestMultiplayerSubmission {
   cycleNumber: number;
   phase: GameState['phase'];
   selectedStartingTroopUnlockIds: TroopUnlockId[];
-  selectedFactionIds: FactionId[];
+  selectedRaceIds: RaceId[];
   selectedTroopUnlockIds: TroopUnlockId[];
   selectedUpgradeIds: UpgradeId[];
   troopAssignments: ContestTroopAssignmentSubmission[];
@@ -161,10 +161,10 @@ function swapBattleInputSides(input: BattleInput, sideParticipants: BattleSidePa
       player: sideParticipants.enemy,
       enemy: sideParticipants.player,
     },
-    playerFactionUpgradeIds: input.enemyFactionUpgradeIds,
-    playerTroopTypeUpgradeIds: input.enemyTroopTypeUpgradeIds,
-    enemyFactionUpgradeIds: input.playerFactionUpgradeIds,
-    enemyTroopTypeUpgradeIds: input.playerTroopTypeUpgradeIds,
+    playerRaceUpgradeIds: input.enemyRaceUpgradeIds,
+    playerTroopClassUpgradeIds: input.enemyTroopClassUpgradeIds,
+    enemyRaceUpgradeIds: input.playerRaceUpgradeIds,
+    enemyTroopClassUpgradeIds: input.playerTroopClassUpgradeIds,
     playerCombatants: withCombatantSide(input.enemyCombatants, 'player'),
     enemyCombatants: withCombatantSide(input.playerCombatants, 'enemy'),
   };
@@ -240,6 +240,10 @@ export function projectReplayIndexForPlayer(
     const swapped = entry.playerTroopLabels.join('|') !== playerTroopLabels.join('|') && entry.enemyTroopLabels?.join('|') === playerTroopLabels.join('|');
     const finalPlayerAlive = swapped ? entry.finalEnemyAlive : entry.finalPlayerAlive;
     const finalEnemyAlive = swapped ? entry.finalPlayerAlive : entry.finalEnemyAlive;
+    const finalPlayerHp = swapped ? entry.finalEnemyHp : entry.finalPlayerHp;
+    const finalPlayerMaxHp = swapped ? entry.finalEnemyMaxHp : entry.finalPlayerMaxHp;
+    const finalEnemyHp = swapped ? entry.finalPlayerHp : entry.finalEnemyHp;
+    const finalEnemyMaxHp = swapped ? entry.finalPlayerMaxHp : entry.finalEnemyMaxHp;
     const outcome = outcomeFromFinalAliveCounts(
       finalPlayerAlive,
       finalEnemyAlive,
@@ -254,6 +258,10 @@ export function projectReplayIndexForPlayer(
       enemyTroopLabels,
       finalPlayerAlive,
       finalEnemyAlive,
+      finalPlayerHp,
+      finalPlayerMaxHp,
+      finalEnemyHp,
+      finalEnemyMaxHp,
       summary:
         finalPlayerAlive !== undefined && finalEnemyAlive !== undefined
           ? `${outcome.toUpperCase()} ${finalPlayerAlive}-${finalEnemyAlive}`
@@ -324,7 +332,7 @@ export function projectContestRoomStateForPlayer(
 }
 
 function troopUnlockIdFromTroop(troop: GameState['troops'][number]): TroopUnlockId {
-  return `${troop.factionId}/${troop.unitTypeId}` as TroopUnlockId;
+  return `${troop.raceId}/${troop.unitClassId}` as TroopUnlockId;
 }
 
 function uniqueInOrder<T>(items: T[]): T[] {
@@ -337,9 +345,9 @@ export function buildContestMultiplayerSubmission(state: GameState): ContestMult
     cycleNumber: state.cycleNumber,
     phase: state.phase,
     selectedStartingTroopUnlockIds: uniqueInOrder(state.troops.map(troopUnlockIdFromTroop)),
-    selectedFactionIds: uniqueInOrder(state.unlockedFactionIds),
+    selectedRaceIds: uniqueInOrder(state.unlockedRaceIds),
     selectedTroopUnlockIds: uniqueInOrder(state.troops.map(troopUnlockIdFromTroop)),
-    selectedUpgradeIds: uniqueInOrder([...state.factionUpgradeIds, ...state.troopTypeUpgradeIds]),
+    selectedUpgradeIds: uniqueInOrder([...state.raceUpgradeIds, ...state.troopClassUpgradeIds]),
     troopAssignments: state.troops.map((troop) => ({ troopId: troop.id, riftId: troop.assignmentRiftId })),
     endCycleConfirmed: state.phase === 'planning',
   };
@@ -373,7 +381,7 @@ function applyOpeningSubmission(projected: GameState, submission: ContestMultipl
     return rejectSubmission('Opening submissions can only choose starting troops.');
   }
 
-  let next = { ...projected, troops: [], unlockedFactionIds: [] };
+  let next = { ...projected, troops: [], unlockedRaceIds: [] };
   for (const troopUnlockId of uniqueInOrder(submission.selectedStartingTroopUnlockIds)) {
     const applied = claimOpeningTroop(next, troopUnlockId);
     if (applied === next) {
@@ -387,22 +395,22 @@ function applyOpeningSubmission(projected: GameState, submission: ContestMultipl
   return { ok: true, projectedState: next };
 }
 
-function applyScheduledFactionSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+function applyScheduledRaceSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
   if (submission.troopAssignments.some((assignment) => assignment.riftId !== null)) {
     return rejectSubmission('Troops cannot be assigned during a scheduled unlock.');
   }
-  const selectedFactionIds = additionalSelectedIds(projected.unlockedFactionIds, submission.selectedFactionIds);
-  if (selectedFactionIds.length !== 1) {
-    return rejectSubmission('Choose exactly one scheduled faction unlock.');
+  const selectedRaceIds = additionalSelectedIds(projected.unlockedRaceIds, submission.selectedRaceIds);
+  if (selectedRaceIds.length !== 1) {
+    return rejectSubmission('Choose exactly one scheduled race unlock.');
   }
-  const next = claimFactionUnlockOffer(projected, selectedFactionIds[0]!);
+  const next = claimRaceUnlockOffer(projected, selectedRaceIds[0]!);
   if (next === projected) {
-    return rejectSubmission(`Faction ${selectedFactionIds[0]} is not a legal scheduled unlock.`);
+    return rejectSubmission(`Race ${selectedRaceIds[0]} is not a legal scheduled unlock.`);
   }
   return { ok: true, projectedState: next };
 }
 
-function applyScheduledTroopTypeSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
+function applyScheduledTroopClassSubmission(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
   if (submission.troopAssignments.some((assignment) => assignment.riftId !== null)) {
     return rejectSubmission('Troops cannot be assigned during a scheduled unlock.');
   }
@@ -410,14 +418,14 @@ function applyScheduledTroopTypeSubmission(projected: GameState, submission: Con
   let next = projected;
   const selectedTroopUnlockIds = additionalSelectedIds(projected.troops.map(troopUnlockIdFromTroop), submission.selectedTroopUnlockIds);
   for (const troopUnlockId of selectedTroopUnlockIds) {
-    const applied = claimTroopTypeUnlockOffer(next, troopUnlockId);
+    const applied = claimTroopClassUnlockOffer(next, troopUnlockId);
     if (applied === next) {
-      return rejectSubmission(`Troop type ${troopUnlockId} is not a legal scheduled unlock.`);
+      return rejectSubmission(`Troop class ${troopUnlockId} is not a legal scheduled unlock.`);
     }
     next = applied;
   }
-  if (next.phase === 'troop_type_unlock') {
-    return rejectSubmission('Finish all scheduled troop type choices before submitting.');
+  if (next.phase === 'troop_class_unlock') {
+    return rejectSubmission('Finish all scheduled troop class choices before submitting.');
   }
   return { ok: true, projectedState: next };
 }
@@ -425,7 +433,7 @@ function applyScheduledTroopTypeSubmission(projected: GameState, submission: Con
 function applyPlanningDraftChoices(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
   let next = projected;
   const troopChoices = additionalSelectedIds(projected.troops.map(troopUnlockIdFromTroop), submission.selectedTroopUnlockIds);
-  const upgradeChoices = additionalSelectedIds([...projected.factionUpgradeIds, ...projected.troopTypeUpgradeIds], submission.selectedUpgradeIds);
+  const upgradeChoices = additionalSelectedIds([...projected.raceUpgradeIds, ...projected.troopClassUpgradeIds], submission.selectedUpgradeIds);
   let guard = 0;
 
   while (troopChoices.length > 0 || upgradeChoices.length > 0) {
@@ -523,9 +531,9 @@ function applyPlanningSubmission(projected: GameState, submission: ContestMultip
   if (submission.phase !== 'planning' || !submission.endCycleConfirmed) {
     return rejectSubmission('Planning submissions must explicitly end the cycle.');
   }
-  const extraFactionIds = additionalSelectedIds(projected.unlockedFactionIds, submission.selectedFactionIds);
-  if (extraFactionIds.length > 0) {
-    return rejectSubmission('Faction unlocks cannot be submitted during planning.');
+  const extraRaceIds = additionalSelectedIds(projected.unlockedRaceIds, submission.selectedRaceIds);
+  if (extraRaceIds.length > 0) {
+    return rejectSubmission('Race unlocks cannot be submitted during planning.');
   }
 
   const draft = applyPlanningDraftChoices(projected, submission);
@@ -561,11 +569,11 @@ export function validateAndApplyContestSubmission(
   if (state.phase === 'opening_unlock') {
     return applyOpeningSubmission(projected, submission);
   }
-  if (state.phase === 'faction_unlock') {
-    return applyScheduledFactionSubmission(projected, submission);
+  if (state.phase === 'race_unlock') {
+    return applyScheduledRaceSubmission(projected, submission);
   }
-  if (state.phase === 'troop_type_unlock') {
-    return applyScheduledTroopTypeSubmission(projected, submission);
+  if (state.phase === 'troop_class_unlock') {
+    return applyScheduledTroopClassSubmission(projected, submission);
   }
   if (state.phase === 'planning') {
     return applyPlanningSubmission(projected, submission);
@@ -590,13 +598,13 @@ function startSubmittedContest(state: GameState): GameState {
 function clearScheduledUnlockProgress(progress: ContestPlayerState): ContestPlayerState {
   return {
     ...progress,
-    activeFactionUnlockOffer: null,
-    activeTroopTypeUnlockOffer: null,
+    activeRaceUnlockOffer: null,
+    activeTroopClassUnlockOffer: null,
   };
 }
 
 function buildScheduledUnlockBaseState(state: GameState): GameState {
-  if (state.phase !== 'faction_unlock') {
+  if (state.phase !== 'race_unlock') {
     return state;
   }
 
@@ -605,8 +613,8 @@ function buildScheduledUnlockBaseState(state: GameState): GameState {
     {
       ...state,
       phase: 'planning',
-      activeFactionUnlockOffer: null,
-      activeTroopTypeUnlockOffer: null,
+      activeRaceUnlockOffer: null,
+      activeTroopClassUnlockOffer: null,
     },
   );
 }
@@ -627,7 +635,7 @@ function applyScheduledUnlocksToBothPlayers(state: GameState): GameState {
   ) as Record<ContestPlayerId, ContestPlayerState>;
 
   const next = PLAYER_IDS.reduce((current, playerId) => applyContestPlayerProgress(current, playerId, progressByPlayer[playerId]), base);
-  const scheduledPhase = progressByPlayer.human.activeFactionUnlockOffer || progressByPlayer.ai.activeFactionUnlockOffer ? 'faction_unlock' : base.phase;
+  const scheduledPhase = progressByPlayer.human.activeRaceUnlockOffer || progressByPlayer.ai.activeRaceUnlockOffer ? 'race_unlock' : base.phase;
   return {
     ...next,
     phase: scheduledPhase,

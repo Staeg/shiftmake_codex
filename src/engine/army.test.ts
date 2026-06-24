@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTroopInstance, getResolvedStatBreakdowns, getTroopQuantityBreakdown, resolveEnemyCombatant, resolveTroopCombatant } from './army';
-import { composeBaseTroopDefinition, getAbility, getFactionNativeTroopUnlockIds, getSummonedUnitPreviews, getTroopQuantityForCost, isNativeTroopUnlockId } from './unitCatalog';
+import { composeBaseTroopDefinition, getAbility, getRaceNativeTroopUnlockIds, getSummonedUnitPreviews, getTroopQuantityForCost, isNativeTroopUnlockId } from './unitCatalog';
 
 describe('troop composition', () => {
   it('derives troop quantity from 120 divided by resolved troop cost', () => {
@@ -39,30 +39,30 @@ describe('troop composition', () => {
     const skeleton = getSummonedUnitPreviews(getAbility('corpse-summon-skeleton-rising'), 'troll')[0]!;
     const elemental = getSummonedUnitPreviews(getAbility('charge-4-summon-elemental-mitosis'), 'elf')[0]!;
 
-    expect(wolf.troop.unitTypeId).toBe('wolf');
+    expect(wolf.troop.unitClassId).toBe('wolf');
     expect(bloodWolf.troop.abilities.map((ability) => ability.id)).toContain('onkill-summon-wolf-1');
     expect(skeleton.troop.abilities.map((ability) => ability.id)).toContain('heal-ally-0-7');
     expect(elemental.troop.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });
 
   it('does not include Troll Soldiers in the Troll native troop pool', () => {
-    expect(getFactionNativeTroopUnlockIds('troll')).not.toContain('troll/soldier');
+    expect(getRaceNativeTroopUnlockIds('troll')).not.toContain('troll/soldier');
     expect(isNativeTroopUnlockId('troll/soldier')).toBe(false);
   });
 
-  it('does not apply faction range bonuses or penalties to melee units', () => {
+  it('does not apply race range bonuses or penalties to melee units', () => {
     expect(composeBaseTroopDefinition('elf', 'soldier').stats.range).toBe(0);
     expect(composeBaseTroopDefinition('goblin', 'soldier').stats.range).toBe(0);
   });
 
-  it('still applies faction range changes to non-melee units and non-melee-only upgrades', () => {
+  it('still applies race range changes to non-melee units and non-melee-only upgrades', () => {
     expect(composeBaseTroopDefinition('elf', 'archer').stats.range).toBe(6);
     expect(composeBaseTroopDefinition('goblin', 'wizard').stats.range).toBe(4);
 
     const soldier = createTroopInstance('elf', 'soldier');
     const archer = createTroopInstance('elf', 'archer');
-    const soldierResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, soldier, 'player');
-    const archerResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, archer, 'player');
+    const soldierResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, soldier, 'player');
+    const archerResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, archer, 'player');
 
     expect(soldierResolved.stats.range).toBe(0);
     expect(archerResolved.stats.range).toBe(7);
@@ -70,7 +70,7 @@ describe('troop composition', () => {
 
   it('does not grant backline-only Elven Reflexes abilities to Elven Champions', () => {
     const champion = createTroopInstance('elf', 'champion');
-    const championResolved = resolveTroopCombatant({ factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] }, champion, 'player');
+    const championResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, champion, 'player');
 
     expect(championResolved.stats.range).toBe(0);
     expect(championResolved.abilities.map((ability) => ability.id)).not.toContain('fade-into-shadow');
@@ -79,14 +79,14 @@ describe('troop composition', () => {
   it('only applies enemy stat scaling at tier 4 and leaves tier 3 at base stats', () => {
     const humanSoldierBase = composeBaseTroopDefinition('human', 'soldier');
     const tier3Breakdowns = getResolvedStatBreakdowns(
-      { factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       3,
     );
     const tier3Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 3, 'enemy-1');
     const tier4Breakdowns = getResolvedStatBreakdowns(
-      { factionUpgradeIds: ['elf-elven-reflexes'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       4,

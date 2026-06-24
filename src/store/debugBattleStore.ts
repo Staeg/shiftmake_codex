@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { resolveDebugBattle } from '../engine/battle';
-import { getTroopStartingQuantity, TROOP_TYPE_IDS } from '../engine/unitCatalog';
-import type { BattleReplay, TroopTypeId } from '../engine/types';
+import { getTroopStartingQuantity, UNIT_CLASS_IDS } from '../engine/unitCatalog';
+import type { BattleReplay, UnitClassId } from '../engine/types';
 import type { ArmyDebugSelection } from '../engine/debugTypes';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
 
@@ -9,10 +9,10 @@ interface DebugState {
   player: ArmyDebugSelection;
   enemy: ArmyDebugSelection;
   seedInput: string;
-  playerFactionUpgradeIds: string[];
-  playerTroopTypeUpgradeIds: string[];
-  enemyFactionUpgradeIds: string[];
-  enemyTroopTypeUpgradeIds: string[];
+  playerRaceUpgradeIds: string[];
+  playerTroopClassUpgradeIds: string[];
+  enemyRaceUpgradeIds: string[];
+  enemyTroopClassUpgradeIds: string[];
   replay: BattleReplay | null;
   currentStep: number;
   selectedEvent: number | null;
@@ -21,7 +21,7 @@ interface DebugState {
 }
 
 function createDefaultArmy(): ArmyDebugSelection {
-  const defaults = Object.fromEntries(TROOP_TYPE_IDS.map((troopId) => [troopId, 0])) as ArmyDebugSelection;
+  const defaults = Object.fromEntries(UNIT_CLASS_IDS.map((troopId) => [troopId, 0])) as ArmyDebugSelection;
 
   if ('human/soldier' in defaults) {
     defaults['human/soldier'] = getTroopStartingQuantity('human/soldier');
@@ -42,10 +42,10 @@ const initialState: DebugState = {
   player: { ...DEFAULT_ARMY },
   enemy: { ...DEFAULT_ARMY },
   seedInput: '',
-  playerFactionUpgradeIds: [],
-  playerTroopTypeUpgradeIds: [],
-  enemyFactionUpgradeIds: [],
-  enemyTroopTypeUpgradeIds: [],
+  playerRaceUpgradeIds: [],
+  playerTroopClassUpgradeIds: [],
+  enemyRaceUpgradeIds: [],
+  enemyTroopClassUpgradeIds: [],
   replay: null,
   currentStep: -1,
   selectedEvent: null,
@@ -69,10 +69,10 @@ function makeReplay(state: DebugState): BattleReplay {
     seed: parseSeed(state.seedInput),
     player: state.player,
     enemy: state.enemy,
-    playerFactionUpgradeIds: state.playerFactionUpgradeIds,
-    playerTroopTypeUpgradeIds: state.playerTroopTypeUpgradeIds,
-    enemyFactionUpgradeIds: state.enemyFactionUpgradeIds,
-    enemyTroopTypeUpgradeIds: state.enemyTroopTypeUpgradeIds,
+    playerRaceUpgradeIds: state.playerRaceUpgradeIds,
+    playerTroopClassUpgradeIds: state.playerTroopClassUpgradeIds,
+    enemyRaceUpgradeIds: state.enemyRaceUpgradeIds,
+    enemyTroopClassUpgradeIds: state.enemyTroopClassUpgradeIds,
   });
 }
 
@@ -85,7 +85,7 @@ export const debugBattleStore = (() => {
 
   return {
     subscribe,
-    setArmy(side: 'player' | 'enemy', key: TroopTypeId, value: number) {
+    setArmy(side: 'player' | 'enemy', key: UnitClassId, value: number) {
       update((state) => ({
         ...state,
         [side]: {
@@ -101,20 +101,20 @@ export const debugBattleStore = (() => {
       player: ArmyDebugSelection;
       enemy: ArmyDebugSelection;
       seedInput: string;
-      playerFactionUpgradeIds?: string[];
-      playerTroopTypeUpgradeIds?: string[];
-      enemyFactionUpgradeIds?: string[];
-      enemyTroopTypeUpgradeIds?: string[];
+      playerRaceUpgradeIds?: string[];
+      playerTroopClassUpgradeIds?: string[];
+      enemyRaceUpgradeIds?: string[];
+      enemyTroopClassUpgradeIds?: string[];
     }) {
       update((state) => ({
         ...state,
         player: { ...setup.player },
         enemy: { ...setup.enemy },
         seedInput: setup.seedInput,
-        playerFactionUpgradeIds: [...(setup.playerFactionUpgradeIds ?? [])],
-        playerTroopTypeUpgradeIds: [...(setup.playerTroopTypeUpgradeIds ?? [])],
-        enemyFactionUpgradeIds: [...(setup.enemyFactionUpgradeIds ?? [])],
-        enemyTroopTypeUpgradeIds: [...(setup.enemyTroopTypeUpgradeIds ?? [])],
+        playerRaceUpgradeIds: [...(setup.playerRaceUpgradeIds ?? [])],
+        playerTroopClassUpgradeIds: [...(setup.playerTroopClassUpgradeIds ?? [])],
+        enemyRaceUpgradeIds: [...(setup.enemyRaceUpgradeIds ?? [])],
+        enemyTroopClassUpgradeIds: [...(setup.enemyTroopClassUpgradeIds ?? [])],
         replay: null,
         currentStep: -1,
         selectedEvent: null,
@@ -142,10 +142,10 @@ export const debugBattleStore = (() => {
           seed: state.replay.seed,
           player: state.player,
           enemy: state.enemy,
-          playerFactionUpgradeIds: state.playerFactionUpgradeIds,
-          playerTroopTypeUpgradeIds: state.playerTroopTypeUpgradeIds,
-          enemyFactionUpgradeIds: state.enemyFactionUpgradeIds,
-          enemyTroopTypeUpgradeIds: state.enemyTroopTypeUpgradeIds,
+          playerRaceUpgradeIds: state.playerRaceUpgradeIds,
+          playerTroopClassUpgradeIds: state.playerTroopClassUpgradeIds,
+          enemyRaceUpgradeIds: state.enemyRaceUpgradeIds,
+          enemyTroopClassUpgradeIds: state.enemyTroopClassUpgradeIds,
         });
         return {
           ...state,

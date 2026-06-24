@@ -16,7 +16,7 @@ Status as of 2026-05-25:
 - Milestone 2: Completed. `src/engine/ladder.ts` validates compact Rift-sets, reports compatibility issues, converts valid payloads into `RiftInstance[]`, preserves Guardian upgrade snapshots, and builds harvested payloads from completed cycles.
 - Milestone 3: Completed for the implemented v1 path. `src/server/ladderRepository.ts` includes Postgres and memory repositories, reads `LADDER_DATABASE_URL` before `DATABASE_URL`, initializes the table/indexes, and exposes insert, draw, compatibility, appearances, spent, harvest child, list, and stats methods. Automated tests cover the isolated memory adapter; live Postgres verification remains an environment smoke check.
 - Milestone 4: Completed. Server startup initializes storage and idempotently seeds missing Generation 0 records to 5 sets per Cycle across Cycles 1-10.
-- Milestone 5: Completed. `POST /ladder/draw` draws valid unspent sets, inserts a Generation 0 fallback when needed, and the store draws Ladder Rifts after opening factions and after each non-final Ladder cycle. Draw does not increment appearances.
+- Milestone 5: Completed. `POST /ladder/draw` draws valid unspent sets, inserts a Generation 0 fallback when needed, and the store draws Ladder Rifts after opening races and after each non-final Ladder cycle. Draw does not increment appearances.
 - Milestone 6: Completed. `POST /ladder/harvest` increments parent appearances, marks parents spent with 50% probability, and creates child Rift-sets from conquered/unconquered Rift outcomes while reusing Campaign battle and replay resolution.
 - Milestone 7: Completed. Singleplayer save slots can start/replace/load Ladder saves, slot summaries show `Ladder`, and current Ladder source metadata persists in normal saves.
 - Milestone 8: Completed. The debug menu includes a Ladder database viewer with filters, row stats, compatibility issues, and expandable Rift payloads. Results are limited to 50 rows.
@@ -77,8 +77,8 @@ The JSONB payload stores the full Rift-set:
 - saturation
 - VP value
 - Guardian troop identities
-- player-origin Guardian faction upgrade ids
-- player-origin Guardian troop-type upgrade ids
+- player-origin Guardian race upgrade ids
+- player-origin Guardian troop-class upgrade ids
 
 ## Storage Estimates
 
@@ -118,23 +118,23 @@ Checks:
 Implementation:
 
 - Implement pure validation for stored Rift-sets.
-- Validate known faction ids.
-- Validate known unit type ids.
-- Validate known faction upgrade ids and troop-type upgrade ids.
+- Validate known race ids.
+- Validate known unit class ids.
+- Validate known race upgrade ids and troop-class upgrade ids.
 - Validate known mutator ids.
 - Validate Cycle number.
 - Validate tier, saturation, and VP numbers.
 - Validate that each Rift has non-empty valid Guardians.
 - Tag invalid records as incompatible instead of deleting them.
 - Implement conversion from valid Ladder Rift-set payloads into `RiftInstance[]`.
-- Store player-origin Guardians as troop identities plus `factionUpgradeIds` and `troopTypeUpgradeIds`.
+- Store player-origin Guardians as troop identities plus `raceUpgradeIds` and `troopClassUpgradeIds`.
 - Resolve player-origin Guardians at battle time through existing engine rules.
 
 Checks:
 
 - Valid generated baseline sets convert into playable `RiftInstance[]`.
-- Unknown faction ids produce compatibility issues.
-- Unknown unit type ids produce compatibility issues.
+- Unknown race ids produce compatibility issues.
+- Unknown unit class ids produce compatibility issues.
 - Unknown upgrade ids produce compatibility issues.
 - Unknown mutator ids produce compatibility issues.
 - Incompatible sets are excluded from player draws.
@@ -190,7 +190,7 @@ Implementation:
 - Draw one valid unspent Rift-set for the requested Cycle.
 - If no valid unspent set exists for a Cycle, generate and insert a fresh Generation 0 fallback before drawing.
 - Add a store-side Ladder client for draw requests.
-- Start Ladder saves like Campaign, but populate `openRifts` from the drawn Rift-set after opening factions.
+- Start Ladder saves like Campaign, but populate `openRifts` from the drawn Rift-set after opening races.
 - On each Ladder Cycle transition, draw the next Cycle's valid Rift-set.
 - Do not increment appearances during draw; appearances increments when the Cycle finishes.
 
@@ -213,7 +213,7 @@ Implementation:
 - On Ladder Cycle completion, mark the parent `spent = true` with 50% probability.
 - Create a child Rift-set with `generation = parent.generation + 1`.
 - For conquered Rifts, replace Guardians with the Troops the player assigned there.
-- Store conquered Guardian troop identities with all current player faction and troop-type upgrade ids.
+- Store conquered Guardian troop identities with all current player race and troop-class upgrade ids.
 - For Rifts the player did not send Troops to, retain the original Guardians.
 - Use the same battle and replay resolution path as Campaign.
 
@@ -223,8 +223,8 @@ Checks:
 - Parent spent marking happens at the requested 50% probability.
 - Harvested child preserves all Rifts from the parent set.
 - Conquered Rifts store player Guardian troop identities.
-- Conquered Rifts store faction upgrade ids.
-- Conquered Rifts store troop-type upgrade ids.
+- Conquered Rifts store race upgrade ids.
+- Conquered Rifts store troop-class upgrade ids.
 - Unplayed Rifts retain original Guardian identities.
 - Child generation is exactly parent generation plus 1.
 - Child source id is the parent id.

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
-import { claimOpeningTroop, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
+import { claimOpeningTroop, getOpeningRaceOptionIds, getOpeningRaceStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
 import { generateBaselineLadderPayload } from '../engine/ladder';
 import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId, UpgradeId } from '../engine/types';
 import { gameStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
@@ -149,13 +149,13 @@ function currentStoreState<T>(): T {
 }
 
 function getOpeningPair(state: GameState): [TroopUnlockId, TroopUnlockId] {
-  const startersByFactionId = getOpeningFactionStarterTroopUnlockIds(state);
-  const candidates = getOpeningFactionOptionIds(state).map((factionId) => startersByFactionId[factionId]);
+  const startersByRaceId = getOpeningRaceStarterTroopUnlockIds(state);
+  const candidates = getOpeningRaceOptionIds(state).map((raceId) => startersByRaceId[raceId]);
   const firstTroopUnlockId = candidates[0]!;
-  const [firstFactionId, firstUnitTypeId] = firstTroopUnlockId.split('/');
+  const [firstRaceId, firstUnitClassId] = firstTroopUnlockId.split('/');
   const secondTroopUnlockId = candidates.find((troopUnlockId) => {
-    const [factionId, unitTypeId] = troopUnlockId.split('/');
-    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+    const [raceId, unitClassId] = troopUnlockId.split('/');
+    return raceId !== firstRaceId && unitClassId !== firstUnitClassId;
   })!;
   return [firstTroopUnlockId, secondTroopUnlockId];
 }
@@ -290,20 +290,20 @@ describe('gameStore progression flow', () => {
       'shiftmake:slot:3:save:v3',
       serializeGameState({
         ...opened,
-        unlockedFactionIds: [...opened.unlockedFactionIds, 'retired-faction'],
-        unlockedTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'],
+        unlockedRaceIds: [...opened.unlockedRaceIds, 'retired-race'],
+        unlockedTroopUnlockIds: ['human/soldier', 'retired-race/soldier'],
         troops: [
           ...opened.troops,
           {
-            id: 'retired-faction/soldier',
-            factionId: 'retired-faction',
-            unitTypeId: 'soldier',
+            id: 'retired-race/soldier',
+            raceId: 'retired-race',
+            unitClassId: 'soldier',
             recoveryCyclesRemaining: 0,
             assignmentRiftId: null,
           },
         ],
-        factionUpgradeIds: ['retired-upgrade'],
-        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'] },
+        raceUpgradeIds: ['retired-upgrade'],
+        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-race/soldier'] },
         openRifts: [
           {
             ...opened.openRifts[0]!,
@@ -311,12 +311,12 @@ describe('gameStore progression flow', () => {
               ...opened.openRifts[0]!.enemyArmy,
               {
                 combatantId: 'retired-enemy',
-                factionId: 'retired-faction',
-                unitTypeId: 'soldier',
+                raceId: 'retired-race',
+                unitClassId: 'soldier',
                 troopInstanceId: null,
                 label: 'Retired Enemy',
                 role: 'frontline',
-                type: 'soldier',
+                unitClassTag: 'soldier',
                 attributes: [],
                 stats: { health: 1, damage: 1, speed: 1, armor: 0, range: 0, capacity: 1, size: 1 },
                 abilities: [],
@@ -335,12 +335,12 @@ describe('gameStore progression flow', () => {
 
     const state = currentStoreState<{ systemMessage: string | null }>();
     expect(state.systemMessage).toContain('System Notice');
-    expect(state.systemMessage).toContain('Missing factions: retired-faction');
-    expect(state.systemMessage).toContain('Missing troop unlocks: retired-faction/soldier');
-    expect(state.systemMessage).toContain('Missing troop instances: retired-faction/soldier');
+    expect(state.systemMessage).toContain('Missing races: retired-race');
+    expect(state.systemMessage).toContain('Missing troop unlocks: retired-race/soldier');
+    expect(state.systemMessage).toContain('Missing troop instances: retired-race/soldier');
     expect(state.systemMessage).toContain('Missing upgrades: retired-upgrade');
     expect(state.systemMessage).toContain('Missing Rift enemies: Retired Enemy');
-    expect(state.systemMessage).toContain('Missing draft options: retired-faction/soldier');
+    expect(state.systemMessage).toContain('Missing draft options: retired-race/soldier');
   });
 
   it('exits tutorial mode and clears persisted tutorial progress', () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RawData } from 'ws';
-import { claimOpeningTroop, getOpeningFactionStarterTroopUnlockIds, startNewGame } from '../engine/game';
+import { claimOpeningTroop, getOpeningRaceStarterTroopUnlockIds, startNewGame } from '../engine/game';
 import { buildContestMultiplayerSubmission, projectContestStateForPlayer } from '../engine/multiplayerContest';
 import type { GameState, TroopUnlockId } from '../engine/types';
 import { contestMultiplayerServerInternals } from './contestMultiplayerServer';
@@ -68,7 +68,7 @@ function latestError(socket: FakeSocket): ErrorMessage {
 }
 
 function chooseFirstTwoOpeningTroops(state: GameState): GameState {
-  const starters = Object.values(getOpeningFactionStarterTroopUnlockIds(state)) as TroopUnlockId[];
+  const starters = Object.values(getOpeningRaceStarterTroopUnlockIds(state)) as TroopUnlockId[];
   return starters.slice(0, 2).reduce((next, troopUnlockId) => claimOpeningTroop(next, troopUnlockId), state);
 }
 

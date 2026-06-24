@@ -1,6 +1,6 @@
 import { Texture } from 'pixi.js';
-import type { BattleReportDiagnostic, FactionId, UnitTypeId } from '../engine/types';
-import { buildColorMap, FACTION_PALETTES, loadImage, recolorImageToCanvas, UNIT_SPRITE_URLS } from './unitVisualAssets';
+import type { BattleReportDiagnostic, RaceId, UnitClassId } from '../engine/types';
+import { buildColorMap, RACE_PALETTES, loadImage, recolorImageToCanvas, UNIT_SPRITE_URLS } from './unitVisualAssets';
 
 type DiagnosticSink = (diagnostic: BattleReportDiagnostic) => void;
 
@@ -8,46 +8,46 @@ function recolorImage(image: HTMLImageElement, colorMap: Map<string, [number, nu
   return Texture.from(recolorImageToCanvas(image, colorMap));
 }
 
-export async function loadFactionUnitTextures(onDiagnostic?: DiagnosticSink): Promise<Record<string, Texture>> {
-  const unitTypeIds = Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[];
+export async function loadRaceUnitTextures(onDiagnostic?: DiagnosticSink): Promise<Record<string, Texture>> {
+  const unitClassIds = Object.keys(UNIT_SPRITE_URLS) as UnitClassId[];
   const images = await Promise.all(
-    unitTypeIds.map(async (unitTypeId) => {
+    unitClassIds.map(async (unitClassId) => {
       try {
-        return [unitTypeId, await loadImage(UNIT_SPRITE_URLS[unitTypeId])] as const;
+        return [unitClassId, await loadImage(UNIT_SPRITE_URLS[unitClassId])] as const;
       } catch (error) {
         onDiagnostic?.({
           source: 'assets',
           severity: 'error',
           code: 'unit_sprite_load_failed',
-          message: error instanceof Error ? error.message : `Failed to load unit sprite: ${unitTypeId}`,
-          textureKey: unitTypeId,
-          assetUrl: UNIT_SPRITE_URLS[unitTypeId],
+          message: error instanceof Error ? error.message : `Failed to load unit sprite: ${unitClassId}`,
+          textureKey: unitClassId,
+          assetUrl: UNIT_SPRITE_URLS[unitClassId],
         });
-        return [unitTypeId, null] as const;
+        return [unitClassId, null] as const;
       }
     }),
   );
 
-  const byUnitType = new Map<UnitTypeId, HTMLImageElement | null>(images);
+  const byUnitClass = new Map<UnitClassId, HTMLImageElement | null>(images);
   const textures: Record<string, Texture> = {};
 
-  unitTypeIds.forEach((unitTypeId) => {
-    const image = byUnitType.get(unitTypeId);
+  unitClassIds.forEach((unitClassId) => {
+    const image = byUnitClass.get(unitClassId);
     if (!image) {
       onDiagnostic?.({
         source: 'assets',
         severity: 'warning',
         code: 'unit_sprite_texture_unavailable',
-        message: `No base sprite was available for ${unitTypeId}; affected units will use renderer fallback textures.`,
-        textureKey: unitTypeId,
-        assetUrl: UNIT_SPRITE_URLS[unitTypeId],
+        message: `No base sprite was available for ${unitClassId}; affected units will use renderer fallback textures.`,
+        textureKey: unitClassId,
+        assetUrl: UNIT_SPRITE_URLS[unitClassId],
       });
       return;
     }
 
-    (Object.keys(FACTION_PALETTES) as FactionId[]).forEach((factionId) => {
-      const textureKey = `${factionId}/${unitTypeId}`;
-      textures[textureKey] = recolorImage(image, buildColorMap(unitTypeId, factionId));
+    (Object.keys(RACE_PALETTES) as RaceId[]).forEach((raceId) => {
+      const textureKey = `${raceId}/${unitClassId}`;
+      textures[textureKey] = recolorImage(image, buildColorMap(unitClassId, raceId));
     });
   });
 

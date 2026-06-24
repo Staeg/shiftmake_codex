@@ -1,36 +1,36 @@
-import { applyStatModifier, composeBaseTroopDefinition, FACTION_UPGRADES, getAbility, getFactionNativeTroopUnlockIds, TROOP_TYPE_UPGRADES } from './unitCatalog';
+import { applyStatModifier, composeBaseTroopDefinition, RACE_UPGRADES, getAbility, getRaceNativeTroopUnlockIds, TROOP_CLASS_UPGRADES } from './unitCatalog';
 export function getAllUpgradeIds() {
-    return [...Object.keys(FACTION_UPGRADES), ...Object.keys(TROOP_TYPE_UPGRADES)];
+    return [...Object.keys(RACE_UPGRADES), ...Object.keys(TROOP_CLASS_UPGRADES)];
 }
 export function getUnownedUpgradeIds(state) {
-    return getAllUpgradeIds().filter((upgradeId) => !state.factionUpgradeIds.includes(upgradeId) && !state.troopTypeUpgradeIds.includes(upgradeId));
+    return getAllUpgradeIds().filter((upgradeId) => !state.raceUpgradeIds.includes(upgradeId) && !state.troopClassUpgradeIds.includes(upgradeId));
 }
 export function getClaimableTroopUnlockIds(state) {
-    const unlockedFactionIds = new Set(state.unlockedFactionIds);
-    const nativeTroopUnlockIds = state.unlockedFactionIds.flatMap((factionId) => getFactionNativeTroopUnlockIds(factionId));
+    const unlockedRaceIds = new Set(state.unlockedRaceIds);
+    const nativeTroopUnlockIds = state.unlockedRaceIds.flatMap((raceId) => getRaceNativeTroopUnlockIds(raceId));
     const latentTroopUnlockIds = state.unlockedTroopUnlockIds.filter((troopUnlockId) => {
-        const [factionId] = troopUnlockId.split('/');
-        return unlockedFactionIds.has(factionId);
+        const [raceId] = troopUnlockId.split('/');
+        return unlockedRaceIds.has(raceId);
     });
     return [...new Set([...nativeTroopUnlockIds, ...latentTroopUnlockIds])];
 }
 export function getOwnedTroopUnlockIds(state) {
-    return state.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}`);
+    return state.troops.map((troop) => `${troop.raceId}/${troop.unitClassId}`);
 }
 export function getAvailableTroopUnlockIds(state) {
     const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
     return getClaimableTroopUnlockIds(state).filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
 }
 export function describeTroopUnlock(troopUnlockId) {
-    const [factionId, unitTypeId] = troopUnlockId.split('/');
-    return composeBaseTroopDefinition(factionId, unitTypeId).label;
+    const [raceId, unitClassId] = troopUnlockId.split('/');
+    return composeBaseTroopDefinition(raceId, unitClassId).label;
 }
 function hasRangedOrCasterTag(troop) {
-    const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+    const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
     return definition.attributes.includes('ranged') || definition.attributes.includes('caster');
 }
 function canAbilityAffectTroop(abilityId, troop) {
-    const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+    const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
     if (abilityId === 'fade-into-shadow') {
         return definition.role === 'backline';
     }
@@ -39,12 +39,12 @@ function canAbilityAffectTroop(abilityId, troop) {
     }
     return true;
 }
-function factionUpgradeAffectsTroop(upgradeId, troop) {
-    const upgrade = FACTION_UPGRADES[upgradeId];
-    if (!upgrade || upgrade.factionId !== troop.factionId) {
+function raceUpgradeAffectsTroop(upgradeId, troop) {
+    const upgrade = RACE_UPGRADES[upgradeId];
+    if (!upgrade || upgrade.raceId !== troop.raceId) {
         return false;
     }
-    const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+    const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
     return upgrade.effects.some((effect) => {
         if (effect.kind === 'addAbility') {
             return canAbilityAffectTroop(effect.abilityId, troop) && !definition.abilities.some((ability) => ability.id === getAbility(effect.abilityId).id);
@@ -59,12 +59,12 @@ function factionUpgradeAffectsTroop(upgradeId, troop) {
         return Object.keys(effect.statModifiers).some((stat) => modified[stat] !== definition.stats[stat]);
     });
 }
-function troopTypeUpgradeAffectsTroop(upgradeId, troop) {
-    const upgrade = TROOP_TYPE_UPGRADES[upgradeId];
-    if (!upgrade || upgrade.unitTypeId !== troop.unitTypeId) {
+function troopClassUpgradeAffectsTroop(upgradeId, troop) {
+    const upgrade = TROOP_CLASS_UPGRADES[upgradeId];
+    if (!upgrade || upgrade.unitClassId !== troop.unitClassId) {
         return false;
     }
-    const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+    const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
     return upgrade.effects.some((effect) => {
         if (effect.kind === 'addAbility') {
             return !definition.abilities.some((ability) => ability.id === getAbility(effect.abilityId).id);
@@ -81,9 +81,9 @@ function troopTypeUpgradeAffectsTroop(upgradeId, troop) {
     });
 }
 export function upgradeAffectsTroop(upgradeId, troop) {
-    if (upgradeId in FACTION_UPGRADES) {
-        return factionUpgradeAffectsTroop(upgradeId, troop);
+    if (upgradeId in RACE_UPGRADES) {
+        return raceUpgradeAffectsTroop(upgradeId, troop);
     }
-    return troopTypeUpgradeAffectsTroop(upgradeId, troop);
+    return troopClassUpgradeAffectsTroop(upgradeId, troop);
 }
 //# sourceMappingURL=upgrades.js.map

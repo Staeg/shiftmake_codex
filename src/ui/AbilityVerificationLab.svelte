@@ -122,10 +122,10 @@
       player: targetScenario.player,
       enemy: targetScenario.enemy,
       seedInput: String(targetScenario.seed),
-      playerFactionUpgradeIds: targetScenario.playerFactionUpgradeIds,
-      playerTroopTypeUpgradeIds: targetScenario.playerTroopTypeUpgradeIds,
-      enemyFactionUpgradeIds: targetScenario.enemyFactionUpgradeIds,
-      enemyTroopTypeUpgradeIds: targetScenario.enemyTroopTypeUpgradeIds,
+      playerRaceUpgradeIds: targetScenario.playerRaceUpgradeIds,
+      playerTroopClassUpgradeIds: targetScenario.playerTroopClassUpgradeIds,
+      enemyRaceUpgradeIds: targetScenario.enemyRaceUpgradeIds,
+      enemyTroopClassUpgradeIds: targetScenario.enemyTroopClassUpgradeIds,
     });
     if (runBattle) {
       debugBattleStore.runBattle();

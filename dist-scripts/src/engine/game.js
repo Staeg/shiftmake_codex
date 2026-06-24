@@ -1,12 +1,12 @@
 import { buildBattleInputFromResolvedCombatants, resolveBattle } from './battle';
-import { createTroopInstance, DEFEAT_RECOVERY, getTroopById, getTroopsAssignedToRift, isFactionUnited, resolveTroopCombatant, tickRecovery, VICTORY_RECOVERY, } from './army';
+import { createTroopInstance, DEFEAT_RECOVERY, getTroopById, getTroopsAssignedToRift, isRaceUnited, resolveTroopCombatant, tickRecovery, VICTORY_RECOVERY, } from './army';
 import { fixed } from './fixed';
 import { createRng } from './rng';
 import { deserializeGameState, serializeGameState } from './save';
 import { deriveSeed, generateContestCycleRifts, generateCycleRifts } from './rift';
-import { FACTION_UPGRADES, FACTIONS, TROOP_TYPE_UPGRADES, NATIVE_TROOP_UNLOCK_IDS, getFaction, getFactionNativeTroopUnlockIds, getUnitType, isNativeTroopUnlockId, } from './unitCatalog';
+import { RACE_UPGRADES, RACES, TROOP_CLASS_UPGRADES, NATIVE_TROOP_UNLOCK_IDS, getRace, getRaceNativeTroopUnlockIds, getTroopClass, isNativeTroopUnlockId, } from './unitCatalog';
 import { getAvailableTroopUnlockIds, getOwnedTroopUnlockIds, upgradeAffectsTroop } from './upgrades';
-const OPENING_FACTION_OPTION_COUNT = 4;
+const OPENING_RACE_OPTION_COUNT = 4;
 export const CAMPAIGN_FINAL_CYCLE = 10;
 export const CONTEST_FINAL_CYCLE = 8;
 const AI_MIN_ESTIMATED_WIN_MARGIN = -20;
@@ -24,16 +24,16 @@ function buildEmptyContestPlayerState() {
     return {
         victoryPoints: 0,
         essence: 0,
-        unlockedFactionIds: [],
+        unlockedRaceIds: [],
         unlockedTroopUnlockIds: [],
         recentTroopUnlockIds: [],
         troops: [],
-        factionUpgradeIds: [],
-        troopTypeUpgradeIds: [],
+        raceUpgradeIds: [],
+        troopClassUpgradeIds: [],
         activeTroopOffer: null,
         activeUpgradeOffer: null,
-        activeFactionUnlockOffer: null,
-        activeTroopTypeUnlockOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
         troopOfferRolls: 0,
         upgradeOfferRolls: 0,
     };
@@ -47,16 +47,16 @@ function buildInitialState(seed, gameMode = 'campaign') {
         phase: 'opening_unlock',
         essence: 0,
         victoryPoints: 0,
-        unlockedFactionIds: [],
+        unlockedRaceIds: [],
         unlockedTroopUnlockIds: [],
         recentTroopUnlockIds: [],
         troops: [],
-        factionUpgradeIds: [],
-        troopTypeUpgradeIds: [],
+        raceUpgradeIds: [],
+        troopClassUpgradeIds: [],
         activeTroopOffer: null,
         activeUpgradeOffer: null,
-        activeFactionUnlockOffer: null,
-        activeTroopTypeUnlockOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
         troopOfferRolls: 0,
         upgradeOfferRolls: 0,
         postgameDismissed: false,
@@ -108,18 +108,18 @@ function withBattleSideParticipants(input, sideParticipants) {
         sideParticipants,
     };
 }
-function getOwnedUnitTypeIds(state) {
-    return [...new Set(state.troops.map((troop) => troop.unitTypeId))];
+function getOwnedUnitClassIds(state) {
+    return [...new Set(state.troops.map((troop) => troop.unitClassId))];
 }
 function addTroopToRoster(state, troopUnlockId) {
-    const [factionId, unitTypeId] = troopUnlockId.split('/');
+    const [raceId, unitClassId] = troopUnlockId.split('/');
     if (getOwnedTroopUnlockIds(state).includes(troopUnlockId)) {
         return state;
     }
     return {
         ...state,
-        unlockedFactionIds: state.unlockedFactionIds.includes(factionId) ? state.unlockedFactionIds : [...state.unlockedFactionIds, factionId],
-        troops: [...state.troops, createTroopInstance(factionId, unitTypeId)],
+        unlockedRaceIds: state.unlockedRaceIds.includes(raceId) ? state.unlockedRaceIds : [...state.unlockedRaceIds, raceId],
+        troops: [...state.troops, createTroopInstance(raceId, unitClassId)],
     };
 }
 function grantTroopUnlock(state, troopUnlockId) {
@@ -132,32 +132,32 @@ function grantTroopUnlock(state, troopUnlockId) {
     };
 }
 function addUpgradeUnlock(state, upgradeId) {
-    if (upgradeId in FACTION_UPGRADES) {
-        if (state.factionUpgradeIds.includes(upgradeId)) {
+    if (upgradeId in RACE_UPGRADES) {
+        if (state.raceUpgradeIds.includes(upgradeId)) {
             return state;
         }
         return {
             ...state,
-            factionUpgradeIds: [...state.factionUpgradeIds, upgradeId],
+            raceUpgradeIds: [...state.raceUpgradeIds, upgradeId],
         };
     }
-    if (upgradeId in TROOP_TYPE_UPGRADES) {
-        if (state.troopTypeUpgradeIds.includes(upgradeId)) {
+    if (upgradeId in TROOP_CLASS_UPGRADES) {
+        if (state.troopClassUpgradeIds.includes(upgradeId)) {
             return state;
         }
         return {
             ...state,
-            troopTypeUpgradeIds: [...state.troopTypeUpgradeIds, upgradeId],
+            troopClassUpgradeIds: [...state.troopClassUpgradeIds, upgradeId],
         };
     }
     return state;
 }
-function chooseFactionUpgradeIds(state, factionId, count, seed) {
+function chooseRaceUpgradeIds(state, raceId, count, seed) {
     const rng = createRng(seed);
-    const available = Object.values(FACTION_UPGRADES)
-        .filter((upgrade) => upgrade.factionId === factionId)
+    const available = Object.values(RACE_UPGRADES)
+        .filter((upgrade) => upgrade.raceId === raceId)
         .map((upgrade) => upgrade.id)
-        .filter((upgradeId) => !state.factionUpgradeIds.includes(upgradeId));
+        .filter((upgradeId) => !state.raceUpgradeIds.includes(upgradeId));
     const selected = [];
     while (selected.length < count && available.length > 0) {
         const picked = rng.pick(available);
@@ -166,9 +166,9 @@ function chooseFactionUpgradeIds(state, factionId, count, seed) {
     }
     return selected;
 }
-function chooseTroopUnlockIdsForFaction(state, factionId, count, seed) {
+function chooseTroopUnlockIdsForRace(state, raceId, count, seed) {
     const rng = createRng(seed);
-    const available = getFactionTroopTypeUnlockOptions(state, factionId);
+    const available = getRaceTroopClassUnlockOptions(state, raceId);
     const selected = [];
     while (selected.length < count && available.length > 0) {
         const picked = rng.pick(available);
@@ -177,60 +177,60 @@ function chooseTroopUnlockIdsForFaction(state, factionId, count, seed) {
     }
     return selected;
 }
-function buildFactionUnlockOffer(state, cycleNumber, upgradeCount, troopUnlockChoiceCount) {
-    const lockedFactionIds = Object.keys(FACTIONS).filter((factionId) => !state.unlockedFactionIds.includes(factionId));
-    if (lockedFactionIds.length === 0) {
+function buildRaceUnlockOffer(state, cycleNumber, upgradeCount, troopUnlockChoiceCount) {
+    const lockedRaceIds = Object.keys(RACES).filter((raceId) => !state.unlockedRaceIds.includes(raceId));
+    if (lockedRaceIds.length === 0) {
         return null;
     }
     const rng = createRng(deriveSeed(state.campaignSeed, cycleNumber * 30_007 + upgradeCount * 101));
-    const candidates = [...lockedFactionIds];
-    const optionFactionIds = [];
-    while (optionFactionIds.length < 3 && candidates.length > 0) {
+    const candidates = [...lockedRaceIds];
+    const optionRaceIds = [];
+    while (optionRaceIds.length < 3 && candidates.length > 0) {
         const picked = rng.pick(candidates);
-        optionFactionIds.push(picked);
+        optionRaceIds.push(picked);
         candidates.splice(candidates.indexOf(picked), 1);
     }
-    const upgradeIdsByFactionId = Object.fromEntries(optionFactionIds.map((factionId) => [
-        factionId,
-        chooseFactionUpgradeIds(state, factionId, upgradeCount, deriveSeed(state.campaignSeed, cycleNumber * 31_337 + factionId.length)),
+    const upgradeIdsByRaceId = Object.fromEntries(optionRaceIds.map((raceId) => [
+        raceId,
+        chooseRaceUpgradeIds(state, raceId, upgradeCount, deriveSeed(state.campaignSeed, cycleNumber * 31_337 + raceId.length)),
     ]));
-    const troopUnlockIdsByFactionId = Object.fromEntries(optionFactionIds.map((factionId) => [
-        factionId,
-        chooseTroopUnlockIdsForFaction(state, factionId, troopUnlockChoiceCount, deriveSeed(state.campaignSeed, cycleNumber * 37_109 + factionId.length)),
+    const troopUnlockIdsByRaceId = Object.fromEntries(optionRaceIds.map((raceId) => [
+        raceId,
+        chooseTroopUnlockIdsForRace(state, raceId, troopUnlockChoiceCount, deriveSeed(state.campaignSeed, cycleNumber * 37_109 + raceId.length)),
     ]));
     return {
-        kind: 'faction_unlock',
+        kind: 'race_unlock',
         cycleNumber,
-        optionFactionIds,
-        upgradeIdsByFactionId,
+        optionRaceIds,
+        upgradeIdsByRaceId,
         troopUnlockChoiceCount,
-        troopUnlockIdsByFactionId,
+        troopUnlockIdsByRaceId,
     };
 }
-function getFactionTroopTypeUnlockOptions(state, factionId) {
+function getRaceTroopClassUnlockOptions(state, raceId) {
     const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
-    const native = getFactionNativeTroopUnlockIds(factionId);
-    const defeated = state.unlockedTroopUnlockIds.filter((troopUnlockId) => splitTroopUnlockId(troopUnlockId)[0] === factionId);
+    const native = getRaceNativeTroopUnlockIds(raceId);
+    const defeated = state.unlockedTroopUnlockIds.filter((troopUnlockId) => splitTroopUnlockId(troopUnlockId)[0] === raceId);
     return [...new Set([...native, ...defeated])].filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
 }
-function buildTroopTypeUnlockOffer(state, cycleNumber, factionId, remainingChoices) {
+function buildTroopClassUnlockOffer(state, cycleNumber, raceId, remainingChoices) {
     if (remainingChoices <= 0) {
         return null;
     }
-    const optionTroopUnlockIds = getFactionTroopTypeUnlockOptions(state, factionId);
+    const optionTroopUnlockIds = getRaceTroopClassUnlockOptions(state, raceId);
     if (optionTroopUnlockIds.length === 0) {
         return null;
     }
     return {
-        kind: 'troop_type_unlock',
+        kind: 'troop_class_unlock',
         cycleNumber,
-        factionId,
+        raceId,
         remainingChoices,
         optionTroopUnlockIds,
     };
 }
 function applyScheduledCycleUnlock(state) {
-    if (state.phase !== 'planning' || state.activeFactionUnlockOffer || state.activeTroopTypeUnlockOffer) {
+    if (state.phase !== 'planning' || state.activeRaceUnlockOffer || state.activeTroopClassUnlockOffer) {
         return state;
     }
     const scheduled = state.cycleNumber === 3
@@ -241,8 +241,8 @@ function applyScheduledCycleUnlock(state) {
     if (!scheduled) {
         return state;
     }
-    const offer = buildFactionUnlockOffer(state, state.cycleNumber, scheduled.upgradeCount, scheduled.troopUnlockChoiceCount);
-    return offer ? { ...state, phase: 'faction_unlock', activeFactionUnlockOffer: offer } : state;
+    const offer = buildRaceUnlockOffer(state, state.cycleNumber, scheduled.upgradeCount, scheduled.troopUnlockChoiceCount);
+    return offer ? { ...state, phase: 'race_unlock', activeRaceUnlockOffer: offer } : state;
 }
 function splitTroopUnlockId(troopUnlockId) {
     return troopUnlockId.split('/');
@@ -263,11 +263,11 @@ function withContestAi(state, ai) {
     };
 }
 function chooseAiOpeningTroops(seed) {
-    const openingFactionIds = getOpeningFactionOptionIds(seed);
-    const starterTroopUnlockIds = getOpeningFactionStarterTroopUnlockIds(seed);
+    const openingRaceIds = getOpeningRaceOptionIds(seed);
+    const starterTroopUnlockIds = getOpeningRaceStarterTroopUnlockIds(seed);
     let ai = buildEmptyContestPlayerState();
-    openingFactionIds.slice(0, 2).forEach((factionId) => {
-        ai = addTroopToRoster(ai, starterTroopUnlockIds[factionId]);
+    openingRaceIds.slice(0, 2).forEach((raceId) => {
+        ai = addTroopToRoster(ai, starterTroopUnlockIds[raceId]);
     });
     return { ...ai, essence: 2 };
 }
@@ -280,58 +280,58 @@ function getContestPlayerTroops(state, playerId) {
 function getContestReadyTroops(state, playerId) {
     return getContestPlayerTroops(state, playerId).filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
 }
-export function getOpeningFactionOptionIds(source) {
+export function getOpeningRaceOptionIds(source) {
     if (source === undefined) {
-        return Object.keys(FACTIONS).slice(0, OPENING_FACTION_OPTION_COUNT);
+        return Object.keys(RACES).slice(0, OPENING_RACE_OPTION_COUNT);
     }
     const seed = typeof source === 'number' ? source : source.campaignSeed;
     return createRng(deriveSeed(seed, 45_041))
-        .shuffle(Object.keys(FACTIONS))
-        .slice(0, OPENING_FACTION_OPTION_COUNT);
+        .shuffle(Object.keys(RACES))
+        .slice(0, OPENING_RACE_OPTION_COUNT);
 }
-export function getOpeningFactionStarterTroopUnlockIds(source) {
+export function getOpeningRaceStarterTroopUnlockIds(source) {
     const seed = source === undefined ? 0 : typeof source === 'number' ? source : source.campaignSeed;
     const rng = createRng(deriveSeed(seed, 46_019));
-    const factionIds = getOpeningFactionOptionIds(source);
-    const optionsByFactionId = Object.fromEntries(factionIds.map((factionId) => [factionId, rng.shuffle(getFactionNativeTroopUnlockIds(factionId))]));
-    const selectedByFactionId = {};
-    function assignStarter(index, usedUnitTypeIds) {
-        const factionId = factionIds[index];
-        if (!factionId) {
+    const raceIds = getOpeningRaceOptionIds(source);
+    const optionsByRaceId = Object.fromEntries(raceIds.map((raceId) => [raceId, rng.shuffle(getRaceNativeTroopUnlockIds(raceId))]));
+    const selectedByRaceId = {};
+    function assignStarter(index, usedUnitClassIds) {
+        const raceId = raceIds[index];
+        if (!raceId) {
             return true;
         }
-        for (const troopUnlockId of optionsByFactionId[factionId] ?? []) {
-            const [, unitTypeId] = splitTroopUnlockId(troopUnlockId);
-            if (usedUnitTypeIds.has(unitTypeId)) {
+        for (const troopUnlockId of optionsByRaceId[raceId] ?? []) {
+            const [, unitClassId] = splitTroopUnlockId(troopUnlockId);
+            if (usedUnitClassIds.has(unitClassId)) {
                 continue;
             }
-            selectedByFactionId[factionId] = troopUnlockId;
-            usedUnitTypeIds.add(unitTypeId);
-            if (assignStarter(index + 1, usedUnitTypeIds)) {
+            selectedByRaceId[raceId] = troopUnlockId;
+            usedUnitClassIds.add(unitClassId);
+            if (assignStarter(index + 1, usedUnitClassIds)) {
                 return true;
             }
-            usedUnitTypeIds.delete(unitTypeId);
-            delete selectedByFactionId[factionId];
+            usedUnitClassIds.delete(unitClassId);
+            delete selectedByRaceId[raceId];
         }
         return false;
     }
     if (!assignStarter(0, new Set())) {
-        factionIds.forEach((factionId) => {
-            selectedByFactionId[factionId] = optionsByFactionId[factionId]?.[0];
+        raceIds.forEach((raceId) => {
+            selectedByRaceId[raceId] = optionsByRaceId[raceId]?.[0];
         });
     }
-    const entries = factionIds.map((factionId) => [factionId, selectedByFactionId[factionId]]);
+    const entries = raceIds.map((raceId) => [raceId, selectedByRaceId[raceId]]);
     return Object.fromEntries(entries);
 }
-export function getOpeningFactionStarterTroopUnlockId(source, factionId) {
-    return getOpeningFactionStarterTroopUnlockIds(source)[factionId] ?? null;
+export function getOpeningRaceStarterTroopUnlockId(source, raceId) {
+    return getOpeningRaceStarterTroopUnlockIds(source)[raceId] ?? null;
 }
 function getAvailableUpgradeIds(state) {
     return [
-        ...Object.values(FACTION_UPGRADES).map((upgrade) => upgrade.id),
-        ...Object.values(TROOP_TYPE_UPGRADES).map((upgrade) => upgrade.id),
-    ].filter((upgradeId) => !state.factionUpgradeIds.includes(upgradeId) &&
-        !state.troopTypeUpgradeIds.includes(upgradeId) &&
+        ...Object.values(RACE_UPGRADES).map((upgrade) => upgrade.id),
+        ...Object.values(TROOP_CLASS_UPGRADES).map((upgrade) => upgrade.id),
+    ].filter((upgradeId) => !state.raceUpgradeIds.includes(upgradeId) &&
+        !state.troopClassUpgradeIds.includes(upgradeId) &&
         state.troops.some((troop) => upgradeAffectsTroop(upgradeId, troop)));
 }
 function pickOfferOptions(seed, bucketOptions, allOptions) {
@@ -356,19 +356,19 @@ function buildTroopOffer(state) {
     if (availableTroopUnlockIds.length === 0) {
         return null;
     }
-    const ownedUnitTypeIds = new Set(getOwnedUnitTypeIds(state));
-    const ownedFactionIds = new Set(state.unlockedFactionIds);
+    const ownedUnitClassIds = new Set(getOwnedUnitClassIds(state));
+    const ownedRaceIds = new Set(state.unlockedRaceIds);
     const recentTroopUnlockIds = (state.recentTroopUnlockIds ?? []).filter((troopUnlockId) => availableTroopUnlockIds.includes(troopUnlockId));
-    const ownedFactionTroopUnlockIds = availableTroopUnlockIds.filter((troopUnlockId) => ownedFactionIds.has(splitTroopUnlockId(troopUnlockId)[0]));
+    const ownedRaceTroopUnlockIds = availableTroopUnlockIds.filter((troopUnlockId) => ownedRaceIds.has(splitTroopUnlockId(troopUnlockId)[0]));
     const options = pickOfferOptions(deriveSeed(state.campaignSeed, state.cycleNumber * 10_001 + state.troopOfferRolls + 1), [
-        [ownedFactionTroopUnlockIds],
-        [availableTroopUnlockIds.filter((troopUnlockId) => ownedUnitTypeIds.has(splitTroopUnlockId(troopUnlockId)[1]))],
-        [recentTroopUnlockIds, ownedFactionTroopUnlockIds],
+        [ownedRaceTroopUnlockIds],
+        [availableTroopUnlockIds.filter((troopUnlockId) => ownedUnitClassIds.has(splitTroopUnlockId(troopUnlockId)[1]))],
+        [recentTroopUnlockIds, ownedRaceTroopUnlockIds],
     ], availableTroopUnlockIds);
     return options.length > 0 ? { kind: 'troop', optionTroopUnlockIds: options } : null;
 }
 function countExistingUpgradesAffectingTroop(state, troop) {
-    return [...state.factionUpgradeIds, ...state.troopTypeUpgradeIds].filter((upgradeId) => upgradeAffectsTroop(upgradeId, troop)).length;
+    return [...state.raceUpgradeIds, ...state.troopClassUpgradeIds].filter((upgradeId) => upgradeAffectsTroop(upgradeId, troop)).length;
 }
 function buildLeastUpgradedTroopUpgradeBucket(state, availableUpgradeIds, selected, rng) {
     if (state.troops.length === 0) {
@@ -387,16 +387,16 @@ function buildLeastUpgradedTroopUpgradeBucket(state, availableUpgradeIds, select
     return [];
 }
 function buildUpgradeOffer(state) {
-    const ownedUnitTypeIds = new Set(getOwnedUnitTypeIds(state));
+    const ownedUnitClassIds = new Set(getOwnedUnitClassIds(state));
     const availableUpgradeIds = getAvailableUpgradeIds(state);
     if (availableUpgradeIds.length === 0) {
         return null;
     }
-    const troopUpgradeBucket = availableUpgradeIds.filter((upgradeId) => upgradeId in TROOP_TYPE_UPGRADES && ownedUnitTypeIds.has(TROOP_TYPE_UPGRADES[upgradeId].unitTypeId));
-    const factionUpgradeBucket = availableUpgradeIds.filter((upgradeId) => upgradeId in FACTION_UPGRADES && state.troops.some((troop) => upgradeAffectsTroop(upgradeId, troop)));
+    const troopUpgradeBucket = availableUpgradeIds.filter((upgradeId) => upgradeId in TROOP_CLASS_UPGRADES && ownedUnitClassIds.has(TROOP_CLASS_UPGRADES[upgradeId].unitClassId));
+    const raceUpgradeBucket = availableUpgradeIds.filter((upgradeId) => upgradeId in RACE_UPGRADES && state.troops.some((troop) => upgradeAffectsTroop(upgradeId, troop)));
     const rng = createRng(deriveSeed(state.campaignSeed, state.cycleNumber * 20_003 + state.upgradeOfferRolls + 1));
     const selected = new Set();
-    [troopUpgradeBucket, factionUpgradeBucket].forEach((bucket) => {
+    [troopUpgradeBucket, raceUpgradeBucket].forEach((bucket) => {
         const picked = pickUnselectedOption(rng, bucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
         if (picked) {
             selected.add(picked);
@@ -431,12 +431,12 @@ export function claimOpeningTroop(state, troopUnlockId) {
     if (state.phase !== 'opening_unlock' || !NATIVE_TROOP_UNLOCK_IDS.includes(troopUnlockId)) {
         return state;
     }
-    const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
-    const starterTroopUnlockId = getOpeningFactionStarterTroopUnlockId(state, factionId);
+    const [raceId, unitClassId] = splitTroopUnlockId(troopUnlockId);
+    const starterTroopUnlockId = getOpeningRaceStarterTroopUnlockId(state, raceId);
     if (state.troops.length >= 2 ||
-        !getOpeningFactionOptionIds(state).includes(factionId) ||
+        !getOpeningRaceOptionIds(state).includes(raceId) ||
         starterTroopUnlockId !== troopUnlockId ||
-        state.troops.some((troop) => troop.factionId === factionId || troop.unitTypeId === unitTypeId)) {
+        state.troops.some((troop) => troop.raceId === raceId || troop.unitClassId === unitClassId)) {
         return state;
     }
     return addTroopToRoster(state, troopUnlockId);
@@ -445,14 +445,14 @@ export function unclaimOpeningTroop(state, troopUnlockId) {
     if (state.phase !== 'opening_unlock' || !NATIVE_TROOP_UNLOCK_IDS.includes(troopUnlockId)) {
         return state;
     }
-    const [factionId, unitTypeId] = splitTroopUnlockId(troopUnlockId);
-    const nextTroops = state.troops.filter((troop) => troop.factionId !== factionId || troop.unitTypeId !== unitTypeId);
+    const [raceId, unitClassId] = splitTroopUnlockId(troopUnlockId);
+    const nextTroops = state.troops.filter((troop) => troop.raceId !== raceId || troop.unitClassId !== unitClassId);
     if (nextTroops.length === state.troops.length) {
         return state;
     }
     return {
         ...state,
-        unlockedFactionIds: [...new Set(nextTroops.map((troop) => troop.factionId))],
+        unlockedRaceIds: [...new Set(nextTroops.map((troop) => troop.raceId))],
         troops: nextTroops,
     };
 }
@@ -475,42 +475,42 @@ export function startOpeningCampaign(state) {
         openRifts: generateCycleRifts(state),
     };
 }
-export function claimFactionUnlockOffer(state, factionId) {
-    const offer = state.activeFactionUnlockOffer;
-    if (state.phase !== 'faction_unlock' || !offer || !offer.optionFactionIds.includes(factionId)) {
+export function claimRaceUnlockOffer(state, raceId) {
+    const offer = state.activeRaceUnlockOffer;
+    if (state.phase !== 'race_unlock' || !offer || !offer.optionRaceIds.includes(raceId)) {
         return state;
     }
     let nextState = {
         ...state,
-        unlockedFactionIds: state.unlockedFactionIds.includes(factionId) ? state.unlockedFactionIds : [...state.unlockedFactionIds, factionId],
-        activeFactionUnlockOffer: null,
+        unlockedRaceIds: state.unlockedRaceIds.includes(raceId) ? state.unlockedRaceIds : [...state.unlockedRaceIds, raceId],
+        activeRaceUnlockOffer: null,
     };
-    (offer.upgradeIdsByFactionId[factionId] ?? []).forEach((upgradeId) => {
+    (offer.upgradeIdsByRaceId[raceId] ?? []).forEach((upgradeId) => {
         nextState = addUpgradeUnlock(nextState, upgradeId);
     });
-    (offer.troopUnlockIdsByFactionId?.[factionId] ?? []).forEach((troopUnlockId) => {
+    (offer.troopUnlockIdsByRaceId?.[raceId] ?? []).forEach((troopUnlockId) => {
         nextState = addTroopToRoster(grantTroopUnlock(nextState, troopUnlockId), troopUnlockId);
     });
-    return { ...nextState, phase: 'planning', activeTroopTypeUnlockOffer: null };
+    return { ...nextState, phase: 'planning', activeTroopClassUnlockOffer: null };
 }
-export function claimTroopTypeUnlockOffer(state, troopUnlockId) {
-    const offer = state.activeTroopTypeUnlockOffer;
-    if (state.phase !== 'troop_type_unlock' || !offer || !offer.optionTroopUnlockIds.includes(troopUnlockId)) {
+export function claimTroopClassUnlockOffer(state, troopUnlockId) {
+    const offer = state.activeTroopClassUnlockOffer;
+    if (state.phase !== 'troop_class_unlock' || !offer || !offer.optionTroopUnlockIds.includes(troopUnlockId)) {
         return state;
     }
-    const [factionId] = splitTroopUnlockId(troopUnlockId);
-    if (factionId !== offer.factionId) {
+    const [raceId] = splitTroopUnlockId(troopUnlockId);
+    if (raceId !== offer.raceId) {
         return state;
     }
     const nextState = addTroopToRoster(grantTroopUnlock(state, troopUnlockId), troopUnlockId);
     const nextRemainingChoices = offer.remainingChoices - 1;
-    const nextOffer = buildTroopTypeUnlockOffer({
+    const nextOffer = buildTroopClassUnlockOffer({
         ...nextState,
-        activeTroopTypeUnlockOffer: null,
-    }, offer.cycleNumber, offer.factionId, nextRemainingChoices);
+        activeTroopClassUnlockOffer: null,
+    }, offer.cycleNumber, offer.raceId, nextRemainingChoices);
     return nextOffer
-        ? { ...nextState, activeTroopTypeUnlockOffer: nextOffer }
-        : { ...nextState, phase: 'planning', activeTroopTypeUnlockOffer: null };
+        ? { ...nextState, activeTroopClassUnlockOffer: nextOffer }
+        : { ...nextState, phase: 'planning', activeTroopClassUnlockOffer: null };
 }
 export function revealTroopOffer(state) {
     if (state.phase !== 'planning' || state.essence < 1 || state.activeTroopOffer || state.activeUpgradeOffer) {
@@ -614,7 +614,7 @@ export function validateAssignments(state) {
             issues.push({
                 kind: 'troop_recovering',
                 troopId: troop.id,
-                message: `${getFaction(troop.factionId).singularLabel} ${troop.unitTypeId} is still recovering.`,
+                message: `${getRace(troop.raceId).singularLabel} ${troop.unitClassId} is still recovering.`,
             });
         }
     });
@@ -623,30 +623,30 @@ export function validateAssignments(state) {
         .forEach((rift) => {
         const troops = getTroopsAssignedToRift(state, rift.id);
         const grouped = new Map();
-        const groupedTypes = new Map();
-        troops.forEach((troop) => grouped.set(troop.factionId, (grouped.get(troop.factionId) ?? 0) + 1));
-        troops.forEach((troop) => groupedTypes.set(troop.unitTypeId, (groupedTypes.get(troop.unitTypeId) ?? 0) + 1));
-        grouped.forEach((count, factionId) => {
-            if (count > 1 && !isFactionUnited(state, factionId)) {
-                const conflictingTroops = troops.filter((troop) => troop.factionId === factionId);
+        const groupedUnitClasses = new Map();
+        troops.forEach((troop) => grouped.set(troop.raceId, (grouped.get(troop.raceId) ?? 0) + 1));
+        troops.forEach((troop) => groupedUnitClasses.set(troop.unitClassId, (groupedUnitClasses.get(troop.unitClassId) ?? 0) + 1));
+        grouped.forEach((count, raceId) => {
+            if (count > 1 && !isRaceUnited(state, raceId)) {
+                const conflictingTroops = troops.filter((troop) => troop.raceId === raceId);
                 issues.push({
-                    kind: 'same_faction_conflict',
+                    kind: 'same_race_conflict',
                     riftId: rift.id,
                     troopId: conflictingTroops[0]?.id,
                     conflictTroopId: conflictingTroops[1]?.id,
-                    message: `${getFaction(factionId).label} cannot send multiple troops into the same Rift yet.`,
+                    message: `${getRace(raceId).label} cannot send multiple troops into the same Rift yet.`,
                 });
             }
         });
-        groupedTypes.forEach((count, unitTypeId) => {
+        groupedUnitClasses.forEach((count, unitClassId) => {
             if (count > 1) {
-                const conflictingTroops = troops.filter((troop) => troop.unitTypeId === unitTypeId);
+                const conflictingTroops = troops.filter((troop) => troop.unitClassId === unitClassId);
                 issues.push({
-                    kind: 'same_type_conflict',
+                    kind: 'same_class_conflict',
                     riftId: rift.id,
                     troopId: conflictingTroops[0]?.id,
                     conflictTroopId: conflictingTroops[1]?.id,
-                    message: `Only one ${getUnitType(unitTypeId).label} troop can enter the same Rift.`,
+                    message: `Only one ${getUnitClass(unitClassId).label} troop can enter the same Rift.`,
                 });
             }
         });
@@ -665,7 +665,7 @@ function getAssignmentIssue(state, troopId, riftId) {
         return {
             kind: 'troop_recovering',
             troopId,
-            message: `${getFaction(troop.factionId).singularLabel} ${troop.unitTypeId} is still recovering.`,
+            message: `${getRace(troop.raceId).singularLabel} ${troop.unitClassId} is still recovering.`,
         };
     }
     const heldRift = state.gameMode === 'contest'
@@ -676,7 +676,7 @@ function getAssignmentIssue(state, troopId, riftId) {
             kind: 'holding_troop_locked',
             troopId,
             riftId: heldRift.id,
-            message: `${getFaction(troop.factionId).singularLabel} ${getUnitType(troop.unitTypeId).label} is holding ${formatRiftLabel(heldRift.id)} and cannot be reassigned.`,
+            message: `${getRace(troop.raceId).singularLabel} ${getUnitClass(troop.unitClassId).label} is holding ${formatRiftLabel(heldRift.id)} and cannot be reassigned.`,
         };
     }
     const rift = state.openRifts.find((entry) => entry.id === riftId);
@@ -686,24 +686,24 @@ function getAssignmentIssue(state, troopId, riftId) {
     if (state.gameMode === 'contest' && rift.controller === 'human') {
         return { kind: 'own_rift', riftId, message: 'You already control this Rift.' };
     }
-    const sameFactionTroop = getTroopsAssignedToRift(state, riftId).find((assignedTroop) => assignedTroop.id !== troopId && assignedTroop.factionId === troop.factionId);
-    if (sameFactionTroop && !isFactionUnited(state, troop.factionId)) {
+    const sameRaceTroop = getTroopsAssignedToRift(state, riftId).find((assignedTroop) => assignedTroop.id !== troopId && assignedTroop.raceId === troop.raceId);
+    if (sameRaceTroop && !isRaceUnited(state, troop.raceId)) {
         return {
-            kind: 'same_faction_conflict',
+            kind: 'same_race_conflict',
             troopId,
-            conflictTroopId: sameFactionTroop.id,
+            conflictTroopId: sameRaceTroop.id,
             riftId,
-            message: `${getFaction(troop.factionId).label} cannot send multiple troops into the same Rift yet.`,
+            message: `${getRace(troop.raceId).label} cannot send multiple troops into the same Rift yet.`,
         };
     }
-    const sameTypeTroop = getTroopsAssignedToRift(state, riftId).find((assignedTroop) => assignedTroop.id !== troopId && assignedTroop.unitTypeId === troop.unitTypeId);
+    const sameTypeTroop = getTroopsAssignedToRift(state, riftId).find((assignedTroop) => assignedTroop.id !== troopId && assignedTroop.unitClassId === troop.unitClassId);
     if (sameTypeTroop) {
         return {
-            kind: 'same_type_conflict',
+            kind: 'same_class_conflict',
             troopId,
             conflictTroopId: sameTypeTroop.id,
             riftId,
-            message: `Only one ${getUnitType(troop.unitTypeId).label} troop can enter the same Rift.`,
+            message: `Only one ${getUnitClass(troop.unitClassId).label} troop can enter the same Rift.`,
         };
     }
     return null;
@@ -747,16 +747,16 @@ function buildProgressPseudoState(state, progress) {
         gameMode: 'campaign',
         victoryPoints: progress.victoryPoints,
         essence: progress.essence,
-        unlockedFactionIds: progress.unlockedFactionIds,
+        unlockedRaceIds: progress.unlockedRaceIds,
         unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
         recentTroopUnlockIds: progress.recentTroopUnlockIds,
         troops: progress.troops,
-        factionUpgradeIds: progress.factionUpgradeIds,
-        troopTypeUpgradeIds: progress.troopTypeUpgradeIds,
+        raceUpgradeIds: progress.raceUpgradeIds,
+        troopClassUpgradeIds: progress.troopClassUpgradeIds,
         activeTroopOffer: progress.activeTroopOffer,
         activeUpgradeOffer: progress.activeUpgradeOffer,
-        activeFactionUnlockOffer: progress.activeFactionUnlockOffer,
-        activeTroopTypeUnlockOffer: progress.activeTroopTypeUnlockOffer,
+        activeRaceUnlockOffer: progress.activeRaceUnlockOffer,
+        activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
         troopOfferRolls: progress.troopOfferRolls,
         upgradeOfferRolls: progress.upgradeOfferRolls,
         openRifts: [],
@@ -768,16 +768,16 @@ function progressFromPseudoState(state) {
     return {
         victoryPoints: state.victoryPoints,
         essence: state.essence,
-        unlockedFactionIds: state.unlockedFactionIds,
+        unlockedRaceIds: state.unlockedRaceIds,
         unlockedTroopUnlockIds: state.unlockedTroopUnlockIds,
         recentTroopUnlockIds: state.recentTroopUnlockIds,
         troops: state.troops,
-        factionUpgradeIds: state.factionUpgradeIds,
-        troopTypeUpgradeIds: state.troopTypeUpgradeIds,
+        raceUpgradeIds: state.raceUpgradeIds,
+        troopClassUpgradeIds: state.troopClassUpgradeIds,
         activeTroopOffer: state.activeTroopOffer,
         activeUpgradeOffer: state.activeUpgradeOffer,
-        activeFactionUnlockOffer: state.activeFactionUnlockOffer,
-        activeTroopTypeUnlockOffer: state.activeTroopTypeUnlockOffer,
+        activeRaceUnlockOffer: state.activeRaceUnlockOffer,
+        activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
         troopOfferRolls: state.troopOfferRolls,
         upgradeOfferRolls: state.upgradeOfferRolls,
     };
@@ -788,13 +788,13 @@ function randomlyAdvanceAiUnlocks(state) {
     }
     const rng = createRng(deriveSeed(state.campaignSeed, state.cycleNumber * 44_441 + 19));
     let pseudo = applyScheduledCycleUnlock(buildProgressPseudoState(state, getContestAi(state)));
-    if (pseudo.activeFactionUnlockOffer) {
-        const pickedFaction = rng.pick(pseudo.activeFactionUnlockOffer.optionFactionIds);
-        pseudo = claimFactionUnlockOffer(pseudo, pickedFaction);
+    if (pseudo.activeRaceUnlockOffer) {
+        const pickedRace = rng.pick(pseudo.activeRaceUnlockOffer.optionRaceIds);
+        pseudo = claimRaceUnlockOffer(pseudo, pickedRace);
     }
-    while (pseudo.activeTroopTypeUnlockOffer) {
-        const pickedTroop = rng.pick(pseudo.activeTroopTypeUnlockOffer.optionTroopUnlockIds);
-        pseudo = claimTroopTypeUnlockOffer(pseudo, pickedTroop);
+    while (pseudo.activeTroopClassUnlockOffer) {
+        const pickedTroop = rng.pick(pseudo.activeTroopClassUnlockOffer.optionTroopUnlockIds);
+        pseudo = claimTroopClassUnlockOffer(pseudo, pickedTroop);
     }
     let guard = 0;
     while (guard < 8) {
@@ -826,16 +826,16 @@ export function applyContestPlayerProgress(state, playerId, progress) {
             ...state,
             victoryPoints: progress.victoryPoints,
             essence: progress.essence,
-            unlockedFactionIds: progress.unlockedFactionIds,
+            unlockedRaceIds: progress.unlockedRaceIds,
             unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
             recentTroopUnlockIds: progress.recentTroopUnlockIds,
             troops: progress.troops,
-            factionUpgradeIds: progress.factionUpgradeIds,
-            troopTypeUpgradeIds: progress.troopTypeUpgradeIds,
+            raceUpgradeIds: progress.raceUpgradeIds,
+            troopClassUpgradeIds: progress.troopClassUpgradeIds,
             activeTroopOffer: progress.activeTroopOffer,
             activeUpgradeOffer: progress.activeUpgradeOffer,
-            activeFactionUnlockOffer: progress.activeFactionUnlockOffer,
-            activeTroopTypeUnlockOffer: progress.activeTroopTypeUnlockOffer,
+            activeRaceUnlockOffer: progress.activeRaceUnlockOffer,
+            activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
             troopOfferRolls: progress.troopOfferRolls,
             upgradeOfferRolls: progress.upgradeOfferRolls,
         };
@@ -856,8 +856,8 @@ function getContestRiftDefenderCombatants(state, rift) {
     if (rift.controller === 'neutral' || !rift.occupyingPlayerId) {
         return {
             defenderId: 'neutral',
-            factionUpgradeIds: [],
-            troopTypeUpgradeIds: [],
+            raceUpgradeIds: [],
+            troopClassUpgradeIds: [],
             combatants: rift.enemyArmy,
         };
     }
@@ -867,8 +867,8 @@ function getContestRiftDefenderCombatants(state, rift) {
     const troops = defenderProgress.troops.filter((troop) => occupyingIds.has(troop.id));
     return {
         defenderId,
-        factionUpgradeIds: defenderProgress.factionUpgradeIds,
-        troopTypeUpgradeIds: defenderProgress.troopTypeUpgradeIds,
+        raceUpgradeIds: defenderProgress.raceUpgradeIds,
+        troopClassUpgradeIds: defenderProgress.troopClassUpgradeIds,
         combatants: getContestCombatantsForTroops(state, defenderId, troops, 'enemy'),
     };
 }
@@ -877,7 +877,7 @@ function resolveContestBattle(state, rift, attackerId, attackingTroops, salt) {
     const defender = getContestRiftDefenderCombatants(state, rift);
     const assignedTroopIds = attackingTroops.map((troop) => troop.id).sort((a, b) => a.localeCompare(b));
     const battleSeed = deriveSeed(rift.seed, salt + assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
-    const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(battleSeed, rift.id, rift.tier, rift.mutatorIds, rift.saturation, attackerProgress.factionUpgradeIds, attackerProgress.troopTypeUpgradeIds, defender.factionUpgradeIds, defender.troopTypeUpgradeIds, getContestCombatantsForTroops(state, attackerId, attackingTroops, 'player'), defender.combatants), {
+    const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(battleSeed, rift.id, rift.tier, rift.mutatorIds, rift.saturation, attackerProgress.raceUpgradeIds, attackerProgress.troopClassUpgradeIds, defender.raceUpgradeIds, defender.troopClassUpgradeIds, getContestCombatantsForTroops(state, attackerId, attackingTroops, 'player'), defender.combatants), {
         player: {
             kind: attackerId === 'human' ? 'player' : 'opponent',
             label: attackerId === 'human' ? 'Player' : 'Rival',
@@ -914,7 +914,7 @@ function resolveContestPvpBattle(state, rift, humanTroops, aiTroops, salt) {
     const battleSeed = deriveSeed(rift.seed, salt + assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
     const human = contestPlayerState(state, 'human');
     const ai = contestPlayerState(state, 'ai');
-    const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(battleSeed, rift.id, rift.tier, rift.mutatorIds, rift.saturation, human.factionUpgradeIds, human.troopTypeUpgradeIds, ai.factionUpgradeIds, ai.troopTypeUpgradeIds, getContestCombatantsForTroops(state, 'human', humanTroops, 'player'), getContestCombatantsForTroops(state, 'ai', aiTroops, 'enemy')), {
+    const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(battleSeed, rift.id, rift.tier, rift.mutatorIds, rift.saturation, human.raceUpgradeIds, human.troopClassUpgradeIds, ai.raceUpgradeIds, ai.troopClassUpgradeIds, getContestCombatantsForTroops(state, 'human', humanTroops, 'player'), getContestCombatantsForTroops(state, 'ai', aiTroops, 'enemy')), {
         player: { kind: 'player', label: 'Player', playerId: 'human' },
         enemy: { kind: 'opponent', label: 'Rival', playerId: 'ai' },
     });
@@ -935,10 +935,10 @@ function resolveContestPvpBattle(state, rift, humanTroops, aiTroops, salt) {
     };
 }
 function isValidAiTroopGroupAddition(state, target, troop) {
-    if (target.some((entry) => entry.id === troop.id || entry.unitTypeId === troop.unitTypeId)) {
+    if (target.some((entry) => entry.id === troop.id || entry.unitClassId === troop.unitClassId)) {
         return false;
     }
-    if (target.some((entry) => entry.factionId === troop.factionId) && !isFactionUnited(contestPlayerState(state, 'ai'), troop.factionId)) {
+    if (target.some((entry) => entry.raceId === troop.raceId) && !isRaceUnited(contestPlayerState(state, 'ai'), troop.raceId)) {
         return false;
     }
     return true;
@@ -1189,7 +1189,7 @@ function getGuardianUnlocksForRecord(state, record) {
     const progress = contestPlayerState(state, playerId);
     const guardianCombatants = record.battleInput.enemyCombatants;
     return guardianCombatants
-        .map((combatant) => `${combatant.factionId}/${combatant.unitTypeId}`)
+        .map((combatant) => `${combatant.raceId}/${combatant.unitClassId}`)
         .filter((troopUnlockId) => !isNativeTroopUnlockId(troopUnlockId))
         .filter((troopUnlockId) => !progress.unlockedTroopUnlockIds.includes(troopUnlockId))
         .filter((troopUnlockId) => !getOwnedTroopUnlockIds(progress).includes(troopUnlockId));
@@ -1245,8 +1245,8 @@ function clearContestTroopAssignments(progress, occupiedByRift) {
         })),
         activeTroopOffer: null,
         activeUpgradeOffer: null,
-        activeFactionUnlockOffer: null,
-        activeTroopTypeUnlockOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
     };
 }
 function applyContestCycleOutcomes(state, resolution) {
@@ -1259,16 +1259,16 @@ function applyContestCycleOutcomes(state, resolution) {
     let nextHumanProgress = applyContestUnlocksToProgress({
         victoryPoints: state.victoryPoints,
         essence: state.essence,
-        unlockedFactionIds: state.unlockedFactionIds,
+        unlockedRaceIds: state.unlockedRaceIds,
         unlockedTroopUnlockIds: state.unlockedTroopUnlockIds,
         recentTroopUnlockIds: state.recentTroopUnlockIds,
         troops: state.troops,
-        factionUpgradeIds: state.factionUpgradeIds,
-        troopTypeUpgradeIds: state.troopTypeUpgradeIds,
+        raceUpgradeIds: state.raceUpgradeIds,
+        troopClassUpgradeIds: state.troopClassUpgradeIds,
         activeTroopOffer: state.activeTroopOffer,
         activeUpgradeOffer: state.activeUpgradeOffer,
-        activeFactionUnlockOffer: state.activeFactionUnlockOffer,
-        activeTroopTypeUnlockOffer: state.activeTroopTypeUnlockOffer,
+        activeRaceUnlockOffer: state.activeRaceUnlockOffer,
+        activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
         troopOfferRolls: state.troopOfferRolls,
         upgradeOfferRolls: state.upgradeOfferRolls,
     }, humanUnlocks);
@@ -1351,16 +1351,16 @@ function applyContestCycleOutcomes(state, resolution) {
         phase: state.cycleNumber === CONTEST_FINAL_CYCLE && !state.postgameDismissed ? 'game_over' : 'planning',
         victoryPoints: nextHumanProgress.victoryPoints,
         essence: nextHumanProgress.essence + 2,
-        unlockedFactionIds: nextHumanProgress.unlockedFactionIds,
+        unlockedRaceIds: nextHumanProgress.unlockedRaceIds,
         unlockedTroopUnlockIds: nextHumanProgress.unlockedTroopUnlockIds,
         recentTroopUnlockIds: humanUnlocks,
         troops: nextHumanProgress.troops,
-        factionUpgradeIds: nextHumanProgress.factionUpgradeIds,
-        troopTypeUpgradeIds: nextHumanProgress.troopTypeUpgradeIds,
+        raceUpgradeIds: nextHumanProgress.raceUpgradeIds,
+        troopClassUpgradeIds: nextHumanProgress.troopClassUpgradeIds,
         activeTroopOffer: null,
         activeUpgradeOffer: null,
-        activeFactionUnlockOffer: null,
-        activeTroopTypeUnlockOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
         openRifts: [...nextRifts, ...generateContestCycleRifts({ ...state, cycleNumber })],
         replayIndex: [...state.replayIndex],
     }, {
@@ -1433,7 +1433,7 @@ export function resolveAssignedRifts(state, preparedContestAi) {
         }
         const assignedTroopIds = troops.map((troop) => troop.id).sort((a, b) => a.localeCompare(b));
         const battleSeed = deriveSeed(rift.seed, assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
-        const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(battleSeed, rift.id, rift.tier, rift.mutatorIds, rift.saturation, state.factionUpgradeIds, state.troopTypeUpgradeIds, [], [], troops.map((troop) => resolveTroopCombatant(state, troop, 'player')), rift.enemyArmy), {
+        const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(battleSeed, rift.id, rift.tier, rift.mutatorIds, rift.saturation, state.raceUpgradeIds, state.troopClassUpgradeIds, [], [], troops.map((troop) => resolveTroopCombatant(state, troop, 'player')), rift.enemyArmy), {
             player: { kind: 'player', label: 'Player' },
             enemy: { kind: 'neutral', label: 'Neutral Guardians' },
         });
@@ -1463,7 +1463,7 @@ export function applyCycleOutcomes(state, resolution) {
     const newlyUnlockedTroopUnlockIds = [
         ...new Set(resolution.records
             .filter((record) => record.outcome === 'victory')
-            .flatMap((record) => record.battleInput.enemyCombatants.map((combatant) => `${combatant.factionId}/${combatant.unitTypeId}`))
+            .flatMap((record) => record.battleInput.enemyCombatants.map((combatant) => `${combatant.raceId}/${combatant.unitClassId}`))
             .filter((troopUnlockId) => !isNativeTroopUnlockId(troopUnlockId))
             .filter((troopUnlockId) => !state.unlockedTroopUnlockIds.includes(troopUnlockId))
             .filter((troopUnlockId) => !getOwnedTroopUnlockIds(state).includes(troopUnlockId))),
@@ -1498,8 +1498,8 @@ export function applyCycleOutcomes(state, resolution) {
         replayIndex: [...unlockedState.replayIndex],
         activeTroopOffer: null,
         activeUpgradeOffer: null,
-        activeFactionUnlockOffer: null,
-        activeTroopTypeUnlockOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
     };
     const writes = resolution.records.map((record) => {
         const replay = buildStoredReplayPayload(record);

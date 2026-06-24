@@ -31,15 +31,15 @@ Each ability definition has:
 - `chargeEvery`
 - `maxUses`
 - `condition: 'forsaken'`
-- `repeatPerDistinctFriendlyTroopType`
+- `repeatPerDistinctFriendlyTroopClass`
 - `repeatPerTouchingFriendlyUnit`
 - `fallen: { allegiance, radius, radiusSource? }`
 - `effectApplication: { effectKinds?, dispositions? }`
 
 Meaning:
 
-- `condition: 'forsaken'` requires no other friendly troop types to be present.
-- `repeatPerDistinctFriendlyTroopType` counts distinct friendly primary troop `type`s other than the acting unit's own.
+- `condition: 'forsaken'` requires no other friendly troop classes to be present.
+- `repeatPerDistinctFriendlyTroopClass` counts distinct friendly primary troop classes other than the acting unit's own.
 - `repeatPerTouchingFriendlyUnit` repeats once per other friendly unit whose footprint touches the acting unit's footprint.
 - `fallen.radiusSource: 'selfRange'` makes the fallen-unit trigger use the acting unit's resolved range.
 - `effectApplication.effectKinds` filters reactions to successful applications of particular effect kinds such as `heal`.
@@ -74,12 +74,12 @@ Turn-based timed rollback currently supports:
 
 ## Implemented target filters
 
-- `notTypes`
-- `onlyTypes`
-- `prioritizeTypes`
+- `notClasses`
+- `onlyClasses`
+- `prioritizeClasses`
 - `unengaged`
 
-Filters match against a unit's combined primary `type` plus `attributes`.
+Filters match against a unit's combined primary `unitClassTag` plus `attributes`.
 
 ## Implemented effects
 
@@ -263,7 +263,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `endOfTurn`
 - battle
 - `target: random ally R`
-- `target filter: notTypes: ['caster']`
+- `target filter: notClasses: ['caster']`
 - Effect: target gains +1 speed and +1 damage
 
 ### Executioner
@@ -277,7 +277,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `target: self`
 - `trigger modifier: condition: 'forsaken'`
-- Effect: gain +80% health, damage, and speed if no other friendly troop types are present
+- Effect: gain +80% health, damage, and speed if no other friendly troop classes are present
 
 ### Frenzy: Ramp 1
 
@@ -338,8 +338,8 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `startOfBattle`
 - battle
 - `target: self`
-- `trigger modifier: repeatPerDistinctFriendlyTroopType`
-- Effect: gain +20% health, damage, and speed per other friendly troop type
+- `trigger modifier: repeatPerDistinctFriendlyTroopClass`
+- Effect: gain +20% health, damage, and speed per other friendly troop class
 
 ### Ramp 1
 
@@ -422,7 +422,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 
 - `passive`
 - overworld-only
-- Effect: troops of this faction may enter the same Rift together
+- Effect: troops of this race may enter the same Rift together
 
 ### Uses 7 Corpse Summon Skeleton
 

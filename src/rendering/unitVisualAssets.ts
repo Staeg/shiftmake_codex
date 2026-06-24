@@ -1,41 +1,41 @@
-import type { FactionId, UnitTypeId } from '../engine/types';
+import type { RaceId, UnitClassId } from '../engine/types';
 
 import archerUrl from '../../assets/unit sprites/archer.png';
 import avengerUrl from '../../assets/unit sprites/avenger.png';
 import beastmasterUrl from '../../assets/unit sprites/beastmaster.png';
 import championUrl from '../../assets/unit sprites/champion.png';
 import druidUrl from '../../assets/unit sprites/druid.png';
-import dwarfFactionUrl from '../../assets/faction sprites/dwarf-placeholder.svg';
-import elfFactionUrl from '../../assets/faction sprites/elf-placeholder.svg';
+import dwarfRaceUrl from '../../assets/race sprites/dwarf-placeholder.svg';
+import elfRaceUrl from '../../assets/race sprites/elf-placeholder.svg';
 import elementalUrl from '../../assets/unit sprites/elemental.png';
 import elementalistUrl from '../../assets/unit sprites/elementalist.png';
-import faeFactionUrl from '../../assets/faction sprites/fae-placeholder.svg';
-import goblinFactionUrl from '../../assets/faction sprites/goblin-placeholder.svg';
-import humanFactionUrl from '../../assets/faction sprites/human-placeholder.svg';
+import faeRaceUrl from '../../assets/race sprites/fae-placeholder.svg';
+import goblinRaceUrl from '../../assets/race sprites/goblin-placeholder.svg';
+import humanRaceUrl from '../../assets/race sprites/human-placeholder.svg';
 import knightUrl from '../../assets/unit sprites/knight.png';
 import militiaUrl from '../../assets/unit sprites/militia.png';
 import necromancerUrl from '../../assets/unit sprites/necromancer.png';
-import orcFactionUrl from '../../assets/faction sprites/orc-placeholder.svg';
+import orcRaceUrl from '../../assets/race sprites/orc-placeholder.svg';
 import priestUrl from '../../assets/unit sprites/priest.png';
 import rangerUrl from '../../assets/unit sprites/ranger.png';
 import shamanUrl from '../../assets/unit sprites/shaman.png';
 import skeletonUrl from '../../assets/unit sprites/skeleton.png';
 import soldierUrl from '../../assets/unit sprites/soldier.png';
-import trollFactionUrl from '../../assets/faction sprites/troll-placeholder.svg';
+import trollRaceUrl from '../../assets/race sprites/troll-placeholder.svg';
 import wizardUrl from '../../assets/unit sprites/wizard.png';
 import wolfUrl from '../../assets/unit sprites/wolf.png';
 
 type PaletteRole = 'primary' | 'secondary' | 'glow';
 type PaletteRamp = [number, number, number];
 type UnitPaletteRules = Partial<Record<PaletteRole, string[]>>;
-type FactionPaletteProfile = Record<PaletteRole, PaletteRamp>;
+type RacePaletteProfile = Record<PaletteRole, PaletteRamp>;
 export type AssetLoadProgress = {
   completed: number;
   total: number;
   label: string;
 };
 
-export const UNIT_SPRITE_URLS: Record<UnitTypeId, string> = {
+export const UNIT_SPRITE_URLS: Record<UnitClassId, string> = {
   archer: archerUrl,
   avenger: avengerUrl,
   beastmaster: beastmasterUrl,
@@ -55,17 +55,17 @@ export const UNIT_SPRITE_URLS: Record<UnitTypeId, string> = {
   wolf: wolfUrl,
 };
 
-const FACTION_SPRITE_URLS: Record<FactionId, string> = {
-  human: humanFactionUrl,
-  elf: elfFactionUrl,
-  goblin: goblinFactionUrl,
-  troll: trollFactionUrl,
-  dwarf: dwarfFactionUrl,
-  orc: orcFactionUrl,
-  fae: faeFactionUrl,
+const RACE_SPRITE_URLS: Record<RaceId, string> = {
+  human: humanRaceUrl,
+  elf: elfRaceUrl,
+  goblin: goblinRaceUrl,
+  troll: trollRaceUrl,
+  dwarf: dwarfRaceUrl,
+  orc: orcRaceUrl,
+  fae: faeRaceUrl,
 };
 
-export const FACTION_PALETTES: Record<FactionId, FactionPaletteProfile> = {
+export const RACE_PALETTES: Record<RaceId, RacePaletteProfile> = {
   human: {
     primary: [0x4e2331, 0x935066, 0xe29b8b],
     secondary: [0x6c4f1f, 0xc08c37, 0xf5d37c],
@@ -103,7 +103,7 @@ export const FACTION_PALETTES: Record<FactionId, FactionPaletteProfile> = {
   },
 };
 
-const UNIT_RECOLOR_RULES: Record<UnitTypeId, UnitPaletteRules> = {
+const UNIT_RECOLOR_RULES: Record<UnitClassId, UnitPaletteRules> = {
   soldier: {
     primary: ['#6E3541', '#89484E', '#A84543', '#BA5349'],
     secondary: ['#92A463'],
@@ -225,10 +225,10 @@ function sampleRamp(ramp: PaletteRamp, index: number, count: number): [number, n
   ];
 }
 
-export function buildColorMap(unitTypeId: UnitTypeId, factionId: FactionId): Map<string, [number, number, number]> {
+export function buildColorMap(unitClassId: UnitClassId, raceId: RaceId): Map<string, [number, number, number]> {
   const map = new Map<string, [number, number, number]>();
-  const rules = UNIT_RECOLOR_RULES[unitTypeId] ?? {};
-  const palette = FACTION_PALETTES[factionId];
+  const rules = UNIT_RECOLOR_RULES[unitClassId] ?? {};
+  const palette = RACE_PALETTES[raceId];
 
   (Object.keys(rules) as PaletteRole[]).forEach((role) => {
     const sourceColors = [...(rules[role] ?? [])].sort((left, right) => luminance(hexToRgb(left)) - luminance(hexToRgb(right)));
@@ -289,37 +289,37 @@ export function recolorImageToCanvas(image: HTMLImageElement, colorMap: Map<stri
   return canvas;
 }
 
-export async function loadFactionUnitPortraitUrls(onProgress?: (progress: AssetLoadProgress) => void): Promise<Record<string, string>> {
-  const unitTypeIds = Object.keys(UNIT_SPRITE_URLS) as UnitTypeId[];
+export async function loadRaceUnitPortraitUrls(onProgress?: (progress: AssetLoadProgress) => void): Promise<Record<string, string>> {
+  const unitClassIds = Object.keys(UNIT_SPRITE_URLS) as UnitClassId[];
   let completed = 0;
-  onProgress?.({ completed, total: unitTypeIds.length, label: 'Preparing unit portraits' });
+  onProgress?.({ completed, total: unitClassIds.length, label: 'Preparing unit portraits' });
   const images = await Promise.all(
-    unitTypeIds.map(async (unitTypeId) => {
-      const image = await loadImage(UNIT_SPRITE_URLS[unitTypeId]);
+    unitClassIds.map(async (unitClassId) => {
+      const image = await loadImage(UNIT_SPRITE_URLS[unitClassId]);
       completed += 1;
-      onProgress?.({ completed, total: unitTypeIds.length, label: `Loaded ${unitTypeId}` });
-      return [unitTypeId, image] as const;
+      onProgress?.({ completed, total: unitClassIds.length, label: `Loaded ${unitClassId}` });
+      return [unitClassId, image] as const;
     }),
   );
 
-  const byUnitType = new Map<UnitTypeId, HTMLImageElement>(images);
+  const byUnitClass = new Map<UnitClassId, HTMLImageElement>(images);
   const portraits: Record<string, string> = {};
 
-  unitTypeIds.forEach((unitTypeId) => {
-    const image = byUnitType.get(unitTypeId);
+  unitClassIds.forEach((unitClassId) => {
+    const image = byUnitClass.get(unitClassId);
     if (!image) {
       return;
     }
 
-    (Object.keys(FACTION_PALETTES) as FactionId[]).forEach((factionId) => {
-      const portraitKey = `${factionId}/${unitTypeId}`;
-      portraits[portraitKey] = recolorImageToCanvas(image, buildColorMap(unitTypeId, factionId)).toDataURL();
+    (Object.keys(RACE_PALETTES) as RaceId[]).forEach((raceId) => {
+      const portraitKey = `${raceId}/${unitClassId}`;
+      portraits[portraitKey] = recolorImageToCanvas(image, buildColorMap(unitClassId, raceId)).toDataURL();
     });
   });
 
   return portraits;
 }
 
-export function getFactionSpriteUrl(factionId: FactionId): string {
-  return FACTION_SPRITE_URLS[factionId];
+export function getRaceSpriteUrl(raceId: RaceId): string {
+  return RACE_SPRITE_URLS[raceId];
 }

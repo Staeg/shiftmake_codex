@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   claimOpeningTroop,
   deserializeGameState,
-  getOpeningFactionOptionIds,
-  getOpeningFactionStarterTroopUnlockIds,
+  getOpeningRaceOptionIds,
+  getOpeningRaceStarterTroopUnlockIds,
   serializeGameState,
   startNewGame,
   startOpeningCampaign,
 } from '../engine/game';
-import { FACTIONS } from '../engine/unitCatalog';
+import { RACES } from '../engine/unitCatalog';
 import type { GameState, TroopUnlockId } from '../engine/types';
 import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, verifyReplayIndexAgainstStoredPayloads, writeSlotReplay } from './saveSlots';
 
@@ -41,13 +41,13 @@ class MemoryStorage implements Storage {
 }
 
 function getOpeningPair(state: GameState): [TroopUnlockId, TroopUnlockId] {
-  const startersByFactionId = getOpeningFactionStarterTroopUnlockIds(state);
-  const candidates = getOpeningFactionOptionIds(state).map((factionId) => startersByFactionId[factionId]);
+  const startersByRaceId = getOpeningRaceStarterTroopUnlockIds(state);
+  const candidates = getOpeningRaceOptionIds(state).map((raceId) => startersByRaceId[raceId]);
   const firstTroopUnlockId = candidates[0]!;
-  const [firstFactionId, firstUnitTypeId] = firstTroopUnlockId.split('/');
+  const [firstRaceId, firstUnitClassId] = firstTroopUnlockId.split('/');
   const secondTroopUnlockId = candidates.find((troopUnlockId) => {
-    const [factionId, unitTypeId] = troopUnlockId.split('/');
-    return factionId !== firstFactionId && unitTypeId !== firstUnitTypeId;
+    const [raceId, unitClassId] = troopUnlockId.split('/');
+    return raceId !== firstRaceId && unitClassId !== firstUnitClassId;
   })!;
   return [firstTroopUnlockId, secondTroopUnlockId];
 }
@@ -62,9 +62,9 @@ describe('save slot repository', () => {
     const storage = new MemoryStorage();
 
     expect(listSaveSlots(storage)).toEqual([
-      { slotId: 1, status: 'empty', gameMode: null, cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
-      { slotId: 2, status: 'empty', gameMode: null, cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
-      { slotId: 3, status: 'empty', gameMode: null, cycleNumber: null, phase: null, factionLabel: null, lastPlayedAt: null },
+      { slotId: 1, status: 'empty', gameMode: null, cycleNumber: null, phase: null, raceLabel: null, lastPlayedAt: null },
+      { slotId: 2, status: 'empty', gameMode: null, cycleNumber: null, phase: null, raceLabel: null, lastPlayedAt: null },
+      { slotId: 3, status: 'empty', gameMode: null, cycleNumber: null, phase: null, raceLabel: null, lastPlayedAt: null },
     ]);
   });
 
@@ -77,19 +77,19 @@ describe('save slot repository', () => {
       status: 'occupied',
       cycleNumber: 1,
       phase: 'opening_unlock',
-      factionLabel: null,
+      raceLabel: null,
     });
 
     const opened = finishOpening(opening);
     saveToSlot(storage, 1, opened);
-    const leadFaction = opened.unlockedFactionIds[0]!;
+    const leadRace = opened.unlockedRaceIds[0]!;
 
     expect(listSaveSlots(storage)[0]).toMatchObject({
       slotId: 1,
       status: 'occupied',
       cycleNumber: 1,
       phase: 'planning',
-      factionLabel: FACTIONS[leadFaction].label,
+      raceLabel: RACES[leadRace].label,
     });
   });
 
@@ -170,10 +170,10 @@ describe('save slot repository', () => {
     const staleSave = { ...opened } as Partial<GameState>;
     delete staleSave.gameMode;
     delete staleSave.recentTroopUnlockIds;
-    delete staleSave.factionUpgradeIds;
-    delete staleSave.troopTypeUpgradeIds;
-    delete staleSave.activeFactionUnlockOffer;
-    delete staleSave.activeTroopTypeUnlockOffer;
+    delete staleSave.raceUpgradeIds;
+    delete staleSave.troopClassUpgradeIds;
+    delete staleSave.activeRaceUnlockOffer;
+    delete staleSave.activeTroopClassUnlockOffer;
     delete staleSave.troopOfferRolls;
     delete staleSave.upgradeOfferRolls;
     delete staleSave.postgameDismissed;
@@ -184,10 +184,10 @@ describe('save slot repository', () => {
     expect(loaded.state).toMatchObject({
       gameMode: 'campaign',
       recentTroopUnlockIds: [],
-      factionUpgradeIds: [],
-      troopTypeUpgradeIds: [],
-      activeFactionUnlockOffer: null,
-      activeTroopTypeUnlockOffer: null,
+      raceUpgradeIds: [],
+      troopClassUpgradeIds: [],
+      activeRaceUnlockOffer: null,
+      activeTroopClassUnlockOffer: null,
       troopOfferRolls: 0,
       upgradeOfferRolls: 0,
       postgameDismissed: false,
@@ -199,47 +199,47 @@ describe('save slot repository', () => {
     const loaded = deserializeGameState(
       JSON.stringify({
         ...opened,
-        unlockedFactionIds: [...opened.unlockedFactionIds, 'retired-faction'],
-        unlockedTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'],
-        recentTroopUnlockIds: ['retired-faction/soldier'],
+        unlockedRaceIds: [...opened.unlockedRaceIds, 'retired-race'],
+        unlockedTroopUnlockIds: ['human/soldier', 'retired-race/soldier'],
+        recentTroopUnlockIds: ['retired-race/soldier'],
         troops: [
           ...opened.troops,
           {
-            id: 'retired-faction/soldier',
-            factionId: 'retired-faction',
-            unitTypeId: 'soldier',
+            id: 'retired-race/soldier',
+            raceId: 'retired-race',
+            unitClassId: 'soldier',
             recoveryCyclesRemaining: 0,
             assignmentRiftId: null,
           },
         ],
-        factionUpgradeIds: ['human-tubthumping', 'retired-upgrade'],
-        troopTypeUpgradeIds: ['archer-shredding-arrows', 'retired-type-upgrade'],
-        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-faction/soldier'] },
+        raceUpgradeIds: ['human-tubthumping', 'retired-upgrade'],
+        troopClassUpgradeIds: ['archer-shredding-arrows', 'retired-class-upgrade'],
+        activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-race/soldier'] },
         activeUpgradeOffer: { kind: 'upgrade', optionUpgradeIds: ['human-tubthumping', 'retired-upgrade'] },
       }),
     );
 
     expect(loaded.ok).toBe(true);
     expect(loaded.repairs).toMatchObject({
-      missingFactionIds: ['retired-faction'],
-      missingTroopUnlockIds: ['retired-faction/soldier'],
-      missingTroopInstanceIds: ['retired-faction/soldier'],
-      missingUpgradeIds: ['retired-upgrade', 'retired-type-upgrade'],
-      missingDraftOptionIds: ['retired-faction/soldier', 'retired-upgrade'],
+      missingRaceIds: ['retired-race'],
+      missingTroopUnlockIds: ['retired-race/soldier'],
+      missingTroopInstanceIds: ['retired-race/soldier'],
+      missingUpgradeIds: ['retired-upgrade', 'retired-class-upgrade'],
+      missingDraftOptionIds: ['retired-race/soldier', 'retired-upgrade'],
     });
-    expect(loaded.state?.unlockedFactionIds).not.toContain('retired-faction');
+    expect(loaded.state?.unlockedRaceIds).not.toContain('retired-race');
     expect(loaded.state?.unlockedTroopUnlockIds).toEqual(['human/soldier']);
     expect(loaded.state?.recentTroopUnlockIds).toEqual([]);
-    expect(loaded.state?.troops.some((troop) => troop.factionId === 'retired-faction')).toBe(false);
-    expect(loaded.state?.factionUpgradeIds).toEqual(['human-tubthumping']);
-    expect(loaded.state?.troopTypeUpgradeIds).toEqual(['archer-shredding-arrows']);
+    expect(loaded.state?.troops.some((troop) => troop.raceId === 'retired-race')).toBe(false);
+    expect(loaded.state?.raceUpgradeIds).toEqual(['human-tubthumping']);
+    expect(loaded.state?.troopClassUpgradeIds).toEqual(['archer-shredding-arrows']);
     expect(loaded.state?.activeTroopOffer?.optionTroopUnlockIds).toEqual(['human/soldier']);
     expect(loaded.state?.activeUpgradeOffer?.optionUpgradeIds).toEqual(['human-tubthumping']);
   });
 
   it('repairs stale phase-specific saves instead of loading a blank overworld branch', () => {
     const opened = finishOpening(startNewGame(16));
-    const loaded = deserializeGameState(JSON.stringify({ ...opened, phase: 'faction_unlock', activeFactionUnlockOffer: undefined }));
+    const loaded = deserializeGameState(JSON.stringify({ ...opened, phase: 'race_unlock', activeRaceUnlockOffer: undefined }));
 
     expect(loaded.ok).toBe(true);
     expect(loaded.state?.phase).toBe('planning');
@@ -302,7 +302,7 @@ describe('save slot repository', () => {
     expect(slots[0]).toMatchObject({
       slotId: 1,
       status: 'occupied',
-      factionLabel: FACTIONS[opened.unlockedFactionIds[0]!].label,
+      raceLabel: RACES[opened.unlockedRaceIds[0]!].label,
     });
     expect(storage.getItem('shiftmake:save:v1')).toBeNull();
     expect(readSlotReplay(storage, 1, 'test-battle')).not.toBeNull();

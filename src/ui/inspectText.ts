@@ -1,5 +1,5 @@
 import type { AbilityDefinition, AbilityEffectDefinition, AbilityTargetDefinition, AbilityTiming, ExplainedStatKey, RoleId } from '../engine/types';
-import { getUnitType } from '../engine/unitCatalog';
+import { getUnitClass } from '../engine/unitCatalog';
 
 export const STAT_ICONS: Record<ExplainedStatKey, string> = {
   move: '🥾',
@@ -69,14 +69,14 @@ function targetLabel(target?: AbilityTargetDefinition): string {
   if ((target.radiusSource === 'selfRange' || target.radius) && target.mode !== 'aoe') {
     parts.push(`within ${radiusLabel} hexes`);
   }
-  if (target.filters?.notTypes?.length) {
-    parts.push(`excluding ${target.filters.notTypes.join(', ')}`);
+  if (target.filters?.notClasses?.length) {
+    parts.push(`excluding ${target.filters.notClasses.join(', ')}`);
   }
-  if (target.filters?.onlyTypes?.length) {
-    parts.push(`only ${target.filters.onlyTypes.join(', ')}`);
+  if (target.filters?.onlyClasses?.length) {
+    parts.push(`only ${target.filters.onlyClasses.join(', ')}`);
   }
-  if (target.filters?.prioritizeTypes?.length) {
-    parts.push(`prioritizes ${target.filters.prioritizeTypes.join(', ')}`);
+  if (target.filters?.prioritizeClasses?.length) {
+    parts.push(`prioritizes ${target.filters.prioritizeClasses.join(', ')}`);
   }
   if (target.filters?.unengaged) {
     parts.push('only unengaged');
@@ -97,8 +97,8 @@ function effectLabel(effect: AbilityEffectDefinition): string {
   if (effect.kind === 'blast') return `${effect.amount} blast damage`;
   if (effect.kind === 'strike') return `${effect.amount} extra strikes`;
   if (effect.kind === 'summon') {
-    const article = /^[aeiou]/i.test(effect.unitTypeId) ? 'an' : 'a';
-    const unitLabel = effect.unitTypeId.replace(/-/g, ' ');
+    const article = /^[aeiou]/i.test(effect.unitClassId) ? 'an' : 'a';
+    const unitLabel = effect.unitClassId.replace(/-/g, ' ');
     const corpseClause = effect.consumeFallenUnitCorpse ? ' by consuming a corpse' : '';
     return `summon ${effect.count} ${effect.count === 1 ? `${article} ${unitLabel}` : `${unitLabel}s`}${corpseClause}`;
   }
@@ -123,8 +123,8 @@ export function formatAbilityDescription(ability: AbilityDefinition): string {
   const summonDescriptions = ability.effects
     .filter((effect): effect is Extract<AbilityEffectDefinition, { kind: 'summon' }> => effect.kind === 'summon')
     .map((effect) => {
-      const unitType = getUnitType(effect.unitTypeId);
-      return `Summoned ${unitType.label}: ${unitType.role} troop with ${unitType.quantity} bodies, ${unitType.stats.health} health, ${unitType.stats.damage} damage, ${unitType.stats.speed} speed.`;
+      const unitClass = getUnitClass(effect.unitClassId);
+      return `Summoned ${unitClass.label}: ${unitClass.role} troop with ${unitClass.quantity} bodies, ${unitClass.stats.health} health, ${unitClass.stats.damage} damage, ${unitClass.stats.speed} speed.`;
     });
   return [ability.shortText, ...summonDescriptions].join(' ');
 }

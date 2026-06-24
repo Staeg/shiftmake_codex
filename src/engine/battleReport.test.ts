@@ -10,9 +10,9 @@ function makeInput(seed = 123): BattleInput {
     riftId: 'cycle-1-rift-1',
     tier: 1,
     mutatorIds: [],
-    playerCombatants: [resolveTroopCombatant({ factionUpgradeIds: [], troopTypeUpgradeIds: [] }, createTroopInstance('human', 'soldier'), 'player')],
+    playerCombatants: [resolveTroopCombatant({ raceUpgradeIds: [], troopClassUpgradeIds: [] }, createTroopInstance('human', 'soldier'), 'player')],
     enemyCombatants: [
-      resolveTroopCombatant({ factionUpgradeIds: [], troopTypeUpgradeIds: [] }, createTroopInstance('goblin', 'militia'), 'enemy', null, 'enemy-goblin-militia'),
+      resolveTroopCombatant({ raceUpgradeIds: [], troopClassUpgradeIds: [] }, createTroopInstance('goblin', 'militia'), 'enemy', null, 'enemy-goblin-militia'),
     ],
   };
 }

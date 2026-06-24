@@ -1,20 +1,20 @@
-# Types
+# Unit Classes
 
-This document describes the meaning of unit `type` and `attributes` in the current implementation.
+This document describes the meaning of unit `unitClassTag` and `attributes` in the current implementation.
 
-## Primary type
+## Primary Unit Class
 
-Every combatant has exactly one primary `type`, for example:
+Every combatant has exactly one primary `unitClassTag`, for example:
 
 - `soldier`
 - `archer`
 - `wizard`
 - `champion`
 
-Primary type matters for:
+Primary unit class matters for:
 
 - Combined Arms counting
-- draft bucketing for troop-type upgrades
+- draft bucketing for troop-class upgrades
 - ability filters such as `Only`, `Not`, and `Prio`
 - troop identity in replays and tooltips
 
@@ -23,19 +23,19 @@ Primary type matters for:
 Combatants also have secondary `attributes`, for example:
 
 - combat style tags: `melee`, `ranged`, `caster`
-- faction tags: `human`, `elf`, `goblin`, `troll`, `dwarf`, `orc`, `fae`
+- race tags: `human`, `elf`, `goblin`, `troll`, `dwarf`, `orc`, `fae`
 - special traits: `expendable`, `summoner`, `summoned`
 
 Ability target filters match against the combined visible identity set of:
 
-- the primary `type`
+- the primary `unitClassTag`
 - all `attributes`
 
-That means a filter for `caster` matches shamans, druids, and wizards, while a filter for `archer` only matches the primary archer type.
+That means a filter for `caster` matches shamans, druids, and wizards, while a filter for `archer` only matches the primary archer unit class.
 
 ## Upgrade matching
 
-Troop-type upgrades key off the primary unit `type`, not faction.
+Troop-class upgrades key off the primary unit `unitClassTag`, not race.
 
 Examples:
 
@@ -43,7 +43,7 @@ Examples:
 - `Rat Behavior` applies to all Militia
 - `Storm Rods` applies to all Wizards
 
-Faction upgrades key off faction only and can modify:
+Race upgrades key off race only and can modify:
 
 - abilities
 - attributes

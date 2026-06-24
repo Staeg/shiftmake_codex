@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffer, getOpeningFactionStarterTroopUnlockIds, revealEssenceDraft, startNewGame } from './game';
+import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffer, getOpeningRaceStarterTroopUnlockIds, revealEssenceDraft, startNewGame } from './game';
 import {
   advanceContestMultiplayerRoom,
   buildStoredReplayPayloadMap,
@@ -13,7 +13,7 @@ import {
 import type { GameState, TroopUnlockId } from './types';
 
 function chooseFirstTwoOpeningTroops(state: GameState): GameState {
-  const starters = Object.values(getOpeningFactionStarterTroopUnlockIds(state)) as TroopUnlockId[];
+  const starters = Object.values(getOpeningRaceStarterTroopUnlockIds(state)) as TroopUnlockId[];
   return starters.slice(0, 2).reduce((next, troopUnlockId) => claimOpeningTroop(next, troopUnlockId), state);
 }
 
@@ -55,7 +55,7 @@ describe('multiplayer Contest rooms', () => {
     const aiProjection = projectContestStateForPlayer(room, 'ai');
 
     expect(humanProjection.campaignSeed).not.toBe(aiProjection.campaignSeed);
-    expect(getOpeningFactionStarterTroopUnlockIds(humanProjection)).not.toEqual(getOpeningFactionStarterTroopUnlockIds(aiProjection));
+    expect(getOpeningRaceStarterTroopUnlockIds(humanProjection)).not.toEqual(getOpeningRaceStarterTroopUnlockIds(aiProjection));
 
     const opened = advanceContestMultiplayerRoom(room, {
       human: chooseFirstTwoOpeningTroops(humanProjection),
@@ -179,7 +179,7 @@ describe('multiplayer Contest rooms', () => {
     expect(projectedIndex[0]?.encounterLabel).toBe('Neutral Guardians');
   });
 
-  it('generates different scheduled faction unlock offers for both players', () => {
+  it('generates different scheduled race unlock offers for both players', () => {
     const room = startNewGame(789, 'contest');
     let state = advanceContestMultiplayerRoom(room, {
       human: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'human')),
@@ -192,9 +192,9 @@ describe('multiplayer Contest rooms', () => {
       ai: projectContestStateForPlayer(state, 'ai'),
     }).state;
 
-    expect(cycleThree.phase).toBe('faction_unlock');
-    expect(projectContestStateForPlayer(cycleThree, 'human').activeFactionUnlockOffer?.optionFactionIds).not.toEqual(
-      projectContestStateForPlayer(cycleThree, 'ai').activeFactionUnlockOffer?.optionFactionIds,
+    expect(cycleThree.phase).toBe('race_unlock');
+    expect(projectContestStateForPlayer(cycleThree, 'human').activeRaceUnlockOffer?.optionRaceIds).not.toEqual(
+      projectContestStateForPlayer(cycleThree, 'ai').activeRaceUnlockOffer?.optionRaceIds,
     );
   });
 

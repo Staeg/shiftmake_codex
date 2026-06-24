@@ -1,18 +1,18 @@
-import { buildSimulationBattleInput, createSeedRange, createUnitTypeCombatant, sweepBattleSeeds } from './simulationHarness';
+import { buildSimulationBattleInput, createSeedRange, createUnitClassCombatant, sweepBattleSeeds } from './simulationHarness';
 import { fixed } from './fixed';
-import { UNIT_TYPES, getUnitType } from './unitCatalog';
-import type { BattleOutcome, UnitTypeId } from './types';
+import { UNIT_CLASSES, getUnitClass } from './unitCatalog';
+import type { BattleOutcome, UnitClassId } from './types';
 
 export type PermutationTeamSize = 2 | 3;
 
 export interface PermutationTroopInfo {
-  troopId: UnitTypeId;
+  troopId: UnitClassId;
   label: string;
   quantity: number;
 }
 
 export interface PermutationTeam {
-  troopIds: UnitTypeId[];
+  troopIds: UnitClassId[];
   key: string;
   label: string;
 }
@@ -32,7 +32,7 @@ export interface PermutationRecord {
 }
 
 export interface PermutationMatrixEntry extends PermutationRecord {
-  troopId: UnitTypeId;
+  troopId: UnitClassId;
   label: string;
   quantity: number;
   decisiveWinRate: number;
@@ -42,14 +42,14 @@ export interface PermutationMatrixEntry extends PermutationRecord {
 export interface PermutationOverallEntry extends PermutationMatrixEntry {}
 
 export interface PermutationTroopSection {
-  troopId: UnitTypeId;
+  troopId: UnitClassId;
   label: string;
   quantity: number;
   entries: PermutationMatrixEntry[];
 }
 
 export interface PermutationAggregate {
-  troopIds: UnitTypeId[];
+  troopIds: UnitClassId[];
   quantities: Record<string, number>;
   labels: Record<string, string>;
   overall: Record<string, PermutationRecord>;
@@ -82,7 +82,7 @@ export interface PermutationRunResult {
   };
 }
 
-function compareTroopIds(left: UnitTypeId, right: UnitTypeId): number {
+function compareTroopIds(left: UnitClassId, right: UnitClassId): number {
   return left.localeCompare(right);
 }
 
@@ -119,35 +119,35 @@ function cloneRecord(record?: PermutationRecord): PermutationRecord {
   };
 }
 
-export function getEligiblePermutationUnitTypeIds(): UnitTypeId[] {
-  return filterEligiblePermutationUnitTypeIds((Object.values(UNIT_TYPES) as Array<(typeof UNIT_TYPES)[string]>).map((unitType) => unitType.id));
+export function getEligiblePermutationUnitClassIds(): UnitClassId[] {
+  return filterEligiblePermutationUnitClassIds((Object.values(UNIT_CLASSES) as Array<(typeof UNIT_CLASSES)[string]>).map((unitClass) => unitClass.id));
 }
 
-export function filterEligiblePermutationUnitTypeIds(unitTypeIds: UnitTypeId[]): UnitTypeId[] {
-  return (Object.values(UNIT_TYPES) as Array<(typeof UNIT_TYPES)[string]>)
-    .filter((unitType) => unitTypeIds.includes(unitType.id))
-    .filter((unitType) => !unitType.attributes.includes('summoned'))
-    .map((unitType) => unitType.id)
+export function filterEligiblePermutationUnitClassIds(unitClassIds: UnitClassId[]): UnitClassId[] {
+  return (Object.values(UNIT_CLASSES) as Array<(typeof UNIT_CLASSES)[string]>)
+    .filter((unitClass) => unitClassIds.includes(unitClass.id))
+    .filter((unitClass) => !unitClass.attributes.includes('summoned'))
+    .map((unitClass) => unitClass.id)
     .sort(compareTroopIds);
 }
 
-export function resolvePermutationQuantity(unitTypeId: UnitTypeId): number {
-  return Math.max(1, Math.round(120 / getUnitType(unitTypeId).cost));
+export function resolvePermutationQuantity(unitClassId: UnitClassId): number {
+  return Math.max(1, Math.round(120 / getUnitClass(unitClassId).cost));
 }
 
-export function resolvePermutationTroops(unitTypeIds: UnitTypeId[] = getEligiblePermutationUnitTypeIds()): PermutationTroopInfo[] {
-  return [...unitTypeIds].sort(compareTroopIds).map((troopId) => ({
+export function resolvePermutationTroops(unitClassIds: UnitClassId[] = getEligiblePermutationUnitClassIds()): PermutationTroopInfo[] {
+  return [...unitClassIds].sort(compareTroopIds).map((troopId) => ({
     troopId,
-    label: getUnitType(troopId).label,
+    label: getUnitClass(troopId).label,
     quantity: resolvePermutationQuantity(troopId),
   }));
 }
 
-export function generatePermutationTeams(teamSize: PermutationTeamSize, unitTypeIds: UnitTypeId[]): PermutationTeam[] {
-  return choose([...unitTypeIds].sort(compareTroopIds), teamSize).map((troopIds) => ({
+export function generatePermutationTeams(teamSize: PermutationTeamSize, unitClassIds: UnitClassId[]): PermutationTeam[] {
+  return choose([...unitClassIds].sort(compareTroopIds), teamSize).map((troopIds) => ({
     troopIds,
     key: troopIds.join('+'),
-    label: troopIds.map((troopId) => getUnitType(troopId).label).join(' + '),
+    label: troopIds.map((troopId) => getUnitClass(troopId).label).join(' + '),
   }));
 }
 
@@ -175,10 +175,10 @@ export function createPermutationSeeds(teamSize: PermutationTeamSize, matchupInd
   return createSeedRange(runCount, teamSize * 1_000_000 + matchupIndex * runCount);
 }
 
-export function createEmptyPermutationAggregate(unitTypeIds: UnitTypeId[]): PermutationAggregate {
-  const troopIds = [...unitTypeIds].sort(compareTroopIds);
+export function createEmptyPermutationAggregate(unitClassIds: UnitClassId[]): PermutationAggregate {
+  const troopIds = [...unitClassIds].sort(compareTroopIds);
   const quantities = Object.fromEntries(troopIds.map((troopId) => [troopId, resolvePermutationQuantity(troopId)]));
-  const labels = Object.fromEntries(troopIds.map((troopId) => [troopId, getUnitType(troopId).label]));
+  const labels = Object.fromEntries(troopIds.map((troopId) => [troopId, getUnitClass(troopId).label]));
   const overall = Object.fromEntries(troopIds.map((troopId) => [troopId, emptyRecord()]));
   const matrix = Object.fromEntries(
     troopIds.map((troopId) => [
@@ -217,8 +217,8 @@ function applyOutcomeToSide(record: PermutationRecord, outcome: BattleOutcome, s
 
 export function applyPermutationOutcome(
   aggregate: PermutationAggregate,
-  leftTroopIds: UnitTypeId[],
-  rightTroopIds: UnitTypeId[],
+  leftTroopIds: UnitClassId[],
+  rightTroopIds: UnitClassId[],
   outcome: BattleOutcome,
 ): void {
   const leftWon = outcome === 'victory';
@@ -310,11 +310,11 @@ export function mergePermutationAggregates(base: PermutationAggregate, incoming:
   return base;
 }
 
-function finalizeRecord(record: PermutationRecord, troopId: UnitTypeId, quantity: number): PermutationMatrixEntry {
+function finalizeRecord(record: PermutationRecord, troopId: UnitClassId, quantity: number): PermutationMatrixEntry {
   const decisiveSamples = record.wins + record.losses;
   return {
     troopId,
-    label: getUnitType(troopId).label,
+    label: getUnitClass(troopId).label,
     quantity,
     wins: record.wins,
     losses: record.losses,
@@ -411,7 +411,7 @@ export function renderPermutationReport(data: FinalizedPermutationReportData): s
     '',
     ...renderTable(data.overall),
     '',
-    '## Against every troop type',
+    '## Against every troop class',
     '',
     ...data.against.flatMap((section) => [
       `### ${section.label}`,
@@ -419,7 +419,7 @@ export function renderPermutationReport(data: FinalizedPermutationReportData): s
       ...renderTable(section.entries),
       '',
     ]),
-    '## Alongside every troop type',
+    '## Alongside every troop class',
     '',
     ...data.alongside.flatMap((section) => [
       `### ${section.label}`,
@@ -434,24 +434,24 @@ export function runPermutationBatch(
   teamSize: PermutationTeamSize,
   matchups: PermutationMatchup[],
   runCount: number,
-  unitTypeIds: UnitTypeId[],
+  unitClassIds: UnitClassId[],
 ): { aggregate: PermutationAggregate; results: PermutationRunResult[] } {
-  const aggregate = createEmptyPermutationAggregate(unitTypeIds);
-  const quantities = Object.fromEntries(unitTypeIds.map((troopId) => [troopId, resolvePermutationQuantity(troopId)]));
+  const aggregate = createEmptyPermutationAggregate(unitClassIds);
+  const quantities = Object.fromEntries(unitClassIds.map((troopId) => [troopId, resolvePermutationQuantity(troopId)]));
   const results = matchups.map((matchup) => {
     const sweep = sweepBattleSeeds(
       (seed) =>
         buildSimulationBattleInput(
           seed,
           matchup.left.troopIds.map((troopId, index) =>
-            createUnitTypeCombatant(troopId, {
+            createUnitClassCombatant(troopId, {
               side: 'player',
               quantity: quantities[troopId] as number,
               combatantId: `player-${matchup.index}-${index}-${troopId}`,
             }),
           ),
           matchup.right.troopIds.map((troopId, index) =>
-            createUnitTypeCombatant(troopId, {
+            createUnitClassCombatant(troopId, {
               side: 'enemy',
               quantity: quantities[troopId] as number,
               combatantId: `enemy-${matchup.index}-${index}-${troopId}`,

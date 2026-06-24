@@ -295,7 +295,7 @@ function isClientMessage(value: unknown): value is ClientMessage {
       Number.isSafeInteger(submission.cycleNumber) &&
       typeof submission.phase === 'string' &&
       isStringArray(submission.selectedStartingTroopUnlockIds) &&
-      isStringArray(submission.selectedFactionIds) &&
+      isStringArray(submission.selectedRaceIds) &&
       isStringArray(submission.selectedTroopUnlockIds) &&
       isStringArray(submission.selectedUpgradeIds) &&
       Array.isArray(submission.troopAssignments) &&

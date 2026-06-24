@@ -10,7 +10,7 @@ import type {
 type UnitForAbilityRules = {
   id?: string;
   side: SideId;
-  type: string;
+  unitClassTag: string;
   attributes: string[];
   engagedWith?: { size: number };
   resolvedStats: {
@@ -62,7 +62,7 @@ export function matchesFallenTrigger(
   return allegiance === 'ally' ? unit.side === fallenUnit.side : unit.side !== fallenUnit.side;
 }
 
-export function filterTargetCandidates<T extends Pick<UnitForAbilityRules, 'type' | 'attributes'>>(
+export function filterTargetCandidates<T extends Pick<UnitForAbilityRules, 'unitClassTag' | 'attributes'>>(
   candidates: T[],
   filters?: AbilityTargetDefinition['filters'],
 ): T[] {
@@ -70,24 +70,24 @@ export function filterTargetCandidates<T extends Pick<UnitForAbilityRules, 'type
     return candidates;
   }
   return candidates.filter((unit) => {
-    const visibleTypes = new Set([unit.type, ...unit.attributes]);
-    if (filters.onlyTypes?.length && !filters.onlyTypes.some((type) => visibleTypes.has(type))) return false;
-    if (filters.notTypes?.some((type) => visibleTypes.has(type))) return false;
+    const visibleClasses = new Set([unit.unitClassTag, ...unit.attributes]);
+    if (filters.onlyClasses?.length && !filters.onlyClasses.some((classTag) => visibleClasses.has(classTag))) return false;
+    if (filters.notClasses?.some((classTag) => visibleClasses.has(classTag))) return false;
     if (filters.unengaged && (unit.engagedWith?.size ?? 0) > 0) return false;
     return true;
   });
 }
 
-export function prioritizeCandidates<T extends Pick<UnitForAbilityRules, 'type' | 'attributes'>>(
+export function prioritizeCandidates<T extends Pick<UnitForAbilityRules, 'unitClassTag' | 'attributes'>>(
   candidates: T[],
   filters?: AbilityTargetDefinition['filters'],
 ): T[] {
-  if (!filters?.prioritizeTypes?.length) {
+  if (!filters?.prioritizeClasses?.length) {
     return candidates;
   }
   const prioritized = candidates.filter((unit) => {
-    const visibleTypes = new Set([unit.type, ...unit.attributes]);
-    return filters.prioritizeTypes!.some((type) => visibleTypes.has(type));
+    const visibleClasses = new Set([unit.unitClassTag, ...unit.attributes]);
+    return filters.prioritizeClasses!.some((classTag) => visibleClasses.has(classTag));
   });
   return prioritized.length > 0 ? prioritized : candidates;
 }

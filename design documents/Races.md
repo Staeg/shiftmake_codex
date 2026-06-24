@@ -1,12 +1,12 @@
-# Factions
+# Races
 
-This document lists the currently implemented factions and faction-wide upgrades.
+This document lists the currently implemented races and race-wide upgrades.
 
-Faction identity is defined by stat adjustments, added attributes, abilities, faction upgrades, and a native troop roster. Rifts can still unlock unusual cross-faction troop combinations outside those native rosters.
+Race identity is defined by stat adjustments, added attributes, abilities, race upgrades, and a native troop roster. Rifts can still unlock unusual cross-race troop combinations outside those native rosters.
 
 ## Native troop rosters
 
-These are the currently implemented default recruit pools for each faction.
+These are the currently implemented default recruit pools for each race.
 
 - Humans: `soldier`, `archer`, `knight`, `priest`, `wizard`
 - Elves: `archer`, `ranger`, `druid`, `beastmaster`, `champion`
@@ -25,9 +25,9 @@ These are the currently implemented default recruit pools for each faction.
 - Armor: +1
 - Capacity: +1
 - Cost modifier: none
-- Faction abilities: none
+- Race abilities: none
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 1: `Tubthumping` - all human troops gain `United`; harmful damage or speed reductions become `+1` instead
 - Tier 2: `Human Combined Arms` - all human troops gain `Combined Arms 20`
@@ -41,9 +41,9 @@ Faction upgrades:
 - Speed: +20%
 - Range: +1 for non-melee units only
 - Cost modifier: none
-- Faction abilities: none
+- Race abilities: none
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 1: `Elven Reflexes` - all non-melee elven troops gain +1 range; the first time each battle an engaged elven backline unit retreats 1 hex for free
 - Tier 2: `Silvershot Doctrine` - ranged and caster attacks gain +1 damage and +2 initiative per hex of distance; attacks made from max range make the target lose 30 initiative
@@ -59,9 +59,9 @@ Faction upgrades:
 - Size: -1, clamped to a minimum of 1
 - Capacity: -2, clamped to a minimum of 0
 - Cost modifier: -50%
-- Faction abilities: none
+- Race abilities: none
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 1: `Goblin Behavior` - all goblin troops gain `Goblin Farewell` and `Snatch the Moment`
 - Tier 2: `Goblin Pack` - all goblin troops gain `Pack 1`
@@ -76,9 +76,9 @@ Faction upgrades:
 - Size: +1
 - Capacity: +1
 - Cost modifier: none
-- Faction abilities: `Regen 5`
+- Race abilities: `Regen 5`
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 1: `Roll the Boulder` - all troll troops gain `Ramp 1` and `Crushing Sweep`
 - Tier 2: `Mossblood` - each troll survives the first lethal hit at 25 HP and loses Regen for that battle; all troll troops gain `Frenzy: Ramp 1`
@@ -92,9 +92,9 @@ Faction upgrades:
 - Armor: +3
 - Capacity: +1
 - Cost modifier: none
-- Faction abilities: none
+- Race abilities: none
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 1: `Diggy Hole` - Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
 - Tier 2: `Ale and Hearty` - Dwarven troops gain +40% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
@@ -108,9 +108,9 @@ Faction upgrades:
 - Armor: -1
 - Capacity: -1, clamped to a minimum of 0
 - Cost modifier: none
-- Faction abilities: none
+- Race abilities: none
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 1: `Seeing Red` - whenever an Orc kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative
 - Tier 2: `First Blood` - Orc units make an immediate normal attack when they engage, before the normal engagement attack
@@ -124,9 +124,9 @@ Faction upgrades:
 - Range: +1 for non-melee units only
 - Armor: -1
 - Cost modifier: none
-- Faction abilities: none
+- Race abilities: none
 
-Faction upgrades:
+Race upgrades:
 
 - Tier 2: `Glamour` - once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range; triggered attack effects resolve as though the Fae made the attack
 - Tier 3: `Changeling` - if a Fae troop was brought to battle, after beat 12 one random enemy unit from each enemy troop changes sides

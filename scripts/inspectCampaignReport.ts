@@ -79,7 +79,7 @@ async function main(): Promise<void> {
   console.log(`assignedTroops: ${assignedTroops.length}`);
   assignedTroops.forEach((troop) => console.log(`  ${troop.id} -> ${troop.assignmentRiftId}`));
   console.log(`offers: troop=${payload.game.activeTroopOffer ? payload.game.activeTroopOffer.optionTroopUnlockIds.join(', ') : '(none)'} upgrade=${payload.game.activeUpgradeOffer ? payload.game.activeUpgradeOffer.optionUpgradeIds.join(', ') : '(none)'}`);
-  console.log(`upgrades: faction=${payload.game.factionUpgradeIds.join(', ') || '(none)'} troopType=${payload.game.troopTypeUpgradeIds.join(', ') || '(none)'}`);
+  console.log(`upgrades: race=${payload.game.raceUpgradeIds.join(', ') || '(none)'} troopClass=${payload.game.troopClassUpgradeIds.join(', ') || '(none)'}`);
 
   if (options.replayId) {
     const replayPayload = payload.replayPayloads[options.replayId];

@@ -4,7 +4,7 @@ Use this as the shared art direction for generated upgrade, ability, and Rift-mu
 
 ## Game Context
 
-Shiftmake is a browser-based, singleplayer turn-based strategy game with light pixel art graphics. The player commands a patchwork army from multiple factions and sends troops through Rifts into auto-resolved battles. Icons should feel tactical, readable, and game-system-forward rather than like full illustrations.
+Shiftmake is a browser-based, singleplayer turn-based strategy game with light pixel art graphics. The player commands a patchwork army from multiple races and sends troops through Rifts into auto-resolved battles. Icons should feel tactical, readable, and game-system-forward rather than like full illustrations.
 
 ## Global Icon Rules
 
@@ -35,7 +35,7 @@ Shiftmake is a browser-based, singleplayer turn-based strategy game with light p
 - Corpses and death triggers: bones, fading silhouettes, dark violet or sickly green accents.
 - Range and precision: arrows, crosshair shapes, long sight lines.
 - Debuffs: cracked armor, downward motion, draining color.
-- Faction synergies: banners, grouped silhouettes, faction-coded materials.
+- Race synergies: banners, grouped silhouettes, race-coded materials.
 - Rift mutators: environmental symbols that affect the whole battle.
 
 ## Negative Prompt

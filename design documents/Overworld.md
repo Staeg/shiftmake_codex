@@ -13,9 +13,9 @@ The app has:
 
 The campaign phases inside the overworld are:
 
-- `opening_unlock`: choose two free opening factions; each faction option grants one preselected native starting troop and shows its other native troop types as later unlock potential
-- `faction_unlock`: choose a scheduled new faction at the start of cycle 3 or cycle 7
-- `troop_type_unlock`: scheduled troop unlock grant step for that newly unlocked faction
+- `opening_unlock`: choose two free opening races; each race option grants one preselected native starting troop and shows its other native troop classes as later unlock potential
+- `race_unlock`: choose a scheduled new race at the start of cycle 3 or cycle 7
+- `troop_class_unlock`: scheduled troop unlock grant step for that newly unlocked race
 - `planning`: inspect Rifts, draft unlocks, assign troops, end cycle
 - `game_over`: shown immediately after cycle 10 resolves
 
@@ -33,18 +33,18 @@ The campaign phases inside the overworld are:
 
 ### Opening unlock
 
-- Choose any offered opening faction for free; the faction's preselected starting troop type is included automatically.
-- Choose a second offered opening faction for free; its preselected starting troop type is included automatically.
-- The player can inspect the other native troop types each offered faction may unlock later, but does not choose the starter's troop type.
-- After the second choice, both starting troops are added, both factions are marked owned, 2 Essence is granted, and cycle-1 Rifts are generated.
-- Normal troop drafts then use only those unlocked factions' native rosters, plus any latent Rift-earned combinations for already-unlocked factions.
+- Choose any offered opening race for free; the race's preselected starting troop class is included automatically.
+- Choose a second offered opening race for free; its preselected starting troop class is included automatically.
+- The player can inspect the other native troop classes each offered race may unlock later, but does not choose the starter's troop class.
+- After the second choice, both starting troops are added, both races are marked owned, 2 Essence is granted, and cycle-1 Rifts are generated.
+- Normal troop drafts then use only those unlocked races' native rosters, plus any latent Rift-earned combinations for already-unlocked races.
 
-### Scheduled faction unlocks
+### Scheduled race unlocks
 
-- At the start of cycle 3, the player gets a faction unlock offer with up to 3 still-locked factions. With the currently implemented 7-faction catalog, fewer than 3 options can appear if fewer than 3 factions remain locked.
-- Each cycle-3 faction option previews its native troop roster, defeated-enemy troop combinations that could be unlocked for that faction in the future, 1 preselected faction upgrade, and 2 preselected troop types that will be granted immediately.
-- After choosing the cycle-3 faction, the selected faction, its preselected upgrade, and its 2 preselected troop types are added without a follow-up troop-type picker.
-- At the start of cycle 7, the same flow repeats, but the chosen faction receives 2 preselected faction upgrades and 3 preselected troop types.
+- At the start of cycle 3, the player gets a race unlock offer with up to 3 still-locked races. With the currently implemented 7-race catalog, fewer than 3 options can appear if fewer than 3 races remain locked.
+- Each cycle-3 race option previews its native troop roster, defeated-enemy troop combinations that could be unlocked for that race in the future, 1 preselected race upgrade, and 2 preselected troop classes that will be granted immediately.
+- After choosing the cycle-3 race, the selected race, its preselected upgrade, and its 2 preselected troop classes are added without a follow-up troop-class picker.
+- At the start of cycle 7, the same flow repeats, but the chosen race receives 2 preselected race upgrades and 3 preselected troop classes.
 
 ### Drafting
 
@@ -52,8 +52,8 @@ The campaign phases inside the overworld are:
 - The draft costs 2 Essence when both troop and upgrade options are available.
 - If only troop options or only upgrade options remain, the one-sided draft costs 1 Essence.
 - Claim one troop option and one upgrade option from a revealed draft without spending additional Essence.
-- Troop draft candidates are limited to unlocked factions; defeating an enemy from a locked faction records the combination latently until that faction is later unlocked.
-- Troop draft options that would leave the roster with more troops of one faction or troop type than current discovered Rifts are hidden.
+- Troop draft candidates are limited to unlocked races; defeating an enemy from a locked race records the combination latently until that race is later unlocked.
+- Troop draft options that would leave the roster with more troops of one race or troop class than current discovered Rifts are hidden.
 - Spendable Essence must be used before ending the cycle. If no draft can be revealed, leftover Essence carries over.
 
 ### Rift planning
@@ -73,9 +73,9 @@ The campaign phases inside the overworld are:
 
 - A troop cannot be assigned while recovering.
 - A troop can only be assigned to one Rift at a time.
-- By default, multiple troops from the same faction cannot enter the same Rift.
-- The `United` overworld ability lifts that faction restriction for the upgraded faction.
-- Multiple troops of the same troop type cannot enter the same Rift.
+- By default, multiple troops from the same race cannot enter the same Rift.
+- The `United` overworld ability lifts that race restriction for the upgraded race.
+- Multiple troops of the same troop class cannot enter the same Rift.
 
 ## Recovery
 
@@ -96,7 +96,7 @@ When the player ends the cycle:
 6. Essence increases by 2.
 7. Active draft offers are cleared.
 8. New Rifts are generated.
-9. If the new cycle is 3 or 7, phase changes to the scheduled faction unlock before normal planning resumes.
+9. If the new cycle is 3 or 7, phase changes to the scheduled race unlock before normal planning resumes.
 10. If the resolved cycle was cycle 10 and the postgame screen has not already been dismissed, phase changes to `game_over`.
 
 ## Current UI structure

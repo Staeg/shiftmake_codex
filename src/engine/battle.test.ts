@@ -7,11 +7,11 @@ import { footprintDistance, hexDistance, visualVerticalLineKey } from './hex';
 import type { AbilityDefinition, BattleInput, ResolvedCombatantDefinition } from './types';
 
 describe('troop composition', () => {
-  it('composes faction and unit type stats into a resolved troop', () => {
+  it('composes race and troop class stats into a resolved troop', () => {
     const troop = composeTroopDefinition('human', 'soldier');
 
     expect(troop.label).toBe('Human Soldier');
-    expect(troop.type).toBe('soldier');
+    expect(troop.unitClassTag).toBe('soldier');
     expect(troop.attributes).toEqual(['melee', 'human']);
     expect(troop.stats).toEqual({
       health: 110,
@@ -27,7 +27,7 @@ describe('troop composition', () => {
     expect(troop.cost).toBe(24);
   });
 
-  it('clamps composed stats and merges unit and faction abilities', () => {
+  it('clamps composed stats and merges unit and race abilities', () => {
     const troop = composeTroopDefinition('troll', 'champion');
 
     expect(troop.stats).toEqual({
@@ -49,7 +49,7 @@ describe('troop composition', () => {
     const troop = composeTroopDefinition('human', 'knight');
 
     expect(troop.label).toBe('Human Knight');
-    expect(troop.type).toBe('knight');
+    expect(troop.unitClassTag).toBe('knight');
     expect(troop.attributes).toEqual(['melee', 'human']);
     expect(troop.stats).toEqual({
       health: 220,
@@ -66,7 +66,7 @@ describe('troop composition', () => {
     expect(troop.cost).toBe(60);
   });
 
-  it('adds new faction roster units with their abilities', () => {
+  it('adds new race roster units with their abilities', () => {
     expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 3', 'Regen 5']);
     expect(composeTroopDefinition('dwarf', 'avenger').attributes).toEqual(['melee', 'dwarf']);
     expect(composeTroopDefinition('dwarf', 'avenger').stats).toMatchObject({ health: 240, damage: 6, speed: 8.5, armor: 3, size: 2, capacity: 2 });
@@ -114,7 +114,7 @@ describe('troop composition', () => {
     expect(resolveAbilityDefinition('enhance-1')).toMatchObject({
       label: 'Enhance 1',
       trigger: { timing: 'endOfTurn' },
-      target: { mode: 'random', allegiance: 'ally', radiusSource: 'selfRange', filters: { notTypes: ['caster'] } },
+      target: { mode: 'random', allegiance: 'ally', radiusSource: 'selfRange', filters: { notClasses: ['caster'] } },
       effects: [
         { kind: 'haste', amount: 1, mode: 'flat' },
         { kind: 'ramp', amount: 1, mode: 'flat' },
@@ -151,11 +151,11 @@ describe('resolveDebugBattle', () => {
     return {
       combatantId: `test-${side}-${troopId}`,
       troopInstanceId: null,
-      factionId: troop.factionId,
-      unitTypeId: troop.unitTypeId,
+      raceId: troop.raceId,
+      unitClassId: troop.unitClassId,
       label: troop.label,
       role: troop.role,
-      type: troop.type,
+      unitClassTag: troop.unitClassTag,
       attributes: troop.attributes,
       stats: troop.stats,
       abilities: [...troop.abilities, ...extraAbilities],
@@ -186,17 +186,17 @@ describe('resolveDebugBattle', () => {
     expect(a).toEqual(b);
   });
 
-  it('can apply troop and faction upgrades in debug battles', () => {
+  it('can apply troop and race upgrades in debug battles', () => {
     const replay = resolveDebugBattle({
       seed: 42,
       player: { 'human/archer': 5 },
       enemy: { 'human/archer': 5 },
-      playerFactionUpgradeIds: ['human-tubthumping'],
-      playerTroopTypeUpgradeIds: ['archer-pinning-volley'],
-      enemyTroopTypeUpgradeIds: ['archer-pinning-volley'],
+      playerRaceUpgradeIds: ['human-tubthumping'],
+      playerTroopClassUpgradeIds: ['archer-pinning-volley'],
+      enemyTroopClassUpgradeIds: ['archer-pinning-volley'],
     });
 
-    const playerProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitTypeId === 'archer');
+    const playerProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitClassId === 'archer');
     expect(playerProfile?.abilities.map((ability) => ability.id)).toContain('pinning-volley');
     expect(playerProfile?.abilities.map((ability) => ability.id)).toContain('tubthumping');
   });
@@ -544,18 +544,18 @@ describe('resolveDebugBattle', () => {
     expect(replay.steps.filter((step) => step.kind === 'death' && step.message.includes('Wolf')).length).toBeGreaterThan(0);
   });
 
-  it('keeps summoned units on their native stats and attributes instead of inheriting summoner faction traits', () => {
+  it('keeps summoned units on their native stats and attributes instead of inheriting summoner race traits', () => {
     const replay = resolveDebugBattle({
       seed: 22,
       player: { 'goblin/beastmaster': 1 },
       enemy: { 'human/knight': 2 },
     });
 
-    const wolfProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitTypeId === 'wolf');
+    const wolfProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitClassId === 'wolf');
 
     expect(wolfProfile).toMatchObject({
       troopLabel: 'Wolf',
-      factionId: 'goblin',
+      raceId: 'goblin',
       attributes: ['melee', 'summoned'],
       stats: {
         health: 70,
@@ -599,11 +599,11 @@ describe('ability mechanics', () => {
     return {
       combatantId: `test-${side}-${troopId}`,
       troopInstanceId: null,
-      factionId: troop.factionId,
-      unitTypeId: troop.unitTypeId,
+      raceId: troop.raceId,
+      unitClassId: troop.unitClassId,
       label: troop.label,
       role: troop.role,
-      type: troop.type,
+      unitClassTag: troop.unitClassTag,
       attributes: troop.attributes,
       stats: troop.stats,
       abilities: [...troop.abilities, ...extraAbilities],
@@ -650,7 +650,7 @@ describe('ability mechanics', () => {
     expect(beatsBeforeShapeshift).toBeGreaterThanOrEqual(5);
   });
 
-  it('forsaken: triggers for a solo troop but not when an ally of a different type is present', () => {
+  it('forsaken: triggers for a solo troop but not when an ally of a different class is present', () => {
     const forsakenAbility = getAbility('forsaken-80');
     const enemy = makeBattleCombatant('human/soldier', 'enemy');
 
@@ -670,7 +670,7 @@ describe('ability mechanics', () => {
     expect(countPreBeatBuffs(alliedReplay)).toBe(0); // forsaken blocked when ally is present
   });
 
-  it('combined arms: fires once per distinct other friendly troop type at startOfBattle', () => {
+  it('combined arms: fires once per distinct other friendly troop class at startOfBattle', () => {
     const combinedArmsAbility = getAbility('combined-arms-20');
 
     const countStartOfBattleBuffs = (extraAllies: string[]) => {
@@ -684,9 +684,9 @@ describe('ability mechanics', () => {
     };
 
     // combined-arms-20 has 3 effects (bolster, haste, ramp) per repeat
-    expect(countStartOfBattleBuffs([])).toBe(0); // solo: 0 other troop types → 0 repeats
-    expect(countStartOfBattleBuffs(['human/archer'])).toBe(3); // 1 other type → 1 repeat × 3 effects
-    expect(countStartOfBattleBuffs(['human/archer', 'human/militia'])).toBe(6); // 2 other types → 2 repeats × 3 effects
+    expect(countStartOfBattleBuffs([])).toBe(0); // solo: 0 other troop classes → 0 repeats
+    expect(countStartOfBattleBuffs(['human/archer'])).toBe(3); // 1 other class -> 1 repeat x 3 effects
+    expect(countStartOfBattleBuffs(['human/archer', 'human/militia'])).toBe(6); // 2 other classes -> 2 repeats x 3 effects
   });
 
   it('pack: grants temporary damage at start of turn and expires after the acting unit turn', () => {
@@ -726,9 +726,9 @@ describe('ability mechanics', () => {
     expect(taunt.effects).toEqual([{ kind: 'redirect' }]);
   });
 
-  it('resolves troop-type upgrades across matching unit types and rewires replacement upgrades', () => {
+  it('resolves troop-class upgrades across matching troop classes and rewires replacement upgrades', () => {
     const upgradedState = {
-      factionUpgradeIds: [
+      raceUpgradeIds: [
         'human-tubthumping',
         'human-hold-the-standard',
         'elf-elven-reflexes',
@@ -748,7 +748,7 @@ describe('ability mechanics', () => {
         'fae-changeling',
         'fae-whimsy',
       ],
-      troopTypeUpgradeIds: [
+      troopClassUpgradeIds: [
         'soldier-shield-drill',
         'archer-crippling-shots',
         'avenger-witness',
@@ -866,7 +866,7 @@ describe('ability mechanics', () => {
 
   it('diggy hole delays Dwarven deployment until beat 10 on the enemy side of the board', () => {
     const dwarf = resolveTroopCombatant(
-      { factionUpgradeIds: ['dwarf-diggy-hole'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['dwarf-diggy-hole'], troopClassUpgradeIds: [] },
       createTroopInstance('dwarf', 'soldier'),
       'player',
     );
@@ -876,20 +876,20 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
 
     const input = makeBattleInput([dwarf], [enemy], 61);
-    input.playerFactionUpgradeIds = ['dwarf-diggy-hole'];
+    input.playerRaceUpgradeIds = ['dwarf-diggy-hole'];
     const replay = resolveBattle(input);
 
-    expect(replay.initial.units.some((unit) => unit.factionId === 'dwarf')).toBe(false);
+    expect(replay.initial.units.some((unit) => unit.raceId === 'dwarf')).toBe(false);
     const digStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'diggy-hole');
     expect(digStep).toBeTruthy();
     expect(replay.steps.filter((step) => step.kind === 'beat').find((step) => step.metadata?.beat === 10)).toBeTruthy();
-    const spawnedDwarf = digStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf' && unit.side === 'player');
+    const spawnedDwarf = digStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf' && unit.side === 'player');
     expect(spawnedDwarf?.position.q).toBeGreaterThan(0);
   });
 
   it('Ale and Hearty sets one random unit from each Dwarven troop to speed 1', () => {
     const dwarf = resolveTroopCombatant(
-      { factionUpgradeIds: ['dwarf-ale-and-hearty'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['dwarf-ale-and-hearty'], troopClassUpgradeIds: [] },
       createTroopInstance('dwarf', 'soldier'),
       'player',
     );
@@ -899,18 +899,18 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
 
     const input = makeBattleInput([dwarf], [enemy], 62);
-    input.playerFactionUpgradeIds = ['dwarf-ale-and-hearty'];
+    input.playerRaceUpgradeIds = ['dwarf-ale-and-hearty'];
     const replay = resolveBattle(input);
     const aleStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'ale-and-hearty');
 
     expect(aleStep).toBeTruthy();
-    const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.factionId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
+    const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.raceId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
     expect(dwarfSpeeds).toEqual([1, 11.9, 11.9]);
   });
 
   it('stall warts grants Dwarves armor and reduces speed after normal attacks hit them', () => {
     const dwarf = resolveTroopCombatant(
-      { factionUpgradeIds: ['dwarf-stall-warts'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['dwarf-stall-warts'], troopClassUpgradeIds: [] },
       createTroopInstance('dwarf', 'soldier'),
       'player',
     );
@@ -920,20 +920,20 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 10, speed: 100, range: 99 };
 
     const input = makeBattleInput([dwarf], [enemy], 64);
-    input.playerFactionUpgradeIds = ['dwarf-stall-warts'];
+    input.playerRaceUpgradeIds = ['dwarf-stall-warts'];
     const replay = resolveBattle(input);
     const armorStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'stall-warts');
     const speedStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'stall-warts' && step.metadata.stat === 'speed');
 
     expect(armorStep?.message).toContain('gains +1 armor');
-    expect(armorStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf')?.stats.armor).toBe(6);
+    expect(armorStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.armor).toBe(6);
     expect(speedStep?.message).toContain('loses 1 speed');
-    expect(speedStep?.snapshot.units.find((unit) => unit.factionId === 'dwarf')?.stats.speed).toBe(7.5);
+    expect(speedStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.speed).toBe(7.5);
   });
 
   it('seeing red costs armor and grants initiative when Orcs kill', () => {
     const orc = resolveTroopCombatant(
-      { factionUpgradeIds: ['orc-seeing-red'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['orc-seeing-red'], troopClassUpgradeIds: [] },
       createTroopInstance('orc', 'champion'),
       'player',
     );
@@ -943,7 +943,7 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 0, speed: 1 };
 
     const input = makeBattleInput([orc], [enemy], 65);
-    input.playerFactionUpgradeIds = ['orc-seeing-red'];
+    input.playerRaceUpgradeIds = ['orc-seeing-red'];
     const replay = resolveBattle(input);
 
     expect(replay.steps.some((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'seeing-red' && step.message.includes('loses 1 armor'))).toBe(true);
@@ -952,7 +952,7 @@ describe('ability mechanics', () => {
 
   it('first blood makes Orcs attack immediately when they engage', () => {
     const orc = resolveTroopCombatant(
-      { factionUpgradeIds: ['orc-first-blood'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['orc-first-blood'], troopClassUpgradeIds: [] },
       createTroopInstance('orc', 'soldier'),
       'player',
     );
@@ -962,7 +962,7 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 0, speed: 1, health: 100 };
 
     const input = makeBattleInput([orc], [enemy], 66);
-    input.playerFactionUpgradeIds = ['orc-first-blood'];
+    input.playerRaceUpgradeIds = ['orc-first-blood'];
     const replay = resolveBattle(input);
     const engageIndex = replay.steps.findIndex((step) => step.kind === 'engage' && step.actorIds.some((id) => id.startsWith('player_')));
     const nearbyAttacks = replay.steps
@@ -977,7 +977,7 @@ describe('ability mechanics', () => {
 
   it('berserk prevents lethal damage, blocks later damage, then kills the Orc after its next turn', () => {
     const orc = resolveTroopCombatant(
-      { factionUpgradeIds: ['orc-berserk'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['orc-berserk'], troopClassUpgradeIds: [] },
       createTroopInstance('orc', 'soldier'),
       'player',
     );
@@ -987,7 +987,7 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 50, speed: 100, range: 99 };
 
     const input = makeBattleInput([orc], [enemy], 68);
-    input.playerFactionUpgradeIds = ['orc-berserk'];
+    input.playerRaceUpgradeIds = ['orc-berserk'];
     const replay = resolveBattle(input);
     const berserkStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'berserk');
     const zeroDamageAfterBerserk = replay.steps.find(
@@ -1002,7 +1002,7 @@ describe('ability mechanics', () => {
 
   it('glamour redirects one incoming normal attack with the Fae as the attacker', () => {
     const fae = resolveTroopCombatant(
-      { factionUpgradeIds: ['fae-glamour'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['fae-glamour'], troopClassUpgradeIds: [] },
       createTroopInstance('fae', 'wizard'),
       'player',
     );
@@ -1014,7 +1014,7 @@ describe('ability mechanics', () => {
     bystander.stats = { ...bystander.stats, damage: 0, speed: 1 };
 
     const input = makeBattleInput([fae], [attacker, bystander], 70);
-    input.playerFactionUpgradeIds = ['fae-glamour'];
+    input.playerRaceUpgradeIds = ['fae-glamour'];
     const replay = resolveBattle(input);
     const glamourStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'glamour');
     const redirectedAttack = replay.steps.find((step) => step.kind === 'attack' && step.index > (glamourStep?.index ?? 0) && step.actorIds[0]?.startsWith('player_'));
@@ -1029,7 +1029,7 @@ describe('ability mechanics', () => {
 
   it('changeling turns one random enemy from each enemy troop after beat 12', () => {
     const fae = resolveTroopCombatant(
-      { factionUpgradeIds: ['fae-changeling'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['fae-changeling'], troopClassUpgradeIds: [] },
       createTroopInstance('fae', 'wizard'),
       'player',
     );
@@ -1043,19 +1043,19 @@ describe('ability mechanics', () => {
     archers.stats = { ...archers.stats, damage: 0, speed: 1 };
 
     const input = makeBattleInput([fae], [soldiers, archers], 71);
-    input.playerFactionUpgradeIds = ['fae-changeling'];
+    input.playerRaceUpgradeIds = ['fae-changeling'];
     const replay = resolveBattle(input);
     const changelingStep = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'changeling');
-    const changedUnits = changelingStep?.snapshot.units.filter((unit) => unit.side === 'player' && unit.factionId === 'human') ?? [];
+    const changedUnits = changelingStep?.snapshot.units.filter((unit) => unit.side === 'player' && unit.raceId === 'human') ?? [];
 
     expect(changelingStep?.message).toContain('2 enemy units');
     expect(changedUnits).toHaveLength(2);
-    expect(new Set(changedUnits.map((unit) => unit.unitTypeId))).toEqual(new Set(['soldier', 'archer']));
+    expect(new Set(changedUnits.map((unit) => unit.unitClassId))).toEqual(new Set(['soldier', 'archer']));
   });
 
   it('whimsy relocates a damaged Fae unit to a random legal hex', () => {
     const fae = resolveTroopCombatant(
-      { factionUpgradeIds: ['fae-whimsy'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['fae-whimsy'], troopClassUpgradeIds: [] },
       createTroopInstance('fae', 'wizard'),
       'player',
     );
@@ -1065,7 +1065,7 @@ describe('ability mechanics', () => {
     enemy.stats = { ...enemy.stats, damage: 10, speed: 100, range: 99 };
 
     const input = makeBattleInput([fae], [enemy], 72);
-    input.playerFactionUpgradeIds = ['fae-whimsy'];
+    input.playerRaceUpgradeIds = ['fae-whimsy'];
     const replay = resolveBattle(input);
     const whimsyStep = replay.steps.find((step) => step.kind === 'move' && step.metadata?.sourceAbilityId === 'whimsy');
 
@@ -1076,7 +1076,7 @@ describe('ability mechanics', () => {
 
   it('executioner prioritizes the lowest-current-hp legal attack target', () => {
     const champion = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['champion-executioner'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['champion-executioner'] },
       createTroopInstance('human', 'champion'),
       'player',
     );
@@ -1097,7 +1097,7 @@ describe('ability mechanics', () => {
 
   it('shredding arrows applies a battle-long armor reduction that can go below zero', () => {
     const archer = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-shredding-arrows'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-shredding-arrows'] },
       createTroopInstance('human', 'archer'),
       'player',
     );
@@ -1113,7 +1113,7 @@ describe('ability mechanics', () => {
 
   it('concussive shots resets the attacked target initiative', () => {
     const ranger = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['ranger-concussive-shots'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['ranger-concussive-shots'] },
       createTroopInstance('elf', 'ranger'),
       'player',
     );
@@ -1127,7 +1127,7 @@ describe('ability mechanics', () => {
 
   it('pinning volley applies a battle-long speed reduction', () => {
     const archer = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-pinning-volley'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-pinning-volley'] },
       createTroopInstance('human', 'archer'),
       'player',
     );
@@ -1138,7 +1138,7 @@ describe('ability mechanics', () => {
 
   it('rabble rush grants militia initiative based on touching militia allies', () => {
     const militia = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['militia-rabble-rush'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['militia-rabble-rush'] },
       createTroopInstance('human', 'militia'),
       'player',
     );
@@ -1149,7 +1149,7 @@ describe('ability mechanics', () => {
 
   it('early riser gives necromancer skeleton summons immediate initiative', () => {
     const necromancer = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['necromancer-early-riser'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['necromancer-early-riser'] },
       createTroopInstance('troll', 'necromancer'),
       'player',
     );
@@ -1164,7 +1164,7 @@ describe('ability mechanics', () => {
 
   it('mercy before dawn saves an allied unit at 1 hp the first time it would die', () => {
     const priest = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-mercy-before-dawn'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['priest-mercy-before-dawn'] },
       createTroopInstance('human', 'priest'),
       'player',
     );
@@ -1177,12 +1177,12 @@ describe('ability mechanics', () => {
 
   it('tubthumping flips harmful speed reductions into +1 speed for humans', () => {
     const archer = resolveTroopCombatant(
-      { factionUpgradeIds: ['human-tubthumping'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['human-tubthumping'], troopClassUpgradeIds: [] },
       createTroopInstance('human', 'archer'),
       'player',
     );
     const enemyArcher = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['archer-pinning-volley'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-pinning-volley'] },
       createTroopInstance('human', 'archer'),
       'enemy',
     );
@@ -1194,7 +1194,7 @@ describe('ability mechanics', () => {
 
   it('stoneblood saves trolls at 25 hp and removes regen for the rest of the battle', () => {
     const soldier = resolveTroopCombatant(
-      { factionUpgradeIds: ['troll-mossblood'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['troll-mossblood'], troopClassUpgradeIds: [] },
       createTroopInstance('troll', 'soldier'),
       'player',
     );
@@ -1208,7 +1208,7 @@ describe('ability mechanics', () => {
 
   it('bolstering light grants initiative when a priest heal does not top the target off', () => {
     const priest = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-bolstering-light'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['priest-bolstering-light'] },
       createTroopInstance('human', 'priest'),
       'player',
     );
@@ -1223,7 +1223,7 @@ describe('ability mechanics', () => {
 
   it('serve once more reacts to both regen and other beneficial effects', () => {
     const shaman = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['shaman-serve-once-more'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['shaman-serve-once-more'] },
       createTroopInstance('troll', 'shaman'),
       'player',
     );
@@ -1244,7 +1244,7 @@ describe('ability mechanics', () => {
       trigger: { timing: 'startOfBattle' },
       duration: { kind: 'instant' },
       target: { mode: 'self' },
-      effects: [{ kind: 'summon', unitTypeId: 'skeleton', count: 8, disposition: 'neutral' }],
+      effects: [{ kind: 'summon', unitClassId: 'skeleton', count: 8, disposition: 'neutral' }],
       shortText: 'Test-only mass summon.',
     };
     const summoner = makeBattleCombatant('goblin/beastmaster', 'player', [massSummon]);
@@ -1283,7 +1283,7 @@ describe('ability mechanics', () => {
     enemySoldier.stats = { ...enemySoldier.stats, health: 500, damage: 0, speed: 100 };
     const replay = resolveBattle({
       ...makeBattleInput([playerSoldier, faeWizard], [enemySoldier], 53),
-      playerFactionUpgradeIds: ['fae-changeling'],
+      playerRaceUpgradeIds: ['fae-changeling'],
     });
     const changelingStep = replay.steps.find((step) => step.metadata?.effect === 'changeling');
     const changedUnit = changelingStep?.targetIds[0] ? changelingStep.snapshot.units.find((unit) => unit.id === changelingStep.targetIds[0]) : undefined;
@@ -1301,7 +1301,7 @@ describe('ability mechanics', () => {
 
   it('alternate fuel can substitute health for missing corpses, but never fatally', () => {
     const upgradedNecromancer = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['necromancer-alternate-fuel'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['necromancer-alternate-fuel'] },
       createTroopInstance('troll', 'necromancer'),
       'player',
     );
@@ -1323,12 +1323,12 @@ describe('ability mechanics', () => {
 
   it('dine in hell only retaliates while engaged at full capacity', () => {
     const knightA = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-dine-in-hell'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['knight-dine-in-hell'] },
       createTroopInstance('human', 'knight'),
       'player',
     );
     const knightB = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-dine-in-hell'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['knight-dine-in-hell'] },
       createTroopInstance('human', 'knight'),
       'enemy',
     );
@@ -1341,7 +1341,7 @@ describe('ability mechanics', () => {
 
   it('mitosis grants recursively summoned elementals the split ability', () => {
     const elementalist = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['elementalist-mitosis'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['elementalist-mitosis'] },
       createTroopInstance('elf', 'elementalist'),
       'player',
     );
@@ -1357,7 +1357,7 @@ describe('ability mechanics', () => {
 
   it('bolstering light fixture still resolves priest healing under deterministic placement', () => {
     const priest = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['priest-bolstering-light'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['priest-bolstering-light'] },
       createTroopInstance('human', 'priest'),
       'player',
     );
@@ -1370,7 +1370,7 @@ describe('ability mechanics', () => {
 
   it('rowdy regrowth triggers from non-regen healing', () => {
     const trollSoldier = resolveTroopCombatant(
-      { factionUpgradeIds: ['troll-rowdy-regrowth'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['troll-rowdy-regrowth'], troopClassUpgradeIds: [] },
       createTroopInstance('troll', 'soldier'),
       'player',
     );
@@ -1384,7 +1384,7 @@ describe('ability mechanics', () => {
 
   it('bramble snare stacks once per shapeshift, including true form', () => {
     const druid = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['druid-true-form', 'druid-bramble-snare'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['druid-true-form', 'druid-bramble-snare'] },
       createTroopInstance('elf', 'druid'),
       'player',
     );
@@ -1396,7 +1396,7 @@ describe('ability mechanics', () => {
 
   it('silver distance strips initiative on max-range elven attacks', () => {
     const archer = resolveTroopCombatant(
-      { factionUpgradeIds: ['elf-silvershot-doctrine'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['elf-silvershot-doctrine'], troopClassUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'player',
     );
@@ -1408,7 +1408,7 @@ describe('ability mechanics', () => {
 
   it('uses footprint distance for max-range attack bonuses against large targets', () => {
     const archer = resolveTroopCombatant(
-      { factionUpgradeIds: ['elf-silvershot-doctrine'], troopTypeUpgradeIds: [] },
+      { raceUpgradeIds: ['elf-silvershot-doctrine'], troopClassUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'player',
     );
@@ -1435,7 +1435,7 @@ describe('ability mechanics', () => {
 
   it('sentinel runes triggers on knight death if no enemy left its hex first', () => {
     const knight = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['knight-sentinel-runes'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['knight-sentinel-runes'] },
       createTroopInstance('human', 'knight'),
       'player',
     );
@@ -1448,7 +1448,7 @@ describe('ability mechanics', () => {
 
   it("scavenger's hunger consumes early ranger kills into wolf summons", () => {
     const ranger = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['ranger-scavengers-hunger'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['ranger-scavengers-hunger'] },
       createTroopInstance('elf', 'ranger'),
       'player',
     );
@@ -1462,7 +1462,7 @@ describe('ability mechanics', () => {
 
   it('lightning rods adds a start-of-battle elemental summon to wizards', () => {
     const wizard = resolveTroopCombatant(
-      { factionUpgradeIds: [], troopTypeUpgradeIds: ['wizard-lightning-rods'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['wizard-lightning-rods'] },
       createTroopInstance('goblin', 'wizard'),
       'player',
     );
@@ -1480,7 +1480,7 @@ describe('ability mechanics', () => {
       riftId: null,
       tier: null,
       mutatorIds: [],
-      playerTroopTypeUpgradeIds: ['beastmaster-thrill-of-the-hunt'],
+      playerTroopClassUpgradeIds: ['beastmaster-thrill-of-the-hunt'],
       playerCombatants: [wolf],
       enemyCombatants: [enemy],
     });

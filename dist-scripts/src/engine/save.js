@@ -10,7 +10,7 @@ export function deserializeGameState(json) {
         if (!Array.isArray(parsed.troops) ||
             !Array.isArray(parsed.openRifts) ||
             !Array.isArray(parsed.replayIndex) ||
-            !Array.isArray(parsed.unlockedFactionIds) ||
+            !Array.isArray(parsed.unlockedRaceIds) ||
             !Array.isArray(parsed.unlockedTroopUnlockIds)) {
             return { ok: false, error: 'invalid_shape' };
         }
@@ -20,8 +20,8 @@ export function deserializeGameState(json) {
             state: {
                 ...state,
                 gameMode: parsed.gameMode ?? 'campaign',
-                activeFactionUnlockOffer: parsed.activeFactionUnlockOffer ?? null,
-                activeTroopTypeUnlockOffer: parsed.activeTroopTypeUnlockOffer ?? null,
+                activeRaceUnlockOffer: parsed.activeRaceUnlockOffer ?? null,
+                activeTroopClassUnlockOffer: parsed.activeTroopClassUnlockOffer ?? null,
                 contest: state.contest
                     ? {
                         ...state.contest,

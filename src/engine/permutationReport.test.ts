@@ -5,7 +5,7 @@ import {
   finalizePermutationAggregate,
   generatePermutationMatchups,
   generatePermutationTeams,
-  getEligiblePermutationUnitTypeIds,
+  getEligiblePermutationUnitClassIds,
   renderPermutationReport,
   resolvePermutationQuantity,
   runPermutationBatch,
@@ -13,7 +13,7 @@ import {
 
 describe('permutationReport', () => {
   it('discovers eligible troops by excluding summoned attributes only', () => {
-    const troopIds = getEligiblePermutationUnitTypeIds();
+    const troopIds = getEligiblePermutationUnitClassIds();
 
     expect(troopIds).not.toContain('wolf');
     expect(troopIds).not.toContain('elemental');
@@ -31,7 +31,7 @@ describe('permutationReport', () => {
   });
 
   it('generates the expected current-roster team and matchup counts', () => {
-    const troopIds = getEligiblePermutationUnitTypeIds();
+    const troopIds = getEligiblePermutationUnitClassIds();
     const teams2 = generatePermutationTeams(2, troopIds);
     const teams3 = generatePermutationTeams(3, troopIds);
 
@@ -81,7 +81,7 @@ describe('permutationReport', () => {
     const markdown = renderPermutationReport(finalized);
 
     expect(markdown).toContain('## Overall troop winrates');
-    expect(markdown).toContain('## Against every troop type');
-    expect(markdown).toContain('## Alongside every troop type');
+    expect(markdown).toContain('## Against every troop class');
+    expect(markdown).toContain('## Alongside every troop class');
   });
 });

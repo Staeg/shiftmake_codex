@@ -8,16 +8,16 @@ Use this after generating each batch.
 - Still communicates the broad mechanic at 32x32.
 - Contains no text, letters, numbers, captions, or watermarking.
 - Has a strong central silhouette.
-- Has one obvious gameplay category: damage, healing, summon, defense, mobility, initiative, corpse, debuff, faction synergy, or Rift environment.
-- Is distinct from nearby mechanics in the same unit or faction family.
+- Has one obvious gameplay category: damage, healing, summon, defense, mobility, initiative, corpse, debuff, race synergy, or Rift environment.
+- Is distinct from nearby mechanics in the same unit or race family.
 - Does not depend on tiny detail to make sense.
 
 ## Batch Review
 
 - Similar mechanics share a visual grammar without becoming identical.
 - Tier 3 icons can feel more intense than tier 1 or tier 2 icons, but should not become busier.
-- Faction upgrades feel related to their faction without requiring portraits.
-- Troop-type upgrades feel tied to the troop's combat job.
+- Race upgrades feel related to their race without requiring portraits.
+- Troop-class upgrades feel tied to the troop's combat job.
 - Base abilities are simple enough to work as reusable iconography.
 
 ## Suggested Iteration Notes

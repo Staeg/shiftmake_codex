@@ -6,17 +6,17 @@ import type { BattleInput, BattleReplay, ResolvedCombatantDefinition } from './t
 import { resolveBattle } from './battle';
 
 export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
-  const playerFactionUpgradeIds = input.playerFactionUpgradeIds ?? [];
-  const playerTroopTypeUpgradeIds = input.playerTroopTypeUpgradeIds ?? [];
-  const enemyFactionUpgradeIds = input.enemyFactionUpgradeIds ?? [];
-  const enemyTroopTypeUpgradeIds = input.enemyTroopTypeUpgradeIds ?? [];
+  const playerRaceUpgradeIds = input.playerRaceUpgradeIds ?? [];
+  const playerTroopClassUpgradeIds = input.playerTroopClassUpgradeIds ?? [];
+  const enemyRaceUpgradeIds = input.enemyRaceUpgradeIds ?? [];
+  const enemyTroopClassUpgradeIds = input.enemyTroopClassUpgradeIds ?? [];
   const playerCombatants = Object.entries(input.player)
     .filter(([, quantity]) => quantity > 0)
     .map(([troopId, quantity]) => {
       const troop = getTroopDefinitionOrThrow(troopId);
       const resolved = resolveTroopCombatant(
-        { factionUpgradeIds: playerFactionUpgradeIds, troopTypeUpgradeIds: playerTroopTypeUpgradeIds },
-        createTroopInstance(troop.factionId, troop.unitTypeId),
+        { raceUpgradeIds: playerRaceUpgradeIds, troopClassUpgradeIds: playerTroopClassUpgradeIds },
+        createTroopInstance(troop.raceId, troop.unitClassId),
         'player',
         null,
         `debug-player-${troopId}`,
@@ -32,8 +32,8 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
     .map(([troopId, quantity]) => {
       const troop = getTroopDefinitionOrThrow(troopId);
       const resolved = resolveTroopCombatant(
-        { factionUpgradeIds: enemyFactionUpgradeIds, troopTypeUpgradeIds: enemyTroopTypeUpgradeIds },
-        createTroopInstance(troop.factionId, troop.unitTypeId),
+        { raceUpgradeIds: enemyRaceUpgradeIds, troopClassUpgradeIds: enemyTroopClassUpgradeIds },
+        createTroopInstance(troop.raceId, troop.unitClassId),
         'enemy',
         null,
         `debug-enemy-${troopId}`,
@@ -50,10 +50,10 @@ export function resolveDebugBattle(input: BattleDebugInput): BattleReplay {
     riftId: null,
     tier: null,
     mutatorIds: [],
-    playerFactionUpgradeIds,
-    playerTroopTypeUpgradeIds,
-    enemyFactionUpgradeIds,
-    enemyTroopTypeUpgradeIds,
+    playerRaceUpgradeIds,
+    playerTroopClassUpgradeIds,
+    enemyRaceUpgradeIds,
+    enemyTroopClassUpgradeIds,
     playerCombatants,
     enemyCombatants,
   });
@@ -65,10 +65,10 @@ export function buildBattleInputFromResolvedCombatants(
   tier: number | null,
   mutatorIds: string[],
   saturation: number | undefined,
-  playerFactionUpgradeIds: string[],
-  playerTroopTypeUpgradeIds: string[],
-  enemyFactionUpgradeIds: string[],
-  enemyTroopTypeUpgradeIds: string[],
+  playerRaceUpgradeIds: string[],
+  playerTroopClassUpgradeIds: string[],
+  enemyRaceUpgradeIds: string[],
+  enemyTroopClassUpgradeIds: string[],
   playerCombatants: ResolvedCombatantDefinition[],
   enemyCombatants: ResolvedCombatantDefinition[],
 ): BattleInput {
@@ -78,10 +78,10 @@ export function buildBattleInputFromResolvedCombatants(
     tier,
     mutatorIds,
     saturation,
-    playerFactionUpgradeIds,
-    playerTroopTypeUpgradeIds,
-    enemyFactionUpgradeIds,
-    enemyTroopTypeUpgradeIds,
+    playerRaceUpgradeIds,
+    playerTroopClassUpgradeIds,
+    enemyRaceUpgradeIds,
+    enemyTroopClassUpgradeIds,
     playerCombatants,
     enemyCombatants,
   };

@@ -28,7 +28,7 @@ This creates:
 
 ## Generation Strategy
 
-Start with contact sheets grouped by faction, troop type, base ability, and Rift mutator. Contact sheets are for choosing a visual language, not final production.
+Start with contact sheets grouped by race, troop class, base ability, and Rift mutator. Contact sheets are for choosing a visual language, not final production.
 
 Once a family looks right, generate final icons one at a time or in small batches using the individual prompts. Save each approved PNG to its manifest `outputPath`.
 
@@ -45,9 +45,9 @@ Once a family looks right, generate final icons one at a time or in small batche
 
 The manifest includes:
 
-- all faction upgrades
-- all troop-type upgrades
-- base abilities currently attached to units or factions
+- all race upgrades
+- all troop-class upgrades
+- base abilities currently attached to units or races
 - upgrade-granted abilities
 - Rift mutators
 

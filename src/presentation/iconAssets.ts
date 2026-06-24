@@ -1,7 +1,7 @@
 import type { AbilityId, MutatorId, UpgradeId } from '../engine/types';
 import { ABILITIES } from '../engine/unitCatalog';
 
-type IconKind = 'ability' | 'faction_upgrade' | 'troop_type_upgrade' | 'rift_mutator';
+type IconKind = 'ability' | 'race_upgrade' | 'troop_class_upgrade' | 'rift_mutator';
 export type AbilityFallbackIconShape = 'heart' | 'self' | 'single' | 'aoe' | 'plus';
 export type AbilityFallbackIconTone = 'positive' | 'negative' | 'neutral';
 export type AbilityFallbackIcon = {
@@ -111,9 +111,9 @@ export function getAbilityFallbackIcon(abilityId: AbilityId): AbilityFallbackIco
 
 export function getUpgradeIconUrl(upgradeId: UpgradeId): string {
   return (
-    iconUrl('faction_upgrade', upgradeId) ||
-    iconUrl('troop_type_upgrade', upgradeId) ||
-    (upgradeIconAliases[upgradeId] ?? []).map((id) => iconUrl('troop_type_upgrade', id)).find(Boolean) ||
+    iconUrl('race_upgrade', upgradeId) ||
+    iconUrl('troop_class_upgrade', upgradeId) ||
+    (upgradeIconAliases[upgradeId] ?? []).map((id) => iconUrl('troop_class_upgrade', id)).find(Boolean) ||
     ''
   );
 }
@@ -129,7 +129,7 @@ export function getPreloadableGameIconUrls(): string[] {
         .filter(
           ([path]) =>
             path.includes('/rift_mutator/') ||
-            ((path.includes('/faction_upgrade/') || path.includes('/troop_type_upgrade/')) && path.endsWith('.svg')),
+            ((path.includes('/race_upgrade/') || path.includes('/troop_class_upgrade/')) && path.endsWith('.svg')),
         )
         .map(([, url]) => url)
         .filter((url) => url.length > 0),

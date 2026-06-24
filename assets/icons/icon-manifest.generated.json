@@ -8,8 +8,8 @@
   "counts": {
     "total": 136,
     "abilities": 82,
-    "factionUpgrades": 21,
-    "troopTypeUpgrades": 26,
+    "raceUpgrades": 21,
+    "troopClassUpgrades": 26,
     "riftMutators": 7
   },
   "items": [
@@ -741,7 +741,7 @@
       "name": "Forsaken 80",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.",
+      "mechanic": "Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and speed.",
       "trigger": "startOfBattle; condition forsaken",
       "target": "self",
       "effects": [
@@ -757,7 +757,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Elven Forsaken (Elves, tier 3): Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed."
+        "Elven Forsaken (Elves, tier 3): Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed."
       ],
       "sourceAbilityIds": [
         "forsaken-80"
@@ -1193,8 +1193,8 @@
       "name": "Power of Friendship",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop type in this battle.",
-      "trigger": "startOfBattle; scales per other friendly troop type",
+      "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop class in this battle.",
+      "trigger": "startOfBattle; scales per other friendly troop class",
       "target": "self",
       "effects": [
         "bolster 20%",
@@ -1209,7 +1209,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Human Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle."
+        "Human Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle."
       ],
       "sourceAbilityIds": [
         "combined-arms-20"
@@ -2021,7 +2021,7 @@
       "name": "United",
       "owner": null,
       "tier": null,
-      "mechanic": "Overworld: troops of this faction may enter the same Rift together.",
+      "mechanic": "Overworld: troops of this race may enter the same Rift together.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2167,7 +2167,7 @@
     {
       "id": "dwarf-diggy-hole",
       "slug": "dwarf-diggy-hole",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Diggy Hole",
       "owner": "Dwarves",
       "tier": 1,
@@ -2176,7 +2176,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "dwarves",
         "movement"
       ],
@@ -2184,12 +2184,12 @@
       "sourceAbilityIds": [
         "diggy-hole"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/dwarf-diggy-hole.png"
+      "outputPath": "assets/icons/final/race_upgrade/dwarf-diggy-hole.png"
     },
     {
       "id": "dwarf-ale-and-hearty",
       "slug": "dwarf-ale-and-hearty",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Ale and Hearty",
       "owner": "Dwarves",
       "tier": 2,
@@ -2200,7 +2200,7 @@
         "speed +40%"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "dwarves",
         "speed"
       ],
@@ -2208,12 +2208,12 @@
       "sourceAbilityIds": [
         "ale-and-hearty"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/dwarf-ale-and-hearty.png"
+      "outputPath": "assets/icons/final/race_upgrade/dwarf-ale-and-hearty.png"
     },
     {
       "id": "dwarf-stall-warts",
       "slug": "dwarf-stall-warts",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Stall Warts",
       "owner": "Dwarves",
       "tier": 3,
@@ -2222,7 +2222,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "dwarves",
         "armor",
         "speed",
@@ -2233,12 +2233,12 @@
       "sourceAbilityIds": [
         "stall-warts"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/dwarf-stall-warts.png"
+      "outputPath": "assets/icons/final/race_upgrade/dwarf-stall-warts.png"
     },
     {
       "id": "elf-elven-reflexes",
       "slug": "elf-elven-reflexes",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Elven Reflexes",
       "owner": "Elves",
       "tier": 1,
@@ -2249,7 +2249,7 @@
         "nonMelee range +1"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "elves",
         "ranged",
         "melee",
@@ -2259,12 +2259,12 @@
       "sourceAbilityIds": [
         "fade-into-shadow"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/elf-elven-reflexes.png"
+      "outputPath": "assets/icons/final/race_upgrade/elf-elven-reflexes.png"
     },
     {
       "id": "elf-silvershot-doctrine",
       "slug": "elf-silvershot-doctrine",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Silvershot Doctrine",
       "owner": "Elves",
       "tier": 2,
@@ -2273,7 +2273,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "elves",
         "damage",
         "initiative",
@@ -2285,16 +2285,16 @@
         "silver-distance",
         "long-shot-doctrine"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/elf-silvershot-doctrine.png"
+      "outputPath": "assets/icons/final/race_upgrade/elf-silvershot-doctrine.png"
     },
     {
       "id": "elven-forsaken",
       "slug": "elven-forsaken",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Elven Forsaken",
       "owner": "Elves",
       "tier": 3,
-      "mechanic": "Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed.",
+      "mechanic": "Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.",
       "trigger": "startOfBattle; condition forsaken",
       "target": "self",
       "effects": [
@@ -2303,7 +2303,7 @@
         "ramp 80%"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "elves",
         "damage",
         "speed",
@@ -2314,12 +2314,12 @@
       "sourceAbilityIds": [
         "forsaken-80"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/elven-forsaken.png"
+      "outputPath": "assets/icons/final/race_upgrade/elven-forsaken.png"
     },
     {
       "id": "fae-glamour",
       "slug": "fae-glamour",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Glamour",
       "owner": "Fae",
       "tier": 2,
@@ -2328,7 +2328,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "fae",
         "damage",
         "ranged",
@@ -2338,12 +2338,12 @@
       "sourceAbilityIds": [
         "glamour"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/fae-glamour.png"
+      "outputPath": "assets/icons/final/race_upgrade/fae-glamour.png"
     },
     {
       "id": "fae-changeling",
       "slug": "fae-changeling",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Changeling",
       "owner": "Fae",
       "tier": 3,
@@ -2352,7 +2352,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "fae",
         "initiative",
         "summon",
@@ -2362,12 +2362,12 @@
       "sourceAbilityIds": [
         "changeling"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/fae-changeling.png"
+      "outputPath": "assets/icons/final/race_upgrade/fae-changeling.png"
     },
     {
       "id": "fae-whimsy",
       "slug": "fae-whimsy",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Whimsy",
       "owner": "Fae",
       "tier": 3,
@@ -2376,7 +2376,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "fae",
         "damage",
         "movement"
@@ -2385,12 +2385,12 @@
       "sourceAbilityIds": [
         "whimsy"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/fae-whimsy.png"
+      "outputPath": "assets/icons/final/race_upgrade/fae-whimsy.png"
     },
     {
       "id": "goblin-behavior",
       "slug": "goblin-behavior",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Goblin Behavior",
       "owner": "Goblins",
       "tier": 1,
@@ -2401,7 +2401,7 @@
         "1 extra strike"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "goblins",
         "damage",
         "initiative",
@@ -2413,12 +2413,12 @@
         "goblin-farewell",
         "snatch-the-moment"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/goblin-behavior.png"
+      "outputPath": "assets/icons/final/race_upgrade/goblin-behavior.png"
     },
     {
       "id": "goblin-pack",
       "slug": "goblin-pack",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Goblin Pack",
       "owner": "Goblins",
       "tier": 2,
@@ -2429,7 +2429,7 @@
         "ramp 1"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "goblins",
         "damage",
         "initiative",
@@ -2439,12 +2439,12 @@
       "sourceAbilityIds": [
         "pack-1"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/goblin-pack.png"
+      "outputPath": "assets/icons/final/race_upgrade/goblin-pack.png"
     },
     {
       "id": "goblin-loot-frenzy",
       "slug": "goblin-loot-frenzy",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Loot Frenzy",
       "owner": "Goblins",
       "tier": 3,
@@ -2453,7 +2453,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "goblins",
         "damage",
         "initiative",
@@ -2463,12 +2463,12 @@
       "sourceAbilityIds": [
         "loot-frenzy"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/goblin-loot-frenzy.png"
+      "outputPath": "assets/icons/final/race_upgrade/goblin-loot-frenzy.png"
     },
     {
       "id": "human-tubthumping",
       "slug": "human-tubthumping",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Tubthumping",
       "owner": "Humans",
       "tier": 1,
@@ -2477,7 +2477,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "humans",
         "damage",
         "speed",
@@ -2489,12 +2489,12 @@
         "united",
         "tubthumping"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/human-tubthumping.png"
+      "outputPath": "assets/icons/final/race_upgrade/human-tubthumping.png"
     },
     {
       "id": "human-hold-the-standard",
       "slug": "human-hold-the-standard",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Hold the Standard",
       "owner": "Humans",
       "tier": 2,
@@ -2503,7 +2503,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "humans",
         "healing",
         "corpse"
@@ -2512,17 +2512,17 @@
       "sourceAbilityIds": [
         "hold-the-standard"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/human-hold-the-standard.png"
+      "outputPath": "assets/icons/final/race_upgrade/human-hold-the-standard.png"
     },
     {
       "id": "human-combined-arms",
       "slug": "human-combined-arms",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Human Combined Arms",
       "owner": "Humans",
       "tier": 2,
-      "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle.",
-      "trigger": "startOfBattle; scales per other friendly troop type",
+      "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.",
+      "trigger": "startOfBattle; scales per other friendly troop class",
       "target": "self",
       "effects": [
         "bolster 20%",
@@ -2530,7 +2530,7 @@
         "ramp 20%"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "humans",
         "damage",
         "speed",
@@ -2541,12 +2541,12 @@
       "sourceAbilityIds": [
         "combined-arms-20"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/human-combined-arms.png"
+      "outputPath": "assets/icons/final/race_upgrade/human-combined-arms.png"
     },
     {
       "id": "orc-seeing-red",
       "slug": "orc-seeing-red",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Seeing Red",
       "owner": "Orcs",
       "tier": 1,
@@ -2558,7 +2558,7 @@
         "initiative +75"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "orcs",
         "damage",
         "armor",
@@ -2570,12 +2570,12 @@
       "sourceAbilityIds": [
         "seeing-red"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/orc-seeing-red.png"
+      "outputPath": "assets/icons/final/race_upgrade/orc-seeing-red.png"
     },
     {
       "id": "orc-first-blood",
       "slug": "orc-first-blood",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "First Blood",
       "owner": "Orcs",
       "tier": 2,
@@ -2584,7 +2584,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "orcs",
         "damage",
         "melee"
@@ -2593,12 +2593,12 @@
       "sourceAbilityIds": [
         "first-blood"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/orc-first-blood.png"
+      "outputPath": "assets/icons/final/race_upgrade/orc-first-blood.png"
     },
     {
       "id": "orc-berserk",
       "slug": "orc-berserk",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Berserk",
       "owner": "Orcs",
       "tier": 3,
@@ -2607,7 +2607,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "orcs",
         "damage",
         "initiative",
@@ -2618,12 +2618,12 @@
       "sourceAbilityIds": [
         "berserk"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/orc-berserk.png"
+      "outputPath": "assets/icons/final/race_upgrade/orc-berserk.png"
     },
     {
       "id": "troll-roll-the-boulder",
       "slug": "troll-roll-the-boulder",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Roll the Boulder",
       "owner": "Trolls",
       "tier": 1,
@@ -2634,7 +2634,7 @@
         "ramp 1"
       ],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "trolls",
         "damage",
         "initiative",
@@ -2645,12 +2645,12 @@
         "ramp-1",
         "crushing-sweep"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/troll-roll-the-boulder.png"
+      "outputPath": "assets/icons/final/race_upgrade/troll-roll-the-boulder.png"
     },
     {
       "id": "troll-mossblood",
       "slug": "troll-mossblood",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Mossblood",
       "owner": "Trolls",
       "tier": 2,
@@ -2659,7 +2659,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "trolls",
         "damage",
         "healing",
@@ -2672,12 +2672,12 @@
         "stoneblood",
         "frenzy-ramp-1"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/troll-mossblood.png"
+      "outputPath": "assets/icons/final/race_upgrade/troll-mossblood.png"
     },
     {
       "id": "troll-rowdy-regrowth",
       "slug": "troll-rowdy-regrowth",
-      "kind": "faction_upgrade",
+      "kind": "race_upgrade",
       "name": "Rowdy Regrowth",
       "owner": "Trolls",
       "tier": 2,
@@ -2686,7 +2686,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "faction-upgrade",
+        "race-upgrade",
         "trolls",
         "initiative",
         "healing"
@@ -2695,7 +2695,7 @@
       "sourceAbilityIds": [
         "rowdy-regrowth"
       ],
-      "outputPath": "assets/icons/final/faction_upgrade/troll-rowdy-regrowth.png"
+      "outputPath": "assets/icons/final/race_upgrade/troll-rowdy-regrowth.png"
     },
     {
       "id": "animated",
@@ -2841,7 +2841,7 @@
     {
       "id": "archer-crippling-shots",
       "slug": "archer-crippling-shots",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Crippling Shots",
       "owner": "Archer",
       "tier": 3,
@@ -2852,7 +2852,7 @@
         "armor -1"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "archer",
         "damage",
         "armor",
@@ -2866,12 +2866,12 @@
         "shredding-arrows",
         "pinning-volley"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/archer-crippling-shots.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/archer-crippling-shots.png"
     },
     {
       "id": "avenger-sevenfold",
       "slug": "avenger-sevenfold",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Sevenfold",
       "owner": "Avenger",
       "tier": 2,
@@ -2882,7 +2882,7 @@
         "summon 1 skeleton"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "avenger",
         "summon",
         "corpse"
@@ -2891,12 +2891,12 @@
       "sourceAbilityIds": [
         "uses-7-corpse-summon-skeleton"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/avenger-sevenfold.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/avenger-sevenfold.png"
     },
     {
       "id": "avenger-witness",
       "slug": "avenger-witness",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Witness",
       "owner": "Avenger",
       "tier": 3,
@@ -2907,7 +2907,7 @@
         "set initiative to 100"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "avenger",
         "initiative",
         "corpse"
@@ -2917,12 +2917,12 @@
         "blood-oath",
         "last-witness"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/avenger-witness.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/avenger-witness.png"
     },
     {
       "id": "beastmaster-bloodhounds",
       "slug": "beastmaster-bloodhounds",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Bloodhounds",
       "owner": "Beastmaster",
       "tier": 3,
@@ -2933,7 +2933,7 @@
         "summon 2 wolfs"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "beastmaster",
         "damage",
         "initiative",
@@ -2948,12 +2948,12 @@
         "summon-wolf-2-blood",
         "packmasters-whistle"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/beastmaster-bloodhounds.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/beastmaster-bloodhounds.png"
     },
     {
       "id": "beastmaster-thrill-of-the-hunt",
       "slug": "beastmaster-thrill-of-the-hunt",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Thrill of the Hunt",
       "owner": "Beastmaster",
       "tier": 3,
@@ -2962,7 +2962,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "beastmaster",
         "damage",
         "initiative",
@@ -2972,12 +2972,12 @@
       "sourceAbilityIds": [
         "thrill-of-the-hunt"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/beastmaster-thrill-of-the-hunt.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/beastmaster-thrill-of-the-hunt.png"
     },
     {
       "id": "champion-anointed-executioner",
       "slug": "champion-anointed-executioner",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Anointed Executioner",
       "owner": "Champion",
       "tier": 3,
@@ -2986,7 +2986,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "champion",
         "damage",
         "healing"
@@ -2996,12 +2996,12 @@
         "executioner",
         "anointed"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/champion-anointed-executioner.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/champion-anointed-executioner.png"
     },
     {
       "id": "druid-true-form",
       "slug": "druid-true-form",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "True Form",
       "owner": "Druid",
       "tier": 2,
@@ -3016,7 +3016,7 @@
         "set role to frontline"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "druid",
         "damage",
         "speed",
@@ -3028,12 +3028,12 @@
       "sourceAbilityIds": [
         "shapeshift-bear-2"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/druid-true-form.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/druid-true-form.png"
     },
     {
       "id": "druid-ents-visage",
       "slug": "druid-ents-visage",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Ent's Visage",
       "owner": "Druid",
       "tier": 3,
@@ -3042,7 +3042,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "druid",
         "damage",
         "speed",
@@ -3054,12 +3054,12 @@
         "thornhide",
         "bramble-snare"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/druid-ents-visage.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/druid-ents-visage.png"
     },
     {
       "id": "druid-forest-friends",
       "slug": "druid-forest-friends",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Forest Friends",
       "owner": "Druid",
       "tier": 3,
@@ -3068,7 +3068,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "druid",
         "initiative",
         "healing",
@@ -3079,12 +3079,12 @@
       "sourceAbilityIds": [
         "forest-friends"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/druid-forest-friends.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/druid-forest-friends.png"
     },
     {
       "id": "elementalist-crackling-mitosis",
       "slug": "elementalist-crackling-mitosis",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Crackling Mitosis",
       "owner": "Elementalist",
       "tier": 3,
@@ -3093,7 +3093,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "elementalist",
         "damage",
         "summon",
@@ -3106,12 +3106,12 @@
         "arc-conductor",
         "charge-4-summon-elemental-mitosis"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/elementalist-crackling-mitosis.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/elementalist-crackling-mitosis.png"
     },
     {
       "id": "elementalist-living-circuit",
       "slug": "elementalist-living-circuit",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Living Circuit",
       "owner": "Elementalist",
       "tier": 3,
@@ -3120,7 +3120,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "elementalist",
         "initiative",
         "summon",
@@ -3131,12 +3131,12 @@
       "sourceAbilityIds": [
         "living-circuit"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/elementalist-living-circuit.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/elementalist-living-circuit.png"
     },
     {
       "id": "knight-dine-in-hell",
       "slug": "knight-dine-in-hell",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Dine in Hell",
       "owner": "Knight",
       "tier": 3,
@@ -3145,7 +3145,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "knight",
         "damage",
         "armor",
@@ -3158,12 +3158,12 @@
         "brace",
         "retaliate"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/knight-dine-in-hell.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/knight-dine-in-hell.png"
     },
     {
       "id": "knight-sentinel-runes",
       "slug": "knight-sentinel-runes",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Sentinel Runes",
       "owner": "Knight",
       "tier": 3,
@@ -3172,7 +3172,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "knight",
         "summon",
         "corpse",
@@ -3182,12 +3182,12 @@
       "sourceAbilityIds": [
         "sentinel-runes"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/knight-sentinel-runes.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/knight-sentinel-runes.png"
     },
     {
       "id": "militia-dogpile",
       "slug": "militia-dogpile",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Dogpile",
       "owner": "Militia",
       "tier": 3,
@@ -3196,7 +3196,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "militia",
         "damage",
         "melee"
@@ -3205,12 +3205,12 @@
       "sourceAbilityIds": [
         "dogpile"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/militia-dogpile.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/militia-dogpile.png"
     },
     {
       "id": "militia-rat-behavior",
       "slug": "militia-rat-behavior",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Rat Behavior",
       "owner": "Militia",
       "tier": 3,
@@ -3221,7 +3221,7 @@
         "initiative +1"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "militia",
         "initiative",
         "synergy"
@@ -3231,12 +3231,12 @@
         "rabble-rush",
         "scurry"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/militia-rat-behavior.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/militia-rat-behavior.png"
     },
     {
       "id": "necromancer-explosion-corpse",
       "slug": "necromancer-explosion-corpse",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Explosion Corpse",
       "owner": "Necromancer",
       "tier": 3,
@@ -3245,7 +3245,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "necromancer",
         "damage",
         "armor",
@@ -3261,12 +3261,12 @@
         "early-riser",
         "carrion-choir"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/necromancer-explosion-corpse.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/necromancer-explosion-corpse.png"
     },
     {
       "id": "necromancer-hemomancy",
       "slug": "necromancer-hemomancy",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Hemomancy",
       "owner": "Necromancer",
       "tier": 3,
@@ -3275,7 +3275,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "necromancer",
         "damage",
         "initiative",
@@ -3288,12 +3288,12 @@
         "alternate-fuel-10",
         "corpse-summon-skeleton-rising"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/necromancer-hemomancy.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/necromancer-hemomancy.png"
     },
     {
       "id": "priest-bolstering-light",
       "slug": "priest-bolstering-light",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Bolstering Light",
       "owner": "Priest",
       "tier": 3,
@@ -3302,7 +3302,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "priest",
         "damage",
         "speed",
@@ -3313,12 +3313,12 @@
       "sourceAbilityIds": [
         "bolstering-light"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/priest-bolstering-light.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/priest-bolstering-light.png"
     },
     {
       "id": "priest-mercy-before-dawn",
       "slug": "priest-mercy-before-dawn",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Mercy Before Dawn",
       "owner": "Priest",
       "tier": 3,
@@ -3327,7 +3327,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "priest",
         "healing",
         "corpse",
@@ -3339,12 +3339,12 @@
       "sourceAbilityIds": [
         "mercy-before-dawn"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/priest-mercy-before-dawn.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/priest-mercy-before-dawn.png"
     },
     {
       "id": "ranger-on-the-hunt",
       "slug": "ranger-on-the-hunt",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "On the Hunt",
       "owner": "Ranger",
       "tier": 3,
@@ -3355,7 +3355,7 @@
         "set initiative to 0"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "ranger",
         "damage",
         "initiative",
@@ -3369,12 +3369,12 @@
         "concussive-shots",
         "scavengers-hunger-2"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/ranger-on-the-hunt.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/ranger-on-the-hunt.png"
     },
     {
       "id": "ranger-shadows-embrace",
       "slug": "ranger-shadows-embrace",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Shadow's Embrace",
       "owner": "Ranger",
       "tier": 3,
@@ -3383,7 +3383,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "ranger",
         "damage",
         "ranged",
@@ -3395,12 +3395,12 @@
         "skirmishers-step",
         "heartseeker"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/ranger-shadows-embrace.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/ranger-shadows-embrace.png"
     },
     {
       "id": "shaman-war-drums",
       "slug": "shaman-war-drums",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "War Drums",
       "owner": "Shaman",
       "tier": 2,
@@ -3409,7 +3409,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "shaman",
         "initiative",
         "synergy"
@@ -3418,12 +3418,12 @@
       "sourceAbilityIds": [
         "war-drums"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/shaman-war-drums.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/shaman-war-drums.png"
     },
     {
       "id": "shaman-grave-vigor",
       "slug": "shaman-grave-vigor",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Grave Vigor",
       "owner": "Shaman",
       "tier": 3,
@@ -3435,7 +3435,7 @@
         "grant death-summon-skeleton"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "shaman",
         "damage",
         "summon",
@@ -3447,12 +3447,12 @@
         "static-charge",
         "grave-vigor"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/shaman-grave-vigor.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/shaman-grave-vigor.png"
     },
     {
       "id": "soldier-shield-drill",
       "slug": "soldier-shield-drill",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Shield Drill",
       "owner": "Soldier",
       "tier": 3,
@@ -3463,7 +3463,7 @@
         "armor -4"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "soldier",
         "damage",
         "armor",
@@ -3475,12 +3475,12 @@
       "sourceAbilityIds": [
         "shield-drill"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/soldier-shield-drill.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/soldier-shield-drill.png"
     },
     {
       "id": "wizard-spell-echo",
       "slug": "wizard-spell-echo",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Spell Echo",
       "owner": "Wizard",
       "tier": 2,
@@ -3489,7 +3489,7 @@
       "target": null,
       "effects": [],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "wizard",
         "damage",
         "ranged"
@@ -3498,12 +3498,12 @@
       "sourceAbilityIds": [
         "spell-echo"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/wizard-spell-echo.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/wizard-spell-echo.png"
     },
     {
       "id": "wizard-storm-rods",
       "slug": "wizard-storm-rods",
-      "kind": "troop_type_upgrade",
+      "kind": "troop_class_upgrade",
       "name": "Storm Rods",
       "owner": "Wizard",
       "tier": 3,
@@ -3514,7 +3514,7 @@
         "4 extra strikes"
       ],
       "gameplayTags": [
-        "troop-type-upgrade",
+        "troop-class-upgrade",
         "wizard",
         "damage",
         "initiative",
@@ -3527,7 +3527,7 @@
         "lightning-rods",
         "summon-elemental-1"
       ],
-      "outputPath": "assets/icons/final/troop_type_upgrade/wizard-storm-rods.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/wizard-storm-rods.png"
     }
   ]
 }

@@ -1,7 +1,7 @@
-import { FACTIONS } from '../engine/unitCatalog';
-import type { BattleReportDiagnostic, FactionId } from '../engine/types';
+import { RACES } from '../engine/unitCatalog';
+import type { BattleReportDiagnostic, RaceId } from '../engine/types';
 import { getPreloadableGameIconUrls } from '../presentation/iconAssets';
-import { getFactionSpriteUrl, loadFactionUnitPortraitUrls, UNIT_SPRITE_URLS, type AssetLoadProgress } from '../rendering/unitVisualAssets';
+import { getRaceSpriteUrl, loadRaceUnitPortraitUrls, UNIT_SPRITE_URLS, type AssetLoadProgress } from '../rendering/unitVisualAssets';
 import { getRiftSpriteUrls } from './riftVisuals';
 
 export type GameAssetPreloadProgress = AssetLoadProgress & {
@@ -114,15 +114,15 @@ export async function preloadGameAssets(onProgress?: ProgressSink): Promise<Game
   inFlight = (async () => {
     const diagnostics: BattleReportDiagnostic[] = [];
     const portraitUnitCount = Object.keys(UNIT_SPRITE_URLS).length;
-    const factionUrls = (Object.keys(FACTIONS) as FactionId[]).map((factionId) => getFactionSpriteUrl(factionId));
-    const imageUrls = uniqueUrls([...factionUrls, ...getRiftSpriteUrls(), ...getPreloadableGameIconUrls()]);
+    const raceUrls = (Object.keys(RACES) as RaceId[]).map((raceId) => getRaceSpriteUrl(raceId));
+    const imageUrls = uniqueUrls([...raceUrls, ...getRiftSpriteUrls(), ...getPreloadableGameIconUrls()]);
     const rendererChunkCount = 1;
     const total = portraitUnitCount + imageUrls.length + rendererChunkCount;
 
     onProgress?.({ active: true, completed: 0, total, label: 'Preparing game images' });
 
     let portraitCompleted = 0;
-    const portraits = await loadFactionUnitPortraitUrls((progress) => {
+    const portraits = await loadRaceUnitPortraitUrls((progress) => {
       portraitCompleted = progress.completed;
       onProgress?.({
         active: true,

@@ -8,7 +8,7 @@ The only progression currency is `Essence`.
 
 Current rules:
 
-- the two opening faction choices are free, and each selected faction grants its preselected starting troop
+- the two opening race choices are free, and each selected race grants its preselected starting troop
 - each cycle grants `+2` Essence after battles resolve
 - revealing a combined troop-and-upgrade draft costs `2` Essence when both sides still have options
 - a one-sided draft fallback costs `1` Essence if only troop unlocks or only upgrade unlocks remain
@@ -20,24 +20,24 @@ Removed from the progression model:
 - gold
 - buying units
 - stat upgrades
-- faction unlock purchases
+- race unlock purchases
 - blueprints
 - post-battle reward claims
 
 ## Unlocking troops
 
-Each unlocked faction has a native troop roster that can appear in normal troop offers.
+Each unlocked race has a native troop roster that can appear in normal troop offers.
 
-Off-roster faction-and-troop combinations are not part of the normal pool by default. They enter a latent future-unlock pool by winning Rifts that contain those combinations.
+Off-roster race-and-troop combinations are not part of the normal pool by default. They enter a latent future-unlock pool by winning Rifts that contain those combinations.
 
-Owning any troop from a faction marks that faction as owned for draft bucketing.
+Owning any troop from a race marks that race as owned for draft bucketing.
 
 Current roster rule:
 
-- the campaign keeps at most one troop per `faction/unitType` combination
+- the campaign keeps at most one troop per `race/unitClass` combination
 - claiming a troop unlock immediately adds that troop to the player's roster if it is not already owned
 - Rift-earned off-roster unlocks do not immediately add a troop
-- latent Rift-earned combinations only become normal troop-offer candidates after their faction is unlocked
+- latent Rift-earned combinations only become normal troop-offer candidates after their race is unlocked
 
 ## Troop offer generation
 
@@ -45,49 +45,49 @@ Troop offers show 3 unique options.
 
 Buckets are filled in this order:
 
-1. a troop from a faction the player already owns
-2. a troop of a unit type the player already owns
-3. a recently defeated latent troop whose faction is already owned, then another troop from an owned faction
+1. a troop from a race the player already owns
+2. a troop of a troop class the player already owns
+3. a recently defeated latent troop whose race is already owned, then another troop from an owned race
 
 If any bucket cannot be satisfied, that slot falls back to a random unowned troop unlock from the remaining claimable pool.
 
 Generated offers persist in save data until they are claimed or the cycle advances.
 
-Troop options that would make the current roster impossible to fully assign are filtered out. In practice, a draft option is hidden if taking it would leave the player with more troops of one faction or one troop type than there are currently discovered Rifts.
+Troop options that would make the current roster impossible to fully assign are filtered out. In practice, a draft option is hidden if taking it would leave the player with more troops of one race or one troop class than there are currently discovered Rifts.
 
 Offer candidate pool:
 
-- native troop combinations for unlocked factions only
-- latent off-roster troop combinations previously discovered through Rift victories, but only after their faction is unlocked
+- native troop combinations for unlocked races only
+- latent off-roster troop combinations previously discovered through Rift victories, but only after their race is unlocked
 
-Opening faction rule:
+Opening race rule:
 
-- the opening screen only shows native faction rosters
-- the player chooses two starting factions, not troop types
-- each faction option includes one preselected starting troop type from that faction's native roster
-- the player can still see the other native troop types that faction may unlock later
-- the generated opening offer should not force duplicate starting troop types across the two selected factions
-- after the opening campaign starts, only those two factions' native rosters are claimable in normal troop drafts
+- the opening screen only shows native race rosters
+- the player chooses two starting races, not troop classes
+- each race option includes one preselected starting troop class from that race's native roster
+- the player can still see the other native troop classes that race may unlock later
+- the generated opening offer should not force duplicate starting troop classes across the two selected races
+- after the opening campaign starts, only those two races' native rosters are claimable in normal troop drafts
 
-## Scheduled faction unlocks
+## Scheduled race unlocks
 
 At the start of cycle 3:
 
-- choose from up to 3 still-locked factions
-- each faction option shows its native troop roster
-- each faction option also shows defeated-enemy troop combinations already discovered for that faction, as future unlock potential
-- each faction option shows the 2 troop types that will be unlocked immediately if selected
-- the chosen faction immediately receives 1 preselected faction upgrade
-- the chosen faction immediately receives its 2 preselected troop type unlocks from its native roster plus any latent defeated troops for that faction
+- choose from up to 3 still-locked races
+- each race option shows its native troop roster
+- each race option also shows defeated-enemy troop combinations already discovered for that race, as future unlock potential
+- each race option shows the 2 troop classes that will be unlocked immediately if selected
+- the chosen race immediately receives 1 preselected race upgrade
+- the chosen race immediately receives its 2 preselected troop class unlocks from its native roster plus any latent defeated troops for that race
 
 At the start of cycle 7:
 
-- repeat the same faction choice flow
-- each faction option shows the 3 troop types that will be unlocked immediately if selected
-- the chosen faction immediately receives 2 preselected faction upgrades
-- the chosen faction immediately receives its 3 preselected troop type unlocks from its native roster plus any latent defeated troops for that faction
+- repeat the same race choice flow
+- each race option shows the 3 troop classes that will be unlocked immediately if selected
+- the chosen race immediately receives 2 preselected race upgrades
+- the chosen race immediately receives its 3 preselected troop class unlocks from its native roster plus any latent defeated troops for that race
 
-With the current 7-faction content set, fewer than 3 faction options can appear if fewer than 3 factions remain locked.
+With the current 7-race content set, fewer than 3 race options can appear if fewer than 3 races remain locked.
 
 ## Unlocking upgrades
 
@@ -95,8 +95,8 @@ Upgrades are permanent unlocks, not purchases with escalating costs.
 
 Implemented upgrade families:
 
-- faction upgrades
-- troop-type upgrades
+- race upgrades
+- troop-class upgrades
 
 There are no troop stat upgrades.
 
@@ -106,15 +106,15 @@ Upgrade offers are revealed as part of the combined Essence draft and show 3 uni
 
 Buckets are filled in this order:
 
-1. a troop-type upgrade for a unit type the player already owns
-2. a faction upgrade for a faction the player already owns
-3. a random upgrade affecting a random allied troop among those with the fewest existing faction-plus-type upgrades affecting them
+1. a troop-class upgrade for a troop class the player already owns
+2. a race upgrade for a race the player already owns
+3. a random upgrade affecting a random allied troop among those with the fewest existing race-plus-class upgrades affecting them
 
 If any bucket cannot be satisfied, that slot falls back to a random unowned upgrade from the remaining pool.
 
 Generated offers persist in save data until they are claimed or the cycle advances.
 
-## Implemented faction upgrades
+## Implemented race upgrades
 
 - `Human Combined Arms`
 - `Tubthumping`
@@ -138,7 +138,7 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 - `Changeling`
 - `Whimsy`
 
-## Implemented troop-type upgrades
+## Implemented troop-class upgrades
 
 - `Shield Drill`
 - `Crippling Shots`
@@ -167,8 +167,4 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 - `Storm Rods`
 - `Spell Echo`
 
-Removed upgrades:
-
-- `Just a bunch of guys`
-- `Challenge Accepted`
-- `Leyline Focus`
+Legacy removed upgrade names are intentionally omitted from current design docs.

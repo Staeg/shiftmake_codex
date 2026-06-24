@@ -53,7 +53,7 @@
     speed: {
       title: 'Stats',
       body: [
-        'Each Troop Type has a baseline for each stat, and its Faction modifies most of them.',
+        'Each Troop Class has a baseline for each stat, and its Race modifies most of them.',
         'Speed is one example. Hover it to inspect the breakdown and what the stat does.',
       ],
       task: "Hover the focused Unit's Speed.",
@@ -134,13 +134,13 @@
     opening: {
       title: 'Opening Selection',
       body: [
-        'Troops are Faction + Troop Type packages: the Faction changes stats and abilities, while the Troop Type defines the battlefield role.',
+        'Troops are Race + Troop Class packages: the Race changes stats and abilities, while the Troop Class defines the battlefield role.',
         'Pick two different packages to begin your Contest roster.',
       ],
-      task: 'Select two Faction + Troop packages, then click Begin Contest.',
+      task: 'Select two Race + Troop packages, then click Begin Contest.',
       placement: 'opening-top',
-      targets: ['.opening-faction-card:not(.selected):not(.incompatible)'],
-      avoidSelectors: ['.opening-faction-card'],
+      targets: ['.opening-race-card:not(.selected):not(.incompatible)'],
+      avoidSelectors: ['.opening-race-card'],
       targetMode: 'all',
     },
     essence: {
@@ -161,7 +161,7 @@
       title: 'Draft Choices',
       body: [
         'Select one Troop and one Upgrade.',
-        'Some Upgrades affect Troops of one Type. Others affect all Troops of one Faction.',
+        'Some Upgrades affect Troops of one Class. Others affect all Troops of one Race.',
         'Small icons on the right side of Upgrades show affected owned Troops, including the greyed out options you can pick in the current draft.',
       ],
       task: 'Confirm one Troop and one Upgrade.',
@@ -197,7 +197,7 @@
     'assign-rift': {
       title: 'Assign Troops',
       body: [
-        'A single Rift cannot take more than one Troop of the same Type or one Troop of the same Faction.',
+        'A single Rift cannot take more than one Troop of the same Class or one Troop of the same Race.',
       ],
       task: 'Drag any ready Troop to any Rift.',
       placement: 'overworld-left',
@@ -239,7 +239,7 @@
     complete: {
       title: 'Tutorial Complete',
       body: [
-        'Nice work. Campaign mode was not covered, and a couple of mechanisms (such as the unlocking of a new Faction during Cycle 3 and Cycle 7) were not covered.',
+        'Nice work. Campaign mode was not covered, and a couple of mechanisms (such as the unlocking of a new Race during Cycle 3 and Cycle 7) were not covered.',
         'You can keep playing this Contest run; a good next step is opening a Replay from the finished battles.',
         'Or use Main Menu when you want to leave the tutorial save.',
       ],
@@ -267,15 +267,15 @@
     return progress.signals.includes(action);
   }
 
-  function selectedOpeningFactionCount(): number {
+  function selectedOpeningRaceCount(): number {
     if (typeof document === 'undefined') {
       return 0;
     }
-    return document.querySelectorAll('.opening-faction-card.selected').length;
+    return document.querySelectorAll('.opening-race-card.selected').length;
   }
 
   function activeTargetSelectors(): string[] {
-    if (progress.step === 'opening' && selectedOpeningFactionCount() >= 2) {
+    if (progress.step === 'opening' && selectedOpeningRaceCount() >= 2) {
       return ['[data-ui-name="Begin campaign button"]'];
     }
     return copy.targets.some((selector) => document.querySelector(selector))

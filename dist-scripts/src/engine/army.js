@@ -1,13 +1,13 @@
 import { fixed, fixedClamp, formatFixed } from './fixed';
-import { applyStatModifier, clampStat, composeBaseTroopDefinition, getAbility, getFaction, getFactionUpgrade, getTroopQuantityForCost, getTroopTypeUpgrade, getTroopUnlockId, getUnitType, } from './unitCatalog';
+import { applyStatModifier, clampStat, composeBaseTroopDefinition, getAbility, getRace, getRaceUpgrade, getTroopQuantityForCost, getTroopClassUpgrade, getTroopUnlockId, getTroopClass, } from './unitCatalog';
 export const VICTORY_RECOVERY = 1;
 export const DEFEAT_RECOVERY = 1;
 const EXPLAINED_STAT_KEYS = ['health', 'damage', 'speed', 'armor', 'range', 'capacity', 'size'];
-export function createTroopInstance(factionId, unitTypeId) {
+export function createTroopInstance(raceId, unitClassId) {
     return {
-        id: getTroopUnlockId(factionId, unitTypeId),
-        factionId,
-        unitTypeId,
+        id: getTroopUnlockId(raceId, unitClassId),
+        raceId,
+        unitClassId,
         recoveryCyclesRemaining: 0,
         assignmentRiftId: null,
     };
@@ -22,10 +22,10 @@ export function getTroopById(state, troopId) {
 export function getTroopsAssignedToRift(state, riftId) {
     return state.troops.filter((troop) => troop.assignmentRiftId === riftId);
 }
-export function isFactionUnited(state, factionId) {
-    return state.factionUpgradeIds
-        .map(getFactionUpgrade)
-        .filter((upgrade) => upgrade.factionId === factionId)
+export function isRaceUnited(state, raceId) {
+    return state.raceUpgradeIds
+        .map(getRaceUpgrade)
+        .filter((upgrade) => upgrade.raceId === raceId)
         .some((upgrade) => upgrade.effects.some((effect) => effect.kind === 'addAbility' && getAbility(effect.abilityId).overworldEffectId === 'united'));
 }
 function applyTierScaling(stats, tier) {
@@ -40,13 +40,13 @@ function applyTierScaling(stats, tier) {
         speed: fixedClamp(fixed(stats.speed * multiplier), 1, 100),
     };
 }
-function applyFactionUpgradeEffects(state, factionId, stats, abilities, attributes) {
+function applyRaceUpgradeEffects(state, raceId, stats, abilities, attributes) {
     let nextStats = { ...stats };
     const nextAbilities = [...abilities];
     const nextAttributes = [...attributes];
-    state.factionUpgradeIds
-        .map(getFactionUpgrade)
-        .filter((upgrade) => upgrade.factionId === factionId)
+    state.raceUpgradeIds
+        .map(getRaceUpgrade)
+        .filter((upgrade) => upgrade.raceId === raceId)
         .forEach((upgrade) => {
         upgrade.effects.forEach((effect) => {
             if (effect.kind === 'addAbility') {
@@ -76,14 +76,14 @@ function pushContribution(contributions, stat, line) {
     }
     contributions[stat]?.push(line);
 }
-function applyFactionUpgradeEffectsDetailed(state, factionId, stats, abilities, attributes) {
+function applyRaceUpgradeEffectsDetailed(state, raceId, stats, abilities, attributes) {
     let nextStats = { ...stats };
     const nextAbilities = [...abilities];
     const nextAttributes = [...attributes];
     const statContributions = {};
-    state.factionUpgradeIds
-        .map(getFactionUpgrade)
-        .filter((upgrade) => upgrade.factionId === factionId)
+    state.raceUpgradeIds
+        .map(getRaceUpgrade)
+        .filter((upgrade) => upgrade.raceId === raceId)
         .forEach((upgrade) => {
         upgrade.effects.forEach((effect) => {
             if (effect.kind === 'addAbility') {
@@ -114,13 +114,13 @@ function applyFactionUpgradeEffectsDetailed(state, factionId, stats, abilities, 
     });
     return { stats: nextStats, abilities: nextAbilities, attributes: nextAttributes, statContributions };
 }
-function applyTroopTypeUpgradeEffects(state, unitTypeId, stats, abilities, attributes) {
+function applyTroopClassUpgradeEffects(state, unitClassId, stats, abilities, attributes) {
     let nextStats = { ...stats };
     let nextAbilities = [...abilities];
     const nextAttributes = [...attributes];
-    state.troopTypeUpgradeIds
-        .map(getTroopTypeUpgrade)
-        .filter((upgrade) => upgrade.unitTypeId === unitTypeId)
+    state.troopClassUpgradeIds
+        .map(getTroopClassUpgrade)
+        .filter((upgrade) => upgrade.unitClassId === unitClassId)
         .forEach((upgrade) => {
         upgrade.effects.forEach((effect) => {
             if (effect.kind === 'addAbility') {
@@ -149,14 +149,14 @@ function applyTroopTypeUpgradeEffects(state, unitTypeId, stats, abilities, attri
     });
     return { stats: nextStats, abilities: nextAbilities, attributes: nextAttributes };
 }
-function applyTroopTypeUpgradeEffectsDetailed(state, unitTypeId, stats, abilities, attributes) {
+function applyTroopClassUpgradeEffectsDetailed(state, unitClassId, stats, abilities, attributes) {
     let nextStats = { ...stats };
     let nextAbilities = [...abilities];
     const nextAttributes = [...attributes];
     const statContributions = {};
-    state.troopTypeUpgradeIds
-        .map(getTroopTypeUpgrade)
-        .filter((upgrade) => upgrade.unitTypeId === unitTypeId)
+    state.troopClassUpgradeIds
+        .map(getTroopClassUpgrade)
+        .filter((upgrade) => upgrade.unitClassId === unitClassId)
         .forEach((upgrade) => {
         upgrade.effects.forEach((effect) => {
             if (effect.kind === 'addAbility') {
@@ -192,21 +192,21 @@ function applyTroopTypeUpgradeEffectsDetailed(state, unitTypeId, stats, abilitie
     });
     return { stats: nextStats, abilities: nextAbilities, attributes: nextAttributes, statContributions };
 }
-function buildStatBreakdowns(troop, side, enemyTier, baseStats, factionStats, tierStats, finalStats, troopTypeUpgradeContributions, factionUpgradeContributions) {
-    const faction = getFaction(troop.factionId);
-    const unitType = getUnitType(troop.unitTypeId);
+function buildStatBreakdowns(troop, side, enemyTier, baseStats, raceStats, tierStats, finalStats, troopClassUpgradeContributions, raceUpgradeContributions) {
+    const race = getRace(troop.raceId);
+    const unitClass = getUnitClass(troop.unitClassId);
     return Object.fromEntries(EXPLAINED_STAT_KEYS.map((stat) => {
-        const lines = [{ label: `${unitType.label} base`, value: baseStats[stat], kind: 'base' }];
-        const factionDelta = fixed(factionStats[stat] - baseStats[stat]);
-        if (factionDelta !== 0) {
-            lines.push({ label: faction.label, value: factionDelta, kind: 'delta' });
+        const lines = [{ label: `${unitClass.label} base`, value: baseStats[stat], kind: 'base' }];
+        const raceDelta = fixed(raceStats[stat] - baseStats[stat]);
+        if (raceDelta !== 0) {
+            lines.push({ label: race.label, value: raceDelta, kind: 'delta' });
         }
-        const tierDelta = fixed(tierStats[stat] - factionStats[stat]);
+        const tierDelta = fixed(tierStats[stat] - raceStats[stat]);
         if (tierDelta !== 0 && side === 'enemy' && enemyTier !== null && enemyTier > 1) {
             lines.push({ label: `Enemy Rift Tier ${enemyTier}`, value: tierDelta, kind: 'delta' });
         }
-        troopTypeUpgradeContributions[stat]?.forEach((line) => lines.push(line));
-        factionUpgradeContributions[stat]?.forEach((line) => lines.push(line));
+        troopClassUpgradeContributions[stat]?.forEach((line) => lines.push(line));
+        raceUpgradeContributions[stat]?.forEach((line) => lines.push(line));
         return [
             stat,
             {
@@ -218,36 +218,36 @@ function buildStatBreakdowns(troop, side, enemyTier, baseStats, factionStats, ti
     }));
 }
 export function getResolvedStatBreakdowns(state, troop, side, enemyTier = null) {
-    const unitType = getUnitType(troop.unitTypeId);
-    const base = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+    const unitClass = getUnitClass(troop.unitClassId);
+    const base = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
     const baseUnitStats = {
-        health: clampStat('health', unitType.stats.health),
-        damage: clampStat('damage', unitType.stats.damage),
-        speed: clampStat('speed', unitType.stats.speed),
-        armor: clampStat('armor', unitType.stats.armor),
-        range: clampStat('range', unitType.stats.range),
-        capacity: clampStat('capacity', unitType.stats.capacity),
-        size: clampStat('size', unitType.stats.size),
+        health: clampStat('health', unitClass.stats.health),
+        damage: clampStat('damage', unitClass.stats.damage),
+        speed: clampStat('speed', unitClass.stats.speed),
+        armor: clampStat('armor', unitClass.stats.armor),
+        range: clampStat('range', unitClass.stats.range),
+        capacity: clampStat('capacity', unitClass.stats.capacity),
+        size: clampStat('size', unitClass.stats.size),
     };
     const tierStats = applyTierScaling(base.stats, side === 'enemy' ? enemyTier : null);
-    const troopTypeDetailed = applyTroopTypeUpgradeEffectsDetailed(state, troop.unitTypeId, tierStats, base.abilities, base.attributes);
-    const factionDetailed = applyFactionUpgradeEffectsDetailed(state, troop.factionId, troopTypeDetailed.stats, troopTypeDetailed.abilities, troopTypeDetailed.attributes);
-    return buildStatBreakdowns(troop, side, enemyTier, baseUnitStats, base.stats, tierStats, factionDetailed.stats, troopTypeDetailed.statContributions, factionDetailed.statContributions);
+    const troopClassDetailed = applyTroopClassUpgradeEffectsDetailed(state, troop.unitClassId, tierStats, base.abilities, base.attributes);
+    const raceDetailed = applyRaceUpgradeEffectsDetailed(state, troop.raceId, troopClassDetailed.stats, troopClassDetailed.abilities, troopClassDetailed.attributes);
+    return buildStatBreakdowns(troop, side, enemyTier, baseUnitStats, base.stats, tierStats, raceDetailed.stats, troopClassDetailed.statContributions, raceDetailed.statContributions);
 }
 export function getTroopQuantityBreakdown(troop) {
-    const faction = getFaction(troop.factionId);
-    const unitType = getUnitType(troop.unitTypeId);
-    const baseQuantity = getTroopQuantityForCost(unitType.cost);
-    const base = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
-    const lines = [{ label: `${unitType.label} base cost ${formatFixed(unitType.cost)}`, value: baseQuantity, kind: 'base' }];
-    const costMultiplier = faction.statAdjustments.cost?.multiplier ?? 1;
-    const costFlat = faction.statAdjustments.cost?.flat ?? 0;
+    const race = getRace(troop.raceId);
+    const unitClass = getUnitClass(troop.unitClassId);
+    const baseQuantity = getTroopQuantityForCost(unitClass.cost);
+    const base = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
+    const lines = [{ label: `${unitClass.label} base cost ${formatFixed(unitClass.cost)}`, value: baseQuantity, kind: 'base' }];
+    const costMultiplier = race.statAdjustments.cost?.multiplier ?? 1;
+    const costFlat = race.statAdjustments.cost?.flat ?? 0;
     if (costMultiplier !== 1 || costFlat !== 0) {
         const costText = costMultiplier !== 1
             ? `Cost x${formatFixed(costMultiplier)}`
             : `Cost ${costFlat > 0 ? '+' : ''}${formatFixed(costFlat)}`;
         lines.push({
-            label: `${faction.label} ${costText} -> quantity x${formatFixed(base.quantity / baseQuantity)}`,
+            label: `${race.label} ${costText} -> quantity x${formatFixed(base.quantity / baseQuantity)}`,
             value: fixed(base.quantity - baseQuantity),
             kind: 'delta',
         });
@@ -258,33 +258,33 @@ export function getTroopQuantityBreakdown(troop) {
         lines,
     };
 }
-export function getEnemyStatBreakdowns(factionId, unitTypeId, tier) {
-    return getResolvedStatBreakdowns({ factionUpgradeIds: [], troopTypeUpgradeIds: [] }, createTroopInstance(factionId, unitTypeId), 'enemy', tier);
+export function getEnemyStatBreakdowns(raceId, unitClassId, tier) {
+    return getResolvedStatBreakdowns({ raceUpgradeIds: [], troopClassUpgradeIds: [] }, createTroopInstance(raceId, unitClassId), 'enemy', tier);
 }
 export function resolveTroopCombatant(state, troop, side, enemyTier = null, combatantId = troop.id) {
-    const base = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+    const base = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
     const scaled = applyTierScaling(base.stats, side === 'enemy' ? enemyTier : null);
-    const withTroopTypeEffects = applyTroopTypeUpgradeEffects(state, troop.unitTypeId, scaled, base.abilities, base.attributes);
-    const withFactionEffects = applyFactionUpgradeEffects(state, troop.factionId, withTroopTypeEffects.stats, withTroopTypeEffects.abilities, withTroopTypeEffects.attributes);
+    const withTroopClassEffects = applyTroopClassUpgradeEffects(state, troop.unitClassId, scaled, base.abilities, base.attributes);
+    const withRaceEffects = applyRaceUpgradeEffects(state, troop.raceId, withTroopClassEffects.stats, withTroopClassEffects.abilities, withTroopClassEffects.attributes);
     return {
         combatantId,
-        factionId: troop.factionId,
-        unitTypeId: troop.unitTypeId,
+        raceId: troop.raceId,
+        unitClassId: troop.unitClassId,
         troopInstanceId: troop.id,
         label: base.label,
         role: base.role,
-        type: base.type,
-        attributes: withFactionEffects.attributes,
-        stats: withFactionEffects.stats,
-        abilities: withFactionEffects.abilities,
+        unitClassTag: base.unitClassTag,
+        attributes: withRaceEffects.attributes,
+        stats: withRaceEffects.stats,
+        abilities: withRaceEffects.abilities,
         quantity: base.quantity,
         cost: base.cost,
         side,
         statBreakdowns: getResolvedStatBreakdowns(state, troop, side, enemyTier),
     };
 }
-export function resolveEnemyCombatant(factionUpgradeIds, troopTypeUpgradeIds, factionId, unitTypeId, tier, combatantId) {
-    return resolveTroopCombatant({ factionUpgradeIds, troopTypeUpgradeIds }, createTroopInstance(factionId, unitTypeId), 'enemy', tier, combatantId);
+export function resolveEnemyCombatant(raceUpgradeIds, troopClassUpgradeIds, raceId, unitClassId, tier, combatantId) {
+    return resolveTroopCombatant({ raceUpgradeIds, troopClassUpgradeIds }, createTroopInstance(raceId, unitClassId), 'enemy', tier, combatantId);
 }
 export function getTroopEffectiveDefinition(state, troopId) {
     return resolveTroopCombatant(state, getTroopById(state, troopId), 'player');
@@ -306,8 +306,8 @@ export function getTroopStatusCounts(state) {
     });
     return { active, recovering, idle };
 }
-export function getFactionTroops(state, factionId) {
-    return state.troops.filter((troop) => troop.factionId === factionId);
+export function getRaceTroops(state, raceId) {
+    return state.troops.filter((troop) => troop.raceId === raceId);
 }
 export function tickRecovery(troops) {
     return troops.map((troop) => ({
@@ -316,6 +316,6 @@ export function tickRecovery(troops) {
     }));
 }
 export function getRiftSummaryTroops(state, rift) {
-    return getTroopsAssignedToRift(state, rift.id).map((troop) => composeBaseTroopDefinition(troop.factionId, troop.unitTypeId).label);
+    return getTroopsAssignedToRift(state, rift.id).map((troop) => composeBaseTroopDefinition(troop.raceId, troop.unitClassId).label);
 }
 //# sourceMappingURL=army.js.map

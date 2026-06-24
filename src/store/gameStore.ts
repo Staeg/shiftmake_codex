@@ -4,10 +4,10 @@ import {
   applyScheduledCycleUnlock,
   assignTroopToRift,
   canAssignTroopToRift,
-  claimFactionUnlockOffer,
+  claimRaceUnlockOffer,
   claimOpeningTroop,
   claimTroopOffer,
-  claimTroopTypeUnlockOffer,
+  claimTroopClassUnlockOffer,
   claimUpgradeOffer,
   clearTroopAssignment,
   continuePlaying,
@@ -41,7 +41,7 @@ import type {
   BattleReportPayload,
   BattleReplay,
   CampaignReportPayload,
-  FactionId,
+  RaceId,
   CampaignReportUiContext,
   CycleResolution,
   GameState,
@@ -367,7 +367,7 @@ function buildLoadRepairMessage(repairs: LoadGameRepairReport | null): string | 
   }
 
   const sections = [
-    formatRepairList('Missing factions', repairs.missingFactionIds),
+    formatRepairList('Missing races', repairs.missingRaceIds),
     formatRepairList('Missing troop unlocks', repairs.missingTroopUnlockIds),
     formatRepairList('Missing troop instances', repairs.missingTroopInstanceIds),
     formatRepairList('Missing upgrades', repairs.missingUpgradeIds),
@@ -1065,24 +1065,24 @@ export const gameStore = (() => {
             }),
       );
     },
-    claimFactionUnlockOffer(factionId: FactionId) {
+    claimRaceUnlockOffer(raceId: RaceId) {
       update((state) =>
         !canEditGame(state)
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: claimFactionUnlockOffer(state.game, factionId),
+              game: claimRaceUnlockOffer(state.game, raceId),
               systemMessage: null,
             }),
       );
     },
-    claimTroopTypeUnlockOffer(troopUnlockId: TroopUnlockId) {
+    claimTroopClassUnlockOffer(troopUnlockId: TroopUnlockId) {
       update((state) =>
         !canEditGame(state)
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: claimTroopTypeUnlockOffer(state.game, troopUnlockId),
+              game: claimTroopClassUnlockOffer(state.game, troopUnlockId),
               systemMessage: null,
             }),
       );

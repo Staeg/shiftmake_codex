@@ -49,33 +49,33 @@ function applyMutatorAdjustmentsToUnit(unit, effects) {
     unit.resolvedAbilities = filterMutatorBlockedAbilities(unit.resolvedAbilities, effects);
     unit.resolvedStats.armor = applyArmorCap(unit.resolvedStats.armor, effects);
 }
-function getSideFactionUpgradeIds(state, side) {
-    return side === 'player' ? (state.input.playerFactionUpgradeIds ?? []) : (state.input.enemyFactionUpgradeIds ?? []);
+function getSideRaceUpgradeIds(state, side) {
+    return side === 'player' ? (state.input.playerRaceUpgradeIds ?? []) : (state.input.enemyRaceUpgradeIds ?? []);
 }
-function getSideTroopTypeUpgradeIds(state, side) {
-    return side === 'player' ? (state.input.playerTroopTypeUpgradeIds ?? []) : (state.input.enemyTroopTypeUpgradeIds ?? []);
+function getSideTroopClassUpgradeIds(state, side) {
+    return side === 'player' ? (state.input.playerTroopClassUpgradeIds ?? []) : (state.input.enemyTroopClassUpgradeIds ?? []);
 }
-function sideHasFactionUpgrade(state, side, upgradeId) {
-    return getSideFactionUpgradeIds(state, side).includes(upgradeId);
+function sideHasRaceUpgrade(state, side, upgradeId) {
+    return getSideRaceUpgradeIds(state, side).includes(upgradeId);
 }
-function inputSideHasFactionUpgrade(input, side, upgradeId) {
-    return (side === 'player' ? (input.playerFactionUpgradeIds ?? []) : (input.enemyFactionUpgradeIds ?? [])).includes(upgradeId);
+function inputSideHasRaceUpgrade(input, side, upgradeId) {
+    return (side === 'player' ? (input.playerRaceUpgradeIds ?? []) : (input.enemyRaceUpgradeIds ?? [])).includes(upgradeId);
 }
-function sideHasTroopTypeUpgrade(state, side, upgradeId) {
-    return getSideTroopTypeUpgradeIds(state, side).includes(upgradeId);
+function sideHasTroopClassUpgrade(state, side, upgradeId) {
+    return getSideTroopClassUpgradeIds(state, side).includes(upgradeId);
 }
 function cloneSnapshot(units) {
     return {
         units: [...units.values()].map((unit) => ({
             id: unit.id,
             troopInstanceId: unit.troopInstanceId,
-            troopId: `${unit.factionId}/${unit.unitTypeId}`,
+            troopId: `${unit.raceId}/${unit.unitClassId}`,
             troopLabel: unit.troopLabel,
-            unitTypeId: unit.unitTypeId,
-            factionId: unit.factionId,
+            unitClassId: unit.unitClassId,
+            raceId: unit.raceId,
             side: unit.side,
             role: unit.role,
-            type: unit.type,
+            unitClassTag: unit.unitClassTag,
             attributes: [...unit.attributes],
             position: { ...unit.position },
             stats: { ...unit.resolvedStats },
@@ -115,9 +115,9 @@ function cloneAbilityDefinition(ability) {
                 ...ability.target,
                 filters: ability.target.filters
                     ? {
-                        notTypes: ability.target.filters.notTypes ? [...ability.target.filters.notTypes] : undefined,
-                        onlyTypes: ability.target.filters.onlyTypes ? [...ability.target.filters.onlyTypes] : undefined,
-                        prioritizeTypes: ability.target.filters.prioritizeTypes ? [...ability.target.filters.prioritizeTypes] : undefined,
+                        notClasses: ability.target.filters.notClasses ? [...ability.target.filters.notClasses] : undefined,
+                        onlyClasses: ability.target.filters.onlyClasses ? [...ability.target.filters.onlyClasses] : undefined,
+                        prioritizeClasses: ability.target.filters.prioritizeClasses ? [...ability.target.filters.prioritizeClasses] : undefined,
                         unengaged: ability.target.filters.unengaged,
                     }
                     : undefined,
@@ -165,10 +165,10 @@ function buildTroopProfiles(input, summonedProfiles, effects) {
         profiles.push({
             side: combatant.side,
             troopLabel: combatant.label,
-            unitTypeId: combatant.unitTypeId,
-            factionId: combatant.factionId,
+            unitClassId: combatant.unitClassId,
+            raceId: combatant.raceId,
             role: combatant.role,
-            type: combatant.type,
+            unitClassTag: combatant.unitClassTag,
             attributes: [...combatant.attributes],
             stats,
             abilities,
@@ -240,7 +240,7 @@ function canMergeStep(previous, kind, actorIds, metadata) {
         previousMetadata.expired === metadata.expired &&
         previousMetadata.abilityId === metadata.abilityId &&
         previousMetadata.role === metadata.role &&
-        previousMetadata.unitTypeId === metadata.unitTypeId);
+        previousMetadata.unitClassId === metadata.unitClassId);
 }
 function mergedNumericValue(left, right) {
     return typeof left === 'number' && typeof right === 'number' ? fixedAdd(left, right) : undefined;
@@ -533,12 +533,12 @@ function spawnGroup(side, combatants, origin, radius, context, forbidden) {
             id: unitId,
             troopInstanceId: combatant.troopInstanceId,
             troopLabel: combatant.label,
-            unitTypeId: combatant.unitTypeId,
-            factionId: combatant.factionId,
+            unitClassId: combatant.unitClassId,
+            raceId: combatant.raceId,
             side,
             summonerUnitId: null,
             role: combatant.role,
-            type: combatant.type,
+            unitClassTag: combatant.unitClassTag,
             attributes: [...combatant.attributes],
             position: { ...slot },
             hp: combatant.stats.health,
@@ -585,7 +585,7 @@ function spawnUnitsForSide(side, combatants, radius, context, placementSide = si
     return meleeHexes !== null;
 }
 function shouldDelayForDiggyHole(input, combatant) {
-    return combatant.factionId === 'dwarf' && inputSideHasFactionUpgrade(input, combatant.side, 'dwarf-diggy-hole');
+    return combatant.raceId === 'dwarf' && inputSideHasRaceUpgrade(input, combatant.side, 'dwarf-diggy-hole');
 }
 function initializeUnits(input, rng) {
     let radius = BASE_MAP_RADIUS;
@@ -698,8 +698,8 @@ function engageEnemiesOnHex(state, actor, roles = [], includeAlreadyEngaged = fa
 function matchesRoleFilter(unit, roles) {
     return roles.length === 0 || roles.includes(unit.role);
 }
-function getDistinctFriendlyUnitTypes(state, unit) {
-    return [...new Set(getAliveUnits(state, unit.side).map((entry) => entry.type))];
+function getDistinctFriendlyTroopClasses(state, unit) {
+    return [...new Set(getAliveUnits(state, unit.side).map((entry) => entry.unitClassTag))];
 }
 function formatSigned(value) {
     return value >= 0 ? `+${formatFixed(value)}` : formatFixed(value);
@@ -745,10 +745,10 @@ function hasAbility(unit, abilityId) {
     return unit.resolvedAbilities.some((runtime) => runtime.definition.id === abilityId);
 }
 function isDwarf(unit) {
-    return unit.factionId === 'dwarf' || unit.attributes.includes('dwarf');
+    return unit.raceId === 'dwarf' || unit.attributes.includes('dwarf');
 }
 function isFae(unit) {
-    return unit.factionId === 'fae' || unit.attributes.includes('fae');
+    return unit.raceId === 'fae' || unit.attributes.includes('fae');
 }
 function canTakeDamage(unit) {
     return !unit.berserkDeathPending;
@@ -828,7 +828,7 @@ function getDistanceDamageBonus(actor, target, context) {
     return { damage: distance, initiative: distance * 2 };
 }
 function hasMatchingIdentityTag(unit, tags) {
-    return tags.some((tag) => unit.type === tag || unit.attributes.includes(tag));
+    return tags.some((tag) => unit.unitClassTag === tag || unit.attributes.includes(tag));
 }
 function evaluateScaledAmount(base, amount, mode) {
     return mode === 'percent' ? fixedMul(base, amount / 100) : amount;
@@ -1353,10 +1353,10 @@ function filterTargetCandidates(candidates, filters) {
         return candidates;
     }
     return candidates.filter((candidate) => {
-        if (filters.onlyTypes && !hasMatchingIdentityTag(candidate, filters.onlyTypes)) {
+        if (filters.onlyClasses && !hasMatchingIdentityTag(candidate, filters.onlyClasses)) {
             return false;
         }
-        if (filters.notTypes && hasMatchingIdentityTag(candidate, filters.notTypes)) {
+        if (filters.notClasses && hasMatchingIdentityTag(candidate, filters.notClasses)) {
             return false;
         }
         if (filters.unengaged && candidate.engagedWith.size > 0) {
@@ -1366,10 +1366,10 @@ function filterTargetCandidates(candidates, filters) {
     });
 }
 function prioritizeCandidates(candidates, filters) {
-    if (!filters?.prioritizeTypes?.length) {
+    if (!filters?.prioritizeClasses?.length) {
         return candidates;
     }
-    const prioritized = candidates.filter((candidate) => hasMatchingIdentityTag(candidate, filters.prioritizeTypes ?? []));
+    const prioritized = candidates.filter((candidate) => hasMatchingIdentityTag(candidate, filters.prioritizeClasses ?? []));
     return prioritized.length > 0 ? prioritized : candidates;
 }
 // Default target resolution for effects that don't have an explicit target definition.
@@ -1485,7 +1485,7 @@ function canTriggerAbility(state, actor, runtime, event) {
     if (runtime.usesRemaining !== null && runtime.usesRemaining <= 0) {
         return false;
     }
-    if (trigger.condition === 'forsaken' && getDistinctFriendlyUnitTypes(state, actor).length > 1) {
+    if (trigger.condition === 'forsaken' && getDistinctFriendlyTroopClasses(state, actor).length > 1) {
         return false;
     }
     if (trigger.fallen && event.fallenUnit) {
@@ -1512,8 +1512,8 @@ function canTriggerAbility(state, actor, runtime, event) {
     return true;
 }
 function getAbilityRepeatCount(state, actor, runtime) {
-    if (runtime.definition.trigger.repeatPerDistinctFriendlyTroopType) {
-        return Math.max(0, getDistinctFriendlyUnitTypes(state, actor).filter((type) => type !== actor.type).length);
+    if (runtime.definition.trigger.repeatPerDistinctFriendlyTroopClass) {
+        return Math.max(0, getDistinctFriendlyTroopClasses(state, actor).filter((classTag) => classTag !== actor.unitClassTag).length);
     }
     if (runtime.definition.trigger.repeatPerOtherFriendlyUnitOnHex) {
         return getAliveUnits(state, actor.side).filter((ally) => ally.id !== actor.id && equalsHex(ally.position, actor.position)).length;
@@ -1528,10 +1528,10 @@ function recordSummonedProfile(state, unit) {
     state.summonedProfiles.set(key, {
         side: unit.side,
         troopLabel: unit.troopLabel,
-        unitTypeId: unit.unitTypeId,
-        factionId: unit.factionId,
+        unitClassId: unit.unitClassId,
+        raceId: unit.raceId,
         role: unit.role,
-        type: unit.type,
+        unitClassTag: unit.unitClassTag,
         attributes: [...unit.attributes],
         stats: { ...unit.resolvedStats },
         abilities: unit.resolvedAbilities.map((runtime) => cloneAbilityDefinition(runtime.definition)),
@@ -1572,13 +1572,13 @@ function applyCarrionChoir(state, actor, corpsePosition) {
     });
 }
 function summonUnit(state, actor, runtime, effect, origin) {
-    const troop = composeSummonedTroopDefinition(actor.factionId, effect.unitTypeId);
+    const troop = composeSummonedTroopDefinition(actor.raceId, effect.unitClassId);
     const summonHex = tryFindSummonHex(state, actor, origin, troop.stats.size);
     if (!summonHex) {
         return false;
     }
     const summonIndex = [...state.units.values()].filter((unit) => unit.side === actor.side && unit.troopLabel === troop.label).length + 1;
-    const unitId = `${actor.id}-summon-${effect.unitTypeId}-${summonIndex}`;
+    const unitId = `${actor.id}-summon-${effect.unitClassId}-${summonIndex}`;
     const grantedAbilities = (effect.grantedAbilityIds ?? []).map(getAbility);
     const mergedAbilities = [...troop.abilities];
     grantedAbilities.forEach((ability) => {
@@ -1590,17 +1590,17 @@ function summonUnit(state, actor, runtime, effect, origin) {
         id: unitId,
         troopInstanceId: null,
         troopLabel: troop.label,
-        unitTypeId: troop.unitTypeId,
-        factionId: troop.factionId,
+        unitClassId: troop.unitClassId,
+        raceId: troop.raceId,
         side: actor.side,
         summonerUnitId: actor.id,
         role: troop.role,
-        type: troop.type,
+        unitClassTag: troop.unitClassTag,
         attributes: [...troop.attributes],
         position: { ...summonHex },
         hp: troop.stats.health,
         maxHp: troop.stats.health,
-        initiative: fixedMax(effect.initialInitiative ?? (hasAbility(actor, 'early-riser') && effect.unitTypeId === 'skeleton' ? 100 : 0), 0),
+        initiative: fixedMax(effect.initialInitiative ?? (hasAbility(actor, 'early-riser') && effect.unitClassId === 'skeleton' ? 100 : 0), 0),
         alive: true,
         engagedWith: new Set(),
         resolvedStats: { ...troop.stats },
@@ -1624,17 +1624,17 @@ function summonUnit(state, actor, runtime, effect, origin) {
     recordSummonedProfile(state, summonedUnit);
     buildStep(state, 'buff', [actor.id], [unitId], `${actor.troopLabel} summons ${troop.label}.`, {
         effect: 'summon',
-        unitTypeId: troop.unitTypeId,
+        unitClassId: troop.unitClassId,
         sourceAbilityId: runtime.definition.id,
         sourceAbilityLabel: runtime.definition.label,
     });
     return true;
 }
-function summonUnitsAtHex(state, actor, sourceAbilityId, unitTypeId, count, origin, grantedAbilityIds = [], initialInitiative) {
+function summonUnitsAtHex(state, actor, sourceAbilityId, unitClassId, count, origin, grantedAbilityIds = [], initialInitiative) {
     const runtime = createRuntimeAbilityState(getAbility(sourceAbilityId));
     const effect = {
         kind: 'summon',
-        unitTypeId,
+        unitClassId,
         count: 1,
         grantedAbilityIds,
         initialInitiative,
@@ -1684,7 +1684,7 @@ function applyBlastSequence(state, actor, runtime, amount, origin, visited) {
         return false;
     }
     const totalAmount = hasAbility(actor, 'lightning-rods') ?
-        fixedAdd(amount, getAliveUnits(state).filter((unit) => unit.type === 'elemental' && equalsHex(unit.position, origin)).length)
+        fixedAdd(amount, getAliveUnits(state).filter((unit) => unit.unitClassTag === 'elemental' && equalsHex(unit.position, origin)).length)
         : amount;
     let applied = false;
     targets.forEach((target) => {
@@ -1878,7 +1878,7 @@ function triggerUnitAbilities(state, actor, event, filter) {
     });
 }
 function isArmyCompositionAbility(runtime) {
-    return !!(runtime.definition.trigger.condition || runtime.definition.trigger.repeatPerDistinctFriendlyTroopType);
+    return !!(runtime.definition.trigger.condition || runtime.definition.trigger.repeatPerDistinctFriendlyTroopClass);
 }
 function executeStartOfBattleAbilities(state) {
     const initialUnits = getAliveUnits(state);
@@ -1894,7 +1894,7 @@ function executeStartOfBattleAbilities(state) {
 }
 function applyCopiousAle(state) {
     ['player', 'enemy'].forEach((side) => {
-        if (!sideHasFactionUpgrade(state, side, 'dwarf-ale-and-hearty')) {
+        if (!sideHasRaceUpgrade(state, side, 'dwarf-ale-and-hearty')) {
             return;
         }
         const byTroop = new Map();
@@ -1938,7 +1938,7 @@ function performLivingCircuit(state, actor) {
     if (!hasAbility(actor, 'living-circuit')) {
         return;
     }
-    const elementals = getAliveUnits(state, actor.side).filter((unit) => unit.type === 'elemental' && hexDistance(actor.position, unit.position) <= actor.resolvedStats.range);
+    const elementals = getAliveUnits(state, actor.side).filter((unit) => unit.unitClassTag === 'elemental' && hexDistance(actor.position, unit.position) <= actor.resolvedStats.range);
     if (elementals.length === 0) {
         return;
     }
@@ -1960,7 +1960,7 @@ function performThrillOfTheHunt(state, actor) {
         return;
     }
     getAliveUnits(state, actor.side)
-        .filter((unit) => unit.type === 'wolf' && equalsHex(unit.position, actor.position))
+        .filter((unit) => unit.unitClassTag === 'wolf' && equalsHex(unit.position, actor.position))
         .forEach((wolf) => {
         applyInitiativeDelta(state, actor, wolf, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
             kind: 'initiativeDelta',
@@ -1990,7 +1990,7 @@ function performPackmastersWhistle(state, actor) {
     if (!hasAbility(actor, 'packmasters-whistle') || actor.engagedWith.size === 0) {
         return;
     }
-    const wolf = getAliveUnits(state, actor.side).find((ally) => ally.type === 'wolf' && equalsHex(ally.position, actor.position));
+    const wolf = getAliveUnits(state, actor.side).find((ally) => ally.unitClassTag === 'wolf' && equalsHex(ally.position, actor.position));
     const engagedTarget = [...actor.engagedWith].map((unitId) => state.units.get(unitId)).find((unit) => Boolean(unit?.alive));
     if (!wolf || !engagedTarget || wolf.engagedWith.has(engagedTarget.id) || engagedTarget.resolvedStats.size > availableCapacity(state, wolf)) {
         return;
@@ -2161,7 +2161,7 @@ function handleDeath(state, actor, target, context = { mode: 'melee', category: 
     if (hasAbility(actor, 'loot-frenzy')) {
         performLootFrenzy(state, actor, target.position);
     }
-    if (actor.type === 'wolf' && sideHasTroopTypeUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
+    if (actor.unitClassTag === 'wolf' && sideHasTroopClassUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
         performThrillKillBuff(state, actor, target.position);
     }
     if (hasAbility(actor, 'crushing-sweep') && context.mode === 'melee') {
@@ -2200,7 +2200,7 @@ function handleDeath(state, actor, target, context = { mode: 'melee', category: 
     getAliveUnits(state).forEach((unit) => {
         if (unit.id !== target.id) {
             triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
-            if (target.type === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === actor.side) {
+            if (target.unitClassTag === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === actor.side) {
                 applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.position, new Set());
             }
         }
@@ -2234,7 +2234,7 @@ function handleEnvironmentalDeath(state, target, effectId, effectLabel, message,
     getAliveUnits(state).forEach((unit) => {
         if (unit.id !== target.id) {
             triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
-            if (target.type === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === target.side) {
+            if (target.unitClassTag === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === target.side) {
                 applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.position, new Set());
             }
         }
@@ -2885,16 +2885,16 @@ function spawnPendingDiggyHoleUnits(state) {
     });
     applyCopiousAle(state);
 }
-function combatantWasBrought(input, side, factionId) {
+function combatantWasBrought(input, side, raceId) {
     const combatants = side === 'player' ? input.playerCombatants : input.enemyCombatants;
-    return combatants.some((combatant) => combatant.factionId === factionId);
+    return combatants.some((combatant) => combatant.raceId === raceId);
 }
 function applyChangeling(state) {
     if (state.beatCount !== 12) {
         return;
     }
     ['player', 'enemy'].forEach((side) => {
-        if (state.changelingTriggeredSides.has(side) || !sideHasFactionUpgrade(state, side, 'fae-changeling') || !combatantWasBrought(state.input, side, 'fae')) {
+        if (state.changelingTriggeredSides.has(side) || !sideHasRaceUpgrade(state, side, 'fae-changeling') || !combatantWasBrought(state.input, side, 'fae')) {
             return;
         }
         const enemySide = side === 'player' ? 'enemy' : 'player';
@@ -3073,15 +3073,15 @@ export function resolveBattle(input) {
     };
 }
 export function resolveDebugBattle(input) {
-    const playerFactionUpgradeIds = input.playerFactionUpgradeIds ?? [];
-    const playerTroopTypeUpgradeIds = input.playerTroopTypeUpgradeIds ?? [];
-    const enemyFactionUpgradeIds = input.enemyFactionUpgradeIds ?? [];
-    const enemyTroopTypeUpgradeIds = input.enemyTroopTypeUpgradeIds ?? [];
+    const playerRaceUpgradeIds = input.playerRaceUpgradeIds ?? [];
+    const playerTroopClassUpgradeIds = input.playerTroopClassUpgradeIds ?? [];
+    const enemyRaceUpgradeIds = input.enemyRaceUpgradeIds ?? [];
+    const enemyTroopClassUpgradeIds = input.enemyTroopClassUpgradeIds ?? [];
     const playerCombatants = Object.entries(input.player)
         .filter(([, quantity]) => quantity > 0)
         .map(([troopId, quantity]) => {
         const troop = getTroopDefinitionOrThrow(troopId);
-        const resolved = resolveTroopCombatant({ factionUpgradeIds: playerFactionUpgradeIds, troopTypeUpgradeIds: playerTroopTypeUpgradeIds }, createTroopInstance(troop.factionId, troop.unitTypeId), 'player', null, `debug-player-${troopId}`);
+        const resolved = resolveTroopCombatant({ raceUpgradeIds: playerRaceUpgradeIds, troopClassUpgradeIds: playerTroopClassUpgradeIds }, createTroopInstance(troop.raceId, troop.unitClassId), 'player', null, `debug-player-${troopId}`);
         return {
             ...resolved,
             troopInstanceId: null,
@@ -3092,7 +3092,7 @@ export function resolveDebugBattle(input) {
         .filter(([, quantity]) => quantity > 0)
         .map(([troopId, quantity]) => {
         const troop = getTroopDefinitionOrThrow(troopId);
-        const resolved = resolveTroopCombatant({ factionUpgradeIds: enemyFactionUpgradeIds, troopTypeUpgradeIds: enemyTroopTypeUpgradeIds }, createTroopInstance(troop.factionId, troop.unitTypeId), 'enemy', null, `debug-enemy-${troopId}`);
+        const resolved = resolveTroopCombatant({ raceUpgradeIds: enemyRaceUpgradeIds, troopClassUpgradeIds: enemyTroopClassUpgradeIds }, createTroopInstance(troop.raceId, troop.unitClassId), 'enemy', null, `debug-enemy-${troopId}`);
         return {
             ...resolved,
             troopInstanceId: null,
@@ -3104,25 +3104,25 @@ export function resolveDebugBattle(input) {
         riftId: null,
         tier: null,
         mutatorIds: [],
-        playerFactionUpgradeIds,
-        playerTroopTypeUpgradeIds,
-        enemyFactionUpgradeIds,
-        enemyTroopTypeUpgradeIds,
+        playerRaceUpgradeIds,
+        playerTroopClassUpgradeIds,
+        enemyRaceUpgradeIds,
+        enemyTroopClassUpgradeIds,
         playerCombatants,
         enemyCombatants,
     });
 }
-export function buildBattleInputFromResolvedCombatants(seed, riftId, tier, mutatorIds, saturation, playerFactionUpgradeIds, playerTroopTypeUpgradeIds, enemyFactionUpgradeIds, enemyTroopTypeUpgradeIds, playerCombatants, enemyCombatants) {
+export function buildBattleInputFromResolvedCombatants(seed, riftId, tier, mutatorIds, saturation, playerRaceUpgradeIds, playerTroopClassUpgradeIds, enemyRaceUpgradeIds, enemyTroopClassUpgradeIds, playerCombatants, enemyCombatants) {
     return {
         seed,
         riftId,
         tier,
         mutatorIds,
         saturation,
-        playerFactionUpgradeIds,
-        playerTroopTypeUpgradeIds,
-        enemyFactionUpgradeIds,
-        enemyTroopTypeUpgradeIds,
+        playerRaceUpgradeIds,
+        playerTroopClassUpgradeIds,
+        enemyRaceUpgradeIds,
+        enemyTroopClassUpgradeIds,
         playerCombatants,
         enemyCombatants,
     };

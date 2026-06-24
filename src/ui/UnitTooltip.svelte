@@ -34,7 +34,7 @@
         maxHp: unit?.maxHp ?? profile?.stats.health ?? 0,
         initiative: unit ? unit.initiative : null,
         role: unit?.role ?? profile?.role ?? 'frontline',
-        type: unit?.type ?? profile?.type ?? '',
+        unitClassTag: unit?.unitClassTag ?? profile?.unitClassTag ?? '',
         attributes: unit?.attributes ?? profile?.attributes ?? [],
         side: unit?.side ?? profile?.side ?? 'player',
         stats: unit?.stats ?? profile?.stats ?? null,
@@ -94,16 +94,16 @@
     return getUnitPortraitUrl?.(unit) ?? '';
   }
 
-  function summonFactionId(): string {
-    return profile?.factionId ?? unit?.factionId ?? 'human';
+  function summonRaceId(): string {
+    return profile?.raceId ?? unit?.raceId ?? 'human';
   }
 
-  function buildSummonProfile(ability: AbilityDefinition, unitTypeId: string, grantedKey: string): ReplayTroopProfile | null {
+  function buildSummonProfile(ability: AbilityDefinition, unitClassId: string, grantedKey: string): ReplayTroopProfile | null {
     if (!display) {
       return null;
     }
-    const preview = getSummonedUnitPreviews(ability, summonFactionId())
-      .find((entry) => entry.unitTypeId === unitTypeId && entry.grantedAbilityIds.join(',') === grantedKey);
+    const preview = getSummonedUnitPreviews(ability, summonRaceId())
+      .find((entry) => entry.unitClassId === unitClassId && entry.grantedAbilityIds.join(',') === grantedKey);
     if (!preview) {
       return null;
     }
@@ -116,10 +116,10 @@
     return {
       side: display.side,
       troopLabel: preview.troop.label,
-      unitTypeId: preview.troop.unitTypeId,
-      factionId: preview.troop.factionId,
+      unitClassId: preview.troop.unitClassId,
+      raceId: preview.troop.raceId,
       role: preview.troop.role,
-      type: preview.troop.type,
+      unitClassTag: preview.troop.unitClassTag,
       attributes: preview.troop.attributes,
       stats: preview.troop.stats,
       abilities: preview.troop.abilities,
@@ -166,7 +166,7 @@
     {/if}
 
     <div class="meta">
-      <span>Type: {display.type}</span>
+      <span>Class: {display.unitClassTag}</span>
     </div>
 
     {#if display.stats}
@@ -177,7 +177,7 @@
         {:else}
           <div class="ability-chips">
             {#each display.abilities as ability}
-              {@const summonPreviews = getSummonedUnitPreviews(ability, summonFactionId())}
+              {@const summonPreviews = getSummonedUnitPreviews(ability, summonRaceId())}
               <button
                 type="button"
                 class="ability-chip"
@@ -198,8 +198,8 @@
                 <button
                   type="button"
                   class="ability-chip summon-preview-chip"
-                  on:mouseenter={() => (hoveredSummonProfile = buildSummonProfile(ability, summon.unitTypeId, summon.grantedAbilityIds.join(',')))}
-                  on:focus={() => (hoveredSummonProfile = buildSummonProfile(ability, summon.unitTypeId, summon.grantedAbilityIds.join(',')))}
+                  on:mouseenter={() => (hoveredSummonProfile = buildSummonProfile(ability, summon.unitClassId, summon.grantedAbilityIds.join(',')))}
+                  on:focus={() => (hoveredSummonProfile = buildSummonProfile(ability, summon.unitClassId, summon.grantedAbilityIds.join(',')))}
                   on:mouseleave={() => (hoveredSummonProfile = null)}
                   on:blur={() => (hoveredSummonProfile = null)}
                 >

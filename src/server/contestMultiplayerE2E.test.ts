@@ -1,7 +1,7 @@
 import { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
-import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffer, getOpeningFactionStarterTroopUnlockIds, revealEssenceDraft } from '../engine/game';
+import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffer, getOpeningRaceStarterTroopUnlockIds, revealEssenceDraft } from '../engine/game';
 import { buildContestMultiplayerSubmission } from '../engine/multiplayerContest';
 import type { ContestPlayerId, GameState, StoredReplayPayload, TroopUnlockId } from '../engine/types';
 import { contestMultiplayerServerInternals, startContestMultiplayerServer } from './contestMultiplayerServer';
@@ -128,7 +128,7 @@ async function connectClient(url: string): Promise<TestClient> {
 }
 
 function chooseFirstTwoOpeningTroops(state: GameState): GameState {
-  const starters = Object.values(getOpeningFactionStarterTroopUnlockIds(state)) as TroopUnlockId[];
+  const starters = Object.values(getOpeningRaceStarterTroopUnlockIds(state)) as TroopUnlockId[];
   return starters.slice(0, 2).reduce((next, troopUnlockId) => claimOpeningTroop(next, troopUnlockId), state);
 }
 

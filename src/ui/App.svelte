@@ -6,7 +6,7 @@
   import { onMount, tick } from 'svelte';
   import {
     createTroopInstance,
-    getFactionTroops,
+    getRaceTroops,
     getTroopEffectiveDefinition,
     getTroopStatusCounts,
     getTroopsAssignedToRift,
@@ -14,15 +14,15 @@
   } from '../engine/army';
   import { formatFixed } from '../engine/fixed';
   import {
-    FACTIONS,
-    FACTION_UPGRADES,
+    RACES,
+    RACE_UPGRADES,
     TROOP_CATALOG,
-    TROOP_TYPE_UPGRADES,
-    getFactionNativeTroopUnlockIds,
-    getFaction,
+    TROOP_CLASS_UPGRADES,
+    getRaceNativeTroopUnlockIds,
+    getRace,
     getMutator,
     getSummonedUnitPreviews,
-    getUnitType,
+    getUnitClass,
     isNativeTroopUnlockId,
   } from '../engine/unitCatalog';
   import type {
@@ -35,10 +35,11 @@
     BattleOutcome,
     ContestPlayerState,
     ExplainedStatKey,
-    FactionId,
+    RaceId,
     GameMode,
     StoredReplayPayload,
     ResolvedCombatantDefinition,
+    ReplayIndexEntry,
     RiftInstance,
     RiftResolutionRecord,
     SideId,
@@ -46,13 +47,13 @@
     StatBreakdownLine,
     TroopId,
     TroopUnlockId,
-    UnitTypeId,
+    UnitClassId,
     UpgradeId,
   } from '../engine/types';
   import { describeTroopUnlock, getAvailableTroopUnlockIds, upgradeAffectsTroop } from '../engine/upgrades';
   import type { BattleRenderer as BattleRendererType, ReplayStepNavigationKind, UnitPointerInfo } from '../rendering/BattleRenderer';
   import { buildBattlePresentationTimeline, type BattlePresentationTimeline } from '../rendering/battlePresentationTimeline';
-  import { getFactionSpriteUrl, UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
+  import { getRaceSpriteUrl, UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
   import { getConfiguredMultiplayerServerUrl, hasConfiguredMultiplayerServerUrl, inferShareableMultiplayerServerUrl, normalizeMultiplayerServerUrl } from '../config/multiplayer';
   import { gameStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
   import { getTutorialStepCenterMode, getTutorialStepSurface, type TutorialStepId } from '../store/tutorial';
@@ -70,18 +71,20 @@
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
   import UnitTooltip from './UnitTooltip.svelte';
   import TutorialPopup from './TutorialPopup.svelte';
+  import BattleLogResultToken from './BattleLogResultToken.svelte';
+  import RiftBattleMiniReplay, { type MiniReplayHealthTone } from './RiftBattleMiniReplay.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
-  import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEssenceDraftCost, getOpeningFactionOptionIds, getOpeningFactionStarterTroopUnlockIds } from '../engine/game';
+  import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEssenceDraftCost, getOpeningRaceOptionIds, getOpeningRaceStarterTroopUnlockIds } from '../engine/game';
   import { LADDER_FINAL_CYCLE } from '../engine/ladder';
   import {
-    buildFactionDetail,
+    buildRaceDetail,
     buildMutatorDetail,
     buildResolvedUnitDetail as buildResolvedUnitDetailModel,
     buildRiftCapacityDetail as buildRiftCapacityDetailModel,
     buildRiftTierDetail as buildRiftTierDetailModel,
     buildStatEntries,
     buildUpgradeDetail,
-    describeFactionModifiers,
+    describeRaceModifiers,
     formatRiftDisplayId,
     formatRiftTierLabel,
     getUpgradeDetails,
@@ -105,6 +108,19 @@
     side: SideId;
     ownerLabels: string[];
     active: boolean;
+  };
+
+  type BattleLogVisual = {
+    key: string;
+    outcome: BattleOutcome;
+    opponentOutcome: boolean;
+    leftPercent: number;
+    rightPercent: number;
+    leftTone: MiniReplayHealthTone;
+    rightTone: MiniReplayHealthTone;
+    ariaLabel: string;
+    riftId: string | null;
+    riftVisualSource: RiftInstance | null;
   };
 
   type RiftBattleAnimationSide = {
@@ -178,11 +194,14 @@
     enemy: { kind: 'neutral', label: 'Neutral Guardians' },
   };
   const SINGLEPLAYER_GAME_MODES: GameMode[] = ['campaign', 'ladder', 'contest'];
-  const RIFT_BATTLE_ANIMATION_MS = 2812;
+  const RIFT_BATTLE_ANIMATION_MS = 5200;
   const RIFT_BATTLE_LATE_PHASE_DELAY_MS = 925;
   const RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS = 200;
+  const BATTLE_LOG_ARRIVAL_STAGGER_MS = 460;
+  const BATTLE_LOG_ARRIVAL_FLIGHT_MS = 1160;
+  const BATTLE_LOG_ROW_HEIGHT_REM = 3.35;
 
-  const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
+  const RACE_IDS = Object.keys(RACES) as RaceId[];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
   const debugToolsEnabled = import.meta.env.DEV;
   const verificationLabMode =
@@ -192,7 +211,7 @@
   let portraits: Record<string, string> = {};
   let selectedRiftId: string | null = null;
   let selectedTroopId: TroopId | null = null;
-  let selectedFactionId: FactionId | null = null;
+  let selectedRaceId: RaceId | null = null;
   let selectedReplayId: string | null = null;
   let hoveredDetail: DetailCard | null = null;
   let pinnedDetail: DetailCard | null = null;
@@ -234,7 +253,7 @@
   let suppressTroopClickId: TroopId | null = null;
   let selectedTroopOfferUnlockId: TroopUnlockId | null = null;
   let selectedUpgradeOfferId: UpgradeId | null = null;
-  let selectedScheduledFactionId: FactionId | null = null;
+  let selectedScheduledRaceId: RaceId | null = null;
   let confirmedTroopOfferUnlockId: TroopUnlockId | null = null;
   let confirmedUpgradeOfferId: UpgradeId | null = null;
   let hoveredUpgradeOfferId: UpgradeId | null = null;
@@ -261,6 +280,8 @@
   let mainMenuView: MainMenuView = 'home';
   let newGameSlot: SaveSlotSummary | null = null;
   let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let cycleLogArrivalTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let cycleLogArrivalActive = false;
   let lastDraftGameKey = '';
   let tutorialScenePrompt = false;
   let tutorialScenePromptMessage = 'Follow the tutorial!';
@@ -591,7 +612,7 @@
   }
 
   function getReplayUnitPortraitUrl(unit: BattleUnit): string {
-    return getFactionUnitPortrait(unit.factionId, unit.unitTypeId);
+    return getRaceUnitPortrait(unit.raceId, unit.unitClassId);
   }
 
   function findLockedUnitActorStep(unitId: string, fromStep: number, direction: 'prev' | 'next'): number | null {
@@ -717,12 +738,12 @@
     return buildRiftFitTooltip(fit, $gameStore.game.gameMode);
   }
 
-  function getFactionUnitPortrait(factionId: FactionId, unitTypeId: UnitTypeId): string {
-    return portraits[`${factionId}/${unitTypeId}`] ?? UNIT_SPRITE_URLS[unitTypeId] ?? '';
+  function getRaceUnitPortrait(raceId: RaceId, unitClassId: UnitClassId): string {
+    return portraits[`${raceId}/${unitClassId}`] ?? UNIT_SPRITE_URLS[unitClassId] ?? '';
   }
 
-  function getFactionPortrait(factionId: FactionId): string {
-    return getFactionSpriteUrl(factionId);
+  function getRacePortrait(raceId: RaceId): string {
+    return getRaceSpriteUrl(raceId);
   }
 
   function showTopbarTooltip(label: string, description: string): void {
@@ -759,8 +780,8 @@
   function buildResolvedUnitDetail(
     detailKey: string,
     label: string,
-    factionId: FactionId,
-    unitTypeId: UnitTypeId,
+    raceId: RaceId,
+    unitClassId: UnitClassId,
     stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number },
     quantity: number,
     description: string,
@@ -770,14 +791,14 @@
     return buildResolvedUnitDetailModel({
       detailKey,
       label,
-      factionId,
-      unitTypeId,
+      raceId,
+      unitClassId,
       stats,
       quantity,
       description,
       abilities,
       statBreakdowns,
-      getFactionUnitPortrait,
+      getRaceUnitPortrait,
     });
   }
 
@@ -828,11 +849,11 @@
     hoveredAbilityTooltip = null;
   }
 
-  function restoreOpeningFactionDetail(event: MouseEvent, factionDetail: DetailCard): void {
-    const card = (event.currentTarget as HTMLElement).closest('.opening-faction-card');
+  function restoreOpeningRaceDetail(event: MouseEvent, raceDetail: DetailCard): void {
+    const card = (event.currentTarget as HTMLElement).closest('.opening-race-card');
     const nextTarget = event.relatedTarget;
     if (!pinnedDetail && card && nextTarget instanceof Node && card.contains(nextTarget)) {
-      hoveredDetail = factionDetail;
+      hoveredDetail = raceDetail;
       hoveredAbilityTooltip = null;
       return;
     }
@@ -846,7 +867,7 @@
     pinnedAbilityTooltip = null;
     selectedTroopOfferUnlockId = null;
     selectedUpgradeOfferId = null;
-    selectedScheduledFactionId = null;
+    selectedScheduledRaceId = null;
     hoveredUpgradeOfferId = null;
     assignmentConflict = null;
   }
@@ -862,7 +883,7 @@
   function resetZoneSelections(): void {
     selectedRiftId = null;
     selectedTroopId = null;
-    selectedFactionId = null;
+    selectedRaceId = null;
     selectedReplayId = null;
     suppressTroopClickId = null;
   }
@@ -1320,26 +1341,26 @@
     signalTutorial('begin');
   }
 
-  function chooseFactionUnlock(factionId: FactionId): void {
+  function chooseRaceUnlock(raceId: RaceId): void {
     resetZoneState();
-    gameStore.claimFactionUnlockOffer(factionId);
+    gameStore.claimRaceUnlockOffer(raceId);
   }
 
-  function selectScheduledFactionUnlock(factionId: FactionId): void {
-    selectedScheduledFactionId = selectedScheduledFactionId === factionId ? null : factionId;
+  function selectScheduledRaceUnlock(raceId: RaceId): void {
+    selectedScheduledRaceId = selectedScheduledRaceId === raceId ? null : raceId;
   }
 
-  function confirmScheduledFactionUnlock(): void {
-    if (!selectedScheduledFactionId) {
+  function confirmScheduledRaceUnlock(): void {
+    if (!selectedScheduledRaceId) {
       return;
     }
-    chooseFactionUnlock(selectedScheduledFactionId);
-    selectedScheduledFactionId = null;
+    chooseRaceUnlock(selectedScheduledRaceId);
+    selectedScheduledRaceId = null;
   }
 
-  function chooseTroopTypeUnlock(troopUnlockId: TroopUnlockId): void {
+  function chooseTroopClassUnlock(troopUnlockId: TroopUnlockId): void {
     resetZoneState();
-    gameStore.claimTroopTypeUnlockOffer(troopUnlockId);
+    gameStore.claimTroopClassUnlockOffer(troopUnlockId);
   }
 
   function handleEndCycle(): void {
@@ -1412,19 +1433,19 @@
     signalTutorial('rival-info');
   }
 
-  function selectFaction(factionId: FactionId): void {
-    const nextFactionId = selectedFactionId === factionId ? null : factionId;
+  function selectRace(raceId: RaceId): void {
+    const nextRaceId = selectedRaceId === raceId ? null : raceId;
     resetOverworldInspect();
     selectedRiftId = null;
     selectedTroopId = null;
     selectedReplayId = null;
-    selectedFactionId = nextFactionId;
+    selectedRaceId = nextRaceId;
     gameStore.setCenterMode('troops');
   }
 
-  function handleFactionHeaderClick(factionId: FactionId, factionDetail: DetailCard): void {
-    const wasSelected = selectedFactionId === factionId;
-    selectFaction(factionId);
+  function handleRaceHeaderClick(raceId: RaceId, raceDetail: DetailCard): void {
+    const wasSelected = selectedRaceId === raceId;
+    selectRace(raceId);
 
     if (wasSelected) {
       pinnedDetail = null;
@@ -1432,7 +1453,7 @@
       return;
     }
 
-    togglePinnedDetail(factionDetail);
+    togglePinnedDetail(raceDetail);
   }
 
   function pinTroopDetail(troopId: TroopId, detail: DetailCard): void {
@@ -1525,17 +1546,17 @@
   }
 
   function buildScheduledTroopDetail(troopUnlockId: TroopUnlockId, grantedUpgradeIds: UpgradeId[], description: string): DetailCard {
-    const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
+    const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
     const previewState = {
-      factionUpgradeIds: [...new Set([...$gameStore.game.factionUpgradeIds, ...grantedUpgradeIds])],
-      troopTypeUpgradeIds: $gameStore.game.troopTypeUpgradeIds,
+      raceUpgradeIds: [...new Set([...$gameStore.game.raceUpgradeIds, ...grantedUpgradeIds])],
+      troopClassUpgradeIds: $gameStore.game.troopClassUpgradeIds,
     };
-    const troopDef = resolveTroopCombatant(previewState, createTroopInstance(factionId, unitTypeId), 'player');
+    const troopDef = resolveTroopCombatant(previewState, createTroopInstance(raceId, unitClassId), 'player');
     return buildResolvedUnitDetail(
-      `scheduled-faction:${troopUnlockId}:${grantedUpgradeIds.join(',')}`,
+      `scheduled-race:${troopUnlockId}:${grantedUpgradeIds.join(',')}`,
       troopDef.label,
-      factionId,
-      unitTypeId,
+      raceId,
+      unitClassId,
       troopDef.stats,
       troopDef.quantity,
       description,
@@ -1680,7 +1701,7 @@
 
   function handleRosterTroopClick(troopId: TroopId, detail: DetailCard): void {
     selectedRiftId = null;
-    selectedFactionId = null;
+    selectedRaceId = null;
     selectedReplayId = null;
     gameStore.setCenterMode('troops');
     pinTroopDetail(troopId, detail);
@@ -1732,7 +1753,7 @@
     const troop = $gameStore.game.troops.find((entry) => entry.id === troopId);
     if (troop) {
       const troopDef = getTroopEffectiveDefinition($gameStore.game, troopId);
-      beginTroopDrag(null, event.clientX, event.clientY, troopId, sourceRiftId, troopDef.label, getFactionUnitPortrait(troop.factionId, troop.unitTypeId));
+      beginTroopDrag(null, event.clientX, event.clientY, troopId, sourceRiftId, troopDef.label, getRaceUnitPortrait(troop.raceId, troop.unitClassId));
       troopDrag = troopDrag ? { ...troopDrag, active: true, dropTarget: getTroopDropTarget(event.clientX, event.clientY) } : null;
     }
   }
@@ -2085,6 +2106,121 @@
     return `archive-${kind}`;
   }
 
+  function isHumanParticipant(participant: { kind: BattleParticipantKind; playerId?: string }): boolean {
+    return participant.playerId === 'human' || (participant.kind === 'player' && !participant.playerId);
+  }
+
+  function participantHealthTone(participant: { kind: BattleParticipantKind; playerId?: string } | undefined, fallback: SideId): MiniReplayHealthTone {
+    if (participant && isHumanParticipant(participant)) {
+      return 'player';
+    }
+    if (participant?.kind === 'neutral' || (!participant && fallback === 'enemy')) {
+      return 'neutral';
+    }
+    return 'opponent';
+  }
+
+  function getArchiveCardStyle(entry: { outcome: BattleOutcome; encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): string {
+    const result = entry.outcome === 'victory' ? 'victory' : entry.outcome === 'defeat' ? 'defeat' : 'draw';
+    if (entry.sideParticipants?.player.kind === 'opponent' && entry.sideParticipants.enemy.kind === 'player') {
+      return `--archive-left-color: var(--archive-${result}); --archive-right-color: var(--archive-${result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw'});`;
+    }
+    const foughtNeutral = entry.sideParticipants
+      ? entry.sideParticipants.player.kind === 'neutral' || entry.sideParticipants.enemy.kind === 'neutral'
+      : entry.encounterLabel?.includes('Neutral Guardians');
+    const opponentBattle = isArchiveOpponentBattle(entry);
+    const left = opponentBattle ? result : foughtNeutral ? 'neutral' : result;
+    const right = foughtNeutral && !opponentBattle ? 'neutral' : result;
+    return `--archive-left-color: var(--archive-${left}); --archive-right-color: var(--archive-${right});`;
+  }
+
+  function archiveEntryOpponentOutcome(entry: { sideParticipants?: StoredReplayPayload['input']['sideParticipants']; encounterLabel?: string }): boolean {
+    if (!entry.sideParticipants) {
+      return isArchiveOpponentBattle(entry);
+    }
+    return !isHumanParticipant(entry.sideParticipants.player) && !isHumanParticipant(entry.sideParticipants.enemy);
+  }
+
+  function healthPercent(current?: number, max?: number, alive?: number): number {
+    if (typeof current === 'number' && typeof max === 'number' && max > 0) {
+      return Math.max(0, Math.min(100, (current / max) * 100));
+    }
+    if (typeof alive === 'number') {
+      return alive > 0 ? 100 : 0;
+    }
+    return 0;
+  }
+
+  function finalReplayHealth(replay: BattleReplay, side: SideId): { current: number; max: number; percent: number } {
+    const finalUnits = replay.steps[replay.steps.length - 1]?.snapshot.units ?? replay.initial.units;
+    const sideUnits = finalUnits.filter((unit) => unit.side === side);
+    const current = sideUnits.reduce((sum, unit) => sum + (unit.alive ? Math.max(0, unit.hp) : 0), 0);
+    const max = sideUnits.reduce((sum, unit) => sum + unit.maxHp, 0);
+    return { current, max, percent: healthPercent(current, max) };
+  }
+
+  function battleLogVisualFromArchiveEntry(entry: ReplayIndexEntry): BattleLogVisual {
+    const leftTone = participantHealthTone(entry.sideParticipants?.player, 'player');
+    const rightTone = participantHealthTone(entry.sideParticipants?.enemy, 'enemy');
+    const opponentOutcome = archiveEntryOpponentOutcome(entry);
+    return {
+      key: entry.replayId,
+      outcome: entry.outcome,
+      opponentOutcome,
+      leftTone,
+      rightTone,
+      leftPercent: healthPercent(entry.finalPlayerHp, entry.finalPlayerMaxHp, entry.finalPlayerAlive),
+      rightPercent: healthPercent(entry.finalEnemyHp, entry.finalEnemyMaxHp, entry.finalEnemyAlive),
+      ariaLabel: opponentOutcome ? 'Opponent battle result' : `Battle ${entry.outcome}`,
+      riftId: entry.riftId,
+      riftVisualSource: getArchiveRiftVisual(entry),
+    };
+  }
+
+  function battleLogVisualFromCycleRecord(record: CycleRecord): BattleLogVisual {
+    const playerHealth = finalReplayHealth(record.replay, 'player');
+    const enemyHealth = finalReplayHealth(record.replay, 'enemy');
+    const participants = record.battleInput.sideParticipants;
+    const leftTone = participantHealthTone(participants?.player, 'player');
+    const rightTone = participantHealthTone(participants?.enemy, 'enemy');
+    const opponentOutcome = participants ? !isHumanParticipant(participants.player) && !isHumanParticipant(participants.enemy) : false;
+    return {
+      key: record.replay.id,
+      outcome: record.outcome,
+      opponentOutcome,
+      leftTone,
+      rightTone,
+      leftPercent: playerHealth.percent,
+      rightPercent: enemyHealth.percent,
+      ariaLabel: opponentOutcome ? 'Opponent battle result' : `Battle ${record.outcome}`,
+      riftId: record.riftId,
+      riftVisualSource: getArchiveRiftVisual({ riftId: record.riftId }),
+    };
+  }
+
+  function incomingBattleLogVisuals(): BattleLogVisual[] {
+    const records = $gameStore.cycleAnimation?.resolution.records ?? [];
+    return [...records].reverse().map(battleLogVisualFromCycleRecord);
+  }
+
+  function incomingBattleLogStyle(visual: BattleLogVisual, index: number, count: number): string {
+    const delayMs = index * BATTLE_LOG_ARRIVAL_STAGGER_MS;
+    let fromX = 0;
+    let fromY = 0;
+    if (typeof document !== 'undefined') {
+      const source = visual.riftId ? document.querySelector<HTMLElement>(`[data-rift-id="${visual.riftId}"] .rift-battle-center`) : null;
+      const target = document.querySelector<HTMLElement>('[data-ui-name="Battle archive panel"] .archive-list');
+      if (source && target) {
+        const sourceRect = source.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const targetY = index * BATTLE_LOG_ROW_HEIGHT_REM * 16;
+        fromX = sourceRect.left + sourceRect.width / 2 - (targetRect.left + targetRect.width / 2);
+        fromY = sourceRect.top + sourceRect.height / 2 - (targetRect.top + targetY + 24);
+      }
+    }
+    return `${getArchiveCardStyle(visual)} --arrival-delay:${delayMs}ms; --arrival-flight:${BATTLE_LOG_ARRIVAL_FLIGHT_MS}ms; --battle-log-row-height:${BATTLE_LOG_ROW_HEIGHT_REM}rem; --from-x:${fromX}px; --from-y:${fromY}px;`;
+  }
+
   function getArchiveFightingPartyKind(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): BattleParticipantKind {
     if (entry.sideParticipants?.enemy.kind === 'player') {
       return 'player';
@@ -2094,29 +2230,6 @@
 
   function isArchiveOpponentBattle(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): boolean {
     return getArchiveFightingPartyKind(entry) === 'opponent';
-  }
-
-  function getArchiveCardStyle(entry: { outcome: BattleOutcome; encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): string {
-    const result = entry.outcome === 'victory' ? 'victory' : entry.outcome === 'defeat' ? 'defeat' : 'draw';
-    if (entry.sideParticipants?.player.kind === 'opponent' && entry.sideParticipants.enemy.kind === 'player') {
-      return `--archive-left-color: var(--archive-${result}); --archive-right-color: var(--archive-${result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw'});`;
-    }
-    if (entry.sideParticipants?.player.kind === 'player' && entry.sideParticipants.enemy.kind === 'opponent') {
-      return `--archive-left-color: var(--archive-${result}); --archive-right-color: var(--archive-${result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw'});`;
-    }
-    const foughtNeutral = entry.sideParticipants?.enemy?.kind === 'neutral' || (!entry.sideParticipants && entry.encounterLabel?.includes('Neutral Guardians'));
-    const opponentBattle = isArchiveOpponentBattle(entry);
-    const left = foughtNeutral && opponentBattle ? 'neutral' : result;
-    const right = foughtNeutral && !opponentBattle ? 'neutral' : result;
-    return `--archive-left-color: var(--archive-${left}); --archive-right-color: var(--archive-${right});`;
-  }
-
-  function archiveEntryMatchupLabel(entry: { sideParticipants?: StoredReplayPayload['input']['sideParticipants']; encounterLabel?: string }): string | null {
-    if (entry.sideParticipants) {
-      const { player, enemy } = entry.sideParticipants;
-      return `${player.label} vs ${enemy.label}`;
-    }
-    return entry.encounterLabel ? `Player vs ${entry.encounterLabel}` : null;
   }
 
   function getArchiveRiftVisual(entry: { riftId?: string | null; tier?: number; mutatorIds?: string[] }): RiftInstance | null {
@@ -2148,8 +2261,8 @@
     return buildResolvedUnitDetail(
       `archive:${side}:${combatant.combatantId}`,
       combatant.label,
-      combatant.factionId,
-      combatant.unitTypeId,
+      combatant.raceId,
+      combatant.unitClassId,
       combatant.stats,
       combatant.quantity,
       `${getArchiveSideLabel(side)} force at battle time.`,
@@ -2174,18 +2287,18 @@
       return [];
     }
 
-    const factionUpgradeIds = side === 'player' ? payload.input.playerFactionUpgradeIds ?? [] : payload.input.enemyFactionUpgradeIds ?? [];
-    const troopTypeUpgradeIds = side === 'player' ? payload.input.playerTroopTypeUpgradeIds ?? [] : payload.input.enemyTroopTypeUpgradeIds ?? [];
+    const raceUpgradeIds = side === 'player' ? payload.input.playerRaceUpgradeIds ?? [] : payload.input.enemyRaceUpgradeIds ?? [];
+    const troopClassUpgradeIds = side === 'player' ? payload.input.playerTroopClassUpgradeIds ?? [] : payload.input.enemyTroopClassUpgradeIds ?? [];
     const fallbackCombatants = side === 'player' ? payload.input.playerCombatants : payload.input.enemyCombatants;
-    const relevantFactions = new Set(fallbackCombatants.map((entry) => entry.factionId));
-    const relevantUnitTypes = new Set(fallbackCombatants.map((entry) => entry.unitTypeId));
+    const relevantRaces = new Set(fallbackCombatants.map((entry) => entry.raceId));
+    const relevantTroopClasses = new Set(fallbackCombatants.map((entry) => entry.unitClassId));
 
-    return [...factionUpgradeIds, ...troopTypeUpgradeIds].filter((upgradeId) => {
-      if (upgradeId in FACTION_UPGRADES) {
-        return relevantFactions.has(FACTION_UPGRADES[upgradeId]!.factionId);
+    return [...raceUpgradeIds, ...troopClassUpgradeIds].filter((upgradeId) => {
+      if (upgradeId in RACE_UPGRADES) {
+        return relevantRaces.has(RACE_UPGRADES[upgradeId]!.raceId);
       }
-      const troopTypeUpgrade = TROOP_TYPE_UPGRADES[upgradeId];
-      return troopTypeUpgrade ? relevantUnitTypes.has(troopTypeUpgrade.unitTypeId) : false;
+      const troopClassUpgrade = TROOP_CLASS_UPGRADES[upgradeId];
+      return troopClassUpgrade ? relevantTroopClasses.has(troopClassUpgrade.unitClassId) : false;
     });
   }
 
@@ -2295,6 +2408,47 @@
     };
   }
 
+  function getRecordForBattlePhase(phase: RiftBattleAnimationPhase): CycleRecord | null {
+    return $gameStore.cycleAnimation?.resolution.records.find((entry) => entry.replay.id === phase.replayId) ?? null;
+  }
+
+  function resultForBattleSource(outcome: BattleOutcome, source: SideId): BattleOutcome {
+    if (outcome === 'draw' || source === 'player') {
+      return outcome;
+    }
+    return outcome === 'victory' ? 'defeat' : 'victory';
+  }
+
+  function isHumanAnimationSide(side: RiftBattleAnimationSide): boolean {
+    return side.playerId === 'human' || (side.kind === 'player' && !side.playerId);
+  }
+
+  function healthToneForAnimationSide(side: RiftBattleAnimationSide): MiniReplayHealthTone {
+    if (isHumanAnimationSide(side)) {
+      return 'player';
+    }
+    if (side.kind === 'neutral') {
+      return 'neutral';
+    }
+    return 'opponent';
+  }
+
+  function phaseResultSource(phase: RiftBattleAnimationPhase): { source: SideId; opponentOutcome: boolean } {
+    if (isHumanAnimationSide(phase.left)) {
+      return { source: phase.leftSource, opponentOutcome: false };
+    }
+    if (isHumanAnimationSide(phase.right)) {
+      return { source: phase.rightSource, opponentOutcome: false };
+    }
+    if (phase.left.playerId === 'ai' || phase.left.kind === 'opponent') {
+      return { source: phase.leftSource, opponentOutcome: true };
+    }
+    if (phase.right.playerId === 'ai' || phase.right.kind === 'opponent') {
+      return { source: phase.rightSource, opponentOutcome: true };
+    }
+    return { source: phase.rightSource, opponentOutcome: true };
+  }
+
   function battleParticipantKey(participant: RiftBattleAnimationSide | null): string {
     if (!participant) {
       return 'static';
@@ -2402,17 +2556,17 @@
       return 'Rift board';
     }
     if ($gameStore.centerMode === 'troops') {
-      return 'Factions and troops board';
+      return 'Races and troops board';
     }
     return $gameStore.multiplayer ? `${getOpponentPlayerName()} info board` : 'Rival info board';
   }
 
-  function getOpponentFactionUpgradeIds(opponent: ContestPlayerState, factionId: FactionId): UpgradeId[] {
-    return opponent.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === factionId);
+  function getOpponentRaceUpgradeIds(opponent: ContestPlayerState, raceId: RaceId): UpgradeId[] {
+    return opponent.raceUpgradeIds.filter((upgradeId) => RACE_UPGRADES[upgradeId]?.raceId === raceId);
   }
 
-  function getOpponentTroopTypeUpgradeIds(opponent: ContestPlayerState, unitTypeId: UnitTypeId): UpgradeId[] {
-    return opponent.troopTypeUpgradeIds.filter((upgradeId) => TROOP_TYPE_UPGRADES[upgradeId]?.unitTypeId === unitTypeId);
+  function getOpponentTroopClassUpgradeIds(opponent: ContestPlayerState, unitClassId: UnitClassId): UpgradeId[] {
+    return opponent.troopClassUpgradeIds.filter((upgradeId) => TROOP_CLASS_UPGRADES[upgradeId]?.unitClassId === unitClassId);
   }
 
   onMount(() => {
@@ -2463,6 +2617,10 @@
         window.clearTimeout(cycleAnimationFinishTimer);
         cycleAnimationFinishTimer = null;
       }
+      if (cycleLogArrivalTimer) {
+        window.clearTimeout(cycleLogArrivalTimer);
+        cycleLogArrivalTimer = null;
+      }
       if (essenceDraftHighlightTimer) {
         window.clearTimeout(essenceDraftHighlightTimer);
         essenceDraftHighlightTimer = null;
@@ -2511,16 +2669,32 @@
   $: {
     if ($gameStore.cycleAnimation && !cycleAnimationFinishTimer) {
       const hasLatePhase = $gameStore.cycleAnimation.resolution.records.some((record) => record.contest?.kind === 'pvp');
-      const animationDuration =
+      const battleAnimationDuration =
         RIFT_BATTLE_ANIMATION_MS + (hasLatePhase ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0) + RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS;
+      const incomingCount = $gameStore.cycleAnimation.resolution.records.length;
+      const logArrivalDuration =
+        incomingCount > 0 ? BATTLE_LOG_ARRIVAL_FLIGHT_MS + Math.max(0, incomingCount - 1) * BATTLE_LOG_ARRIVAL_STAGGER_MS + 180 : 0;
+      cycleLogArrivalActive = false;
+      cycleLogArrivalTimer = window.setTimeout(() => {
+        cycleLogArrivalTimer = null;
+        cycleLogArrivalActive = true;
+      }, battleAnimationDuration);
       cycleAnimationFinishTimer = window.setTimeout(() => {
         cycleAnimationFinishTimer = null;
+        cycleLogArrivalActive = false;
         gameStore.finishCycleAnimation();
-      }, animationDuration);
+      }, battleAnimationDuration + logArrivalDuration);
     }
     if (!$gameStore.cycleAnimation && cycleAnimationFinishTimer) {
       window.clearTimeout(cycleAnimationFinishTimer);
       cycleAnimationFinishTimer = null;
+    }
+    if (!$gameStore.cycleAnimation && cycleLogArrivalTimer) {
+      window.clearTimeout(cycleLogArrivalTimer);
+      cycleLogArrivalTimer = null;
+    }
+    if (!$gameStore.cycleAnimation && cycleLogArrivalActive) {
+      cycleLogArrivalActive = false;
     }
   }
 
@@ -2631,8 +2805,8 @@
   $: discoveredRifts = $gameStore.game.openRifts.filter((rift) => rift.state === 'discovered');
   $: opponentInfo = $gameStore.game.gameMode === 'contest' ? $gameStore.game.contest?.opponentInfo ?? null : null;
   $: opponentInfoAi = opponentInfo?.ai ?? null;
-  $: opponentInfoFactionIds = opponentInfoAi
-    ? FACTION_IDS.filter((factionId) => opponentInfoAi.unlockedFactionIds.includes(factionId))
+  $: opponentInfoRaceIds = opponentInfoAi
+    ? RACE_IDS.filter((raceId) => opponentInfoAi.unlockedRaceIds.includes(raceId))
     : [];
   $: currentOpponentOccupyingTroopIds = new Set(
     $gameStore.game.openRifts
@@ -2642,10 +2816,10 @@
   $: opponentMobileTroopCount = opponentInfoAi
     ? opponentInfoAi.troops.filter((troop) => !currentOpponentOccupyingTroopIds.has(troop.id)).length
     : 0;
-  $: factionRosterIds = FACTION_IDS.filter((factionId) => $gameStore.game.unlockedFactionIds.includes(factionId));
-  $: selectedOpeningFactionIds = new Set($gameStore.game.troops.map((troop) => troop.factionId));
-  $: selectedOpeningUnitTypeIds = new Set($gameStore.game.troops.map((troop) => troop.unitTypeId));
-  $: selectedOpeningTroopUnlockIds = new Set($gameStore.game.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}` as TroopUnlockId));
+  $: raceRosterIds = RACE_IDS.filter((raceId) => $gameStore.game.unlockedRaceIds.includes(raceId));
+  $: selectedOpeningRaceIds = new Set($gameStore.game.troops.map((troop) => troop.raceId));
+  $: selectedOpeningUnitClassIds = new Set($gameStore.game.troops.map((troop) => troop.unitClassId));
+  $: selectedOpeningTroopUnlockIds = new Set($gameStore.game.troops.map((troop) => `${troop.raceId}/${troop.unitClassId}` as TroopUnlockId));
   $: {
     const inspectContextKey = [
       $gameStore.activeSlotId ?? 'no-slot',
@@ -2700,16 +2874,16 @@
   }
   $: pagedReplayEntries = $gameStore.game.replayIndex.slice(archivePage * archiveEntriesPerPage, (archivePage + 1) * archiveEntriesPerPage);
   $: systemMessageHasUnspentEssence = !!$gameStore.systemMessage && $gameStore.game.essence > 0 && /unspent Essence/i.test($gameStore.systemMessage);
-  $: starterGroups = getOpeningFactionOptionIds($gameStore.game).map((factionId) => ({
-    factionId,
-    label: FACTIONS[factionId].label,
-    starterTroopUnlockId: getOpeningFactionStarterTroopUnlockIds($gameStore.game)[factionId],
-    options: getFactionNativeTroopUnlockIds(factionId),
+  $: starterGroups = getOpeningRaceOptionIds($gameStore.game).map((raceId) => ({
+    raceId,
+    label: RACES[raceId].label,
+    starterTroopUnlockId: getOpeningRaceStarterTroopUnlockIds($gameStore.game)[raceId],
+    options: getRaceNativeTroopUnlockIds(raceId),
   }));
-  $: selectedOpeningFactionSummaries = starterGroups
-    .filter((group) => selectedOpeningFactionIds.has(group.factionId))
+  $: selectedOpeningRaceSummaries = starterGroups
+    .filter((group) => selectedOpeningRaceIds.has(group.raceId))
     .map((group) => ({
-      factionId: group.factionId,
+      raceId: group.raceId,
       label: group.label,
       starterTroopUnlockId: group.starterTroopUnlockId,
     }));
@@ -2719,14 +2893,14 @@
   }
 
   function canClaimOpeningTroop(troopUnlockId: TroopUnlockId): boolean {
-    const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
-    const starterTroopUnlockId = getOpeningFactionStarterTroopUnlockIds($gameStore.game)[factionId];
+    const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
+    const starterTroopUnlockId = getOpeningRaceStarterTroopUnlockIds($gameStore.game)[raceId];
     return (
       $gameStore.game.troops.length < 2 &&
-      getOpeningFactionOptionIds($gameStore.game).includes(factionId) &&
+      getOpeningRaceOptionIds($gameStore.game).includes(raceId) &&
       starterTroopUnlockId === troopUnlockId &&
-      !selectedOpeningFactionIds.has(factionId) &&
-      !selectedOpeningUnitTypeIds.has(unitTypeId)
+      !selectedOpeningRaceIds.has(raceId) &&
+      !selectedOpeningUnitClassIds.has(unitClassId)
     );
   }
 
@@ -2734,13 +2908,13 @@
     return !isOpeningTroopSelected(troopUnlockId) && !canClaimOpeningTroop(troopUnlockId);
   }
 
-  function toggleOpeningFaction(troopUnlockId: TroopUnlockId): void {
+  function toggleOpeningRace(troopUnlockId: TroopUnlockId): void {
     if (isOpeningTroopSelected(troopUnlockId)) {
       if (pinnedDetail?.detailKey === `opening:${troopUnlockId}`) {
         pinnedDetail = null;
       }
       gameStore.unclaimOpeningTroop(troopUnlockId);
-      signalTutorial('faction-deselect');
+      signalTutorial('race-deselect');
       return;
     }
 
@@ -2748,18 +2922,18 @@
       gameStore.claimOpeningTroop(troopUnlockId);
       pinnedDetail = null;
       hoveredDetail = null;
-      signalTutorial($gameStore.game.troops.length === 2 ? 'opening-confirmed' : 'faction-select');
+      signalTutorial($gameStore.game.troops.length === 2 ? 'opening-confirmed' : 'race-select');
     }
   }
 
-  function getScheduledFactionRosterUnlockIds(factionId: FactionId): TroopUnlockId[] {
-    const offer = $gameStore.game.activeFactionUnlockOffer;
-    const offered = offer?.troopUnlockIdsByFactionId[factionId] ?? [];
-    return [...new Set([...getFactionNativeTroopUnlockIds(factionId), ...offered])];
+  function getScheduledRaceRosterUnlockIds(raceId: RaceId): TroopUnlockId[] {
+    const offer = $gameStore.game.activeRaceUnlockOffer;
+    const offered = offer?.troopUnlockIdsByRaceId[raceId] ?? [];
+    return [...new Set([...getRaceNativeTroopUnlockIds(raceId), ...offered])];
   }
 
-  function getAvailableFactionTroopUnlockIds(factionId: FactionId): TroopUnlockId[] {
-    return getAvailableTroopUnlockIds($gameStore.game).filter((troopUnlockId) => parseTroopUnlockId(troopUnlockId)[0] === factionId);
+  function getAvailableRaceTroopUnlockIds(raceId: RaceId): TroopUnlockId[] {
+    return getAvailableTroopUnlockIds($gameStore.game).filter((troopUnlockId) => parseTroopUnlockId(troopUnlockId)[0] === raceId);
   }
 
   function getAffectedTroopsForUpgrade(upgradeId: UpgradeId) {
@@ -2768,8 +2942,8 @@
 
   function getAffectedDraftTroopsForUpgrade(upgradeId: UpgradeId): TroopUnlockId[] {
     return ($gameStore.game.activeTroopOffer?.optionTroopUnlockIds ?? []).filter((troopUnlockId) => {
-      const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
-      return upgradeAffectsTroop(upgradeId, createTroopInstance(factionId, unitTypeId));
+      const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
+      return upgradeAffectsTroop(upgradeId, createTroopInstance(raceId, unitClassId));
     });
   }
 
@@ -2778,8 +2952,8 @@
     if (!upgradeId) {
       return false;
     }
-    const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId);
-    return upgradeAffectsTroop(upgradeId, createTroopInstance(factionId, unitTypeId));
+    const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
+    return upgradeAffectsTroop(upgradeId, createTroopInstance(raceId, unitClassId));
   }
 
   function selectedDraftChoicesHaveSynergy(): boolean {
@@ -2794,8 +2968,8 @@
     selectedTroopId = null;
   }
 
-  $: if (selectedFactionId && !factionRosterIds.includes(selectedFactionId)) {
-    selectedFactionId = null;
+  $: if (selectedRaceId && !raceRosterIds.includes(selectedRaceId)) {
+    selectedRaceId = null;
   }
 
   $: if (selectedReplayId && !$gameStore.game.replayIndex.some((entry) => entry.replayId === selectedReplayId)) {
@@ -3144,7 +3318,7 @@
               {#if slot.status === 'occupied'}
                 <div class="slot-meta">
                   <span>{slotModeLabel(slot.gameMode)}</span>
-                  <span>{slot.factionLabel ?? 'In progress'}</span>
+                  <span>{slot.raceLabel ?? 'In progress'}</span>
                   <span>Cycle {slot.cycleNumber}</span>
                   <span>{slotPhaseLabel(slot.phase)}</span>
                   <span>{slot.lastPlayedAt ? new Date(slot.lastPlayedAt).toLocaleString() : 'No timestamp'}</span>
@@ -3211,9 +3385,9 @@
               <button on:click={restartTutorial}>Restart Tutorial</button>
             </div>
           {:else}
-            <p>Shiftmake is a strategy game about building a mixed-faction army and sending it through Rifts — portals to contested worlds. Each cycle, you inspect open Rifts, assign ready troops, and end the cycle to resolve all battles automatically.</p>
+            <p>Shiftmake is a strategy game about building a mixed-race army and sending it through Rifts — portals to contested worlds. Each cycle, you inspect open Rifts, assign ready troops, and end the cycle to resolve all battles automatically.</p>
             <p>Skill lives in preparation, not in the fight itself. Rifts are fully previewable before you commit: you can see the enemy composition, modifiers that change battle rules, and the reward tier. Battles play out on their own, but you can replay each one in full detail afterward.</p>
-            <p>A run lasts 10 cycles. You score Victory Points by winning Rifts, spend Essence to draft new troops and upgrades, and gradually expand your roster by unlocking new factions. The tutorial walks through these mechanics using a fixed Contest vs AI run.</p>
+            <p>A run lasts 10 cycles. You score Victory Points by winning Rifts, spend Essence to draft new troops and upgrades, and gradually expand your roster by unlocking new races. The tutorial walks through these mechanics using a fixed Contest vs AI run.</p>
             <button class="primary" on:click={startTutorial}>Start Tutorial</button>
           {/if}
         </section>
@@ -3314,7 +3488,7 @@
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
               {#if activeDetail.kind !== 'unit'}
-                <p class="eyebrow">{activeDetail.kind === 'faction' ? 'Faction Modifiers' : 'Detail'}</p>
+                <p class="eyebrow">{activeDetail.kind === 'race' ? 'Race Modifiers' : 'Detail'}</p>
               {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
@@ -3364,36 +3538,36 @@
             </div>
           {:else}
             <div class="detail-panel opening-detail-panel opening-empty-detail">
-              <h2>Choose Two Starting Factions</h2>
-              <p>Each faction brings its included starter troop. Other native troops are shown as later unlock potential.</p>
+              <h2>Choose Two Starting Races</h2>
+              <p>Each race brings its included starter troop. Other native troops are shown as later unlock potential.</p>
             </div>
           {/if}
         </aside>
 
         <div class="draft-grid">
           {#each starterGroups as group}
-            {@const factionDetail = buildFactionDetail(group.factionId)}
+            {@const raceDetail = buildRaceDetail(group.raceId)}
             {@const starterTroopUnlockId = group.starterTroopUnlockId}
             {@const starterSelected = selectedOpeningTroopUnlockIds.has(starterTroopUnlockId)}
             {@const starterIncompatible = !starterSelected && !canClaimOpeningTroop(starterTroopUnlockId)}
-            {@const [starterFactionId, starterUnitTypeId] = parseTroopUnlockId(starterTroopUnlockId)}
+            {@const [starterRaceId, starterUnitClassId] = parseTroopUnlockId(starterTroopUnlockId)}
             {@const starterTroopDef = TROOP_CATALOG[starterTroopUnlockId]}
             {@const starterTroopDetail = buildResolvedUnitDetail(
               `opening:${starterTroopUnlockId}`,
               starterTroopDef.label,
-              starterFactionId,
-              starterUnitTypeId,
+              starterRaceId,
+              starterUnitClassId,
               starterTroopDef.stats,
               starterTroopDef.quantity,
-              `Included starting troop for ${getFaction(starterFactionId).label}. Other native recruits can be unlocked later.`,
+              `Included starting troop for ${getRace(starterRaceId).label}. Other native recruits can be unlocked later.`,
               starterTroopDef.abilities,
             )}
             <article
-              class="draft-card panel opening-faction-card ui-debug-target"
+              class="draft-card panel opening-race-card ui-debug-target"
               class:selected={starterSelected}
               class:incompatible={starterIncompatible}
-              data-ui-name={`Opening faction card ${group.label}`}
-              on:mouseenter={() => previewDetail(factionDetail)}
+              data-ui-name={`Opening race card ${group.label}`}
+              on:mouseenter={() => previewDetail(raceDetail)}
               on:mouseleave={clearDetail}
             >
               <button
@@ -3402,9 +3576,9 @@
                 aria-label={`Choose ${group.label} with ${starterTroopDef.label}`}
                 aria-pressed={starterSelected}
                 disabled={starterIncompatible}
-                on:focus={() => previewDetail(factionDetail)}
+                on:focus={() => previewDetail(raceDetail)}
                 on:blur={clearDetail}
-                on:click={() => toggleOpeningFaction(starterTroopUnlockId)}
+                on:click={() => toggleOpeningRace(starterTroopUnlockId)}
               ></button>
               <header class="draft-card-header">
                 <div class="draft-card-title">
@@ -3412,16 +3586,16 @@
                   <button
                     type="button"
                     class="sprite-inspect-button ui-debug-target"
-                    data-ui-name={`Inspect faction ${group.label}`}
-                    class:selected={activeDetail?.detailKey === factionDetail.detailKey}
-                    aria-label={`Inspect ${group.label} faction modifiers`}
-                    on:mouseenter={() => previewDetail(factionDetail)}
-                    on:focus={() => previewDetail(factionDetail)}
-                    on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
+                    data-ui-name={`Inspect race ${group.label}`}
+                    class:selected={activeDetail?.detailKey === raceDetail.detailKey}
+                    aria-label={`Inspect ${group.label} race modifiers`}
+                    on:mouseenter={() => previewDetail(raceDetail)}
+                    on:focus={() => previewDetail(raceDetail)}
+                    on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
                     on:blur={clearDetail}
-                    on:click|stopPropagation={() => toggleOpeningFaction(starterTroopUnlockId)}
+                    on:click|stopPropagation={() => toggleOpeningRace(starterTroopUnlockId)}
                   >
-                    <img class="faction-name-art" src={getFactionPortrait(group.factionId)} alt="" aria-hidden="true" />
+                    <img class="race-name-art" src={getRacePortrait(group.raceId)} alt="" aria-hidden="true" />
                   </button>
                 </div>
               </header>
@@ -3438,14 +3612,14 @@
                   aria-pressed={pinnedDetail?.detailKey === starterTroopDetail.detailKey}
                   on:mouseenter={() => previewDetail(starterTroopDetail)}
                   on:focus={() => previewDetail(starterTroopDetail)}
-                  on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
+                  on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
                   on:blur={clearDetail}
                   on:click|stopPropagation={() => togglePinnedDetail(starterTroopDetail)}
                   disabled={starterIncompatible}
                 >
                   <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(starterTroopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(starterTroopDef.quantity)}`} aria-label={`${starterTroopDef.quantity} ${starterTroopDef.label} units`}>
                     {#each unitIconCopies(starterTroopDef.quantity) as copy}
-                      <img class="unit-button-art" src={getFactionUnitPortrait(starterFactionId, starterUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                      <img class="unit-button-art" src={getRaceUnitPortrait(starterRaceId, starterUnitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                     {/each}
                   </span>
                 </button>
@@ -3455,16 +3629,16 @@
                 <span class="draft-section-label">Future unlocks</span>
                 <div class="draft-icon-row opening-future-grid">
                   {#each group.options as troopUnlockId}
-                    {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                    {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
                     {@const troopDef = TROOP_CATALOG[troopUnlockId]}
                     {@const troopDetail = buildResolvedUnitDetail(
                       `opening:${troopUnlockId}`,
                       troopDef.label,
-                      factionId,
-                      unitTypeId,
+                      raceId,
+                      unitClassId,
                       troopDef.stats,
                       troopDef.quantity,
-                      getFaction(factionId).description,
+                      getRace(raceId).description,
                       troopDef.abilities,
                     )}
                     {@const isIncludedStarter = troopUnlockId === group.starterTroopUnlockId}
@@ -3477,13 +3651,13 @@
                         aria-label={`Inspect future unlock ${troopDef.label}`}
                         on:mouseenter={() => previewDetail(troopDetail)}
                         on:focus={() => previewDetail(troopDetail)}
-                        on:mouseleave={(event) => restoreOpeningFactionDetail(event, factionDetail)}
+                        on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
                         on:blur={clearDetail}
                         on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
                       >
                         <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                           {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                            <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                           {/each}
                         </span>
                       </button>
@@ -3496,23 +3670,23 @@
         </div>
       </div>
       <div class="opening-actions actions-grid">
-        <div class="opening-selected-factions ui-debug-target" data-ui-name="Selected opening factions" aria-label="Selected factions">
+        <div class="opening-selected-races ui-debug-target" data-ui-name="Selected opening races" aria-label="Selected races">
           {#each [0, 1] as slotIndex}
-            {@const selectedFaction = selectedOpeningFactionSummaries[slotIndex]}
-            {#if selectedFaction}
-              {@const [, selectedUnitTypeId] = parseTroopUnlockId(selectedFaction.starterTroopUnlockId)}
+            {@const selectedRace = selectedOpeningRaceSummaries[slotIndex]}
+            {#if selectedRace}
+              {@const [, selectedUnitClassId] = parseTroopUnlockId(selectedRace.starterTroopUnlockId)}
               <button
                 type="button"
-                class="opening-selected-faction"
-                aria-label={`Selected ${selectedFaction.label} ${getUnitType(selectedUnitTypeId).label}`}
-                title={`Selected ${selectedFaction.label}`}
+                class="opening-selected-race"
+                aria-label={`Selected ${selectedRace.label} ${getUnitClass(selectedUnitClassId).label}`}
+                title={`Selected ${selectedRace.label}`}
                 disabled
               >
-                <img src={getFactionPortrait(selectedFaction.factionId)} alt="" aria-hidden="true" />
-                <img src={getFactionUnitPortrait(selectedFaction.factionId, selectedUnitTypeId)} alt="" aria-hidden="true" />
+                <img src={getRacePortrait(selectedRace.raceId)} alt="" aria-hidden="true" />
+                <img src={getRaceUnitPortrait(selectedRace.raceId, selectedUnitClassId)} alt="" aria-hidden="true" />
               </button>
             {:else}
-              <div class="opening-selected-faction opening-selected-placeholder" aria-label={`Opening faction slot ${slotIndex + 1} empty`}></div>
+              <div class="opening-selected-race opening-selected-placeholder" aria-label={`Opening race slot ${slotIndex + 1} empty`}></div>
             {/if}
           {/each}
         </div>
@@ -3529,16 +3703,16 @@
       </div>
     </section>
   </main>
-{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'faction_unlock' && $gameStore.game.activeFactionUnlockOffer}
+{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'race_unlock' && $gameStore.game.activeRaceUnlockOffer}
   <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="draft-panel opening-shell scheduled-faction-shell ui-debug-target" data-ui-name="Scheduled faction unlock screen">
+    <section class="draft-panel opening-shell scheduled-race-shell ui-debug-target" data-ui-name="Scheduled race unlock screen">
       <div class="draft-screen-header">
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber} Muster</p>
-        <h1>Choose a Faction</h1>
-        <p class="scheduled-unlock-instructions">Each candidate joins with its shown upgrades and included troop types already unlocked. Other troops show what can be unlocked later.</p>
+        <h1>Choose a Race</h1>
+        <p class="scheduled-unlock-instructions">Each candidate joins with its shown upgrades and included troop classes already unlocked. Other troops show what can be unlocked later.</p>
         {#if multiplayerStatus}
-          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer faction unlock status">{multiplayerStatus}</p>
-          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer faction unlock room tools">
+          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer race unlock status">{multiplayerStatus}</p>
+          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer race unlock room tools">
             <div class="multiplayer-room-card">
               <span>Room</span>
               <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
@@ -3552,7 +3726,7 @@
               <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
             </div>
           </div>
-          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer faction unlock actions">
+          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer race unlock actions">
             {#if !$gameStore.multiplayer?.connected}
               <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
             {/if}
@@ -3567,14 +3741,14 @@
         {/if}
       </div>
 
-      <div class="draft-layout scheduled-faction-layout" class:has-detail={!!activeDetail}>
-        <aside class="panel draft-focus-panel ui-debug-target" class:empty={!activeDetail} data-ui-name="Scheduled faction detail panel" role="presentation" on:mouseleave={clearDetail}>
+      <div class="draft-layout scheduled-race-layout" class:has-detail={!!activeDetail}>
+        <aside class="panel draft-focus-panel ui-debug-target" class:empty={!activeDetail} data-ui-name="Scheduled race detail panel" role="presentation" on:mouseleave={clearDetail}>
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
               {#if activeDetail.kind !== 'unit'}
                 <p class="eyebrow">
-                  {activeDetail.kind === 'faction'
-                    ? 'Faction Modifiers'
+                  {activeDetail.kind === 'race'
+                    ? 'Race Modifiers'
                     : activeDetail.kind === 'upgrade'
                       ? 'Upgrade Effects'
                       : 'Detail'}
@@ -3629,41 +3803,41 @@
           {/if}
         </aside>
 
-        <div class="draft-grid faction-unlock-grid">
-          {#each $gameStore.game.activeFactionUnlockOffer.optionFactionIds as factionId}
-            {@const faction = getFaction(factionId)}
-            {@const factionDetail = buildFactionDetail(factionId)}
-            {@const grantedUpgradeIds = $gameStore.game.activeFactionUnlockOffer.upgradeIdsByFactionId[factionId] ?? []}
-            {@const grantedTroopUnlockIds = $gameStore.game.activeFactionUnlockOffer.troopUnlockIdsByFactionId?.[factionId] ?? []}
-            {@const rosterTroopUnlockIds = getScheduledFactionRosterUnlockIds(factionId)}
+        <div class="draft-grid race-unlock-grid">
+          {#each $gameStore.game.activeRaceUnlockOffer.optionRaceIds as raceId}
+            {@const race = getRace(raceId)}
+            {@const raceDetail = buildRaceDetail(raceId)}
+            {@const grantedUpgradeIds = $gameStore.game.activeRaceUnlockOffer.upgradeIdsByRaceId[raceId] ?? []}
+            {@const grantedTroopUnlockIds = $gameStore.game.activeRaceUnlockOffer.troopUnlockIdsByRaceId?.[raceId] ?? []}
+            {@const rosterTroopUnlockIds = getScheduledRaceRosterUnlockIds(raceId)}
             <article
-              class="draft-card panel faction-unlock-card ui-debug-target"
-              class:selected={selectedScheduledFactionId === factionId}
-              data-ui-name={`Faction unlock option ${faction.label}`}
+              class="draft-card panel race-unlock-card ui-debug-target"
+              class:selected={selectedScheduledRaceId === raceId}
+              data-ui-name={`Race unlock option ${race.label}`}
             >
               <button
                 type="button"
-                class="faction-card-select-button"
-                class:selected={selectedScheduledFactionId === factionId}
-                aria-label={`Select ${faction.label}`}
-                aria-pressed={selectedScheduledFactionId === factionId}
-                on:click={() => selectScheduledFactionUnlock(factionId)}
+                class="race-card-select-button"
+                class:selected={selectedScheduledRaceId === raceId}
+                aria-label={`Select ${race.label}`}
+                aria-pressed={selectedScheduledRaceId === raceId}
+                on:click={() => selectScheduledRaceUnlock(raceId)}
               ></button>
               <header class="draft-card-header">
                 <div class="draft-card-title">
-                  <strong>{faction.label}</strong>
+                  <strong>{race.label}</strong>
                   <button
                     type="button"
                     class="sprite-inspect-button"
-                    class:selected={activeDetail?.detailKey === factionDetail.detailKey}
-                    aria-label={`Inspect ${faction.label} faction modifiers`}
-                    on:mouseenter={() => previewDetail(factionDetail)}
-                    on:focus={() => previewDetail(factionDetail)}
+                    class:selected={activeDetail?.detailKey === raceDetail.detailKey}
+                    aria-label={`Inspect ${race.label} race modifiers`}
+                    on:mouseenter={() => previewDetail(raceDetail)}
+                    on:focus={() => previewDetail(raceDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
-                    on:click|stopPropagation={() => selectScheduledFactionUnlock(factionId)}
+                    on:click|stopPropagation={() => selectScheduledRaceUnlock(raceId)}
                   >
-                    <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                    <img class="race-name-art" src={getRacePortrait(raceId)} alt="" aria-hidden="true" />
                   </button>
                 </div>
               </header>
@@ -3672,11 +3846,11 @@
                 <span class="draft-section-label">Included troops</span>
                 <div class="draft-icon-row troop-preview-row included-troop-row">
                   {#each grantedTroopUnlockIds as troopUnlockId}
-                    {@const [includedFactionId, includedUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                    {@const [includedRaceId, includedUnitClassId] = parseTroopUnlockId(troopUnlockId)}
                     {@const troopDetail = buildScheduledTroopDetail(
                       troopUnlockId,
                       grantedUpgradeIds,
-                      `Included troop unlocked immediately when ${getFaction(includedFactionId).label} joins.`,
+                      `Included troop unlocked immediately when ${getRace(includedRaceId).label} joins.`,
                     )}
                     <button
                       type="button"
@@ -3691,7 +3865,7 @@
                     >
                       <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
                         {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
-                          <img class="unit-button-art" src={getFactionUnitPortrait(includedFactionId, includedUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                          <img class="unit-button-art" src={getRaceUnitPortrait(includedRaceId, includedUnitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                         {/each}
                       </span>
                     </button>
@@ -3712,7 +3886,7 @@
                       on:focus={() => previewDetail(upgradeDetail)}
                       on:mouseleave={clearDetail}
                       on:blur={clearDetail}
-                      on:click|stopPropagation={() => selectScheduledFactionUnlock(factionId)}
+                      on:click|stopPropagation={() => selectScheduledRaceUnlock(raceId)}
                     >
                       <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
                     </button>
@@ -3724,14 +3898,14 @@
                 <span class="draft-section-label">Troop roster</span>
                 <div class="draft-icon-row troop-preview-row">
                   {#each rosterTroopUnlockIds as troopUnlockId}
-                    {@const [rosterFactionId, rosterUnitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                    {@const [rosterRaceId, rosterUnitClassId] = parseTroopUnlockId(troopUnlockId)}
                     {@const isGrantedTroop = grantedTroopUnlockIds.includes(troopUnlockId)}
                     {@const troopDetail = buildScheduledTroopDetail(
                       troopUnlockId,
                       grantedUpgradeIds,
                       isGrantedTroop
-                        ? `Included troop unlocked immediately when ${getFaction(rosterFactionId).label} joins.`
-                        : `${getFaction(rosterFactionId).singularLabel} recruit shown as later unlock potential.`,
+                        ? `Included troop unlocked immediately when ${getRace(rosterRaceId).label} joins.`
+                        : `${getRace(rosterRaceId).singularLabel} recruit shown as later unlock potential.`,
                     )}
                     {#if !isGrantedTroop}
                       <button
@@ -3740,7 +3914,7 @@
                         class:future={!isNativeTroopUnlockId(troopUnlockId)}
                         class:selected={activeDetail?.detailKey === troopDetail.detailKey}
                         aria-label={`Inspect ${troopDetail.label}`}
-                        title={getUnitType(rosterUnitTypeId).label}
+                        title={getUnitClass(rosterUnitClassId).label}
                         on:mouseenter={() => previewDetail(troopDetail)}
                         on:focus={() => previewDetail(troopDetail)}
                         on:mouseleave={clearDetail}
@@ -3749,7 +3923,7 @@
                       >
                         <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
                           {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
-                            <img class="unit-button-art" src={getFactionUnitPortrait(rosterFactionId, rosterUnitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                            <img class="unit-button-art" src={getRaceUnitPortrait(rosterRaceId, rosterUnitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                           {/each}
                         </span>
                       </button>
@@ -3762,19 +3936,19 @@
         </div>
       </div>
       <div class="opening-actions">
-        <button class="primary large" disabled={!selectedScheduledFactionId} on:click={confirmScheduledFactionUnlock}>
-          Confirm {selectedScheduledFactionId ? getFaction(selectedScheduledFactionId).label : 'Faction'}
+        <button class="primary large" disabled={!selectedScheduledRaceId} on:click={confirmScheduledRaceUnlock}>
+          Confirm {selectedScheduledRaceId ? getRace(selectedScheduledRaceId).label : 'Race'}
         </button>
       </div>
     </section>
   </main>
-{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'troop_type_unlock' && $gameStore.game.activeTroopTypeUnlockOffer}
+{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'troop_class_unlock' && $gameStore.game.activeTroopClassUnlockOffer}
   <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Scheduled troop type unlock screen">
+    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Scheduled troop class unlock screen">
       <div class="draft-screen-header">
-        <p class="eyebrow">{getFaction($gameStore.game.activeTroopTypeUnlockOffer.factionId).label} Muster</p>
-        <h1>Choose Troop Type {$gameStore.game.activeTroopTypeUnlockOffer.remainingChoices}</h1>
-        <p>Pick one troop for the new faction. Remaining picks will follow immediately.</p>
+        <p class="eyebrow">{getRace($gameStore.game.activeTroopClassUnlockOffer.raceId).label} Muster</p>
+        <h1>Choose Troop Class {$gameStore.game.activeTroopClassUnlockOffer.remainingChoices}</h1>
+        <p>Pick one troop for the new race. Remaining picks will follow immediately.</p>
         {#if multiplayerStatus}
           <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer troop unlock status">{multiplayerStatus}</p>
           <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer troop unlock room tools">
@@ -3806,33 +3980,33 @@
         {/if}
       </div>
 
-      <div class="draft-grid troop-type-unlock-grid">
-        {#each $gameStore.game.activeTroopTypeUnlockOffer.optionTroopUnlockIds as troopUnlockId}
-          {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
-          {@const troopDef = resolveTroopCombatant($gameStore.game, createTroopInstance(factionId, unitTypeId), 'player')}
+      <div class="draft-grid troop-class-unlock-grid">
+        {#each $gameStore.game.activeTroopClassUnlockOffer.optionTroopUnlockIds as troopUnlockId}
+          {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
+          {@const troopDef = resolveTroopCombatant($gameStore.game, createTroopInstance(raceId, unitClassId), 'player')}
           {@const troopDetail = buildResolvedUnitDetail(
             `scheduled-troop:${troopUnlockId}`,
             troopDef.label,
-            factionId,
-            unitTypeId,
+            raceId,
+            unitClassId,
             troopDef.stats,
             troopDef.quantity,
-            'Troop type unlock for the newly joined faction.',
+            'Troop class unlock for the newly joined race.',
             troopDef.abilities,
           )}
           <button
             type="button"
-            class="draft-option troop-type-choice troop-icon-option"
+            class="draft-option troop-class-choice troop-icon-option"
             aria-label={`Inspect troop unlock ${troopDef.label}`}
             on:mouseenter={() => previewDetail(troopDetail)}
             on:focus={() => previewDetail(troopDetail)}
             on:mouseleave={clearDetail}
             on:blur={clearDetail}
-            on:click={() => chooseTroopTypeUnlock(troopUnlockId)}
+            on:click={() => chooseTroopClassUnlock(troopUnlockId)}
           >
             <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
               {#each unitIconCopies(troopDef.quantity) as copy}
-                <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
               {/each}
             </span>
           </button>
@@ -3941,11 +4115,11 @@
         <button
           class="ui-debug-target"
           class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'troops' && !tutorialCanSwitchCenterMode('troops')}
-          data-ui-name="Show factions and troops view"
+          data-ui-name="Show races and troops view"
           class:selected={$gameStore.centerMode === 'troops'}
           data-tutorial-target="troops-view-button"
           on:click={() => ($gameStore.centerMode === 'troops' ? setTroopCenterMode() : guardTutorialCenterMode('troops', setTroopCenterMode))}
-        >Factions & Troops</button>
+        >Races & Troops</button>
         {#if $gameStore.game.gameMode === 'contest'}
           <button
             class="ui-debug-target"
@@ -4000,8 +4174,8 @@
               <p class="eyebrow">
                 {activeDetail.kind === 'mutator'
                   ? 'Mutator Effect'
-                  : activeDetail.kind === 'faction'
-                    ? 'Faction Modifiers'
+                  : activeDetail.kind === 'race'
+                    ? 'Race Modifiers'
                     : activeDetail.kind === 'upgrade'
                       ? 'Upgrade Preview'
                       : activeDetail.kind === 'rift'
@@ -4158,8 +4332,8 @@
               {@const enemyDetail = buildResolvedUnitDetail(
                 `enemy:${enemy.combatantId}`,
                 enemy.label,
-                enemy.factionId,
-                enemy.unitTypeId,
+                enemy.raceId,
+                enemy.unitClassId,
                 enemy.stats,
                 enemy.quantity,
                 'Enemy troop',
@@ -4177,7 +4351,7 @@
               >
                 <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(enemy.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(enemy.quantity)}`} aria-label={`${enemy.quantity} ${enemy.label} units`}>
                   {#each unitIconCopies(enemy.quantity) as copy}
-                    <img class="unit-tile-art" src={getFactionUnitPortrait(enemy.factionId, enemy.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                    <img class="unit-tile-art" src={getRaceUnitPortrait(enemy.raceId, enemy.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                   {/each}
                 </span>
               </button>
@@ -4195,8 +4369,8 @@
                   {@const troopDetail = buildResolvedUnitDetail(
                     `rift-ready:${selectedRift.id}:${troop.id}`,
                     troopDef.label,
-                    troop.factionId,
-                    troop.unitTypeId,
+                    troop.raceId,
+                    troop.unitClassId,
                     troopDef.stats,
                     troopDef.quantity,
                     troop.assignmentRiftId === selectedRift.id ? 'Assigned to this Rift' : 'Ready troop',
@@ -4214,7 +4388,7 @@
                         troop.id,
                         troop.assignmentRiftId,
                         troopDef.label,
-                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                        getRaceUnitPortrait(troop.raceId, troop.unitClassId),
                       )}
                     on:mousedown={(event) =>
                       startMouseTroopDrag(
@@ -4222,7 +4396,7 @@
                         troop.id,
                         troop.assignmentRiftId,
                         troopDef.label,
-                        getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                        getRaceUnitPortrait(troop.raceId, troop.unitClassId),
                       )}
                     on:click={() => handleRiftTroopClick(troop.id, troopDetail)}
                     on:mouseenter={() => previewDetail(troopDetail)}
@@ -4232,7 +4406,7 @@
                   >
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                       {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-tile-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                     {#if troop.assignmentRiftId === selectedRift.id}
@@ -4248,7 +4422,7 @@
           <div class="unit-overview-strip">
             <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(selectedTroopDefinition.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(selectedTroopDefinition.quantity)}`} aria-label={`${selectedTroopDefinition.quantity} units in troop`}>
               {#each unitIconCopies(selectedTroopDefinition.quantity) as copy}
-                <img class="hover-unit-art" src={getFactionUnitPortrait(selectedTroop.factionId, selectedTroop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                <img class="hover-unit-art" src={getRaceUnitPortrait(selectedTroop.raceId, selectedTroop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
               {/each}
             </span>
               <StatBreakdownGrid
@@ -4264,11 +4438,11 @@
                 <span class="mutator-chip empty">None</span>
               {:else}
                 {#each selectedTroopDefinition.abilities as ability}
-                  {@const selectedSummons = getSummonedUnitPreviews(ability, selectedTroop.factionId).map((preview) => buildResolvedUnitDetail(
-                    `selected-summon:${selectedTroop.id}:${ability.id}:${preview.unitTypeId}:${preview.grantedAbilityIds.join(',')}`,
+                  {@const selectedSummons = getSummonedUnitPreviews(ability, selectedTroop.raceId).map((preview) => buildResolvedUnitDetail(
+                    `selected-summon:${selectedTroop.id}:${ability.id}:${preview.unitClassId}:${preview.grantedAbilityIds.join(',')}`,
                     preview.troop.label,
-                    preview.troop.factionId,
-                    preview.troop.unitTypeId,
+                    preview.troop.raceId,
+                    preview.troop.unitClassId,
                     preview.troop.stats,
                     preview.troop.quantity,
                     `${preview.count > 1 ? `${preview.count} units. ` : ''}${preview.consumesCorpse ? 'Requires a corpse. ' : ''}Summoned by ${ability.label}.`,
@@ -4316,7 +4490,7 @@
               ? 'Hover or select a troop, enemy, or mutator from the Rift board to inspect it here.'
               : $gameStore.centerMode === 'troops'
                 ? 'Choose a Rift or troop to inspect its roster, stats, and assignments.'
-                : 'Hover or select an opponent troop, faction, or upgrade to inspect it here.'}
+                : 'Hover or select an opponent troop, race, or upgrade to inspect it here.'}
           </p>
         {/if}
       </div>
@@ -4336,6 +4510,7 @@
               class:contest-ai-held={$gameStore.game.gameMode === 'contest' && rift.controller === 'ai'}
               class:archive-highlighted={selectedRiftId === rift.id}
               data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
+              data-rift-id={rift.id}
               data-tutorial-target="rift-card"
               class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
               class:drop-target-blocked={multiplayerReadySubmitted || !!getRiftDropValidationMessage(rift.id)}
@@ -4413,8 +4588,8 @@
                         {@const enemyDetail = buildResolvedUnitDetail(
                           `enemy:${rift.id}:${enemy.combatantId}`,
                           enemy.label,
-                          enemy.factionId,
-                          enemy.unitTypeId,
+                          enemy.raceId,
+                          enemy.unitClassId,
                           enemy.stats,
                           enemy.quantity,
                           'Enemy troop',
@@ -4434,7 +4609,7 @@
                         >
                           <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(enemy.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(enemy.quantity)}`} aria-label={`${enemy.quantity} ${enemy.label} units`}>
                             {#each unitIconCopies(enemy.quantity) as copy}
-                              <img class="unit-tile-art" src={getFactionUnitPortrait(enemy.factionId, enemy.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                              <img class="unit-tile-art" src={getRaceUnitPortrait(enemy.raceId, enemy.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                             {/each}
                           </span>
                         </button>
@@ -4447,12 +4622,22 @@
                   {#if battleAnimation}
                     <div class="rift-battle-animation" aria-hidden="true">
                       {#each battleAnimation.phases as phase (phase.key)}
+                        {@const phaseRecord = getRecordForBattlePhase(phase)}
+                        {@const phasePerspective = phaseResultSource(phase)}
                         <div class={`rift-battle-phase ${phase.delayClass}`}>
-                          <div class="clash-swords" class:left-loses={phase.left.loses} class:right-loses={phase.right.loses}>
-                            <span class="clash-sword left-sword"></span>
-                            <span class="clash-spark"></span>
-                            <span class="clash-sword right-sword"></span>
-                          </div>
+                          {#if phaseRecord}
+                            <RiftBattleMiniReplay
+                              replay={phaseRecord.replay}
+                              leftSource={phase.leftSource}
+                              rightSource={phase.rightSource}
+                              leftHealthTone={healthToneForAnimationSide(phase.left)}
+                              rightHealthTone={healthToneForAnimationSide(phase.right)}
+                              result={resultForBattleSource(phaseRecord.outcome, phasePerspective.source)}
+                              opponentOutcome={phasePerspective.opponentOutcome}
+                              delayMs={phase.delayClass === 'phase-late' ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0}
+                              {portraits}
+                            />
+                          {/if}
                         </div>
                       {/each}
                     </div>
@@ -4472,8 +4657,8 @@
                     {@const assignedDetail = buildResolvedUnitDetail(
                       `rift-right:${rift.id}:${combatant.combatantId}`,
                       combatant.label,
-                      combatant.factionId,
-                      combatant.unitTypeId,
+                      combatant.raceId,
+                      combatant.unitClassId,
                       combatant.stats,
                       combatant.quantity,
                       group.participant ? `${group.participant.label} force` : 'Assigned to this Rift',
@@ -4498,7 +4683,7 @@
                             troopId,
                             rift.id,
                             combatant.label,
-                            getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId),
+                            getRaceUnitPortrait(combatant.raceId, combatant.unitClassId),
                           );
                         }
                       }}
@@ -4509,7 +4694,7 @@
                             troopId,
                             rift.id,
                             combatant.label,
-                            getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId),
+                            getRaceUnitPortrait(combatant.raceId, combatant.unitClassId),
                           );
                         }
                       }}
@@ -4521,7 +4706,7 @@
                     >
                       <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
                         {#each unitIconCopies(combatant.quantity) as copy}
-                          <img class="unit-tile-art" src={getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                          <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                         {/each}
                       </span>
                     </button>
@@ -4541,34 +4726,34 @@
           {/each}
         </div>
       {:else if $gameStore.centerMode === 'troops'}
-        <div class="faction-grid troop-faction-grid">
-          {#each factionRosterIds as factionId}
-            {@const faction = getFaction(factionId)}
-            {@const factionDetail = buildFactionDetail(factionId)}
-            {@const factionUpgradeIds = $gameStore.game.factionUpgradeIds.filter((upgradeId) => FACTION_UPGRADES[upgradeId]?.factionId === factionId)}
-            <section class="faction-card panel ui-debug-target" data-ui-name={`Faction card ${faction.label}`}>
-              <header class="faction-card-top">
+        <div class="race-grid troop-race-grid">
+          {#each raceRosterIds as raceId}
+            {@const race = getRace(raceId)}
+            {@const raceDetail = buildRaceDetail(raceId)}
+            {@const raceUpgradeIds = $gameStore.game.raceUpgradeIds.filter((upgradeId) => RACE_UPGRADES[upgradeId]?.raceId === raceId)}
+            <section class="race-card panel ui-debug-target" data-ui-name={`Race card ${race.label}`}>
+              <header class="race-card-top">
                 <button
-                  class="title-button faction-name-button ui-debug-target"
-                  data-ui-name={`Faction header ${faction.label}`}
-                  class:selected={activeDetail?.detailKey === factionDetail.detailKey || selectedFactionId === factionId}
-                  on:mouseenter={() => previewDetail(factionDetail)}
-                  on:focus={() => previewDetail(factionDetail)}
+                  class="title-button race-name-button ui-debug-target"
+                  data-ui-name={`Race header ${race.label}`}
+                  class:selected={activeDetail?.detailKey === raceDetail.detailKey || selectedRaceId === raceId}
+                  on:mouseenter={() => previewDetail(raceDetail)}
+                  on:focus={() => previewDetail(raceDetail)}
                   on:mouseleave={clearDetail}
                   on:blur={clearDetail}
-                  on:click={() => handleFactionHeaderClick(factionId, factionDetail)}
+                  on:click={() => handleRaceHeaderClick(raceId, raceDetail)}
                 >
-                  <span>{faction.label}</span>
-                  <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                  <span>{race.label}</span>
+                  <img class="race-name-art" src={getRacePortrait(raceId)} alt="" aria-hidden="true" />
                 </button>
 
-                {#if factionUpgradeIds.length > 0}
-                  <div class="unlock-row faction-card-upgrades">
-                    {#each factionUpgradeIds as upgradeId}
+                {#if raceUpgradeIds.length > 0}
+                  <div class="unlock-row race-card-upgrades">
+                    {#each raceUpgradeIds as upgradeId}
                       {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
                       <button
                         class="list-button ui-debug-target"
-                        data-ui-name={`Faction upgrade ${getUpgradeDetails(upgradeId).label}`}
+                        data-ui-name={`Race upgrade ${getUpgradeDetails(upgradeId).label}`}
                         class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
                         on:mouseenter={() => previewDetail(upgradeDetail)}
                         on:focus={() => previewDetail(upgradeDetail)}
@@ -4583,14 +4768,14 @@
                 {/if}
               </header>
 
-              <div class="troop-list faction-troop-list">
-                {#each getFactionTroops($gameStore.game, factionId) as troop}
+              <div class="troop-list race-troop-list">
+                {#each getRaceTroops($gameStore.game, raceId) as troop}
                   {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
                   {@const troopDetail = buildResolvedUnitDetail(
                     `troop:${troop.id}`,
                     troopDef.label,
-                    troop.factionId,
-                    troop.unitTypeId,
+                    troop.raceId,
+                    troop.unitClassId,
                     troopDef.stats,
                     troopDef.quantity,
                     troop.assignmentRiftId
@@ -4614,25 +4799,25 @@
                   >
                     <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                       {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-button-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-button-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                   </button>
                 {/each}
               </div>
 
-              {#if (selectedFactionId === factionId || activeDetail?.detailKey === factionDetail.detailKey) && getAvailableFactionTroopUnlockIds(factionId).length > 0}
+              {#if (selectedRaceId === raceId || activeDetail?.detailKey === raceDetail.detailKey) && getAvailableRaceTroopUnlockIds(raceId).length > 0}
                 <div class="available-troop-block">
-                  <span class="assignment-label">Available Troop Types</span>
-                  <div class="troop-list faction-troop-list">
-                    {#each getAvailableFactionTroopUnlockIds(factionId) as troopUnlockId}
-                      {@const [availableFactionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                  <span class="assignment-label">Available Troop Classes</span>
+                  <div class="troop-list race-troop-list">
+                    {#each getAvailableRaceTroopUnlockIds(raceId) as troopUnlockId}
+                      {@const [availableRaceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
                       {@const troopDef = TROOP_CATALOG[troopUnlockId]}
                       {@const troopDetail = buildResolvedUnitDetail(
                         `available:${troopUnlockId}`,
                         troopDef.label,
-                        availableFactionId,
-                        unitTypeId,
+                        availableRaceId,
+                        unitClassId,
                         troopDef.stats,
                         troopDef.quantity,
                         'Available for future troop drafts.',
@@ -4640,7 +4825,7 @@
                       )}
                       <button
                         class="troop-chip available-troop-chip ui-debug-target"
-                        data-ui-name={`Available troop type ${troopDef.label}`}
+                        data-ui-name={`Available troop class ${troopDef.label}`}
                         class:selected={activeDetail?.detailKey === troopDetail.detailKey}
                         aria-label={`Inspect available troop ${troopDef.label}`}
                         on:mouseenter={() => previewDetail(troopDetail)}
@@ -4651,7 +4836,7 @@
                       >
                         <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                           {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-button-art" src={getFactionUnitPortrait(availableFactionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                            <img class="unit-button-art" src={getRaceUnitPortrait(availableRaceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                           {/each}
                         </span>
                       </button>
@@ -4671,11 +4856,11 @@
               <p>Contest details appear after the rival has completed a cycle.</p>
             </div>
           {:else}
-            {#if opponentInfoAi.troopTypeUpgradeIds.length > 0}
-              <section class="panel opponent-upgrades-panel ui-debug-target" data-ui-name="Opponent troop type upgrades">
-                <p class="eyebrow">Troop Type Upgrades</p>
+            {#if opponentInfoAi.troopClassUpgradeIds.length > 0}
+              <section class="panel opponent-upgrades-panel ui-debug-target" data-ui-name="Opponent troop class upgrades">
+                <p class="eyebrow">Troop Class Upgrades</p>
                 <div class="unlock-row opponent-upgrade-row">
-                  {#each opponentInfoAi.troopTypeUpgradeIds as upgradeId}
+                  {#each opponentInfoAi.troopClassUpgradeIds as upgradeId}
                     {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
                     <button
                       class="list-button opponent-upgrade-chip"
@@ -4693,37 +4878,37 @@
               </section>
             {/if}
 
-            <div class="faction-grid opponent-faction-grid">
-              {#each opponentInfoFactionIds as factionId}
-                {@const faction = getFaction(factionId)}
-                {@const factionDetail = buildFactionDetail(factionId)}
-                {@const factionUpgradeIds = getOpponentFactionUpgradeIds(opponentInfoAi, factionId)}
-                {@const factionTroops = opponentInfoAi.troops.filter((troop) => troop.factionId === factionId)}
-                <section class="faction-card panel opponent-faction-card ui-debug-target" data-ui-name={`Opponent faction card ${faction.label}`}>
-                  <header class="faction-card-top opponent-faction-card-top">
+            <div class="race-grid opponent-race-grid">
+              {#each opponentInfoRaceIds as raceId}
+                {@const race = getRace(raceId)}
+                {@const raceDetail = buildRaceDetail(raceId)}
+                {@const raceUpgradeIds = getOpponentRaceUpgradeIds(opponentInfoAi, raceId)}
+                {@const raceTroops = opponentInfoAi.troops.filter((troop) => troop.raceId === raceId)}
+                <section class="race-card panel opponent-race-card ui-debug-target" data-ui-name={`Opponent race card ${race.label}`}>
+                  <header class="race-card-top opponent-race-card-top">
                     <button
-                      class="title-button faction-name-button ui-debug-target"
-                      data-ui-name={`Opponent faction header ${faction.label}`}
-                      class:selected={activeDetail?.detailKey === factionDetail.detailKey}
-                      on:mouseenter={() => previewDetail(factionDetail)}
-                      on:focus={() => previewDetail(factionDetail)}
+                      class="title-button race-name-button ui-debug-target"
+                      data-ui-name={`Opponent race header ${race.label}`}
+                      class:selected={activeDetail?.detailKey === raceDetail.detailKey}
+                      on:mouseenter={() => previewDetail(raceDetail)}
+                      on:focus={() => previewDetail(raceDetail)}
                       on:mouseleave={clearDetail}
                       on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(factionDetail)}
+                      on:click={() => togglePinnedDetail(raceDetail)}
                     >
-                      <span>{faction.label}</span>
-                      <img class="faction-name-art" src={getFactionPortrait(factionId)} alt="" aria-hidden="true" />
+                      <span>{race.label}</span>
+                      <img class="race-name-art" src={getRacePortrait(raceId)} alt="" aria-hidden="true" />
                     </button>
 
-                    <div class="unlock-row faction-card-upgrades">
-                      {#if factionUpgradeIds.length === 0}
-                        <span class="mutator-chip empty">No known faction upgrades</span>
+                    <div class="unlock-row race-card-upgrades">
+                      {#if raceUpgradeIds.length === 0}
+                        <span class="mutator-chip empty">No known race upgrades</span>
                       {:else}
-                        {#each factionUpgradeIds as upgradeId}
+                        {#each raceUpgradeIds as upgradeId}
                           {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
                           <button
                             class="list-button ui-debug-target"
-                            data-ui-name={`Opponent faction upgrade ${getUpgradeDetails(upgradeId).label}`}
+                            data-ui-name={`Opponent race upgrade ${getUpgradeDetails(upgradeId).label}`}
                             class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
                             on:mouseenter={() => previewDetail(upgradeDetail)}
                             on:focus={() => previewDetail(upgradeDetail)}
@@ -4738,15 +4923,15 @@
                     </div>
                   </header>
 
-                  <div class="troop-list faction-troop-list opponent-troop-list">
-                    {#each factionTroops as troop}
+                  <div class="troop-list race-troop-list opponent-troop-list">
+                    {#each raceTroops as troop}
                       {@const troopDef = resolveTroopCombatant(opponentInfoAi, troop, 'enemy', null, `known-ai:${troop.id}`)}
                       {@const isMobileThreat = !currentOpponentOccupyingTroopIds.has(troop.id)}
                       {@const troopDetail = buildResolvedUnitDetail(
                         `opponent:${opponentInfo.cycleNumber}:${troop.id}`,
                         troopDef.label,
-                        troop.factionId,
-                        troop.unitTypeId,
+                        troop.raceId,
+                        troop.unitClassId,
                         troopDef.stats,
                         troopDef.quantity,
                         isMobileThreat ? 'Known opponent troop not currently holding any Rift.' : 'Known opponent troop currently holding a Rift.',
@@ -4767,7 +4952,7 @@
                       >
                         <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                           {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                            <img class="unit-tile-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                           {/each}
                         </span>
                       </button>
@@ -4814,13 +4999,13 @@
               <span class="assignment-label">Choose one troop</span>
               <div class="option-list troop-draft-option-list">
                 {#each $gameStore.game.activeTroopOffer.optionTroopUnlockIds as troopUnlockId}
-                  {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                  {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
                   {@const troopDef = TROOP_CATALOG[troopUnlockId]}
                   {@const troopDetail = buildResolvedUnitDetail(
                     `offer:${troopUnlockId}`,
                     troopDef.label,
-                    factionId,
-                    unitTypeId,
+                    raceId,
+                    unitClassId,
                     troopDef.stats,
                     troopDef.quantity,
                     'Draftable troop unlock.',
@@ -4838,7 +5023,7 @@
                   >
                     <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                       {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                   </button>
@@ -4875,7 +5060,7 @@
                     {#if affectedTroops.length > 0}
                       <span class="affected-troop-strip" aria-label="Affected unlocked troops">
                         {#each affectedTroops as troop}
-                          <img src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
+                          <img src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden="true" />
                         {/each}
                       </span>
                     {/if}
@@ -4901,8 +5086,8 @@
           <p class="eyebrow">
             {activeDetail.kind === 'mutator'
               ? 'Mutator Effect'
-              : activeDetail.kind === 'faction'
-                ? 'Faction Modifiers'
+              : activeDetail.kind === 'race'
+                ? 'Race Modifiers'
                 : activeDetail.kind === 'upgrade'
                   ? 'Upgrade Preview'
                   : 'Unit Inspect'}
@@ -5023,7 +5208,7 @@
                   >
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
                       {#each unitIconCopies(combatant.quantity) as copy}
-                        <img class="unit-tile-art" src={getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                   </button>
@@ -5066,7 +5251,7 @@
                   >
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
                       {#each unitIconCopies(combatant.quantity) as copy}
-                        <img class="unit-tile-art" src={getFactionUnitPortrait(combatant.factionId, combatant.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                   </button>
@@ -5118,13 +5303,40 @@
       {#if $gameStore.centerMode === 'rifts' && !selectedReplayEntry}
         <div class="panel ui-debug-target" data-ui-name="Battle archive panel">
           <h2>Battle Archive</h2>
-          {#if $gameStore.game.replayIndex.length === 0}
+          {#if $gameStore.game.replayIndex.length === 0 && !cycleLogArrivalActive}
             <p>No archived battles yet.</p>
           {:else}
             <div class="archive-list">
+              {#if cycleLogArrivalActive}
+                {@const incomingVisuals = incomingBattleLogVisuals()}
+                {#each incomingVisuals as visual, index (visual.key)}
+                  {@const incomingRiftVisual = visual.riftVisualSource ? getRiftVisual(visual.riftVisualSource) : null}
+                  <div
+                    class="archive-card-row incoming-archive-card-row"
+                    style={incomingBattleLogStyle(visual, index, incomingVisuals.length)}
+                    aria-hidden="true"
+                  >
+                    <div class="archive-card incoming-archive-card">
+                      {#if incomingRiftVisual}
+                        <span class="archive-rift-thumbnail" style={`--rift-tint:${incomingRiftVisual.tint}; --rift-glow:${incomingRiftVisual.glow}; --rift-rotation:${incomingRiftVisual.rotationDeg}deg;`}>
+                          <img src={incomingRiftVisual.imageUrl} alt="" aria-hidden="true" style={`filter:${incomingRiftVisual.filter};`} />
+                        </span>
+                      {/if}
+                      <BattleLogResultToken
+                        outcome={visual.outcome}
+                        opponentOutcome={visual.opponentOutcome}
+                        leftPercent={visual.leftPercent}
+                        rightPercent={visual.rightPercent}
+                        leftTone={visual.leftTone}
+                        rightTone={visual.rightTone}
+                      />
+                    </div>
+                  </div>
+                {/each}
+              {/if}
               {#each pagedReplayEntries as replayEntry}
-                {@const archiveRiftVisual = getArchiveRiftVisual(replayEntry)}
-                {@const archiveVisual = archiveRiftVisual ? getRiftVisual(archiveRiftVisual) : null}
+                {@const archiveVisual = battleLogVisualFromArchiveEntry(replayEntry)}
+                {@const archiveRiftVisual = archiveVisual.riftVisualSource ? getRiftVisual(archiveVisual.riftVisualSource) : null}
                 <div class="archive-card-row" class:archive-opponent-record={isArchiveOpponentBattle(replayEntry)}>
                   <button
                     class="archive-card ui-debug-target"
@@ -5135,24 +5347,21 @@
                     on:mouseenter={() => previewArchiveRift(replayEntry)}
                     on:focus={() => previewArchiveRift(replayEntry)}
                     on:click={() => selectReplay(replayEntry.replayId)}
+                    aria-label={archiveVisual.ariaLabel}
                   >
-                    {#if archiveVisual}
-                      <span class="archive-rift-thumbnail" style={`--rift-tint:${archiveVisual.tint}; --rift-glow:${archiveVisual.glow}; --rift-rotation:${archiveVisual.rotationDeg}deg;`}>
-                        <img src={archiveVisual.imageUrl} alt="" aria-hidden="true" style={`filter:${archiveVisual.filter};`} />
+                    {#if archiveRiftVisual}
+                      <span class="archive-rift-thumbnail" style={`--rift-tint:${archiveRiftVisual.tint}; --rift-glow:${archiveRiftVisual.glow}; --rift-rotation:${archiveRiftVisual.rotationDeg}deg;`}>
+                        <img src={archiveRiftVisual.imageUrl} alt="" aria-hidden="true" style={`filter:${archiveRiftVisual.filter};`} />
                       </span>
                     {/if}
-                    <span class="archive-card-copy">
-                      <strong>{decorateArchiveSummary(replayEntry.summary)}</strong>
-                      {#if archiveEntryMatchupLabel(replayEntry)}
-                        <small>{archiveEntryMatchupLabel(replayEntry)}</small>
-                      {/if}
-                      {#if replayEntry.riftId && !discoveredRifts.some((rift) => rift.id === replayEntry.riftId)}
-                        <small>Archived Rift no longer on map</small>
-                      {/if}
-                      {#if replayEntry.resultDrift}
-                        <small>Now {decorateArchiveSummary(replayEntry.resultDrift.currentSummary)}</small>
-                      {/if}
-                    </span>
+                    <BattleLogResultToken
+                      outcome={archiveVisual.outcome}
+                      opponentOutcome={archiveVisual.opponentOutcome}
+                      leftPercent={archiveVisual.leftPercent}
+                      rightPercent={archiveVisual.rightPercent}
+                      leftTone={archiveVisual.leftTone}
+                      rightTone={archiveVisual.rightTone}
+                    />
                   </button>
                   <button
                     type="button"
@@ -5162,7 +5371,6 @@
                     disabled={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId)}
                     on:click={() => openReplayFromArchive(replayEntry.replayId)}
                   >
-                    👁️
                     <svg class="archive-watch-icon" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M2.2 12s3.4-6.1 9.8-6.1 9.8 6.1 9.8 6.1-3.4 6.1-9.8 6.1S2.2 12 2.2 12Z" />
                       <circle cx="12" cy="12" r="3.25" />
@@ -5207,13 +5415,13 @@
                   {#if $gameStore.game.activeTroopOffer}
                     <div class="option-list troop-draft-option-list">
                       {#each $gameStore.game.activeTroopOffer.optionTroopUnlockIds as troopUnlockId}
-                        {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                        {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
                         {@const troopDef = TROOP_CATALOG[troopUnlockId]}
                         {@const troopDetail = buildResolvedUnitDetail(
                           `offer:${troopUnlockId}`,
                           troopDef.label,
-                          factionId,
-                          unitTypeId,
+                          raceId,
+                          unitClassId,
                           troopDef.stats,
                           troopDef.quantity,
                           'Draftable troop unlock.',
@@ -5233,7 +5441,7 @@
                         >
                           <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                             {#each unitIconCopies(troopDef.quantity) as copy}
-                              <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                              <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                             {/each}
                           </span>
                           {#if isUpgradeAffectingDraftTroop(troopUnlockId)}
@@ -5244,11 +5452,11 @@
                     </div>
                     <button type="button" class="primary" data-tutorial-target="confirm-draft-troop" disabled={!selectedTroopOfferUnlockId} on:click={confirmTroopOfferUnlock}>Confirm Troop</button>
                   {:else if confirmedTroopOfferUnlockId}
-                    {@const [factionId, unitTypeId] = parseTroopUnlockId(confirmedTroopOfferUnlockId)}
+                    {@const [raceId, unitClassId] = parseTroopUnlockId(confirmedTroopOfferUnlockId)}
                     <div class="locked-draft-card">
                       <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity)}`} aria-label={`${TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity} ${TROOP_CATALOG[confirmedTroopOfferUnlockId].label} units`}>
                         {#each unitIconCopies(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity) as copy}
-                          <img class="unit-button-art" src={getFactionUnitPortrait(factionId, unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                          <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                         {/each}
                       </span>
                       <strong>{TROOP_CATALOG[confirmedTroopOfferUnlockId].label}</strong>
@@ -5279,14 +5487,14 @@
                           {#if affectedTroops.length > 0 || affectedDraftTroops.length > 0}
                             <span class="affected-troop-strip" aria-label="Affected troops">
                               {#each affectedTroops as troop}
-                                <img src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden="true" />
+                                <img src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden="true" />
                               {/each}
                               {#each affectedDraftTroops as troopUnlockId}
-                                {@const [factionId, unitTypeId] = parseTroopUnlockId(troopUnlockId)}
+                                {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
                                 <img
                                   class="draft-affected"
                                   class:selected-draft-target={selectedTroopOfferUnlockId === troopUnlockId}
-                                  src={getFactionUnitPortrait(factionId, unitTypeId)}
+                                  src={getRaceUnitPortrait(raceId, unitClassId)}
                                   alt=""
                                   aria-hidden="true"
                                 />
@@ -5354,8 +5562,8 @@
                   {@const troopDetail = buildResolvedUnitDetail(
                     `ready:${troop.id}`,
                     troopDef.label,
-                    troop.factionId,
-                    troop.unitTypeId,
+                    troop.raceId,
+                    troop.unitClassId,
                     troopDef.stats,
                     troopDef.quantity,
                     'Ready troop',
@@ -5379,7 +5587,7 @@
                           troop.id,
                           troop.assignmentRiftId,
                           troopDef.label,
-                          getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                          getRaceUnitPortrait(troop.raceId, troop.unitClassId),
                         );
                       }
                     }}
@@ -5390,7 +5598,7 @@
                           troop.id,
                           troop.assignmentRiftId,
                           troopDef.label,
-                          getFactionUnitPortrait(troop.factionId, troop.unitTypeId),
+                          getRaceUnitPortrait(troop.raceId, troop.unitClassId),
                         );
                       }
                     }}
@@ -5402,7 +5610,7 @@
                   >
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                       {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-tile-art" src={getFactionUnitPortrait(troop.factionId, troop.unitTypeId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-tile-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                   </button>
@@ -5432,16 +5640,16 @@
     {/if}
 
     {#if $gameStore.game.phase === 'game_over'}
-      <div class="unlock-faction-overlay" role="presentation">
-        <div class="unlock-faction-dialog panel ui-debug-target" data-ui-name="Game over dialog" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
-          <div class="unlock-faction-dialog-header">
+      <div class="unlock-race-overlay" role="presentation">
+        <div class="unlock-race-dialog panel ui-debug-target" data-ui-name="Game over dialog" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+          <div class="unlock-race-dialog-header">
             <div>
               <p class="eyebrow">Cycle 10 reached</p>
               <h2 id="game-over-title">Game officially over!</h2>
             </div>
           </div>
 
-          <p class="unlock-faction-dialog-copy">You finished the scored run with {$gameStore.game.victoryPoints} VP.</p>
+          <p class="unlock-race-dialog-copy">You finished the scored run with {$gameStore.game.victoryPoints} VP.</p>
 
           <div class="actions-grid">
             <button class="primary ui-debug-target" data-ui-name="Continue playing button" on:click={() => gameStore.continuePlaying()}>Continue playing</button>
@@ -5870,7 +6078,7 @@
                           on:click={() => toggleReplayRecapTroop(troop.side, troop.troopLabel)}
                         >
                           {#if troopProfile}
-                            <img class="replay-recap-art" src={getFactionUnitPortrait(troopProfile.factionId, troopProfile.unitTypeId)} alt="" aria-hidden="true" />
+                            <img class="replay-recap-art" src={getRaceUnitPortrait(troopProfile.raceId, troopProfile.unitClassId)} alt="" aria-hidden="true" />
                           {/if}
                           <div class="replay-recap-main">
                             <strong>{troop.troopLabel}</strong>
@@ -5897,7 +6105,7 @@
                               {@const unitState = getReplayRecapUnitState(unit.unitId)}
                               <button type="button" class="replay-recap-row unit" aria-label={`Inspect ${unit.unitLabel}`} on:click={() => selectReplayRecapUnit(unit.unitId, troop.side, troop.troopLabel)}>
                                 {#if troopProfile}
-                                  <img class="replay-recap-art small" src={getFactionUnitPortrait(troopProfile.factionId, troopProfile.unitTypeId)} alt="" aria-hidden="true" />
+                                  <img class="replay-recap-art small" src={getRaceUnitPortrait(troopProfile.raceId, troopProfile.unitClassId)} alt="" aria-hidden="true" />
                                 {/if}
                                 <div class="replay-recap-main">
                                   <strong>{unit.unitLabel}</strong>
@@ -6160,8 +6368,7 @@
   }
 
   .resource-strip strong,
-  .compact-list strong,
-  .archive-card small {
+  .compact-list strong {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -6181,8 +6388,7 @@
     }
 
     .resource-strip strong,
-    .compact-list strong,
-    .archive-card small {
+    .compact-list strong {
       gap: 0.18rem;
       font-size: clamp(0.68rem, 16cqw, 0.95rem);
     }
@@ -6296,7 +6502,7 @@
     padding-top: 0.15rem;
   }
 
-  .opening-selected-factions {
+  .opening-selected-races {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -6304,7 +6510,7 @@
     min-height: 2rem;
   }
 
-  .opening-selected-faction {
+  .opening-selected-race {
     display: inline-flex;
     align-items: center;
     gap: 0.42rem;
@@ -6322,7 +6528,7 @@
     text-transform: uppercase;
   }
 
-  button.opening-selected-faction:disabled {
+  button.opening-selected-race:disabled {
     cursor: default;
     opacity: 1;
   }
@@ -6344,15 +6550,15 @@
     border-radius: var(--ui-panel-radius-tight);
   }
 
-  button.opening-selected-faction:hover,
-  button.opening-selected-faction:focus-visible {
+  button.opening-selected-race:hover,
+  button.opening-selected-race:focus-visible {
     border-color: rgba(255, 222, 154, 0.74);
     background:
       linear-gradient(145deg, rgba(61, 40, 16, 0.86), rgba(20, 26, 35, 0.94)),
       radial-gradient(circle at top left, rgba(236, 196, 123, 0.2), transparent 44%);
   }
 
-  .opening-selected-faction img {
+  .opening-selected-race img {
     width: 1.35rem;
     height: 1.35rem;
     flex: 0 0 auto;
@@ -6528,22 +6734,22 @@
     width: min(1240px, 100%);
   }
 
-  .opening-shell:not(.scheduled-faction-shell) {
+  .opening-shell:not(.scheduled-race-shell) {
     height: calc(100dvh - (2 * var(--ui-space-md)));
     grid-template-rows: minmax(0, 1fr) auto;
     overflow: hidden;
   }
 
-  .opening-shell:not(.scheduled-faction-shell):has(.opening-session-header) {
+  .opening-shell:not(.scheduled-race-shell):has(.opening-session-header) {
     grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
-  .opening-shell:not(.scheduled-faction-shell) .draft-layout {
+  .opening-shell:not(.scheduled-race-shell) .draft-layout {
     overflow: hidden;
   }
 
   .rift-grid,
-  .faction-grid,
+  .race-grid,
   .slot-grid,
   .draft-grid {
     display: grid;
@@ -6804,8 +7010,6 @@
     --archive-left-color: var(--archive-victory);
     --archive-right-color: var(--archive-neutral);
     position: relative;
-    display: grid;
-    gap: 0.18rem;
     min-height: 3rem;
     overflow: hidden;
     background:
@@ -6818,14 +7022,6 @@
       var(--ui-color-surface-interactive);
   }
 
-  .archive-card strong,
-  .archive-card small {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .archive-card::before {
     content: '';
     position: absolute;
@@ -6835,7 +7031,6 @@
     pointer-events: none;
   }
 
-  .archive-health-totals,
   .archive-force-block {
     display: grid;
     gap: var(--ui-space-sm);
@@ -6858,35 +7053,18 @@
     border-radius: 999px;
   }
 
-  .archive-health-total {
-    display: grid;
-    gap: 0.35rem;
-    padding: var(--ui-space-sm);
-    border: 1px solid rgba(124, 153, 176, 0.15);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(20, 28, 38, 0.72);
-  }
-
-  .archive-health-total > div:first-child {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--ui-space-sm);
-    color: var(--ui-color-text-dim);
-    font-size: 0.78rem;
-  }
-
   .archive-side-label.archive-player,
-  .archive-health-total.archive-player strong {
+  .archive-side-label.archive-player strong {
     color: #d8f4df;
   }
 
   .archive-side-label.archive-opponent,
-  .archive-health-total.archive-opponent strong {
+  .archive-side-label.archive-opponent strong {
     color: #f1b1a8;
   }
 
   .archive-side-label.archive-neutral,
-  .archive-health-total.archive-neutral strong {
+  .archive-side-label.archive-neutral strong {
     color: #c7d0d8;
   }
 
@@ -6918,7 +7096,7 @@
   }
 
   .rift-card,
-  .faction-card,
+  .race-card,
   .slot-card,
   .draft-card {
     display: grid;
@@ -6926,7 +7104,7 @@
     align-content: start;
   }
 
-  .opening-faction-card {
+  .opening-race-card {
     position: relative;
     cursor: pointer;
     transition:
@@ -6936,13 +7114,13 @@
       transform 160ms ease;
   }
 
-  .opening-faction-card > :not(.opening-card-select-button) {
+  .opening-race-card > :not(.opening-card-select-button) {
     position: relative;
     z-index: 2;
     pointer-events: none;
   }
 
-  .opening-faction-card button:not(.opening-card-select-button) {
+  .opening-race-card button:not(.opening-card-select-button) {
     pointer-events: auto;
   }
 
@@ -6956,8 +7134,8 @@
     padding: 0;
   }
 
-  .opening-faction-card:hover,
-  .opening-faction-card:focus-visible {
+  .opening-race-card:hover,
+  .opening-race-card:focus-visible {
     border-color: rgba(213, 178, 116, 0.44);
     box-shadow:
       var(--ui-shadow-panel),
@@ -6969,7 +7147,7 @@
     outline-offset: 3px;
   }
 
-  .opening-faction-card.selected {
+  .opening-race-card.selected {
     border-color: rgba(231, 190, 105, 0.82);
     background:
       linear-gradient(160deg, rgba(48, 38, 16, 0.92), rgba(24, 22, 16, 0.96)),
@@ -6979,7 +7157,7 @@
       inset 0 0 0 2px rgba(237, 197, 111, 0.38);
   }
 
-  .opening-faction-card.incompatible {
+  .opening-race-card.incompatible {
     cursor: not-allowed;
     opacity: 0.68;
   }
@@ -7156,101 +7334,15 @@
 
   .rift-battle-phase {
     grid-area: 1 / 1;
-    display: grid;
-    place-items: center;
-    opacity: 0;
-    animation: battle-phase 2.812s ease-in-out both;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    opacity: 1;
   }
 
   .rift-battle-phase.phase-late {
-    animation-delay: 0.925s;
-  }
-
-  .phase-late .clash-sword,
-  .phase-late .clash-spark {
-    animation-delay: 0.925s;
-  }
-
-  .clash-swords {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 100%;
-    height: 3rem;
-    min-width: 3.2rem;
-  }
-
-  .clash-sword {
-    position: absolute;
-    display: grid;
-    width: 1.8rem;
-    height: 1.8rem;
-    place-items: center;
     opacity: 0;
-    transform-origin: center;
-  }
-
-  .clash-sword::before,
-  .clash-sword::after {
-    content: '';
-    position: absolute;
-    display: block;
-  }
-
-  .clash-sword::before {
-    width: 0.24rem;
-    height: 1.55rem;
-    border-radius: 999px 999px 0.12rem 0.12rem;
-    background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.92), #f7e5b8 42%, #9a7141);
-    box-shadow:
-      0 0 9px rgba(247, 207, 125, 0.62),
-      0 2px 2px rgba(0, 0, 0, 0.42);
-  }
-
-  .clash-sword::after {
-    top: 1.1rem;
-    width: 1.05rem;
-    height: 0.22rem;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #7c4b2a, #f0c674, #7c4b2a);
-    box-shadow: 0 0 5px rgba(247, 207, 125, 0.46);
-  }
-
-  .left-sword {
-    --sword-start-x: -1.45rem;
-    --sword-retreat-x: -1.05rem;
-    --sword-ready-rotate: 90deg;
-    --sword-clash-rotate: 42deg;
-    --sword-break-rotate: 128deg;
-    animation: sword-clash 2.812s cubic-bezier(0.2, 0.9, 0.26, 1) both;
-  }
-
-  .right-sword {
-    --sword-start-x: 1.45rem;
-    --sword-retreat-x: 1.05rem;
-    --sword-ready-rotate: -90deg;
-    --sword-clash-rotate: -42deg;
-    --sword-break-rotate: -128deg;
-    animation: sword-clash 2.812s cubic-bezier(0.2, 0.9, 0.26, 1) both;
-  }
-
-  .left-loses .left-sword,
-  .right-loses .right-sword {
-    animation-name: losing-sword-clash;
-  }
-
-  .clash-spark {
-    position: absolute;
-    width: 0.7rem;
-    height: 0.7rem;
-    border-radius: 999px;
-    background: #fff4c6;
-    box-shadow:
-      0 0 12px rgba(255, 231, 154, 0.95),
-      0 0 26px rgba(229, 92, 60, 0.58);
-    opacity: 0;
-    animation: clash-spark 2.812s ease-out both;
+    animation: rift-mini-phase-late 1ms linear 0.925s both;
   }
 
   @keyframes rift-force-group-now {
@@ -7322,107 +7414,18 @@
     }
   }
 
-  @keyframes battle-phase {
-    0%,
-    100% {
+  @keyframes rift-mini-phase-late {
+    from {
       opacity: 0;
     }
-    5.4%,
-    55.4% {
+    to {
       opacity: 1;
-    }
-  }
-
-  @keyframes sword-clash {
-    0% {
-      opacity: 0;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(0.92);
-    }
-    10.8% {
-      opacity: 1;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
-    }
-    18.9%,
-    32.4% {
-      opacity: 1;
-      transform: translateX(0) rotate(var(--sword-clash-rotate)) scale(1.08);
-    }
-    25.7% {
-      opacity: 1;
-      transform: translateX(var(--sword-retreat-x)) rotate(var(--sword-ready-rotate)) scale(1);
-    }
-    48.6%,
-    56.8% {
-      opacity: 1;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
-    }
-    100% {
-      opacity: 0;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(0.96);
-    }
-  }
-
-  @keyframes losing-sword-clash {
-    0% {
-      opacity: 0;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(0.92);
-      clip-path: inset(0);
-    }
-    10.8% {
-      opacity: 1;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
-      clip-path: inset(0);
-    }
-    18.9%,
-    32.4% {
-      opacity: 1;
-      transform: translateX(0) rotate(var(--sword-clash-rotate)) scale(1.08);
-      clip-path: inset(0);
-    }
-    25.7% {
-      opacity: 1;
-      transform: translateX(var(--sword-retreat-x)) rotate(var(--sword-ready-rotate)) scale(1);
-      clip-path: inset(0);
-    }
-    48.6% {
-      opacity: 1;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-ready-rotate)) scale(1);
-      clip-path: inset(0);
-    }
-    56.8% {
-      opacity: 1;
-      transform: translateX(var(--sword-start-x)) rotate(var(--sword-break-rotate)) scale(1);
-      clip-path: polygon(0 0, 52% 0, 45% 100%, 0 100%);
-    }
-    100% {
-      opacity: 0;
-      transform: translateX(var(--sword-start-x)) translateY(0.45rem) rotate(var(--sword-break-rotate)) scale(0.45);
-      clip-path: polygon(0 0, 52% 0, 45% 100%, 0 100%);
-    }
-  }
-
-  @keyframes clash-spark {
-    0%,
-    14.9%,
-    28.4%,
-    36.5%,
-    100% {
-      opacity: 0;
-      transform: scale(0.4);
-    }
-    18.9%,
-    32.4%,
-    40.5% {
-      opacity: 1;
-      transform: scale(1.25);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .rift-battle-phase,
-    .rift-force-side,
-    .clash-sword,
-    .clash-spark {
+    .rift-force-side {
       animation-duration: 1ms;
       animation-delay: 0ms;
     }
@@ -7768,7 +7771,7 @@
   .unit-tile-art,
   .unit-button-art,
   .hover-unit-art,
-  .faction-name-art {
+  .race-name-art {
     image-rendering: pixelated;
     object-fit: contain;
     filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
@@ -8168,12 +8171,12 @@
     height: 100%;
   }
 
-  .faction-name-art {
+  .race-name-art {
     width: 2.6rem;
     height: 2.6rem;
   }
 
-  .faction-name-button,
+  .race-name-button,
   .draft-card-title {
     display: flex;
     align-items: center;
@@ -8193,7 +8196,6 @@
   .warning-panel p,
   .slot-card p,
   .detail-panel p,
-  .archive-card small,
   .replay-header p {
     color: #a7b8c8;
   }
@@ -8221,16 +8223,25 @@
 
   .archive-card {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 0.55rem;
     text-align: left;
   }
 
-  .archive-card-copy {
-    display: grid;
-    gap: 0.08rem;
-    min-width: 0;
+  .incoming-archive-card-row {
+    grid-template-columns: minmax(0, 1fr);
+    height: 0;
+    min-height: 0;
+    overflow: visible;
+    animation: incoming-archive-row-expand 260ms ease-out var(--arrival-delay) both;
+  }
+
+  .incoming-archive-card {
+    pointer-events: none;
+    transform: translate(var(--from-x), var(--from-y)) scale(0.84);
+    opacity: 1;
+    animation: incoming-archive-card-fly var(--arrival-flight) cubic-bezier(0.18, 0.84, 0.22, 1) var(--arrival-delay) both;
   }
 
   .archive-inspect-heading {
@@ -8266,6 +8277,36 @@
     height: 100%;
     object-fit: contain;
     transform: rotate(var(--rift-rotation));
+  }
+
+  @keyframes incoming-archive-row-expand {
+    from {
+      height: 0;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    to {
+      height: calc(var(--battle-log-row-height, 3.35rem));
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+  }
+
+  @keyframes incoming-archive-card-fly {
+    0% {
+      opacity: 1;
+      transform: translate(var(--from-x), var(--from-y)) scale(0.84);
+      filter: brightness(1.18) saturate(1.12);
+    }
+    82% {
+      transform: translate(0, 0) scale(1.04);
+      filter: brightness(1.12) saturate(1.08);
+    }
+    100% {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+      filter: none;
+    }
   }
 
   .archive-watch-button {
@@ -8331,26 +8372,26 @@
     white-space: nowrap;
   }
 
-  .scheduled-faction-shell {
+  .scheduled-race-shell {
     width: min(1780px, 100%);
     max-height: calc(100vh - (2 * var(--ui-space-md)));
     overflow: auto;
   }
 
-  .scheduled-faction-layout,
-  .scheduled-faction-layout.has-detail {
+  .scheduled-race-layout,
+  .scheduled-race-layout.has-detail {
     grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
   }
 
-  .scheduled-faction-layout .draft-grid {
+  .scheduled-race-layout .draft-grid {
     overflow: visible;
   }
 
-  .faction-unlock-grid {
+  .race-unlock-grid {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 
-  .faction-unlock-card {
+  .race-unlock-card {
     position: relative;
     display: grid;
     gap: var(--ui-space-sm);
@@ -8358,17 +8399,17 @@
     cursor: pointer;
   }
 
-  .faction-unlock-card > :not(.faction-card-select-button) {
+  .race-unlock-card > :not(.race-card-select-button) {
     position: relative;
     z-index: 2;
     pointer-events: none;
   }
 
-  .faction-unlock-card button:not(.faction-card-select-button) {
+  .race-unlock-card button:not(.race-card-select-button) {
     pointer-events: auto;
   }
 
-  .faction-card-select-button {
+  .race-card-select-button {
     position: absolute;
     inset: 0;
     z-index: 1;
@@ -8378,8 +8419,8 @@
     padding: 0;
   }
 
-  .faction-unlock-card:hover,
-  .faction-unlock-card:focus-within {
+  .race-unlock-card:hover,
+  .race-unlock-card:focus-within {
     border-color: rgba(213, 178, 116, 0.5);
     box-shadow:
       var(--ui-shadow-panel),
@@ -8387,12 +8428,12 @@
     outline: none;
   }
 
-  .faction-card-select-button:focus-visible {
+  .race-card-select-button:focus-visible {
     outline: 2px solid rgba(244, 205, 118, 0.94);
     outline-offset: 3px;
   }
 
-  .faction-unlock-card.selected {
+  .race-unlock-card.selected {
     border-color: rgba(231, 190, 105, 0.82);
     background:
       linear-gradient(160deg, rgba(48, 38, 16, 0.92), rgba(24, 22, 16, 0.96)),
@@ -8431,7 +8472,7 @@
       radial-gradient(circle at 18% 18%, rgba(239, 199, 111, 0.18), transparent 58%);
   }
 
-  .scheduled-faction-shell .troop-preview {
+  .scheduled-race-shell .troop-preview {
     width: var(--troop-icon-box-size, 3.8rem);
     min-height: var(--troop-icon-box-size, 3.8rem);
     aspect-ratio: 1;
@@ -8439,7 +8480,7 @@
     font-size: 0.76rem;
   }
 
-  .scheduled-faction-shell .troop-preview .unit-button-art {
+  .scheduled-race-shell .troop-preview .unit-button-art {
     width: 1.65rem;
     height: 1.65rem;
   }
@@ -8464,18 +8505,18 @@
     background: rgba(45, 34, 18, 0.78);
   }
 
-  .troop-type-unlock-grid {
+  .troop-class-unlock-grid {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
-  .troop-type-choice {
+  .troop-class-choice {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     justify-content: start;
   }
 
-  .troop-type-choice .unit-button-art {
+  .troop-class-choice .unit-button-art {
     width: 1.75rem;
     height: 1.75rem;
   }
@@ -9263,7 +9304,7 @@
     gap: 0.75rem;
   }
 
-  .opening-shell:not(.scheduled-faction-shell) .draft-layout {
+  .opening-shell:not(.scheduled-race-shell) .draft-layout {
     align-items: start;
   }
 
@@ -9278,12 +9319,12 @@
     overflow: auto;
   }
 
-  .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel,
-  .opening-shell:not(.scheduled-faction-shell) .draft-grid {
+  .opening-shell:not(.scheduled-race-shell) .draft-focus-panel,
+  .opening-shell:not(.scheduled-race-shell) .draft-grid {
     max-height: 100%;
   }
 
-  .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel {
+  .opening-shell:not(.scheduled-race-shell) .draft-focus-panel {
     align-self: start;
   }
 
@@ -9327,7 +9368,7 @@
   }
 
   .draft-card-header,
-  .faction-card > header {
+  .race-card > header {
     display: grid;
     gap: var(--ui-space-xs);
   }
@@ -9344,13 +9385,13 @@
   }
 
   .center-column > .rift-grid,
-  .center-column > .faction-grid,
+  .center-column > .race-grid,
   .center-column > .opponent-info-board {
     min-height: 100%;
   }
 
   .center-column > .rift-grid,
-  .center-column > .troop-faction-grid {
+  .center-column > .troop-race-grid {
     min-height: 0;
   }
 
@@ -9513,12 +9554,12 @@
     height: 1.55rem;
   }
 
-  .faction-grid {
+  .race-grid {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     align-items: start;
   }
 
-  .troop-faction-grid {
+  .troop-race-grid {
     grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: 0.65rem;
     align-content: start;
@@ -9547,12 +9588,12 @@
     min-width: 0;
   }
 
-  .opponent-faction-grid {
+  .opponent-race-grid {
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: 0.65rem;
   }
 
-  .opponent-faction-card-top {
+  .opponent-race-card-top {
     grid-template-columns: minmax(140px, 0.85fr) minmax(170px, 1.15fr);
   }
 
@@ -9608,39 +9649,39 @@
     }
   }
 
-  .faction-card {
+  .race-card {
     padding: var(--ui-space-sm);
   }
 
-  .troops-mode .faction-card {
+  .troops-mode .race-card {
     gap: 0.55rem;
     padding: 0.7rem;
   }
 
-  .faction-name-button {
+  .race-name-button {
     width: 100%;
   }
 
-  .faction-card-top {
+  .race-card-top {
     display: grid;
     grid-template-columns: minmax(150px, 0.9fr) minmax(170px, 1.1fr);
     gap: 0.55rem;
     align-items: stretch;
   }
 
-  .faction-card-top .faction-name-button {
+  .race-card-top .race-name-button {
     min-height: 4.5rem;
   }
 
-  .faction-card-upgrades {
+  .race-card-upgrades {
     gap: 0.35rem;
   }
 
-  .faction-card-upgrades .list-button {
+  .race-card-upgrades .list-button {
     min-height: 2rem;
   }
 
-  .faction-troop-list {
+  .race-troop-list {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 0.45rem;
   }
@@ -9676,7 +9717,7 @@
     justify-content: start;
   }
 
-  .troops-mode .faction-card {
+  .troops-mode .race-card {
     grid-template-columns: minmax(0, 1fr);
     align-content: start;
   }
@@ -9708,11 +9749,11 @@
     height: 2.2rem;
   }
 
-  .scheduled-faction-shell .draft-screen-header {
+  .scheduled-race-shell .draft-screen-header {
     max-width: none;
   }
 
-  .scheduled-faction-shell .scheduled-faction-layout {
+  .scheduled-race-shell .scheduled-race-layout {
     grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
   }
 
@@ -9721,7 +9762,7 @@
     pointer-events: none;
   }
 
-  .scheduled-faction-shell .faction-unlock-grid {
+  .scheduled-race-shell .race-unlock-grid {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   }
 
@@ -9744,7 +9785,7 @@
     line-height: 1.35;
   }
 
-  .unlock-faction-overlay {
+  .unlock-race-overlay {
     position: fixed;
     inset: 0;
     display: grid;
@@ -9755,18 +9796,18 @@
     z-index: 20;
   }
 
-  .unlock-faction-dialog {
+  .unlock-race-dialog {
     width: min(480px, 100%);
   }
 
-  .unlock-faction-dialog-header {
+  .unlock-race-dialog-header {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
     align-items: start;
   }
 
-  .unlock-faction-dialog-copy {
+  .unlock-race-dialog-copy {
     color: #c7d3df;
   }
 
@@ -10769,11 +10810,11 @@
       grid-template-columns: 1fr;
     }
 
-    .opening-shell:not(.scheduled-faction-shell) .draft-layout {
+    .opening-shell:not(.scheduled-race-shell) .draft-layout {
       grid-template-rows: auto minmax(0, 1fr);
     }
 
-    .opening-shell:not(.scheduled-faction-shell) .draft-focus-panel {
+    .opening-shell:not(.scheduled-race-shell) .draft-focus-panel {
       min-height: 0;
       max-height: 15rem;
     }

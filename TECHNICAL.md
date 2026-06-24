@@ -80,9 +80,9 @@ The main menu also has a guided tutorial entry. Tutorial progress and its determ
 
 Campaign phases are:
 
-- `opening_unlock`: free opening picks for two factions; each faction option grants one preselected native starting troop and shows its other native troop types as later unlock potential
-- `faction_unlock`: scheduled cycle-start faction choice
-- `troop_type_unlock`: scheduled troop unlock grant step for a newly unlocked faction
+- `opening_unlock`: free opening picks for two races; each race option grants one preselected native starting troop and shows its other native unit classes as later unlock potential
+- `race_unlock`: scheduled cycle-start race choice
+- `troop_class_unlock`: scheduled troop unlock grant step for a newly unlocked race
 - `planning`: normal overworld play
 - `game_over`: shown immediately after cycle 10 resolves unless already dismissed for that run
 
@@ -98,39 +98,38 @@ Singleplayer modes are:
 
 Resolved combatants expose both:
 
-- `type`: one primary troop identity such as `soldier` or `wizard`
+- `unitClassTag`: one primary unit class identity such as `soldier` or `wizard`
 - `attributes`: secondary tags such as `melee`, `caster`, `ranged`, `human`, `goblin`, `expendable`
 
-Ability filters match against the combined visible set of `type + attributes`.
+Ability filters match against the combined visible set of `unitClassTag + attributes`.
 
-Combined Arms style logic counts distinct friendly primary `type` values only.
+Combined Arms style logic counts distinct friendly primary `unitClassTag` values only.
 
 ### Catalog
 
 `src/engine/unitCatalog.ts` defines:
 
 - abilities
-- unit types
-- factions
-- faction upgrades
-- troop-type upgrades
+- unit classes
+- races
+- race upgrades
+- troop-class upgrades
 - battle mutators
 
 The catalog is declarative. Composition happens in engine helpers:
 
-- `composeBaseTroopDefinition()`: unit type + faction adjustments, including resolved cost and derived quantity
-- `resolveTroopCombatant()`: player troop with faction and troop-type upgrades applied
+- `composeBaseTroopDefinition()`: unit class + race adjustments, including resolved cost and derived quantity
+- `resolveTroopCombatant()`: player troop with race and troop-class upgrades applied
 - `resolveEnemyCombatant()`: enemy troop with tier scaling applied
 
 Important current catalog rules:
 
 - troop quantity is derived as `120 / resolved cost`
 - only Goblins modify cost, at `cost x 0.5`
-- each faction has a native recruit pool; only unlocked factions' native rosters are claimable in normal troop drafts
-- off-roster `faction/unitType` combinations defeated in Rifts are recorded as latent future unlocks, and become claimable only after their faction is unlocked
-- enemies can still roll any non-summoned `faction/unitType` combination
-- stat upgrades, blueprints, and faction-unlock purchases no longer exist
-- the Soldier upgrade `Just a bunch of guys` is removed
+- each race has a native recruit pool; only unlocked races' native rosters are claimable in normal troop drafts
+- off-roster `race/unitClass` combinations defeated in Rifts are recorded as latent future unlocks, and become claimable only after their race is unlocked
+- enemies can still roll any non-summoned `race/unitClass` combination
+- stat upgrades, blueprints, and race-unlock purchases no longer exist
 - Rift mutators are currently `momentum`, `haze`, `heavy-air`, `animated`, `corrosion`, `quakes`, and `decay`
 
 ### Campaign state
@@ -144,16 +143,16 @@ Important current catalog rules:
 - `phase`
 - `essence`
 - `victoryPoints`
-- `unlockedFactionIds`
+- `unlockedRaceIds`
 - `unlockedTroopUnlockIds`
 - `recentTroopUnlockIds`
 - `troops`
-- `factionUpgradeIds`
-- `troopTypeUpgradeIds`
+- `raceUpgradeIds`
+- `troopClassUpgradeIds`
 - `activeTroopOffer`
 - `activeUpgradeOffer`
-- `activeFactionUnlockOffer`
-- `activeTroopTypeUnlockOffer`
+- `activeRaceUnlockOffer`
+- `activeTroopClassUnlockOffer`
 - `troopOfferRolls`
 - `upgradeOfferRolls`
 - `postgameDismissed`
@@ -165,8 +164,8 @@ Important current catalog rules:
 `TroopInstance` is intentionally minimal:
 
 - `id`
-- `factionId`
-- `unitTypeId`
+- `raceId`
+- `unitClassId`
 - `recoveryCyclesRemaining`
 - `assignmentRiftId`
 
@@ -180,35 +179,35 @@ Troop and upgrade offers are revealed together as one Essence draft in normal pl
 
 Troop offer candidates are limited to:
 
-- native troop combinations for already-unlocked factions
-- Rift-earned off-roster combinations whose faction is already unlocked
-- combinations that keep the roster assignable: after the pick, no owned faction or unit type may have more troops than there are currently discovered Rifts
+- native troop combinations for already-unlocked races
+- Rift-earned off-roster combinations whose race is already unlocked
+- combinations that keep the roster assignable: after the pick, no owned race or troop class may have more troops than there are currently discovered Rifts
 
-Rift-earned combinations for locked factions stay latent. They are shown on that faction's scheduled unlock option and can be chosen during that faction's immediate troop-type unlock flow.
+Rift-earned combinations for locked races stay latent. They are shown on that race's scheduled unlock option and can be chosen during that race's immediate troop-class unlock flow.
 
 Troop offer buckets:
 
-1. a troop from an owned faction
-2. a troop of an owned unit type
-3. a troop newly enabled by the previous cycle's victorious Rifts for an owned faction, then another troop from an owned faction
+1. a troop from an owned race
+2. a troop of an owned troop class
+3. a troop newly enabled by the previous cycle's victorious Rifts for an owned race, then another troop from an owned race
 
-Native faction troops are always valid offer candidates.
+Native race troops are always valid offer candidates.
 
-Off-roster troop combinations only join the candidate pool after the player unlocks them through Rift victories and owns their faction.
+Off-roster troop combinations only join the candidate pool after the player unlocks them through Rift victories and owns their race.
 
 If the third troop bucket is empty, it falls back to any remaining claimable troop.
 
 Upgrade offer buckets:
 
-1. a troop-type upgrade for an owned unit type
-2. a faction upgrade for an owned faction
-3. a random upgrade affecting a random allied troop among those with the fewest existing faction-plus-type upgrades affecting them
+1. a troop-class upgrade for an owned troop class
+2. a race upgrade for an owned race
+3. a random upgrade affecting a random allied troop among those with the fewest existing race-plus-class upgrades affecting them
 
 If a bucket is empty, the picker falls back to any remaining unowned option.
 
 ## Current Implemented Content
 
-### Factions
+### Races
 
 - `human`
 - `elf`
@@ -218,7 +217,7 @@ If a bucket is empty, the picker falls back to any remaining unowned option.
 - `orc`
 - `fae`
 
-### Unit types
+### Unit Classes
 
 - `soldier`
 - `champion`
@@ -335,12 +334,12 @@ Battles stop on elimination or at `MAX_BEATS = 1000`, then resolve to `victory`,
 `startOfBattle` abilities fire in two explicit phases before the first beat:
 
 Phase 1 - army composition checks:
-Abilities whose trigger has `condition` or `repeatPerDistinctFriendlyTroopType`. These need to see the placed army before any summon changes it.
+Abilities whose trigger has `condition` or `repeatPerDistinctFriendlyTroopClass`. These need to see the placed army before any summon changes it.
 
 Phase 2 - everything else:
 All remaining `startOfBattle` abilities, including summons. Newly summoned units do not receive their own `startOfBattle` triggers.
 
-Rule: any future ability that reads army composition at battle start must use `condition` or `repeatPerDistinctFriendlyTroopType` on its trigger so it lands in Phase 1 automatically.
+Rule: any future ability that reads army composition at battle start must use `condition` or `repeatPerDistinctFriendlyTroopClass` on its trigger so it lands in Phase 1 automatically.
 
 ### Replay payload
 
@@ -361,7 +360,7 @@ Battle report and campaign report modules build and validate report payloads in 
 
 ### Battle input context
 
-`BattleInput` may also carry each side's owned faction and troop-type upgrade ids alongside the resolved combatants.
+`BattleInput` may also carry each side's owned race and troop-class upgrade ids alongside the resolved combatants.
 
 The battle engine uses this for side-wide rules that must keep working for future summons even when the troop that normally grants the synergy is not present in that fight. Example: wolves summoned by Druids or Rangers can still benefit from owned wolf-synergy upgrades such as `Thrill of the Hunt`.
 
@@ -370,19 +369,19 @@ The battle engine uses this for side-wide rules that must keep working for futur
 `src/engine/game.ts` currently implements:
 
 1. Start a new run in `opening_unlock`
-2. Claim two free opening factions; each chosen faction grants its preselected native starting troop, and other native troop types remain visible as later unlock potential
+2. Claim two free opening races; each chosen race grants its preselected native starting troop, and other native unit classes remain visible as later unlock potential
 3. Enter `planning` with `2` Essence and generated cycle-1 Rifts
-4. Spend Essence to reveal combined troop and upgrade offer packs as needed; normal troop offers are limited to unlocked factions
+4. Spend Essence to reveal combined troop and upgrade offer packs as needed; normal troop offers are limited to unlocked races
 5. Claim one troop and one upgrade choice from each revealed combined draft
 6. Assign every ready, non-occupying troop to discovered Rifts
 7. Resolve every discovered Rift that has assigned troops
 8. Apply recovery, archive replay inputs, award VP only on victories, and grant `+2` Essence for the next cycle
 9. Generate the next cycle's Rifts
-10. At the start of cycle 3, enter a scheduled faction unlock: choose up to 3 still-locked factions, each shown with native troops, latent defeated-enemy future troop unlocks, 1 preselected faction upgrade, and 2 preselected troop type unlocks from that faction's native-plus-latent pool
-11. At the start of cycle 7, repeat the scheduled faction unlock with 2 preselected faction upgrades and 3 preselected troop type unlocks from the same native-plus-latent pool
+10. At the start of cycle 3, enter a scheduled race unlock: choose up to 3 still-locked races, each shown with native troops, latent defeated-enemy future troop unlocks, 1 preselected race upgrade, and 2 preselected troop class unlocks from that race's native-plus-latent pool
+11. At the start of cycle 7, repeat the scheduled race unlock with 2 preselected race upgrades and 3 preselected troop class unlocks from the same native-plus-latent pool
 12. After cycle 10 resolves, enter `game_over` once for that run
 
-Assignment rule: no more than one troop of a given faction can enter the same Rift unless that faction has `United`, and no more than one troop of a given unit type can enter the same Rift.
+Assignment rule: no more than one troop of a given race can enter the same Rift unless that race has `United`, and no more than one troop of a given troop class can enter the same Rift.
 
 Important current rule: every ready troop that is not already occupying a Contest Rift must be assigned before ending the cycle. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer readiness can be submitted.
 
@@ -411,12 +410,12 @@ Base recovery is now:
 `src/engine/ladder.ts` owns the pure Ladder data boundary:
 
 - compact `LadderRiftSetPayload` validation
-- compatibility issue generation for unknown factions, unit types, upgrades, mutators, invalid cycles, invalid numeric fields, and missing Guardians
+- compatibility issue generation for unknown races, unit classes, upgrades, mutators, invalid cycles, invalid numeric fields, and missing Guardians
 - conversion from valid compact Rift-sets into playable `RiftInstance[]`
 - conversion from generated Campaign-style Rifts into compact baseline payloads
 - harvested payload creation after a completed Ladder Cycle
 
-Ladder payloads store Guardian troop identities plus faction and troop-type upgrade snapshots. They do not store baked combat stats. When a Ladder Rift-set is converted back to `RiftInstance[]`, Guardians are resolved through the normal engine composition path so catalog rules remain centralized.
+Ladder payloads store Guardian troop identities plus race and troop-class upgrade snapshots. They do not store baked combat stats. When a Ladder Rift-set is converted back to `RiftInstance[]`, Guardians are resolved through the normal engine composition path so catalog rules remain centralized.
 
 The engine remains pure TypeScript. It does not import fetch, Svelte stores, DOM APIs, server modules, or Postgres code.
 
@@ -477,7 +476,7 @@ Current tests cover:
 
 - battle determinism
 - troop composition and derived quantity
-- faction and troop-type upgrade resolution
+- race and troop-class upgrade resolution
 - Rift generation and VP rewards
 - campaign flow and draft offer logic
 - replay navigation

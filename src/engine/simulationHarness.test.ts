@@ -6,7 +6,7 @@ import {
   countRoleIntentSteps,
   createCatalogTroopCombatant,
   createSeedRange,
-  createUnitTypeCombatant,
+  createUnitClassCombatant,
   extractSimulationMetrics,
   findFirstRoleIntentBeat,
   runBattleWithMetrics,
@@ -38,8 +38,8 @@ describe('simulationHarness builders', () => {
     expect(Math.abs(bundle.leftInstances * 35 - bundle.rightInstances * 12)).toBeLessThanOrEqual(1);
   });
 
-  it('creates unit-type combatants from raw unit stats instead of composed faction stats', () => {
-    const archer = createUnitTypeCombatant('archer', {
+  it('creates unit-class combatants from raw unit stats instead of composed race stats', () => {
+    const archer = createUnitClassCombatant('archer', {
       side: 'player',
     });
 

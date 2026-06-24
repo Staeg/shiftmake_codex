@@ -3,7 +3,7 @@ import { basename, dirname, join } from 'node:path';
 import { ABILITIES } from '../src/engine/unitCatalog';
 import manifest from '../assets/icons/icon-manifest.generated.json';
 
-type IconKind = 'ability' | 'faction_upgrade' | 'troop_type_upgrade' | 'rift_mutator';
+type IconKind = 'ability' | 'race_upgrade' | 'troop_class_upgrade' | 'rift_mutator';
 type IconEffectKind = 'blast' | 'bolster' | 'haste' | 'heal' | 'ramp' | 'strike' | 'summon' | 'redirect';
 
 interface IconManifestItem {
@@ -33,7 +33,7 @@ function ensureDir(path: string): void {
 }
 
 function stripKnownPrefix(kind: IconKind, slug: string): string {
-  if (kind === 'faction_upgrade' || kind === 'troop_type_upgrade') {
+  if (kind === 'race_upgrade' || kind === 'troop_class_upgrade') {
     return slug.replace(/^[a-z]+-/, '');
   }
   return slug.replace(/-\d+$/, '');

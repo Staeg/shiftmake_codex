@@ -54,7 +54,7 @@ python scripts/sprite_make_edit_canvas.py soldier
 python scripts/sprite_finalize_static.py soldier --input tmp/sprites/soldier/raw.png
 ```
 
-4. Review the final output in [`assets/new_sprites/unit sprites`](C:/Users/staeg/shiftmake%20-%20Codex/assets/new_sprites/unit%20sprites) and compare it against the original sprite plus faction-tinted mockups before approving it for runtime use.
+4. Review the final output in [`assets/new_sprites/unit sprites`](C:/Users/staeg/shiftmake%20-%20Codex/assets/new_sprites/unit%20sprites) and compare it against the original sprite plus race-tinted mockups before approving it for runtime use.
 
 5. Repeat for the rest of the unit roster.
 

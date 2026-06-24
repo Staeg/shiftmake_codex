@@ -1,50 +1,50 @@
-import { applyStatModifier, composeBaseTroopDefinition, FACTION_UPGRADES, getAbility, getFactionNativeTroopUnlockIds, TROOP_TYPE_UPGRADES } from './unitCatalog';
-import type { AbilityId, FactionId, GameState, TroopInstance, TroopUnlockId, UpgradeId } from './types';
+import { applyStatModifier, composeBaseTroopDefinition, RACE_UPGRADES, getAbility, getRaceNativeTroopUnlockIds, TROOP_CLASS_UPGRADES } from './unitCatalog';
+import type { AbilityId, RaceId, GameState, TroopInstance, TroopUnlockId, UpgradeId } from './types';
 
 export function getAllUpgradeIds(): UpgradeId[] {
-  return [...Object.keys(FACTION_UPGRADES), ...Object.keys(TROOP_TYPE_UPGRADES)];
+  return [...Object.keys(RACE_UPGRADES), ...Object.keys(TROOP_CLASS_UPGRADES)];
 }
 
-export function getUnownedUpgradeIds(state: Pick<GameState, 'factionUpgradeIds' | 'troopTypeUpgradeIds'>): UpgradeId[] {
+export function getUnownedUpgradeIds(state: Pick<GameState, 'raceUpgradeIds' | 'troopClassUpgradeIds'>): UpgradeId[] {
   return getAllUpgradeIds().filter(
-    (upgradeId) => !state.factionUpgradeIds.includes(upgradeId) && !state.troopTypeUpgradeIds.includes(upgradeId),
+    (upgradeId) => !state.raceUpgradeIds.includes(upgradeId) && !state.troopClassUpgradeIds.includes(upgradeId),
   );
 }
 
-export function getClaimableTroopUnlockIds(state: Pick<GameState, 'unlockedFactionIds' | 'unlockedTroopUnlockIds'>): TroopUnlockId[] {
-  const unlockedFactionIds = new Set(state.unlockedFactionIds);
-  const nativeTroopUnlockIds = state.unlockedFactionIds.flatMap((factionId) => getFactionNativeTroopUnlockIds(factionId));
+export function getClaimableTroopUnlockIds(state: Pick<GameState, 'unlockedRaceIds' | 'unlockedTroopUnlockIds'>): TroopUnlockId[] {
+  const unlockedRaceIds = new Set(state.unlockedRaceIds);
+  const nativeTroopUnlockIds = state.unlockedRaceIds.flatMap((raceId) => getRaceNativeTroopUnlockIds(raceId));
   const latentTroopUnlockIds = state.unlockedTroopUnlockIds.filter((troopUnlockId) => {
-    const [factionId] = troopUnlockId.split('/') as [FactionId, string];
-    return unlockedFactionIds.has(factionId);
+    const [raceId] = troopUnlockId.split('/') as [RaceId, string];
+    return unlockedRaceIds.has(raceId);
   });
 
   return [...new Set([...nativeTroopUnlockIds, ...latentTroopUnlockIds])];
 }
 
 export function getOwnedTroopUnlockIds(state: Pick<GameState, 'troops'>): TroopUnlockId[] {
-  return state.troops.map((troop) => `${troop.factionId}/${troop.unitTypeId}`);
+  return state.troops.map((troop) => `${troop.raceId}/${troop.unitClassId}`);
 }
 
 export function getAvailableTroopUnlockIds(
-  state: Pick<GameState, 'troops' | 'unlockedFactionIds' | 'unlockedTroopUnlockIds'>,
+  state: Pick<GameState, 'troops' | 'unlockedRaceIds' | 'unlockedTroopUnlockIds'>,
 ): TroopUnlockId[] {
   const ownedTroopUnlockIds = new Set(getOwnedTroopUnlockIds(state));
   return getClaimableTroopUnlockIds(state).filter((troopUnlockId) => !ownedTroopUnlockIds.has(troopUnlockId));
 }
 
 export function describeTroopUnlock(troopUnlockId: TroopUnlockId): string {
-  const [factionId, unitTypeId] = troopUnlockId.split('/') as [FactionId, string];
-  return composeBaseTroopDefinition(factionId, unitTypeId).label;
+  const [raceId, unitClassId] = troopUnlockId.split('/') as [RaceId, string];
+  return composeBaseTroopDefinition(raceId, unitClassId).label;
 }
 
 function hasRangedOrCasterTag(troop: TroopInstance): boolean {
-  const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+  const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
   return definition.attributes.includes('ranged') || definition.attributes.includes('caster');
 }
 
 function canAbilityAffectTroop(abilityId: AbilityId, troop: TroopInstance): boolean {
-  const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+  const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
   if (abilityId === 'fade-into-shadow') {
     return definition.role === 'backline';
   }
@@ -54,13 +54,13 @@ function canAbilityAffectTroop(abilityId: AbilityId, troop: TroopInstance): bool
   return true;
 }
 
-function factionUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
-  const upgrade = FACTION_UPGRADES[upgradeId];
-  if (!upgrade || upgrade.factionId !== troop.factionId) {
+function raceUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
+  const upgrade = RACE_UPGRADES[upgradeId];
+  if (!upgrade || upgrade.raceId !== troop.raceId) {
     return false;
   }
 
-  const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+  const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
   return upgrade.effects.some((effect) => {
     if (effect.kind === 'addAbility') {
       return canAbilityAffectTroop(effect.abilityId, troop) && !definition.abilities.some((ability) => ability.id === getAbility(effect.abilityId).id);
@@ -79,13 +79,13 @@ function factionUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance):
   });
 }
 
-function troopTypeUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
-  const upgrade = TROOP_TYPE_UPGRADES[upgradeId];
-  if (!upgrade || upgrade.unitTypeId !== troop.unitTypeId) {
+function troopClassUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
+  const upgrade = TROOP_CLASS_UPGRADES[upgradeId];
+  if (!upgrade || upgrade.unitClassId !== troop.unitClassId) {
     return false;
   }
 
-  const definition = composeBaseTroopDefinition(troop.factionId, troop.unitTypeId);
+  const definition = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
   return upgrade.effects.some((effect) => {
     if (effect.kind === 'addAbility') {
       return !definition.abilities.some((ability) => ability.id === getAbility(effect.abilityId).id);
@@ -106,8 +106,8 @@ function troopTypeUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance
 }
 
 export function upgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
-  if (upgradeId in FACTION_UPGRADES) {
-    return factionUpgradeAffectsTroop(upgradeId, troop);
+  if (upgradeId in RACE_UPGRADES) {
+    return raceUpgradeAffectsTroop(upgradeId, troop);
   }
-  return troopTypeUpgradeAffectsTroop(upgradeId, troop);
+  return troopClassUpgradeAffectsTroop(upgradeId, troop);
 }

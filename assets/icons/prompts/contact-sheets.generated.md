@@ -422,7 +422,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of battle: if no other friendly troop types are present, gain 80% health, damage, and speed.",
+    "mechanic": "Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and speed.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -675,7 +675,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop type in this battle.",
+    "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop class in this battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1130,7 +1130,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Overworld: troops of this faction may enter the same Rift together.",
+    "mechanic": "Overworld: troops of this race may enter the same Rift together.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1208,7 +1208,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Dwarves
+## race_upgrade/Dwarves
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1219,12 +1219,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "dwarf-diggy-hole",
     "name": "Diggy Hole",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 1,
     "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "dwarves",
       "movement"
     ]
@@ -1232,12 +1232,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "dwarf-ale-and-hearty",
     "name": "Ale and Hearty",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 2,
     "mechanic": "Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "dwarves",
       "speed"
     ]
@@ -1245,12 +1245,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "dwarf-stall-warts",
     "name": "Stall Warts",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 3,
     "mechanic": "Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "dwarves",
       "armor",
       "speed",
@@ -1261,7 +1261,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Elves
+## race_upgrade/Elves
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1272,12 +1272,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "elf-elven-reflexes",
     "name": "Elven Reflexes",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Elves",
     "tier": 1,
     "mechanic": "All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "elves",
       "ranged",
       "melee",
@@ -1287,12 +1287,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "elf-silvershot-doctrine",
     "name": "Silvershot Doctrine",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Elves",
     "tier": 2,
     "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "elves",
       "damage",
       "initiative",
@@ -1303,12 +1303,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "elven-forsaken",
     "name": "Elven Forsaken",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Elves",
     "tier": 3,
-    "mechanic": "Start of battle: if an elven unit is fighting without any other friendly troop types, it gains +80% health, +80% damage, and +80% speed.",
+    "mechanic": "Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "elves",
       "damage",
       "speed",
@@ -1319,7 +1319,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Fae
+## race_upgrade/Fae
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1330,12 +1330,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "fae-glamour",
     "name": "Glamour",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Fae",
     "tier": 2,
     "mechanic": "Once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range as if the Fae unit made that attack.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "fae",
       "damage",
       "ranged",
@@ -1345,12 +1345,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "fae-changeling",
     "name": "Changeling",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Fae",
     "tier": 3,
     "mechanic": "If a Fae troop was brought to battle, after beat 12 a random enemy unit from each enemy troop changes sides.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "fae",
       "initiative",
       "summon",
@@ -1360,12 +1360,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "fae-whimsy",
     "name": "Whimsy",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Fae",
     "tier": 3,
     "mechanic": "Whenever a Fae unit takes damage, it is relocated to a random hex.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "fae",
       "damage",
       "movement"
@@ -1374,7 +1374,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Goblins
+## race_upgrade/Goblins
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1385,12 +1385,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "goblin-behavior",
     "name": "Goblin Behavior",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Goblins",
     "tier": 1,
     "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "goblins",
       "damage",
       "initiative",
@@ -1401,12 +1401,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "goblin-pack",
     "name": "Goblin Pack",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Goblins",
     "tier": 2,
     "mechanic": "Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "goblins",
       "damage",
       "initiative",
@@ -1416,12 +1416,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "goblin-loot-frenzy",
     "name": "Loot Frenzy",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Goblins",
     "tier": 3,
     "mechanic": "When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "goblins",
       "damage",
       "initiative",
@@ -1431,7 +1431,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Humans
+## race_upgrade/Humans
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1442,12 +1442,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "human-tubthumping",
     "name": "Tubthumping",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Humans",
     "tier": 1,
     "mechanic": "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "humans",
       "damage",
       "speed",
@@ -1458,12 +1458,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "human-hold-the-standard",
     "name": "Hold the Standard",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Humans",
     "tier": 2,
     "mechanic": "Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "humans",
       "healing",
       "corpse"
@@ -1472,12 +1472,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "human-combined-arms",
     "name": "Human Combined Arms",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Humans",
     "tier": 2,
-    "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop type in that battle.",
+    "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "humans",
       "damage",
       "speed",
@@ -1488,7 +1488,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Orcs
+## race_upgrade/Orcs
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1499,12 +1499,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "orc-seeing-red",
     "name": "Seeing Red",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Orcs",
     "tier": 1,
     "mechanic": "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "orcs",
       "damage",
       "armor",
@@ -1516,12 +1516,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "orc-first-blood",
     "name": "First Blood",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Orcs",
     "tier": 2,
     "mechanic": "Orc units attack their target whenever they engage, in addition to the normal engagement attack.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "orcs",
       "damage",
       "melee"
@@ -1530,12 +1530,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "orc-berserk",
     "name": "Berserk",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Orcs",
     "tier": 3,
     "mechanic": "When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "orcs",
       "damage",
       "initiative",
@@ -1546,7 +1546,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## faction_upgrade/Trolls
+## race_upgrade/Trolls
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1557,12 +1557,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "troll-roll-the-boulder",
     "name": "Roll the Boulder",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Trolls",
     "tier": 1,
     "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "trolls",
       "damage",
       "initiative",
@@ -1572,12 +1572,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "troll-mossblood",
     "name": "Mossblood",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Trolls",
     "tier": 2,
     "mechanic": "The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "trolls",
       "damage",
       "healing",
@@ -1589,12 +1589,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "troll-rowdy-regrowth",
     "name": "Rowdy Regrowth",
-    "kind": "faction_upgrade",
+    "kind": "race_upgrade",
     "owner": "Trolls",
     "tier": 2,
     "mechanic": "Whenever a Troll is healed, it gains 20 initiative.",
     "gameplayTags": [
-      "faction-upgrade",
+      "race-upgrade",
       "trolls",
       "initiative",
       "healing"
@@ -1706,7 +1706,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Archer
+## troop_class_upgrade/Archer
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1717,12 +1717,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "archer-crippling-shots",
     "name": "Crippling Shots",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Archer",
     "tier": 3,
     "mechanic": "On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "archer",
       "damage",
       "armor",
@@ -1735,7 +1735,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Avenger
+## troop_class_upgrade/Avenger
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1746,12 +1746,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "avenger-sevenfold",
     "name": "Sevenfold",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Avenger",
     "tier": 2,
     "mechanic": "Whenever a nearby unit leaves a corpse, each Avenger may consume it to summon a skeleton there, up to 7 times per battle.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "avenger",
       "summon",
       "corpse"
@@ -1760,12 +1760,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "avenger-witness",
     "name": "Witness",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Avenger",
     "tier": 3,
     "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "avenger",
       "initiative",
       "corpse"
@@ -1774,7 +1774,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Beastmaster
+## troop_class_upgrade/Beastmaster
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1785,12 +1785,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "beastmaster-bloodhounds",
     "name": "Bloodhounds",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Beastmaster",
     "tier": 3,
     "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "beastmaster",
       "damage",
       "initiative",
@@ -1804,12 +1804,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "beastmaster-thrill-of-the-hunt",
     "name": "Thrill of the Hunt",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Beastmaster",
     "tier": 3,
     "mechanic": "End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "beastmaster",
       "damage",
       "initiative",
@@ -1819,7 +1819,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Champion
+## troop_class_upgrade/Champion
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1830,12 +1830,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "champion-anointed-executioner",
     "name": "Anointed Executioner",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Champion",
     "tier": 3,
     "mechanic": "Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "champion",
       "damage",
       "healing"
@@ -1844,7 +1844,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Druid
+## troop_class_upgrade/Druid
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1855,12 +1855,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "druid-true-form",
     "name": "True Form",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Druid",
     "tier": 2,
     "mechanic": "Druid's Shapeshift can now trigger an additional time.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "druid",
       "damage",
       "speed",
@@ -1872,12 +1872,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "druid-ents-visage",
     "name": "Ent's Visage",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Druid",
     "tier": 3,
     "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "druid",
       "damage",
       "speed",
@@ -1888,12 +1888,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "druid-forest-friends",
     "name": "Forest Friends",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Druid",
     "tier": 3,
     "mechanic": "End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "druid",
       "initiative",
       "healing",
@@ -1904,7 +1904,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Elementalist
+## troop_class_upgrade/Elementalist
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1915,12 +1915,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "elementalist-crackling-mitosis",
     "name": "Crackling Mitosis",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Elementalist",
     "tier": 3,
     "mechanic": "When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "elementalist",
       "damage",
       "summon",
@@ -1932,12 +1932,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "elementalist-living-circuit",
     "name": "Living Circuit",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Elementalist",
     "tier": 3,
     "mechanic": "End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "elementalist",
       "initiative",
       "summon",
@@ -1948,7 +1948,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Knight
+## troop_class_upgrade/Knight
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -1959,12 +1959,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "knight-dine-in-hell",
     "name": "Dine in Hell",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Knight",
     "tier": 3,
     "mechanic": "Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "knight",
       "damage",
       "armor",
@@ -1976,12 +1976,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "knight-sentinel-runes",
     "name": "Sentinel Runes",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Knight",
     "tier": 3,
     "mechanic": "The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "knight",
       "summon",
       "corpse",
@@ -1991,7 +1991,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Militia
+## troop_class_upgrade/Militia
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2002,12 +2002,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "militia-dogpile",
     "name": "Dogpile",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Militia",
     "tier": 3,
     "mechanic": "When Militia attack an enemy engaged by at least 3 allies, they strike 1 extra time.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "militia",
       "damage",
       "melee"
@@ -2016,12 +2016,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "militia-rat-behavior",
     "name": "Rat Behavior",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Militia",
     "tier": 3,
     "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia touching them.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "militia",
       "initiative",
       "synergy"
@@ -2030,7 +2030,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Necromancer
+## troop_class_upgrade/Necromancer
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2041,12 +2041,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "necromancer-explosion-corpse",
     "name": "Explosion Corpse",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Necromancer",
     "tier": 3,
     "mechanic": "Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "necromancer",
       "damage",
       "armor",
@@ -2061,12 +2061,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "necromancer-hemomancy",
     "name": "Hemomancy",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Necromancer",
     "tier": 3,
     "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "necromancer",
       "damage",
       "initiative",
@@ -2078,7 +2078,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Priest
+## troop_class_upgrade/Priest
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2089,12 +2089,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "priest-bolstering-light",
     "name": "Bolstering Light",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Priest",
     "tier": 3,
     "mechanic": "When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "priest",
       "damage",
       "speed",
@@ -2105,12 +2105,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "priest-mercy-before-dawn",
     "name": "Mercy Before Dawn",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Priest",
     "tier": 3,
     "mechanic": "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "priest",
       "healing",
       "corpse",
@@ -2122,7 +2122,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Ranger
+## troop_class_upgrade/Ranger
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2133,12 +2133,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "ranger-on-the-hunt",
     "name": "On the Hunt",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Ranger",
     "tier": 3,
     "mechanic": "On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "ranger",
       "damage",
       "initiative",
@@ -2151,12 +2151,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "ranger-shadows-embrace",
     "name": "Shadow's Embrace",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Ranger",
     "tier": 3,
     "mechanic": "After attacking, Rangers move to the safest hex that still keeps an enemy in range. Ranger attacks against unengaged targets deal double damage.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "ranger",
       "damage",
       "ranged",
@@ -2167,7 +2167,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Shaman
+## troop_class_upgrade/Shaman
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2178,12 +2178,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "shaman-war-drums",
     "name": "War Drums",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Shaman",
     "tier": 2,
     "mechanic": "Enhance 1 affects all allies on the chosen ally hex instead of one random ally.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "shaman",
       "initiative",
       "synergy"
@@ -2192,12 +2192,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "shaman-grave-vigor",
     "name": "Grave Vigor",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Shaman",
     "tier": 3,
     "mechanic": "Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death, gains 1 extra strike on its next normal attack if the effect was Enhance, and then ignores future beneficial effects and targeting from units with Grave Vigor.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "shaman",
       "damage",
       "summon",
@@ -2207,7 +2207,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Soldier
+## troop_class_upgrade/Soldier
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2218,12 +2218,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "soldier-shield-drill",
     "name": "Shield Drill",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Soldier",
     "tier": 3,
     "mechanic": "Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "soldier",
       "damage",
       "armor",
@@ -2235,7 +2235,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ]
 ```
 
-## troop_type_upgrade/Wizard
+## troop_class_upgrade/Wizard
 
 Generate a contact sheet of separate square icons for the following Shiftmake mechanics. Use the shared style bible. Do not put text, labels, letters, or numbers inside the icons.
 
@@ -2246,12 +2246,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "wizard-spell-echo",
     "name": "Spell Echo",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Wizard",
     "tier": 2,
     "mechanic": "Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "wizard",
       "damage",
       "ranged"
@@ -2260,12 +2260,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
   {
     "id": "wizard-storm-rods",
     "name": "Storm Rods",
-    "kind": "troop_type_upgrade",
+    "kind": "troop_class_upgrade",
     "owner": "Wizard",
     "tier": 3,
     "mechanic": "Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.",
     "gameplayTags": [
-      "troop-type-upgrade",
+      "troop-class-upgrade",
       "wizard",
       "damage",
       "initiative",
