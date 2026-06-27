@@ -1,0 +1,106 @@
+import { resolveBattle } from "./battle";
+import { decodeBase64Url, encodeBase64Url, hashString, stableStringify } from "../shared/reportEncoding";
+const REPORT_PREFIX = "SMBR1.";
+const REPORT_VERSION = 1;
+const APP_VERSION = "0.1.0";
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function hasBattleInput(value) {
+  if (!isObject(value)) {
+    return false;
+  }
+  return typeof value.seed === "number" && Array.isArray(value.mutatorIds) && Array.isArray(value.playerCombatants) && Array.isArray(value.enemyCombatants);
+}
+function buildBattleReportPayload(options) {
+  const currentStep = typeof options.currentStep === "number" && options.currentStep >= 0 ? Math.min(Math.floor(options.currentStep), options.replay.steps.length - 1) : void 0;
+  const reportBase = stableStringify({
+    input: options.replayPayload.input,
+    currentStep: currentStep ?? null,
+    diagnostics: options.diagnostics ?? []
+  });
+  const reportId = `br-${hashString(reportBase)}`;
+  return {
+    version: REPORT_VERSION,
+    reportId,
+    createdAt: options.createdAt ?? (/* @__PURE__ */ new Date()).toISOString(),
+    app: {
+      name: "shiftmake",
+      version: APP_VERSION,
+      ...options.buildMode ? { buildMode: options.buildMode } : {}
+    },
+    replay: options.replayPayload,
+    summary: {
+      replayId: options.replay.id,
+      riftId: options.replay.riftId,
+      seed: options.replay.seed,
+      tier: options.replay.tier,
+      cycleNumber: options.replayIndexEntry?.cycleNumber ?? null,
+      outcome: options.replay.outcome,
+      playerTroopLabels: [...options.replay.summary.playerTroops],
+      enemyTroopLabels: [...options.replay.summary.enemyTroops],
+      mutatorIds: [...options.replay.mutatorIds],
+      stepCount: options.replay.steps.length,
+      ...currentStep !== void 0 ? { currentStep } : {}
+    },
+    diagnostics: options.diagnostics ? [...options.diagnostics] : []
+  };
+}
+function encodeBattleReport(payload) {
+  return `${REPORT_PREFIX}${encodeBase64Url(JSON.stringify(payload))}`;
+}
+function decodeBattleReport(value) {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith(REPORT_PREFIX)) {
+    return { ok: false, error: "invalid_prefix" };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(decodeBase64Url(trimmed.slice(REPORT_PREFIX.length)));
+  } catch {
+    return { ok: false, error: "invalid_json" };
+  }
+  if (!isObject(parsed)) {
+    return { ok: false, error: "invalid_shape" };
+  }
+  if (parsed.version !== REPORT_VERSION) {
+    return { ok: false, error: "unsupported_version" };
+  }
+  const replay = parsed.replay;
+  if (!isObject(replay) || replay.version !== 1 || !hasBattleInput(replay.input)) {
+    return { ok: false, error: "invalid_shape" };
+  }
+  const summary = parsed.summary;
+  if (!isObject(summary) || typeof summary.replayId !== "string" || typeof summary.stepCount !== "number") {
+    return { ok: false, error: "invalid_shape" };
+  }
+  if (typeof parsed.reportId !== "string" || typeof parsed.createdAt !== "string" || !Array.isArray(parsed.diagnostics)) {
+    return { ok: false, error: "invalid_shape" };
+  }
+  return { ok: true, payload: parsed };
+}
+function replayFromBattleReport(payload) {
+  return resolveBattle(payload.replay.input);
+}
+function battleReportDecodeErrorMessage(error) {
+  switch (error) {
+    case "invalid_prefix":
+      return "Battle report must start with SMBR1.";
+    case "invalid_json":
+      return "Battle report data could not be decoded.";
+    case "unsupported_version":
+      return "This battle report version is not supported by this build.";
+    case "invalid_shape":
+      return "Battle report is missing required battle input data.";
+    default:
+      return "Battle report could not be imported.";
+  }
+}
+export {
+  battleReportDecodeErrorMessage,
+  buildBattleReportPayload,
+  decodeBattleReport,
+  encodeBattleReport,
+  replayFromBattleReport
+};
+//# sourceMappingURL=battleReport.js.map

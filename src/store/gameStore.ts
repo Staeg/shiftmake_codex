@@ -75,7 +75,6 @@ import {
   writeSlotReplay,
 } from './saveSlots';
 import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
-import { describeTroopUnlock } from '../engine/upgrades';
 import { buildContestMultiplayerSubmission, DEFAULT_CONTEST_PLAYER_NAMES } from '../engine/multiplayerContest';
 import { buildContestAiPlanKey, type ContestAiWorkerResponse } from './contestAiPlanner';
 import {
@@ -432,18 +431,6 @@ function buildEndCycleWarning(hasNoAssignments: boolean, hasHoldingOnly: boolean
   return 'You still have unspent Essence. End the cycle anyway?';
 }
 
-function buildUnlockedTroopMessage(troopUnlockIds: string[]): string | null {
-  if (troopUnlockIds.length === 0) {
-    return null;
-  }
-
-  if (troopUnlockIds.length === 1) {
-    return `New troop unlock available: ${describeTroopUnlock(troopUnlockIds[0])}.`;
-  }
-
-  return `New troop unlocks available: ${troopUnlockIds.map((troopUnlockId) => describeTroopUnlock(troopUnlockId)).join(', ')}.`;
-}
-
 function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState, resolution: CycleResolution, activeSlotId: SaveSlotId): StoreState {
   const applied = applyCycleOutcomes(sourceGame, resolution);
   applied.replayPayloadDeletes.forEach((entry) => removeSlotReplay(localStorage, activeSlotId, entry.replayId));
@@ -458,21 +445,16 @@ function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState
       ? { ...applied.nextState, replayIndex: replayWriteResult.replayIndex }
       : applied.nextState;
 
-  const unlockedTroopMessage = buildUnlockedTroopMessage(applied.newlyUnlockedTroopUnlockIds);
-  let systemMessage: string | null = unlockedTroopMessage;
+  let systemMessage: string | null = null;
   if (replayWriteResult.failedReplayIds.size > 0) {
-    systemMessage = unlockedTroopMessage
-      ? `${unlockedTroopMessage} Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.`
-      : 'Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.';
+    systemMessage = 'Cycle ended, but replay storage is full. Some archived battles were saved as summaries only.';
   } else if (replayWriteResult.evictedReplayIds.length > 0) {
     systemMessage =
       replayWriteResult.evictedReplayIds.length === 1
-        ? `${unlockedTroopMessage ? `${unlockedTroopMessage} ` : ''}Replay storage was full, so the oldest saved battle was reduced to a summary to keep the latest replay.`
-        : `${unlockedTroopMessage ? `${unlockedTroopMessage} ` : ''}Replay storage was full, so ${replayWriteResult.evictedReplayIds.length} older saved battles were reduced to summaries to keep the latest replays.`;
+        ? 'Replay storage was full, so the oldest saved battle was reduced to a summary to keep the latest replay.'
+        : `Replay storage was full, so ${replayWriteResult.evictedReplayIds.length} older saved battles were reduced to summaries to keep the latest replays.`;
   } else if (replayWriteResult.quotaExceeded) {
-    systemMessage = unlockedTroopMessage
-      ? `${unlockedTroopMessage} Replay storage is nearly full, but the newest battle was saved.`
-      : 'Replay storage is nearly full, but the newest battle was saved.';
+    systemMessage = 'Replay storage is nearly full, but the newest battle was saved.';
   }
 
   return saveActiveCampaign({

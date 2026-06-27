@@ -186,7 +186,10 @@ function normalizeTroops(value: unknown, repairs: LoadGameRepairReport): TroopIn
 
 function normalizeRift(rift: RiftInstance, repairs: LoadGameRepairReport): RiftInstance {
   return {
-    ...rift,
+    id: rift.id,
+    cycleNumber: numberOr(rift.cycleNumber, 1),
+    seed: numberOr(rift.seed, 1),
+    tier: numberOr(rift.tier, 1),
     mutatorIds: arrayOrEmpty(rift.mutatorIds),
     enemyArmy: arrayOrEmpty<ResolvedCombatantDefinition>(rift.enemyArmy).filter((combatant) => {
       const known = isKnownCombatant(combatant);
@@ -195,8 +198,11 @@ function normalizeRift(rift: RiftInstance, repairs: LoadGameRepairReport): RiftI
       }
       return known;
     }),
+    enemyRaceUpgradeIds: filterKnownRaceUpgrades(arrayOrEmpty(rift.enemyRaceUpgradeIds), repairs),
+    enemyTroopClassUpgradeIds: filterKnownTroopClassUpgrades(arrayOrEmpty(rift.enemyTroopClassUpgradeIds), repairs),
     victoryPoints: numberOr(rift.victoryPoints, numberOr(rift.tier, 1)),
-    saturation: numberOr(rift.saturation, 3),
+    state: rift.state ?? 'discovered',
+    controller: rift.controller,
     occupyingPlayerId: rift.occupyingPlayerId ?? null,
     occupyingTroopIds: arrayOrEmpty(rift.occupyingTroopIds),
   };

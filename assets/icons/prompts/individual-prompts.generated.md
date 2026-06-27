@@ -1404,7 +1404,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Scurry
 Category: Ability
-Mechanic: Passive: this unit is quick and expendable; current battle legality uses footprints, not allied saturation limits.
+Mechanic: Passive: this unit is quick and expendable; current battle legality uses footprints.
 Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them.
 Visual tags: initiative, synergy
 

@@ -90,16 +90,6 @@ export function riftTierTooltip(tier: number, gameMode: GameMode): string {
   return `Tier ${tier} sets the enemy difficulty and awards ${tier} Victory Point if you win this Rift.`;
 }
 
-export function riftFitTooltip(fit: number, gameMode: GameMode): string {
-  if (gameMode === 'contest') {
-    return `Capacity ${fit} is legacy Rift pressure metadata for Contest battles here. Battles now place full unit footprints on an explicit map.`;
-  }
-  if (gameMode === 'ladder') {
-    return `Capacity ${fit} is legacy Rift pressure metadata for this Ladder battle. Battles now place full unit footprints on an explicit map.`;
-  }
-  return `Capacity ${fit} is legacy Rift pressure metadata. Battles now place full unit footprints on an explicit map.`;
-}
-
 export function formatRiftDisplayId(riftId: string): string {
   const match = /^cycle-(\d+)-rift-(\d+)$/i.exec(riftId);
   if (!match) {
@@ -285,15 +275,6 @@ export function buildRiftTierDetail(rift: RiftInstance, gameMode: GameMode): Det
     kind: 'rift',
     label: `Tier ${rift.tier}`,
     description: riftTierTooltip(rift.tier, gameMode),
-  };
-}
-
-export function buildRiftCapacityDetail(rift: RiftInstance, gameMode: GameMode): DetailCard {
-  return {
-    detailKey: `rift-capacity:${rift.id}`,
-    kind: 'rift',
-    label: `Capacity ${rift.saturation}`,
-    description: riftFitTooltip(rift.saturation, gameMode),
   };
 }
 

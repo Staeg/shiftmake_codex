@@ -775,7 +775,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints, not allied saturation limits.",
+    "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints.",
     "gameplayTags": [
       "base-ability",
       "initiative",

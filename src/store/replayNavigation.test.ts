@@ -21,7 +21,6 @@ function makeReplay(steps: BattleStep[]): BattleReplay {
     tier: null,
     mutatorIds: [],
     mapRadius: 3,
-    saturation: 1,
     initial: { units: [] },
     steps,
     outcome: 'draw',

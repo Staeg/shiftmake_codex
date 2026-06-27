@@ -36,7 +36,6 @@ function makeReplay(): BattleReplay {
     tier: 1,
     mutatorIds: [],
     mapRadius: 2,
-    saturation: 2,
     initial: { units: [playerA, playerB, enemy] },
     steps: [
       {
@@ -112,7 +111,6 @@ describe('battleRecap', () => {
       tier: 1,
       mutatorIds: [],
       mapRadius: 2,
-      saturation: 2,
       initial: { units: [playerFrontline, playerPusher, playerBackline, enemy] },
       steps: [
         {

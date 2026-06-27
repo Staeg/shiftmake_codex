@@ -32,7 +32,6 @@ function makeReplay(recordId: string, riftId: string, outcome: 'victory' | 'defe
     tier: 1,
     mutatorIds: [],
     mapRadius: 3,
-    saturation: 3,
     initial: { units: [] },
     steps: [],
     outcome,
@@ -59,7 +58,6 @@ function makeResolutionRecord(state: GameState, outcome: 'victory' | 'defeat'): 
       riftId: rift.id,
       tier: rift.tier,
       mutatorIds: rift.mutatorIds,
-      saturation: rift.saturation,
       playerCombatants: [],
       enemyCombatants: [],
     },
@@ -565,7 +563,6 @@ describe('campaign progression', () => {
             riftId: state.openRifts[0]!.id,
             tier: state.openRifts[0]!.tier,
             mutatorIds: state.openRifts[0]!.mutatorIds,
-            saturation: state.openRifts[0]!.saturation,
             playerCombatants: [],
             enemyCombatants: [
               {
@@ -698,7 +695,6 @@ describe('campaign progression', () => {
             riftId: rift.id,
             tier: rift.tier,
             mutatorIds: rift.mutatorIds,
-            saturation: rift.saturation,
             playerCombatants: [],
             enemyCombatants: [],
           },
@@ -739,7 +735,7 @@ describe('campaign progression', () => {
     const baseRecord = {
       riftId: rift.id,
       assignedTroopIds: [heldTroopId, attackingTroopId],
-      battleInput: { seed: 12, riftId: rift.id, tier: rift.tier, mutatorIds: rift.mutatorIds, saturation: rift.saturation, playerCombatants: [], enemyCombatants: [] },
+      battleInput: { seed: 12, riftId: rift.id, tier: rift.tier, mutatorIds: rift.mutatorIds, playerCombatants: [], enemyCombatants: [] },
       victoryPoints: rift.victoryPoints,
       recoveryMap: { [heldTroopId]: 1, [attackingTroopId]: 1 },
       contest: { kind: 'occupation' as const, attackerId: 'ai' as const, defenderId: 'human' as const, winnerId: 'human' as const },
@@ -798,7 +794,7 @@ describe('campaign progression', () => {
       {
         riftId: firstRift!.id,
         assignedTroopIds: [firstHeldTroop!.id, firstAttacker!.id],
-        battleInput: { seed: 12, riftId: firstRift!.id, tier: firstRift!.tier, mutatorIds: firstRift!.mutatorIds, saturation: firstRift!.saturation, playerCombatants: [], enemyCombatants: [] },
+        battleInput: { seed: 12, riftId: firstRift!.id, tier: firstRift!.tier, mutatorIds: firstRift!.mutatorIds, playerCombatants: [], enemyCombatants: [] },
         replay: makeReplay('defended-first', firstRift!.id, 'victory'),
         outcome: 'victory',
         victoryPoints: firstRift!.victoryPoints,
@@ -808,7 +804,7 @@ describe('campaign progression', () => {
       {
         riftId: secondRift!.id,
         assignedTroopIds: [secondHeldTroop!.id, secondAttacker!.id],
-        battleInput: { seed: 13, riftId: secondRift!.id, tier: secondRift!.tier, mutatorIds: secondRift!.mutatorIds, saturation: secondRift!.saturation, playerCombatants: [], enemyCombatants: [] },
+        battleInput: { seed: 13, riftId: secondRift!.id, tier: secondRift!.tier, mutatorIds: secondRift!.mutatorIds, playerCombatants: [], enemyCombatants: [] },
         replay: makeReplay('defended-second', secondRift!.id, 'victory'),
         outcome: 'victory',
         victoryPoints: secondRift!.victoryPoints,
@@ -834,7 +830,7 @@ describe('campaign progression', () => {
     const rift = opened.openRifts[0]!;
     const humanTroopId = opened.troops[0]!.id;
     const aiTroopId = opened.contest!.players.ai.troops[0]!.id;
-    const baseInput = { seed: 12, riftId: rift.id, tier: rift.tier, mutatorIds: rift.mutatorIds, saturation: rift.saturation, playerCombatants: [], enemyCombatants: [] };
+    const baseInput = { seed: 12, riftId: rift.id, tier: rift.tier, mutatorIds: rift.mutatorIds, playerCombatants: [], enemyCombatants: [] };
 
     const playerNeutral = applyCycleOutcomes(assignTroopToRift(opened, humanTroopId, rift.id), {
       records: [{
@@ -1004,7 +1000,6 @@ describe('campaign progression', () => {
       riftId: rift.id,
       tier: rift.tier,
       mutatorIds: rift.mutatorIds,
-      saturation: rift.saturation,
       playerCombatants: [],
       enemyCombatants: [],
     };

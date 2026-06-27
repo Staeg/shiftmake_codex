@@ -317,7 +317,6 @@ export function buildSimulationBattleInput(
   seed: number,
   playerCombatants: ResolvedCombatantDefinition[],
   enemyCombatants: ResolvedCombatantDefinition[],
-  saturation?: number,
   mutatorIds: string[] = [],
 ): BattleInput {
   return {
@@ -325,7 +324,6 @@ export function buildSimulationBattleInput(
     riftId: null,
     tier: null,
     mutatorIds,
-    saturation,
     playerCombatants,
     enemyCombatants,
   };

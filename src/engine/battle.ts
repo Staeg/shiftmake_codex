@@ -178,7 +178,6 @@ interface InternalState {
 }
 
 const BASE_MAP_RADIUS = 3;
-const DEFAULT_SATURATION = 10;
 const MAX_BEATS = 1000;
 const MIN_SPAWN_FOOTPRINT_DISTANCE = 2;
 const MIN_MELEE_TO_RANGED_SPAWN_DISTANCE = 3;
@@ -4394,7 +4393,6 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
     mutatorIds: [...input.mutatorIds],
     mapRadius: state.mapRadius,
     mapHexes: hexSetToCoords(state.mapHexes),
-    saturation: input.saturation ?? DEFAULT_SATURATION,
     initial,
     steps: state.steps,
     outcome: resolveBattleOutcome(state),

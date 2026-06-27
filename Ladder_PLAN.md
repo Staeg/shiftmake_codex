@@ -74,7 +74,6 @@ The JSONB payload stores the full Rift-set:
 - Cycle
 - tier
 - mutator ids
-- saturation
 - VP value
 - Guardian troop identities
 - player-origin Guardian race upgrade ids
@@ -123,7 +122,7 @@ Implementation:
 - Validate known race upgrade ids and troop-class upgrade ids.
 - Validate known mutator ids.
 - Validate Cycle number.
-- Validate tier, saturation, and VP numbers.
+- Validate tier and VP numbers.
 - Validate that each Rift has non-empty valid Guardians.
 - Tag invalid records as incompatible instead of deleting them.
 - Implement conversion from valid Ladder Rift-set payloads into `RiftInstance[]`.
@@ -267,7 +266,6 @@ Implementation:
 - Expand each Rift to show:
   - tier
   - modifiers
-  - saturation
   - VP
   - Guardians
   - upgrade snapshots

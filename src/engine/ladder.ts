@@ -97,7 +97,6 @@ function validateRift(rift: unknown, expectedCycleNumber: number, path: string):
     issues.push(issue('invalid_cycle', `${path}.cycleNumber`, 'Rift cycle must match the Rift-set cycle.', typeof rift.cycleNumber === 'number' ? rift.cycleNumber : null));
   }
   issues.push(...validatePositiveInteger(rift.tier, `${path}.tier`, 'invalid_tier', 'Tier'));
-  issues.push(...validatePositiveInteger(rift.saturation, `${path}.saturation`, 'invalid_saturation', 'Saturation'));
   issues.push(...validatePositiveInteger(rift.victoryPoints, `${path}.victoryPoints`, 'invalid_victory_points', 'Victory points'));
 
   const mutatorIds = Array.isArray(rift.mutatorIds) ? rift.mutatorIds : [];
@@ -151,7 +150,6 @@ export function ladderRiftSetToRiftInstances(draw: LadderDrawResult): RiftInstan
     enemyRaceUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.raceUpgradeIds))],
     enemyTroopClassUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.troopClassUpgradeIds))],
     victoryPoints: rift.victoryPoints,
-    saturation: rift.saturation,
     state: 'discovered',
   }));
 }
@@ -174,7 +172,6 @@ export function riftInstancesToLadderPayload(rifts: RiftInstance[]): LadderRiftS
       seed: rift.seed,
       tier: rift.tier,
       mutatorIds: [...rift.mutatorIds],
-      saturation: rift.saturation,
       victoryPoints: rift.victoryPoints,
       guardians: rift.enemyArmy.map((combatant) =>
         combatantToGuardian(combatant, rift.enemyRaceUpgradeIds ?? [], rift.enemyTroopClassUpgradeIds ?? []),
@@ -217,7 +214,6 @@ export function buildHarvestedLadderPayload(state: GameState, records: RiftResol
           seed: rift.seed,
           tier: rift.tier,
           mutatorIds: [...rift.mutatorIds],
-          saturation: rift.saturation,
           victoryPoints: rift.victoryPoints,
           guardians:
             conqueredGuardians.length > 0

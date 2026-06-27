@@ -25,7 +25,6 @@ describe('Ladder Rift-set payloads', () => {
         rifts[0]!.id,
         rifts[0]!.tier,
         rifts[0]!.mutatorIds,
-        rifts[0]!.saturation,
         [],
         [],
         rifts[0]!.enemyRaceUpgradeIds ?? [],

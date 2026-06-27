@@ -14,7 +14,6 @@ Each generated Rift currently contains:
 - `enemyArmy`
 - optional Guardian upgrade snapshot ids for Ladder enemy resolution
 - `victoryPoints`
-- `saturation`
 - `state`
 
 Current states:
@@ -72,12 +71,6 @@ Current rules:
 
 This means enemy Rifts can use off-roster race and troop-class pairings just like player unlocks can.
 
-## Capacity metadata
-
-Each Rift still stores a legacy `saturation` value from `3` to `15`.
-
-This value is passed into battle inputs and replay payloads for compatibility and reporting. Normal battle placement and movement now use explicit `mapHexes` plus full unit footprints instead of same-hex saturation occupancy.
-
 ## Assignment limits
 
 Current Rift assignment restrictions:
@@ -105,7 +98,6 @@ The reward preview in the UI should therefore show:
 - tier
 - mutators
 - enemy army
-- saturation compatibility metadata
 - VP reward
 
 ## Lifecycle note
@@ -122,7 +114,6 @@ Each Ladder Rift-set stores:
 - Cycle
 - tier
 - mutator ids
-- saturation compatibility metadata
 - VP value
 - Guardian race and troop-class identities
 - Guardian race upgrade ids

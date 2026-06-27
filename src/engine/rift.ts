@@ -74,11 +74,6 @@ function buildEnemyArmy(tier: number, seed: number) {
   });
 }
 
-function pickRiftSaturation(seed: number): number {
-  const rng = createDerivedRng(seed, 809);
-  return 3 + rng.int(13);
-}
-
 export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycleNumber'>): RiftInstance[] {
   const tiers = getCycleTierSchedule(state.cycleNumber);
   const cycleSeed = deriveSeed(state.campaignSeed, state.cycleNumber);
@@ -94,7 +89,6 @@ export function generateCycleRifts(state: Pick<GameState, 'campaignSeed' | 'cycl
       mutatorIds: cycleMutatorAssignments[index] ?? [],
       enemyArmy: buildEnemyArmy(tier, riftSeed),
       victoryPoints: tier,
-      saturation: pickRiftSaturation(riftSeed),
       state: 'discovered',
     };
   });
@@ -131,7 +125,6 @@ export function generateContestCycleRifts(state: Pick<GameState, 'campaignSeed' 
       mutatorIds: cycleMutatorAssignments[index] ?? [],
       enemyArmy: buildEnemyArmy(tier, riftSeed),
       victoryPoints: tier,
-      saturation: pickRiftSaturation(riftSeed),
       state: 'discovered',
       controller: 'neutral',
       occupyingPlayerId: null,

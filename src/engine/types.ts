@@ -282,7 +282,6 @@ export interface BattleInput {
   riftId: string | null;
   tier: number | null;
   mutatorIds: MutatorId[];
-  saturation?: number;
   sideParticipants?: BattleSideParticipants;
   playerRaceUpgradeIds?: UpgradeId[];
   playerTroopClassUpgradeIds?: UpgradeId[];
@@ -424,7 +423,6 @@ export interface BattleReplay {
   mutatorIds: MutatorId[];
   mapRadius: number;
   mapHexes: HexCoord[];
-  saturation: number;
   initial: BattleStateSnapshot;
   steps: BattleStep[];
   outcome: BattleOutcome;
@@ -621,7 +619,6 @@ export interface RiftInstance {
   enemyRaceUpgradeIds?: UpgradeId[];
   enemyTroopClassUpgradeIds?: UpgradeId[];
   victoryPoints: number;
-  saturation: number;
   state: RiftState;
   controller?: ContestRiftController;
   occupyingPlayerId?: ContestPlayerId | null;
@@ -641,7 +638,6 @@ export interface LadderRiftPayload {
   seed: number;
   tier: number;
   mutatorIds: MutatorId[];
-  saturation: number;
   victoryPoints: number;
   guardians: LadderGuardianSnapshot[];
 }
@@ -657,7 +653,6 @@ export interface LadderCompatibilityIssue {
     | 'invalid_cycle'
     | 'invalid_rift'
     | 'invalid_tier'
-    | 'invalid_saturation'
     | 'invalid_victory_points'
     | 'unknown_race'
     | 'unknown_unit_class'

@@ -12,13 +12,11 @@ describe('rift generation', () => {
     });
   });
 
-  it('always creates four Rifts with saturation inside the configured range', () => {
+  it('always creates four discovered Rifts', () => {
     const rifts = Array.from({ length: 20 }, (_, index) => generateCycleRifts({ campaignSeed: 100 + index, cycleNumber: index + 1 })).flat();
 
     expect(rifts.every((rift) => rift.state === 'discovered')).toBe(true);
     expect(rifts).toHaveLength(80);
-    expect(Math.min(...rifts.map((rift) => rift.saturation))).toBeGreaterThanOrEqual(3);
-    expect(Math.max(...rifts.map((rift) => rift.saturation))).toBeLessThanOrEqual(15);
   });
 
   it('uses only the remaining combat mutators', () => {
@@ -30,25 +28,20 @@ describe('rift generation', () => {
     expect([...seenMutators].sort()).toEqual(Object.keys(MUTATORS).sort());
   });
 
-  it('keeps mutator and fit rolls broadly uniform across many generated Rifts', () => {
+  it('keeps mutator rolls broadly uniform across many generated Rifts', () => {
     const rifts = Array.from({ length: 250 }, (_, index) => generateCycleRifts({ campaignSeed: 800 + index, cycleNumber: 1 + index })).flat();
     const mutatorCounts = new Map<string, number>();
-    const fitCounts = new Map<number, number>();
 
     rifts.forEach((rift) => {
       rift.mutatorIds.forEach((mutatorId) => {
         mutatorCounts.set(mutatorId, (mutatorCounts.get(mutatorId) ?? 0) + 1);
       });
-      fitCounts.set(rift.saturation, (fitCounts.get(rift.saturation) ?? 0) + 1);
     });
 
     const mutatorFrequencies = [...mutatorCounts.values()];
-    const fitFrequencies = [...fitCounts.values()];
 
     expect(mutatorCounts.size).toBe(Object.keys(MUTATORS).length);
-    expect(fitCounts.size).toBe(13);
     expect(Math.max(...mutatorFrequencies) - Math.min(...mutatorFrequencies)).toBeLessThan(120);
-    expect(Math.max(...fitFrequencies) - Math.min(...fitFrequencies)).toBeLessThan(80);
   });
 
   it('distributes mutators as evenly as possible within each cycle', () => {

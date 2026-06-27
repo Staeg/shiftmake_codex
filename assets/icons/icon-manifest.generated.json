@@ -1378,7 +1378,7 @@
       "name": "Scurry",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints, not allied saturation limits.",
+      "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints.",
       "trigger": "passive",
       "target": null,
       "effects": [],

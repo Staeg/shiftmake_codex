@@ -28,7 +28,7 @@ export function getRiftVisual(rift: Pick<RiftInstance, 'seed' | 'tier'>): RiftVi
   const random = createSeededRandom((rift.seed ^ (rift.tier * 224_682_251)) >>> 0);
   const imageUrl = RIFT_SPRITES[Math.floor(random() * RIFT_SPRITES.length)] ?? RIFT_SPRITES[0];
   const hue = Math.floor(random() * 360);
-  const saturation = 3.5 + random() * 2.75;
+  const colorIntensity = 3.5 + random() * 2.75;
   const brightness = 0.95 + random() * 0.3;
   const contrast = 1.05 + random() * 0.35;
   const rotationDeg = -180 + random() * 360;
@@ -37,7 +37,7 @@ export function getRiftVisual(rift: Pick<RiftInstance, 'seed' | 'tier'>): RiftVi
   const glow = `hsla(${hue} 100% 68% / ${glowAlpha.toFixed(2)})`;
   const filter = [
     'sepia(1)',
-    `saturate(${saturation.toFixed(2)})`,
+    `saturate(${colorIntensity.toFixed(2)})`,
     `hue-rotate(${hue}deg)`,
     `brightness(${brightness.toFixed(2)})`,
     `contrast(${contrast.toFixed(2)})`,

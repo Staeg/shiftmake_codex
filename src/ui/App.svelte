@@ -80,7 +80,6 @@
     buildRaceDetail,
     buildMutatorDetail,
     buildResolvedUnitDetail as buildResolvedUnitDetailModel,
-    buildRiftCapacityDetail as buildRiftCapacityDetailModel,
     buildRiftTierDetail as buildRiftTierDetailModel,
     buildStatEntries,
     buildUpgradeDetail,
@@ -89,7 +88,6 @@
     formatRiftTierLabel,
     getUpgradeDetails,
     parseTroopUnlockId,
-    riftFitTooltip as buildRiftFitTooltip,
     riftTierTooltip as buildRiftTierTooltip,
     slotPhaseLabel,
     unitIconColumns,
@@ -734,10 +732,6 @@
     return buildRiftTierTooltip(tier, $gameStore.game.gameMode);
   }
 
-  function riftFitTooltip(fit: number): string {
-    return buildRiftFitTooltip(fit, $gameStore.game.gameMode);
-  }
-
   function getRaceUnitPortrait(raceId: RaceId, unitClassId: UnitClassId): string {
     return portraits[`${raceId}/${unitClassId}`] ?? UNIT_SPRITE_URLS[unitClassId] ?? '';
   }
@@ -771,10 +765,6 @@
 
   function buildRiftTierDetail(rift: RiftInstance): DetailCard {
     return buildRiftTierDetailModel(rift, $gameStore.game.gameMode);
-  }
-
-  function buildRiftCapacityDetail(rift: RiftInstance): DetailCard {
-    return buildRiftCapacityDetailModel(rift, $gameStore.game.gameMode);
   }
 
   function buildResolvedUnitDetail(
@@ -2248,7 +2238,6 @@
       mutatorIds: [],
       enemyArmy: [],
       victoryPoints: entry.tier ?? 1,
-      saturation: 1,
       state: 'expired',
     };
   }
@@ -4299,10 +4288,6 @@
               <span>VP Reward</span>
               <strong>{selectedRift.victoryPoints}</strong>
             </div>
-            <div>
-              <span>Capacity</span>
-              <strong>{selectedRift.saturation}</strong>
-            </div>
           </div>
 
           <div class="mutator-row">
@@ -4537,17 +4522,6 @@
                   {#if $gameStore.game.gameMode === 'contest'}
                     <span class="control-pill">{getRiftControllerLabel(rift)}</span>
                   {/if}
-                  <button
-                    type="button"
-                    class="reward-pill rift-fit-pill rift-info-pill ui-debug-target"
-                    data-ui-name={`Capacity ${rift.saturation} info on ${formatRiftDisplayId(rift.id)}`}
-                    aria-label={riftFitTooltip(rift.saturation)}
-                    on:mouseenter={() => previewDetail(buildRiftCapacityDetail(rift))}
-                    on:focus={() => previewDetail(buildRiftCapacityDetail(rift))}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(buildRiftCapacityDetail(rift))}
-                  >Capacity {rift.saturation}</button>
                   {#if rift.mutatorIds.length === 0}
                     <span class="mutator-chip empty rift-mutator-chip">None</span>
                   {:else}
@@ -7497,10 +7471,6 @@
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-  }
-
-  .rift-fit-pill {
-    flex: 0 0 auto;
   }
 
   .rift-mutator-chip {

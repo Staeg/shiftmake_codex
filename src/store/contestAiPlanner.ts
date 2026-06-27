@@ -29,7 +29,6 @@ export function buildContestAiPlanKey(state: GameState): string | null {
       mutatorIds: rift.mutatorIds,
       enemyArmy: rift.enemyArmy,
       victoryPoints: rift.victoryPoints,
-      saturation: rift.saturation,
       state: rift.state,
       controller: rift.controller ?? 'neutral',
       occupyingPlayerId: rift.occupyingPlayerId ?? null,

@@ -519,20 +519,6 @@ describe('resolveDebugBattle', () => {
     ).toBe(true);
   });
 
-  it('preserves configured saturation in the replay payload', () => {
-    const replay = resolveBattle({
-      seed: 5,
-      riftId: 'test-rift',
-      tier: 2,
-      mutatorIds: [],
-      saturation: 3,
-      playerCombatants: [],
-      enemyCombatants: [],
-    });
-
-    expect(replay.saturation).toBe(3);
-  });
-
   it('spawns summoned wolves and kills them when their bonded summoner dies', () => {
     const replay = resolveDebugBattle({
       seed: 22,
