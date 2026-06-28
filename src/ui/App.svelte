@@ -9762,6 +9762,20 @@
     overflow: hidden;
   }
 
+  .overworld-shell.rifts-mode .right-column {
+    grid-column: 3;
+    grid-row: 2 / 4;
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+    overflow: hidden;
+    padding-bottom: 4.5rem;
+  }
+
+  .overworld-shell.rifts-mode .action-rail {
+    grid-row: 3;
+  }
+
   .center-column > .rift-grid,
   .center-column > .race-grid,
   .center-column > .opponent-info-board {
@@ -11312,6 +11326,12 @@
     .overworld-shell.rifts-mode .action-rail {
       grid-column: 1;
       grid-row: 3;
+      min-height: 0;
+      align-content: end;
+    }
+
+    .overworld-shell.rifts-mode .action-rail:has(.footer-essence-draft-panel) {
+      min-height: 0;
     }
 
     .action-rail {

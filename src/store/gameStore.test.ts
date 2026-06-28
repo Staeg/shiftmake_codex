@@ -393,7 +393,7 @@ describe('gameStore progression flow', () => {
     expect(state.game.cycleNumber).toBe(1);
     expect(state.centerMode).toBe('troops');
     expect(state.cycleEndConfirmationPending).toBe(false);
-    expect(state.systemMessage).toBe('Spend all Essence before ending the cycle.');
+    expect(state.systemMessage).toBe('Finish the active Essence draft before ending the cycle.');
 
     spendAllEssence();
     assignAllReadyTroopsToRifts();
@@ -407,6 +407,31 @@ describe('gameStore progression flow', () => {
 
     expect(state.game.cycleNumber).toBe(2);
     expect(state.cycleEndConfirmationPending).toBe(false);
+  });
+
+  it('automatically reveals the opening Campaign Essence draft', async () => {
+    gameStore.startNewCampaign(1);
+    const opening = currentStoreState<{ game: GameState }>().game;
+    const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(opening);
+
+    gameStore.claimOpeningTroop(firstTroopUnlockId);
+    gameStore.claimOpeningTroop(secondTroopUnlockId);
+    await gameStore.startOpeningCampaign();
+
+    const state = currentStoreState<{
+      game: {
+        gameMode: string;
+        phase: string;
+        essence: number;
+        activeTroopOffer: unknown;
+        activeUpgradeOffer: unknown;
+      };
+    }>();
+    expect(state.game.gameMode).toBe('campaign');
+    expect(state.game.phase).toBe('planning');
+    expect(state.game.essence).toBe(0);
+    expect(state.game.activeTroopOffer).not.toBeNull();
+    expect(state.game.activeUpgradeOffer).not.toBeNull();
   });
 
   it('automatically reveals the opening Contest Essence draft', async () => {

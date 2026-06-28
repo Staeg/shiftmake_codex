@@ -309,8 +309,8 @@ function saveActiveCampaign(state: StoreState): StoreState {
   };
 }
 
-function autoRevealContestEssenceDraft(game: GameState): GameState {
-  return game.gameMode === 'contest' ? revealEssenceDraft(game) : game;
+function autoRevealLocalEssenceDraft(game: GameState): GameState {
+  return game.gameMode === 'ladder' ? game : revealEssenceDraft(game);
 }
 
 function persistTutorialProgress(state: StoreState, progress: TutorialProgress | null): StoreState {
@@ -448,7 +448,7 @@ function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState
     replayWriteResult.replayIndex !== applied.nextState.replayIndex
       ? { ...applied.nextState, replayIndex: replayWriteResult.replayIndex }
       : applied.nextState;
-  const game = autoRevealContestEssenceDraft(nextGame);
+  const game = autoRevealLocalEssenceDraft(nextGame);
 
   let systemMessage: string | null = null;
   if (replayWriteResult.failedReplayIds.size > 0) {
@@ -1060,7 +1060,7 @@ export const gameStore = (() => {
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: autoRevealContestEssenceDraft(startOpeningCampaign(state.game)),
+              game: autoRevealLocalEssenceDraft(startOpeningCampaign(state.game)),
               systemMessage: null,
             }),
       );
@@ -1071,7 +1071,7 @@ export const gameStore = (() => {
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: autoRevealContestEssenceDraft(claimRaceUnlockOffer(state.game, raceId)),
+              game: autoRevealLocalEssenceDraft(claimRaceUnlockOffer(state.game, raceId)),
               systemMessage: null,
             }),
       );
@@ -1082,7 +1082,7 @@ export const gameStore = (() => {
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: autoRevealContestEssenceDraft(claimTroopClassUnlockOffer(state.game, troopUnlockId)),
+              game: autoRevealLocalEssenceDraft(claimTroopClassUnlockOffer(state.game, troopUnlockId)),
               systemMessage: null,
             }),
       );
