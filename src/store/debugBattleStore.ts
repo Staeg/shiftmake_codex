@@ -50,7 +50,7 @@ const initialState: DebugState = {
   currentStep: -1,
   selectedEvent: null,
   autoPlay: false,
-  speedMs: 8,
+  speedMs: 125,
 };
 
 function parseSeed(raw: string): number | undefined {

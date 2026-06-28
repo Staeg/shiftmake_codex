@@ -2,7 +2,7 @@
   export let replayLength = 0;
   export let currentStep = -1;
   export let autoPlay = false;
-  export let speedMs = 8;
+  export let speedMs = 125;
 
   export let onStepBack: () => void;
   export let onStepForward: () => void;

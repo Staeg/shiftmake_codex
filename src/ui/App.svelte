@@ -8,7 +8,6 @@
     createTroopInstance,
     getRaceTroops,
     getTroopEffectiveDefinition,
-    getTroopStatusCounts,
     getTroopsAssignedToRift,
     resolveTroopCombatant,
   } from '../engine/army';
@@ -74,7 +73,15 @@
   import BattleLogResultToken from './BattleLogResultToken.svelte';
   import RiftBattleMiniReplay, { type MiniReplayHealthTone } from './RiftBattleMiniReplay.svelte';
   import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
-  import { CAMPAIGN_FINAL_CYCLE, CONTEST_FINAL_CYCLE, canAssignTroopToRift, getEssenceDraftCost, getOpeningRaceOptionIds, getOpeningRaceStarterTroopUnlockIds } from '../engine/game';
+  import {
+    CAMPAIGN_FINAL_CYCLE,
+    CONTEST_FINAL_CYCLE,
+    canAssignTroopToRift,
+    getEssenceDraftCost,
+    getOpeningRaceOptionIds,
+    getOpeningRaceStarterTroopUnlockIds,
+    validateAssignments,
+  } from '../engine/game';
   import { LADDER_FINAL_CYCLE } from '../engine/ladder';
   import {
     buildRaceDetail,
@@ -110,10 +117,13 @@
 
   type BattleLogVisual = {
     key: string;
+    replay: BattleReplay | null;
     outcome: BattleOutcome;
     opponentOutcome: boolean;
     leftPercent: number;
     rightPercent: number;
+    leftSource: SideId;
+    rightSource: SideId;
     leftTone: MiniReplayHealthTone;
     rightTone: MiniReplayHealthTone;
     ariaLabel: string;
@@ -185,6 +195,12 @@
     units: ReplayHealthUnit[];
   };
 
+  type ArchiveCombatantPerformance = {
+    healthPercent: number;
+    damagePercent: number;
+    damageDone: number;
+  };
+
   type LoadingProgressState = GameAssetPreloadProgress;
 
   const ARCHIVE_PARTICIPANT_FALLBACK: Record<SideId, { kind: BattleParticipantKind; label: string }> = {
@@ -192,15 +208,16 @@
     enemy: { kind: 'neutral', label: 'Neutral Guardians' },
   };
   const SINGLEPLAYER_GAME_MODES: GameMode[] = ['campaign', 'ladder', 'contest'];
-  const RIFT_BATTLE_ANIMATION_MS = 5200;
   const RIFT_BATTLE_LATE_PHASE_DELAY_MS = 925;
-  const RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS = 200;
+  const RIFT_BATTLE_STEP_MS = 500 / 64;
+  const RIFT_BATTLE_RESULT_HANDOFF_MS = 420;
   const BATTLE_LOG_ARRIVAL_STAGGER_MS = 460;
   const BATTLE_LOG_ARRIVAL_FLIGHT_MS = 1160;
   const BATTLE_LOG_ROW_HEIGHT_REM = 3.35;
 
   const RACE_IDS = Object.keys(RACES) as RaceId[];
   const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
+  const archivePerformanceKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
   const debugToolsEnabled = import.meta.env.DEV;
   const verificationLabMode =
     debugToolsEnabled && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lab') === 'ability-verification';
@@ -260,6 +277,8 @@
   let viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
   let essenceDraftHighlighted = false;
   let essenceDraftHighlightTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let troopAssignmentHighlighted = false;
+  let troopAssignmentHighlightTimer: ReturnType<typeof window.setTimeout> | null = null;
   let lastInspectContextKey = '';
   let rendererDiagnostics: BattleReportDiagnostic[] = [];
   let showUiDebugNames = false;
@@ -1353,13 +1372,18 @@
     gameStore.claimTroopClassUnlockOffer(troopUnlockId);
   }
 
-  function handleEndCycle(): void {
+  async function handleEndCycle(): Promise<void> {
     if (mustSpendEssenceBeforeCycleEnd) {
       focusEssenceDraft();
       return;
     }
+    if (mustAssignTroopsBeforeCycleEnd) {
+      focusTroopAssignments();
+      return;
+    }
     if ($gameStore.centerMode !== 'rifts') {
       gameStore.setCenterMode('rifts');
+      await tick();
     }
     gameStore.endCycle($gameStore.tutorialProgress?.step === 'end-cycle' || $gameStore.cycleEndConfirmationPending);
     signalTutorial('end-cycle');
@@ -1397,7 +1421,9 @@
   }
 
   function focusEssenceDraft(): void {
-    gameStore.setCenterMode('troops');
+    if ($gameStore.centerMode !== 'rifts' && $gameStore.centerMode !== 'troops') {
+      gameStore.setCenterMode('troops');
+    }
     signalTutorial('essence-view');
     essenceDraftHighlighted = true;
     if (essenceDraftHighlightTimer) {
@@ -1406,6 +1432,21 @@
     essenceDraftHighlightTimer = window.setTimeout(() => {
       essenceDraftHighlighted = false;
       essenceDraftHighlightTimer = null;
+    }, 2400);
+  }
+
+  function focusTroopAssignments(): void {
+    if ($gameStore.centerMode !== 'rifts') {
+      gameStore.setCenterMode('rifts');
+    }
+    selectedReplayId = null;
+    troopAssignmentHighlighted = true;
+    if (troopAssignmentHighlightTimer) {
+      window.clearTimeout(troopAssignmentHighlightTimer);
+    }
+    troopAssignmentHighlightTimer = window.setTimeout(() => {
+      troopAssignmentHighlighted = false;
+      troopAssignmentHighlightTimer = null;
     }, 2400);
   }
 
@@ -2092,6 +2133,33 @@
     return `${getArchiveSideLabel(side)} Forces`;
   }
 
+  function archiveResultLabel(entry: ReplayIndexEntry): string {
+    if (isArchiveOpponentBattle(entry) && entry.outcome === 'victory') {
+      return 'Rival victory';
+    }
+    if (entry.outcome === 'victory') {
+      return 'Player victory';
+    }
+    if (entry.outcome === 'defeat') {
+      return 'Player defeat';
+    }
+    return 'Draw';
+  }
+
+  function archiveResultGlyph(entry: ReplayIndexEntry): 'crown' | 'skull' | 'draw' {
+    if (entry.outcome === 'victory') {
+      return 'crown';
+    }
+    if (entry.outcome === 'defeat') {
+      return 'skull';
+    }
+    return 'draw';
+  }
+
+  function archiveResultShowsRivalArrow(entry: ReplayIndexEntry): boolean {
+    return isArchiveOpponentBattle(entry) && entry.outcome === 'victory';
+  }
+
   function archiveParticipantClass(kind: BattleParticipantKind): string {
     return `archive-${kind}`;
   }
@@ -2149,18 +2217,43 @@
     return { current, max, percent: healthPercent(current, max) };
   }
 
+  function battleLogOrientation(participants?: StoredReplayPayload['input']['sideParticipants']): {
+    leftSource: SideId;
+    rightSource: SideId;
+    leftTone: MiniReplayHealthTone;
+    rightTone: MiniReplayHealthTone;
+  } {
+    const player = participants?.player ?? ARCHIVE_PARTICIPANT_FALLBACK.player;
+    const enemy = participants?.enemy ?? ARCHIVE_PARTICIPANT_FALLBACK.enemy;
+    const playerIsRight = isHumanParticipant(player) || enemy.kind === 'neutral';
+    return {
+      leftSource: playerIsRight ? 'enemy' : 'player',
+      rightSource: playerIsRight ? 'player' : 'enemy',
+      leftTone: participantHealthTone(playerIsRight ? enemy : player, playerIsRight ? 'enemy' : 'player'),
+      rightTone: participantHealthTone(playerIsRight ? player : enemy, playerIsRight ? 'player' : 'enemy'),
+    };
+  }
+
+  function archiveHealthPercentForSource(entry: ReplayIndexEntry, source: SideId): number {
+    return source === 'player'
+      ? healthPercent(entry.finalPlayerHp, entry.finalPlayerMaxHp, entry.finalPlayerAlive)
+      : healthPercent(entry.finalEnemyHp, entry.finalEnemyMaxHp, entry.finalEnemyAlive);
+  }
+
   function battleLogVisualFromArchiveEntry(entry: ReplayIndexEntry): BattleLogVisual {
-    const leftTone = participantHealthTone(entry.sideParticipants?.player, 'player');
-    const rightTone = participantHealthTone(entry.sideParticipants?.enemy, 'enemy');
+    const orientation = battleLogOrientation(entry.sideParticipants);
     const opponentOutcome = archiveEntryOpponentOutcome(entry);
     return {
       key: entry.replayId,
+      replay: null,
       outcome: entry.outcome,
       opponentOutcome,
-      leftTone,
-      rightTone,
-      leftPercent: healthPercent(entry.finalPlayerHp, entry.finalPlayerMaxHp, entry.finalPlayerAlive),
-      rightPercent: healthPercent(entry.finalEnemyHp, entry.finalEnemyMaxHp, entry.finalEnemyAlive),
+      leftSource: orientation.leftSource,
+      rightSource: orientation.rightSource,
+      leftTone: orientation.leftTone,
+      rightTone: orientation.rightTone,
+      leftPercent: archiveHealthPercentForSource(entry, orientation.leftSource),
+      rightPercent: archiveHealthPercentForSource(entry, orientation.rightSource),
       ariaLabel: opponentOutcome ? 'Opponent battle result' : `Battle ${entry.outcome}`,
       riftId: entry.riftId,
       riftVisualSource: getArchiveRiftVisual(entry),
@@ -2168,21 +2261,22 @@
   }
 
   function battleLogVisualFromCycleRecord(record: CycleRecord): BattleLogVisual {
-    const playerHealth = finalReplayHealth(record.replay, 'player');
-    const enemyHealth = finalReplayHealth(record.replay, 'enemy');
-    const participants = record.battleInput.sideParticipants;
-    const leftTone = participantHealthTone(participants?.player, 'player');
-    const rightTone = participantHealthTone(participants?.enemy, 'enemy');
-    const opponentOutcome = participants ? !isHumanParticipant(participants.player) && !isHumanParticipant(participants.enemy) : false;
+    const phase = buildRecordBattlePhase(record, 'phase-now', `${record.riftId}:incoming:${record.replay.id}`);
+    const perspective = phaseResultSource(phase);
+    const leftHealth = finalReplayHealth(record.replay, phase.leftSource);
+    const rightHealth = finalReplayHealth(record.replay, phase.rightSource);
     return {
       key: record.replay.id,
-      outcome: record.outcome,
-      opponentOutcome,
-      leftTone,
-      rightTone,
-      leftPercent: playerHealth.percent,
-      rightPercent: enemyHealth.percent,
-      ariaLabel: opponentOutcome ? 'Opponent battle result' : `Battle ${record.outcome}`,
+      replay: record.replay,
+      outcome: resultForBattleSource(record.outcome, perspective.source),
+      opponentOutcome: perspective.opponentOutcome,
+      leftSource: phase.leftSource,
+      rightSource: phase.rightSource,
+      leftTone: healthToneForAnimationSide(phase.left),
+      rightTone: healthToneForAnimationSide(phase.right),
+      leftPercent: leftHealth.percent,
+      rightPercent: rightHealth.percent,
+      ariaLabel: perspective.opponentOutcome ? 'Opponent battle result' : `Battle ${resultForBattleSource(record.outcome, perspective.source)}`,
       riftId: record.riftId,
       riftVisualSource: getArchiveRiftVisual({ riftId: record.riftId }),
     };
@@ -2193,22 +2287,65 @@
     return [...records].reverse().map(battleLogVisualFromCycleRecord);
   }
 
+  function riftBattleHandoffDelay(records: CycleRecord[]): number {
+    if (records.length === 0) {
+      return 0;
+    }
+    const replayDuration = Math.max(
+      ...records.map((record) => buildBattlePresentationTimeline(record.replay, RIFT_BATTLE_STEP_MS).durationMs),
+    );
+    const hasLatePhase = records.some((record) => record.contest?.kind === 'pvp');
+    return replayDuration + (hasLatePhase ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0) + RIFT_BATTLE_RESULT_HANDOFF_MS;
+  }
+
+  function getIncomingBattleSourceElement(visual: BattleLogVisual): HTMLElement | null {
+    if (typeof document === 'undefined' || !visual.riftId) {
+      return null;
+    }
+    const riftRoot = Array.from(document.querySelectorAll<HTMLElement>('[data-rift-id]')).find((element) => element.dataset.riftId === visual.riftId);
+    if (!riftRoot) {
+      return null;
+    }
+    if (visual.replay) {
+      const phaseSource = Array.from(riftRoot.querySelectorAll<HTMLElement>('[data-flight-replay-id]')).find(
+        (element) => element.dataset.flightReplayId === visual.replay?.id,
+      );
+      if (phaseSource) {
+        return phaseSource;
+      }
+    }
+    return riftRoot.querySelector<HTMLElement>('.rift-battle-center');
+  }
+
   function incomingBattleLogStyle(visual: BattleLogVisual, index: number, count: number): string {
     const delayMs = index * BATTLE_LOG_ARRIVAL_STAGGER_MS;
-    let fromX = 0;
-    let fromY = 0;
+    const viewportWidth = typeof window === 'undefined' ? 480 : window.innerWidth;
+    const viewportHeight = typeof window === 'undefined' ? 360 : window.innerHeight;
+    let fromX = viewportWidth / 2;
+    let fromY = viewportHeight / 2;
+    let toX = viewportWidth / 2;
+    let toY = viewportHeight / 2;
+    let targetWidth = 240;
+    let targetHeight = BATTLE_LOG_ROW_HEIGHT_REM * 16;
+    let sourceWidth = targetWidth;
+    let sourceHeight = targetHeight;
     if (typeof document !== 'undefined') {
-      const source = visual.riftId ? document.querySelector<HTMLElement>(`[data-rift-id="${visual.riftId}"] .rift-battle-center`) : null;
+      const source = getIncomingBattleSourceElement(visual);
       const target = document.querySelector<HTMLElement>('[data-ui-name="Battle archive panel"] .archive-list');
       if (source && target) {
         const sourceRect = source.getBoundingClientRect();
         const targetRect = target.getBoundingClientRect();
         const targetY = index * BATTLE_LOG_ROW_HEIGHT_REM * 16;
-        fromX = sourceRect.left + sourceRect.width / 2 - (targetRect.left + targetRect.width / 2);
-        fromY = sourceRect.top + sourceRect.height / 2 - (targetRect.top + targetY + 24);
+        targetWidth = targetRect.width;
+        sourceWidth = sourceRect.width;
+        sourceHeight = sourceRect.height;
+        fromX = sourceRect.left;
+        fromY = sourceRect.top;
+        toX = targetRect.left;
+        toY = targetRect.top + targetY;
       }
     }
-    return `${getArchiveCardStyle(visual)} --arrival-delay:${delayMs}ms; --arrival-flight:${BATTLE_LOG_ARRIVAL_FLIGHT_MS}ms; --battle-log-row-height:${BATTLE_LOG_ROW_HEIGHT_REM}rem; --from-x:${fromX}px; --from-y:${fromY}px;`;
+    return `${getArchiveCardStyle(visual)} --arrival-delay:${delayMs}ms; --arrival-flight:${BATTLE_LOG_ARRIVAL_FLIGHT_MS}ms; --battle-log-row-height:${BATTLE_LOG_ROW_HEIGHT_REM}rem; --flight-from-x:${fromX}px; --flight-from-y:${fromY}px; --flight-to-x:${toX}px; --flight-to-y:${toY}px; --flight-from-width:${sourceWidth}px; --flight-from-height:${sourceHeight}px; --flight-to-width:${targetWidth}px; --flight-to-height:${targetHeight}px;`;
   }
 
   function getArchiveFightingPartyKind(entry: { encounterLabel?: string; sideParticipants?: StoredReplayPayload['input']['sideParticipants'] }): BattleParticipantKind {
@@ -2269,6 +2406,50 @@
       ...combatant,
       quantity: Number.isFinite(combatant.quantity) && combatant.quantity > 0 ? combatant.quantity : 1,
     }));
+  }
+
+  function buildArchivePerformanceMap(replay: BattleReplay | null): Map<string, ArchiveCombatantPerformance> {
+    const map = new Map<string, ArchiveCombatantPerformance>();
+    if (!replay) {
+      return map;
+    }
+
+    const finalUnits = replay.steps[replay.steps.length - 1]?.snapshot.units ?? replay.initial.units;
+    const damageByKey = new Map<string, number>();
+    buildBattleRecap(replay).forEach((troop) => {
+      damageByKey.set(archivePerformanceKey(troop.side, troop.troopLabel), troop.damageDone);
+    });
+    const maxDamage = Math.max(1, ...damageByKey.values());
+    const knownKeys = new Set<string>();
+
+    replay.initial.units.forEach((unit) => {
+      const key = archivePerformanceKey(unit.side, unit.troopLabel);
+      if (knownKeys.has(key)) {
+        return;
+      }
+      knownKeys.add(key);
+      const matchingFinalUnits = finalUnits.filter((entry) => entry.side === unit.side && entry.troopLabel === unit.troopLabel);
+      const currentHp = matchingFinalUnits.reduce((sum, entry) => sum + (entry.alive ? Math.max(0, entry.hp) : 0), 0);
+      const maxHp = matchingFinalUnits.reduce((sum, entry) => sum + entry.maxHp, 0);
+      const damageDone = damageByKey.get(key) ?? 0;
+      map.set(key, {
+        healthPercent: healthPercent(currentHp, maxHp),
+        damagePercent: damageDone > 0 ? Math.max(8, Math.min(100, (damageDone / maxDamage) * 100)) : 0,
+        damageDone,
+      });
+    });
+
+    return map;
+  }
+
+  function getArchiveCombatantPerformance(side: SideId, combatant: ResolvedCombatantDefinition): ArchiveCombatantPerformance | null {
+    return selectedArchivePerformance.get(archivePerformanceKey(side, combatant.label)) ?? null;
+  }
+
+  function archivePerformanceStyle(performance: ArchiveCombatantPerformance | null): string {
+    const healthScale = ((performance?.healthPercent ?? 0) / 100).toFixed(3);
+    const damageScale = ((performance?.damagePercent ?? 0) / 100).toFixed(3);
+    return `--archive-health-scale:${healthScale}; --archive-damage-scale:${damageScale};`;
   }
 
   function getRelevantArchiveUpgradeIds(payload: StoredReplayPayload | null, side: SideId): UpgradeId[] {
@@ -2614,6 +2795,10 @@
         window.clearTimeout(essenceDraftHighlightTimer);
         essenceDraftHighlightTimer = null;
       }
+      if (troopAssignmentHighlightTimer) {
+        window.clearTimeout(troopAssignmentHighlightTimer);
+        troopAssignmentHighlightTimer = null;
+      }
       if (multiplayerCopyMessageTimer) {
         window.clearTimeout(multiplayerCopyMessageTimer);
         multiplayerCopyMessageTimer = null;
@@ -2657,10 +2842,8 @@
 
   $: {
     if ($gameStore.cycleAnimation && !cycleAnimationFinishTimer) {
-      const hasLatePhase = $gameStore.cycleAnimation.resolution.records.some((record) => record.contest?.kind === 'pvp');
-      const battleAnimationDuration =
-        RIFT_BATTLE_ANIMATION_MS + (hasLatePhase ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0) + RIFT_BATTLE_ANIMATION_FINISH_BUFFER_MS;
       const incomingCount = $gameStore.cycleAnimation.resolution.records.length;
+      const battleAnimationDuration = riftBattleHandoffDelay($gameStore.cycleAnimation.resolution.records);
       const logArrivalDuration =
         incomingCount > 0 ? BATTLE_LOG_ARRIVAL_FLIGHT_MS + Math.max(0, incomingCount - 1) * BATTLE_LOG_ARRIVAL_STAGGER_MS + 180 : 0;
       cycleLogArrivalActive = false;
@@ -2764,6 +2947,10 @@
     gameStore.setCenterMode('rifts');
   }
 
+  $: if ($gameStore.screen === 'overworld' && $gameStore.cycleAnimation && $gameStore.centerMode !== 'rifts') {
+    gameStore.setCenterMode('rifts');
+  }
+
   $: if (
     $gameStore.screen === 'overworld' &&
     $gameStore.game.phase === 'planning' &&
@@ -2842,13 +3029,25 @@
     pinnedReplayExplanationIndex;
     syncRenderer();
   }
-  $: statusCounts = getTroopStatusCounts($gameStore.game);
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
   $: essenceDraftButtonLabel = essenceDraftCost === 1 ? 'Reveal One Unlock' : essenceDraftCost === 2 ? 'Reveal Unlock Draft' : 'Draft Unavailable';
   $: essenceDraftActive = !!($gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
   $: mustSpendEssenceBeforeCycleEnd =
     $gameStore.game.phase === 'planning' &&
     (($gameStore.game.essence > 0 && essenceDraftCost !== null) || $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
+  $: assignmentBlockingIssues = validateAssignments($gameStore.game).issues.filter((issue) => issue.kind !== 'holding_only_no_new_attack');
+  $: mustAssignTroopsBeforeCycleEnd = $gameStore.game.phase === 'planning' && !mustSpendEssenceBeforeCycleEnd && assignmentBlockingIssues.length > 0;
+  $: primaryCycleActionLabel = $gameStore.cycleAnimation
+    ? 'Battles Resolving'
+    : mustSpendEssenceBeforeCycleEnd
+      ? 'Spend Essence'
+      : mustAssignTroopsBeforeCycleEnd
+        ? 'Assign Troops'
+        : $gameStore.multiplayer
+          ? multiplayerReadyLabel()
+          : $gameStore.cycleEndConfirmationPending
+            ? 'Confirm End Cycle'
+            : 'End Cycle';
   $: riftsNeedAttention =
     $gameStore.game.phase === 'planning' &&
     $gameStore.centerMode !== 'rifts' &&
@@ -2975,6 +3174,9 @@
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
   $: selectedArchivePayload =
     selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.getReplayPayload(selectedReplayEntry.replayId) : null;
+  $: selectedArchiveReplay =
+    selectedReplayEntry && selectedReplayAvailable ? gameStore.getReplay(selectedReplayEntry.replayId) : null;
+  $: selectedArchivePerformance = buildArchivePerformanceMap(selectedArchiveReplay);
   $: selectedArchivePlayerUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'player');
   $: selectedArchiveEnemyUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'enemy');
   $: readyTroops = $gameStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
@@ -3321,6 +3523,7 @@
                   <button class="primary ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
                     Load Slot
                   </button>
+                  <DebugToolsMenu mode="campaign-button" reportSlotId={slot.slotId} />
                 {/if}
                 <button
                   class:primary={slot.status === 'empty'}
@@ -4024,6 +4227,7 @@
 {:else if $gameStore.screen === 'overworld'}
   <main
     class="shell overworld-shell"
+    class:rifts-mode={$gameStore.centerMode === 'rifts'}
     class:troops-mode={$gameStore.centerMode === 'troops'}
     class:contest-info-mode={$gameStore.centerMode === 'contest'}
     class:ui-debug-visible={uiDebugVisible}
@@ -4210,7 +4414,7 @@
                           on:blur={clearDetail}
                           on:click={() => togglePinnedDetail(summon.detail)}
                         >
-                          <span class="icon-label"><img class="summon-chip-art" src={summon.detail.portraitUrl} alt="" aria-hidden="true" /><span>{summon.count} {summon.label}</span></span>
+                          <span class="icon-label"><img class="summon-chip-art" src={summon.detail.portraitUrl} alt="" aria-hidden="true" /><span>{summon.label}</span></span>
                         </button>
                       {/each}
                     {/each}
@@ -4468,7 +4672,6 @@
             {/if}
           </div>
         {:else}
-          <p class="eyebrow">Troop Inspector</p>
           <h2>No Focus Item</h2>
           <p>
             {$gameStore.centerMode === 'rifts'
@@ -4494,6 +4697,7 @@
               class:contest-human-held={$gameStore.game.gameMode === 'contest' && rift.controller === 'human'}
               class:contest-ai-held={$gameStore.game.gameMode === 'contest' && rift.controller === 'ai'}
               class:archive-highlighted={selectedRiftId === rift.id}
+              class:drop-target-unavailable={!!troopDrag && !multiplayerReadySubmitted && !$gameStore.cycleAnimation && !canAssignTroopToRift($gameStore.game, troopDrag.troopId, rift.id).ok}
               data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
               data-rift-id={rift.id}
               data-tutorial-target="rift-card"
@@ -4598,7 +4802,7 @@
                       {#each battleAnimation.phases as phase (phase.key)}
                         {@const phaseRecord = getRecordForBattlePhase(phase)}
                         {@const phasePerspective = phaseResultSource(phase)}
-                        <div class={`rift-battle-phase ${phase.delayClass}`}>
+                        <div class={`rift-battle-phase ${phase.delayClass}`} data-flight-replay-id={phaseRecord?.replay.id}>
                           {#if phaseRecord}
                             <RiftBattleMiniReplay
                               replay={phaseRecord.replay}
@@ -4941,18 +5145,6 @@
     </section>
 
     <section class="right-column ui-debug-target" data-ui-name="Right sidebar">
-      {#if $gameStore.validationMessages.length > 0}
-        <div class="panel warning-panel ui-debug-target" data-ui-name="Validation warning panel">
-          <p class="eyebrow">Cycle Blocked</p>
-          <h2>Can't End Cycle Yet</h2>
-          <ul class="warnings">
-            {#each $gameStore.validationMessages as message}
-              <li>{message}</li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-
       {#if false && $gameStore.centerMode === 'troops'}
         <div class="panel essence-draft-panel" class:soft-highlight={essenceDraftHighlighted}>
           {#if !essenceDraftActive}
@@ -5114,9 +5306,33 @@
           <button class="archive-back-button ui-debug-target" data-ui-name="Back to archive" on:click={() => (selectedReplayId = null)} aria-label="Back to archive">
             <span aria-hidden="true">&larr;</span>
           </button>
-          <p class="eyebrow">Battle Archive</p>
           <div class="archive-inspect-heading">
-            <h2>{decorateArchiveSummary(selectedReplayEntry.summary)}</h2>
+            <span
+              class="archive-result-mark"
+              class:rival-result={archiveResultShowsRivalArrow(selectedReplayEntry)}
+              class:defeat-result={archiveResultGlyph(selectedReplayEntry) === 'skull'}
+              aria-label={archiveResultLabel(selectedReplayEntry)}
+              title={archiveResultLabel(selectedReplayEntry)}
+            >
+              {#if archiveResultShowsRivalArrow(selectedReplayEntry)}
+                <span class="archive-rival-arrow" aria-hidden="true">&lt;-&gt;</span>
+              {/if}
+              {#if archiveResultGlyph(selectedReplayEntry) === 'crown'}
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3.5 8.2 8.4 12l3.6-7 3.6 7 4.9-3.8-2.1 10H5.6L3.5 8.2Z" />
+                  <path d="M6.2 20h11.6" />
+                </svg>
+              {:else if archiveResultGlyph(selectedReplayEntry) === 'skull'}
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 11.2C6 6.9 8.5 4.4 12 4.4s6 2.5 6 6.8c0 2.3-.7 4-2 5.1V20H8v-3.7c-1.3-1.1-2-2.8-2-5.1Z" />
+                  <circle cx="9.7" cy="11.5" r="1.25" />
+                  <circle cx="14.3" cy="11.5" r="1.25" />
+                  <path d="M12 14.1v2.1" />
+                </svg>
+              {:else}
+                <span class="archive-draw-mark" aria-hidden="true">=</span>
+              {/if}
+            </span>
             <button
               type="button"
               class="archive-watch-button archive-inspect-watch-button"
@@ -5131,7 +5347,6 @@
               </svg>
             </button>
           </div>
-          <p>Cycle {selectedReplayEntry.cycleNumber} vs {selectedReplayEntry.encounterLabel ?? 'Enemy'}: {selectedReplayEntry.outcome}.</p>
           {#if selectedReplayEntry.riftLabel || selectedReplayEntry.riftId}
             <p class="archive-rift-id">Rift {selectedReplayEntry.riftLabel ?? formatRiftDisplayId(selectedReplayEntry.riftId ?? '')}</p>
           {/if}
@@ -5170,16 +5385,21 @@
               <div class="assigned-strip archive-force-strip">
                 {#each getArchiveCombatants('player') as combatant}
                   {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'player')}
+                  {@const performance = getArchiveCombatantPerformance('player', combatant)}
                   <button
-                    class="unit-tile assigned-summary-tile ui-debug-target"
+                    class="unit-tile assigned-summary-tile archive-performance-tile ui-debug-target"
                     data-ui-name={`Archive player force ${combatant.label}`}
                     class:selected={activeDetail?.detailKey === combatantDetail.detailKey}
+                    class:has-archive-performance={!!performance}
+                    style={archivePerformanceStyle(performance)}
                     on:mouseenter={() => previewDetail(combatantDetail)}
                     on:focus={() => previewDetail(combatantDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
                     on:click={() => togglePinnedDetail(combatantDetail)}
                   >
+                    <span class="archive-health-indicator" aria-hidden="true"></span>
+                    <span class="archive-damage-indicator" aria-hidden="true"></span>
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
                       {#each unitIconCopies(combatant.quantity) as copy}
                         <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
@@ -5213,16 +5433,21 @@
               <div class="assigned-strip enemy-strip archive-force-strip">
                 {#each getArchiveCombatants('enemy') as combatant}
                   {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'enemy')}
+                  {@const performance = getArchiveCombatantPerformance('enemy', combatant)}
                   <button
-                    class="unit-tile enemy-tile ui-debug-target"
+                    class="unit-tile enemy-tile archive-performance-tile ui-debug-target"
                     data-ui-name={`Archive enemy force ${combatant.label}`}
                     class:selected={activeDetail?.detailKey === combatantDetail.detailKey}
+                    class:has-archive-performance={!!performance}
+                    style={archivePerformanceStyle(performance)}
                     on:mouseenter={() => previewDetail(combatantDetail)}
                     on:focus={() => previewDetail(combatantDetail)}
                     on:mouseleave={clearDetail}
                     on:blur={clearDetail}
                     on:click={() => togglePinnedDetail(combatantDetail)}
                   >
+                    <span class="archive-health-indicator" aria-hidden="true"></span>
+                    <span class="archive-damage-indicator" aria-hidden="true"></span>
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
                       {#each unitIconCopies(combatant.quantity) as copy}
                         <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
@@ -5262,21 +5487,11 @@
               </div>
             </div>
           {/if}
-          <p>
-            {#if selectedReplayEntry.summaryOnly}
-              This battle was archived as a summary only.
-            {:else if selectedReplayAvailable}
-              Open the replay to inspect the full battle log.
-            {:else}
-              The archive entry exists, but the replay payload is missing.
-            {/if}
-          </p>
         </div>
       {/if}
 
       {#if $gameStore.centerMode === 'rifts' && !selectedReplayEntry}
-        <div class="panel ui-debug-target" data-ui-name="Battle archive panel">
-          <h2>Battle Archive</h2>
+        <div class="panel archive-panel ui-debug-target" data-ui-name="Battle archive panel">
           {#if $gameStore.game.replayIndex.length === 0 && !cycleLogArrivalActive}
             <p>No archived battles yet.</p>
           {:else}
@@ -5290,20 +5505,37 @@
                     style={incomingBattleLogStyle(visual, index, incomingVisuals.length)}
                     aria-hidden="true"
                   >
-                    <div class="archive-card incoming-archive-card">
-                      {#if incomingRiftVisual}
-                        <span class="archive-rift-thumbnail" style={`--rift-tint:${incomingRiftVisual.tint}; --rift-glow:${incomingRiftVisual.glow}; --rift-rotation:${incomingRiftVisual.rotationDeg}deg;`}>
-                          <img src={incomingRiftVisual.imageUrl} alt="" aria-hidden="true" style={`filter:${incomingRiftVisual.filter};`} />
-                        </span>
+                    <div class="incoming-archive-card">
+                      {#if visual.replay}
+                        <div class="incoming-flight-mini">
+                          <RiftBattleMiniReplay
+                            replay={visual.replay}
+                            leftSource={visual.leftSource}
+                            rightSource={visual.rightSource}
+                            leftHealthTone={visual.leftTone}
+                            rightHealthTone={visual.rightTone}
+                            result={visual.outcome}
+                            opponentOutcome={visual.opponentOutcome}
+                            startFinished={true}
+                            {portraits}
+                          />
+                        </div>
                       {/if}
-                      <BattleLogResultToken
-                        outcome={visual.outcome}
-                        opponentOutcome={visual.opponentOutcome}
-                        leftPercent={visual.leftPercent}
-                        rightPercent={visual.rightPercent}
-                        leftTone={visual.leftTone}
-                        rightTone={visual.rightTone}
-                      />
+                      <div class="archive-card incoming-flight-archive">
+                        {#if incomingRiftVisual}
+                          <span class="archive-rift-thumbnail" style={`--rift-tint:${incomingRiftVisual.tint}; --rift-glow:${incomingRiftVisual.glow}; --rift-rotation:${incomingRiftVisual.rotationDeg}deg;`}>
+                            <img src={incomingRiftVisual.imageUrl} alt="" aria-hidden="true" style={`filter:${incomingRiftVisual.filter};`} />
+                          </span>
+                        {/if}
+                        <BattleLogResultToken
+                          outcome={visual.outcome}
+                          opponentOutcome={visual.opponentOutcome}
+                          leftPercent={visual.leftPercent}
+                          rightPercent={visual.rightPercent}
+                          leftTone={visual.leftTone}
+                          rightTone={visual.rightTone}
+                        />
+                      </div>
                     </div>
                   </div>
                 {/each}
@@ -5365,23 +5597,21 @@
       {/if}
     </section>
 
-    <footer class="action-rail" class:empty-action-rail={$gameStore.centerMode === 'contest' && !$gameStore.systemMessage}>
-      {#if !($gameStore.centerMode === 'rifts' && selectedReplayEntry)}
-        {#if $gameStore.game.phase === 'planning' && $gameStore.centerMode === 'troops'}
+    <footer class="action-rail" class:empty-action-rail={$gameStore.centerMode === 'contest' && !$gameStore.systemMessage && $gameStore.game.phase !== 'planning'}>
+        {#if $gameStore.game.phase === 'planning' && ($gameStore.centerMode === 'troops' || $gameStore.centerMode === 'rifts') && (mustSpendEssenceBeforeCycleEnd || confirmedTroopOfferUnlockId || confirmedUpgradeOfferId)}
           <div class="panel essence-draft-panel footer-essence-draft-panel ui-debug-target" data-ui-name="Bottom essence draft panel" class:soft-highlight={essenceDraftHighlighted}>
             {#if !essenceDraftActive && !confirmedTroopOfferUnlockId && !confirmedUpgradeOfferId}
               <p class="draft-helper-copy">
-                {#if essenceDraftCost !== null && $gameStore.game.essence >= essenceDraftCost}
-                  Preparing the mandatory draft...
-                {:else}
-                  Drafts are done. Send every ready troop to the Rifts.
-                {/if}
+                Preparing the mandatory draft...
               </p>
-              {#if essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost}
-                <div class="actions-grid">
-                  <button type="button" class="primary reveal-draft-button" on:click={setRiftCenterMode}>Go to Rifts</button>
-                </div>
-              {/if}
+              <div class="actions-grid">
+                <button type="button" class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted} on:click={revealEssenceDraft}>
+                  <span>{essenceDraftButtonLabel}</span>
+                  {#if essenceDraftCost}
+                    <span class="essence-cost"><i class="resource-icon essence"></i><strong>{essenceDraftCost}</strong></span>
+                  {/if}
+                </button>
+              </div>
             {:else}
               <div class="essence-draft-groups" class:has-synergy={selectedDraftChoicesHaveSynergy()}>
                 <div class="draft-offer-block" class:locked={!$gameStore.game.activeTroopOffer && !!confirmedTroopOfferUnlockId}>
@@ -5515,11 +5745,6 @@
           >
             <div class="ready-troops-header">
               <h2>Ready Troops</h2>
-              <div class="ready-status-counts info-target" title="Ready troops can be assigned. Assigned troops are committed to a Rift. Recovering troops cannot act this cycle.">
-                <span>Ready <strong>{statusCounts.idle}</strong></span>
-                <span>Assigned <strong>{statusCounts.active}</strong></span>
-                <span>Recovering <strong>{statusCounts.recovering}</strong></span>
-              </div>
             </div>
 
             {#if readyTroops.length === 0}
@@ -5551,6 +5776,7 @@
                       class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
                       class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
                       class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
+                      class:assignment-attention={troopAssignmentHighlighted}
                       class:conflict-pulse={assignmentConflict?.troopId === troop.id || assignmentConflict?.conflictTroopId === troop.id}
                       class:readonly-plan={multiplayerReadySubmitted}
                     aria-label={canEditMultiplayerPlan() ? `Drag ${troopDef.label} to a Rift` : `Inspect ${troopDef.label}`}
@@ -5593,18 +5819,17 @@
             {/if}
           </div>
         {/if}
-        {#if $gameStore.centerMode === 'rifts'}
+        {#if $gameStore.game.phase === 'planning'}
           <button
             class="primary large end-cycle-button ui-debug-target"
-            data-ui-name={mustSpendEssenceBeforeCycleEnd ? 'Spend essence button' : 'End cycle button'}
+            data-ui-name={mustSpendEssenceBeforeCycleEnd ? 'Spend essence button' : mustAssignTroopsBeforeCycleEnd ? 'Assign troops button' : 'End cycle button'}
             data-tutorial-target="end-cycle-button"
             on:click={handleEndCycle}
             disabled={multiplayerReadySubmitted || !!$gameStore.cycleAnimation}
           >
-            {$gameStore.cycleAnimation ? 'Battles Resolving' : mustSpendEssenceBeforeCycleEnd ? 'Spend Essence' : $gameStore.multiplayer ? multiplayerReadyLabel() : $gameStore.cycleEndConfirmationPending ? 'Confirm End Cycle' : 'End Cycle'}
+            {primaryCycleActionLabel}
           </button>
         {/if}
-      {/if}
     </footer>
 
     {#if troopDrag?.active}
@@ -6219,6 +6444,10 @@
     grid-template-columns: minmax(250px, 282px) minmax(760px, 1fr) minmax(260px, 320px);
     gap: 0.75rem;
     padding-block: 0.75rem;
+  }
+
+  .overworld-shell.rifts-mode {
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
   .topbar {
@@ -7660,6 +7889,55 @@
       0 10px 22px rgba(0, 0, 0, 0.24);
   }
 
+  .archive-performance-tile {
+    --archive-health-scale: 0;
+    --archive-damage-scale: 0;
+  }
+
+  .archive-performance-tile.has-archive-performance::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    pointer-events: none;
+    z-index: 6;
+  }
+
+  .archive-health-indicator,
+  .archive-damage-indicator {
+    position: absolute;
+    bottom: 0.32rem;
+    width: 0.2rem;
+    top: 0.32rem;
+    height: auto;
+    min-height: 0;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transform: scaleY(var(--archive-health-scale));
+    transform-origin: bottom;
+    z-index: 7;
+  }
+
+  .archive-health-indicator {
+    left: 0.32rem;
+    background: linear-gradient(180deg, #a7f0a0, #48bd6c);
+    box-shadow: 0 0 0.38rem rgba(88, 220, 117, 0.34);
+  }
+
+  .archive-damage-indicator {
+    right: 0.32rem;
+    transform: scaleY(var(--archive-damage-scale));
+    background: linear-gradient(180deg, #ff9a82, #d84c43);
+    box-shadow: 0 0 0.38rem rgba(232, 72, 61, 0.34);
+  }
+
+  .has-archive-performance .archive-health-indicator,
+  .has-archive-performance .archive-damage-indicator {
+    opacity: 0.96;
+  }
+
   .assignment-panel .unit-tile small {
     display: none;
   }
@@ -7669,6 +7947,19 @@
     box-shadow:
       inset 0 0 0 2px rgba(218, 190, 140, 0.42),
       0 0 28px rgba(218, 190, 140, 0.18);
+  }
+
+  .rift-card.drop-target-unavailable {
+    border-color: rgba(129, 139, 148, 0.34);
+    background:
+      linear-gradient(150deg, rgba(34, 39, 45, 0.78), rgba(13, 17, 23, 0.88)),
+      radial-gradient(circle at top right, rgba(132, 144, 154, 0.1), transparent 48%);
+    box-shadow: inset 0 0 0 2px rgba(104, 114, 124, 0.28);
+  }
+
+  .rift-card.drop-target-unavailable > :not(.drop-conflict-message) {
+    filter: grayscale(1) brightness(0.48);
+    opacity: 0.38;
   }
 
   .drop-target-blocked {
@@ -8208,10 +8499,36 @@
   }
 
   .incoming-archive-card {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 35;
+    width: var(--flight-from-width, 8rem);
+    height: var(--flight-from-height, 3rem);
+    max-width: calc(100vw - 1rem);
+    min-height: 0;
+    overflow: hidden;
     pointer-events: none;
-    transform: translate(var(--from-x), var(--from-y)) scale(0.84);
+    transform: translate(var(--flight-from-x), var(--flight-from-y));
+    transform-origin: center;
     opacity: 1;
     animation: incoming-archive-card-fly var(--arrival-flight) cubic-bezier(0.18, 0.84, 0.22, 1) var(--arrival-delay) both;
+  }
+
+  .incoming-flight-mini,
+  .incoming-flight-archive {
+    position: absolute;
+    inset: 0;
+  }
+
+  .incoming-flight-mini {
+    opacity: 1;
+    animation: incoming-flight-mini-fade var(--arrival-flight) ease-in-out var(--arrival-delay) both;
+  }
+
+  .incoming-flight-archive {
+    opacity: 0;
+    animation: incoming-flight-archive-fade var(--arrival-flight) ease-in-out var(--arrival-delay) both;
   }
 
   .archive-inspect-heading {
@@ -8221,8 +8538,56 @@
     gap: 0.75rem;
   }
 
-  .archive-inspect-heading h2 {
-    margin: 0;
+  .archive-result-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    min-height: 3rem;
+    color: #f4e6ba;
+  }
+
+  .archive-result-mark svg {
+    width: 2.65rem;
+    height: 2.65rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.7;
+    filter: drop-shadow(0 0 0.5rem rgba(235, 190, 86, 0.26));
+  }
+
+  .archive-result-mark:not(.rival-result) svg {
+    width: 3.05rem;
+    height: 3.05rem;
+  }
+
+  .archive-result-mark.defeat-result {
+    color: #ff9a82;
+  }
+
+  .archive-result-mark.defeat-result svg {
+    filter: drop-shadow(0 0 0.5rem rgba(232, 72, 61, 0.28));
+  }
+
+  .archive-result-mark .archive-rival-arrow {
+    color: #9eb4c7;
+    font-family: var(--ui-font-mono);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .archive-result-mark .archive-draw-mark {
+    display: inline-grid;
+    width: 2.65rem;
+    height: 2.65rem;
+    place-items: center;
+    border: 1px solid rgba(213, 178, 116, 0.48);
+    border-radius: 999px;
+    color: #e6c88d;
+    font-family: var(--ui-font-mono);
+    font-size: 1.6rem;
+    font-weight: 900;
   }
 
   .archive-rift-id {
@@ -8264,18 +8629,50 @@
 
   @keyframes incoming-archive-card-fly {
     0% {
+      width: var(--flight-from-width, 8rem);
+      height: var(--flight-from-height, 3rem);
       opacity: 1;
-      transform: translate(var(--from-x), var(--from-y)) scale(0.84);
+      transform: translate(var(--flight-from-x), var(--flight-from-y));
       filter: brightness(1.18) saturate(1.12);
     }
+    58% {
+      width: var(--flight-from-width, 8rem);
+      height: var(--flight-from-height, 3rem);
+    }
     82% {
-      transform: translate(0, 0) scale(1.04);
+      width: var(--flight-to-width, 15rem);
+      height: var(--flight-to-height, 3.35rem);
+      transform: translate(var(--flight-to-x), var(--flight-to-y));
       filter: brightness(1.12) saturate(1.08);
     }
     100% {
+      width: var(--flight-to-width, 15rem);
+      height: var(--flight-to-height, 3.35rem);
       opacity: 1;
-      transform: translate(0, 0) scale(1);
+      transform: translate(var(--flight-to-x), var(--flight-to-y));
       filter: none;
+    }
+  }
+
+  @keyframes incoming-flight-mini-fade {
+    0%,
+    54% {
+      opacity: 1;
+    }
+    86%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes incoming-flight-archive-fade {
+    0%,
+    54% {
+      opacity: 0;
+    }
+    86%,
+    100% {
+      opacity: 1;
     }
   }
 
@@ -8585,10 +8982,11 @@
   }
 
   .footer-essence-draft-panel {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-row: 2;
     width: fit-content;
     max-width: 100%;
-    justify-self: center;
+    justify-self: start;
     align-self: end;
     padding: 0.6rem 0.7rem;
     border-radius: 12px;
@@ -8772,7 +9170,7 @@
   .action-rail {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(260px, max-content) minmax(0, 1fr) auto;
     grid-auto-rows: auto;
     align-items: end;
     justify-items: start;
@@ -8785,6 +9183,10 @@
     min-height: 6.4rem;
   }
 
+  .action-rail:not(:has(.footer-ready-troops-panel)):not(:has(.footer-essence-draft-panel)):not(:has(.system-message-popover)):not(:has(.archive-actions-stack)) {
+    min-height: 3.5rem;
+  }
+
   .action-rail.empty-action-rail {
     display: none;
     min-height: 0;
@@ -8793,18 +9195,18 @@
   }
 
   .action-rail > button:only-child {
-    grid-column: 2;
+    grid-column: 3;
   }
 
   .archive-actions-stack {
-    grid-column: 2;
+    grid-column: 3;
     display: grid;
     gap: 0.75rem;
     justify-items: end;
   }
 
   .end-cycle-button {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 2;
     justify-self: end;
     align-self: end;
@@ -9354,6 +9756,12 @@
     align-content: stretch;
   }
 
+  .overworld-shell.rifts-mode .center-column {
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-auto-rows: auto;
+    overflow: hidden;
+  }
+
   .center-column > .rift-grid,
   .center-column > .race-grid,
   .center-column > .opponent-info-board {
@@ -9405,8 +9813,33 @@
     gap: var(--ui-space-sm);
   }
 
+  .archive-panel,
+  .selected-archive-panel {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .archive-panel {
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    overflow: hidden;
+  }
+
+  .archive-panel > p {
+    align-self: start;
+  }
+
   .archive-list {
     min-height: 0;
+    align-content: start;
+    overflow: auto;
+    padding-right: 0.15rem;
+  }
+
+  .selected-archive-panel {
+    align-content: start;
+    overflow: auto;
   }
 
   .archive-pagination {
@@ -9463,7 +9896,7 @@
 
   .footer-ready-troops-panel {
     width: min(620px, 100%);
-    grid-column: 1 / -1;
+    grid-column: 2;
     grid-row: 2;
     justify-self: center;
   }
@@ -9482,6 +9915,33 @@
     height: 4.35rem;
     min-height: 0;
     padding: 0.55rem;
+  }
+
+  .ready-troop-tile.assignment-attention {
+    border-color: rgba(211, 176, 255, 0.72);
+    animation: assignment-attention-pulse 800ms ease-in-out 0s 3;
+    box-shadow:
+      0 0 0 2px rgba(211, 176, 255, 0.2),
+      0 0 28px rgba(155, 95, 220, 0.34),
+      var(--ui-shadow-panel);
+  }
+
+  @keyframes assignment-attention-pulse {
+    0%,
+    100% {
+      border-color: rgba(211, 176, 255, 0.54);
+      box-shadow:
+        0 0 0 1px rgba(211, 176, 255, 0.14),
+        0 0 14px rgba(155, 95, 220, 0.2),
+        var(--ui-shadow-panel);
+    }
+    50% {
+      border-color: rgba(238, 216, 255, 0.94);
+      box-shadow:
+        0 0 0 3px rgba(211, 176, 255, 0.28),
+        0 0 32px rgba(184, 108, 255, 0.5),
+        var(--ui-shadow-panel);
+    }
   }
 
   .ready-troops-grid.roster-count-8 {
@@ -10820,6 +11280,18 @@
       overflow: visible;
     }
 
+    .overworld-shell.rifts-mode {
+      height: 100dvh;
+      min-height: 100dvh;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+
+    .overworld-shell.rifts-mode .left-column,
+    .overworld-shell.rifts-mode .right-column {
+      display: none;
+    }
+
     .overworld-shell.troops-mode {
       width: min(1240px, 100%);
       grid-template-columns: 1fr;
@@ -10829,6 +11301,17 @@
     .overworld-shell .center-column,
     .overworld-shell .right-column {
       overflow: visible;
+    }
+
+    .overworld-shell.rifts-mode .center-column {
+      grid-column: 1;
+      grid-row: 2;
+      overflow: hidden;
+    }
+
+    .overworld-shell.rifts-mode .action-rail {
+      grid-column: 1;
+      grid-row: 3;
     }
 
     .action-rail {

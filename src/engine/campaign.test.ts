@@ -9,6 +9,7 @@ import {
   claimUpgradeOffer,
   clearTroopAssignment,
   continuePlaying,
+  CONTEST_FINAL_CYCLE,
   deserializeGameState,
   getOpeningRaceStarterTroopUnlockIds,
   getOpeningRaceOptionIds,
@@ -926,13 +927,17 @@ describe('campaign progression', () => {
     expect(Object.values(labels)).not.toContain('Recovering');
   });
 
-  it('adds Contest Rifts on cycles three, five, and seven and ends after cycle eight', () => {
+  it('adds Contest Rifts on cycles three, five, and seven and ends after cycle ten', () => {
     const cycleTwo: GameState = { ...finishContestOpening(304), cycleNumber: 2 };
     const cycleThree = applyCycleOutcomes(cycleTwo, { records: [], preparedState: cycleTwo }).nextState;
     expect(cycleThree.openRifts.some((rift) => rift.cycleNumber === 3 && rift.tier === 2)).toBe(true);
 
     const cycleEight: GameState = { ...cycleThree, cycleNumber: 8, phase: 'planning', activeRaceUnlockOffer: null };
-    const ended = applyCycleOutcomes(cycleEight, { records: [], preparedState: cycleEight }).nextState;
+    const notEnded = applyCycleOutcomes(cycleEight, { records: [], preparedState: cycleEight }).nextState;
+    expect(notEnded.phase).toBe('planning');
+
+    const cycleTen: GameState = { ...notEnded, cycleNumber: CONTEST_FINAL_CYCLE, phase: 'planning', activeRaceUnlockOffer: null };
+    const ended = applyCycleOutcomes(cycleTen, { records: [], preparedState: cycleTen }).nextState;
     expect(ended.phase).toBe('game_over');
   });
 
@@ -989,6 +994,87 @@ describe('campaign progression', () => {
     const prepared = resolveAssignedRifts(state).preparedState!;
 
     expect(prepared.contest?.players.ai.troops.some((troop) => troop.assignmentRiftId === 'easy-rift')).toBe(true);
+  });
+
+  it('packs Contest AI troops into the lowest-tier Rifts when no winning battles are found', () => {
+    const opened = finishContestOpening(309);
+    const overwhelmingEnemyArmy = [
+      resolveEnemyCombatant([], [], 'troll', 'champion', 4, 'overwhelming-1'),
+      resolveEnemyCombatant([], [], 'orc', 'avenger', 4, 'overwhelming-2'),
+      resolveEnemyCombatant([], [], 'dwarf', 'knight', 4, 'overwhelming-3'),
+      resolveEnemyCombatant([], [], 'fae', 'wizard', 4, 'overwhelming-4'),
+    ];
+    const baseRift = opened.openRifts[0]!;
+    const lowRift = {
+      ...baseRift,
+      id: 'low-rift',
+      tier: 1,
+      seed: baseRift.seed + 11,
+      enemyArmy: overwhelmingEnemyArmy,
+      victoryPoints: 1,
+      controller: 'neutral' as const,
+      occupyingPlayerId: null,
+      occupyingTroopIds: [],
+    };
+    const secondLowRift = {
+      ...baseRift,
+      id: 'second-low-rift',
+      tier: 1,
+      seed: baseRift.seed + 12,
+      enemyArmy: overwhelmingEnemyArmy,
+      victoryPoints: 1,
+      controller: 'neutral' as const,
+      occupyingPlayerId: null,
+      occupyingTroopIds: [],
+    };
+    const highRift = {
+      ...baseRift,
+      id: 'high-rift',
+      tier: 3,
+      seed: baseRift.seed + 13,
+      enemyArmy: overwhelmingEnemyArmy,
+      victoryPoints: 3,
+      controller: 'neutral' as const,
+      occupyingPlayerId: null,
+      occupyingTroopIds: [],
+    };
+    const aiTroops = [
+      createTroopInstance('human', 'soldier'),
+      createTroopInstance('elf', 'archer'),
+      createTroopInstance('dwarf', 'knight'),
+      createTroopInstance('human', 'wizard'),
+      createTroopInstance('goblin', 'archer'),
+    ];
+    const state: GameState = {
+      ...opened,
+      cycleNumber: 8,
+      contest: {
+        players: {
+          ai: {
+            ...opened.contest!.players.ai,
+            essence: 0,
+            troops: aiTroops,
+            unlockedRaceIds: ['human', 'elf', 'dwarf', 'goblin'],
+            unlockedTroopUnlockIds: ['human/soldier', 'elf/archer', 'dwarf/knight', 'human/wizard', 'goblin/archer'],
+            activeTroopOffer: null,
+            activeUpgradeOffer: null,
+            activeRaceUnlockOffer: null,
+            activeTroopClassUnlockOffer: null,
+          },
+        },
+      },
+      openRifts: [highRift, secondLowRift, lowRift],
+    };
+
+    const prepared = resolveAssignedRifts(state).preparedState!;
+    const assignments = Object.fromEntries(prepared.contest!.players.ai.troops.map((troop) => [troop.id, troop.assignmentRiftId]));
+
+    expect(Object.values(assignments)).not.toContain('high-rift');
+    expect(prepared.contest!.players.ai.troops.filter((troop) => troop.assignmentRiftId === 'low-rift')).toHaveLength(3);
+    expect(prepared.contest!.players.ai.troops.filter((troop) => troop.assignmentRiftId === 'second-low-rift')).toHaveLength(2);
+    expect(assignments['human/soldier']).toBe('low-rift');
+    expect(assignments['human/wizard']).toBe('second-low-rift');
+    expect(assignments['goblin/archer']).toBe('second-low-rift');
   });
 
   it('archives Contest battles, including AI guardian expeditions, and labels their encounter type', () => {

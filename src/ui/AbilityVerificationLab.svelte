@@ -60,7 +60,7 @@
     currentStep: -1,
     selectedEvent: null,
     autoPlay: false,
-    speedMs: 8,
+    speedMs: 125,
   };
 
   function currentSnapshot(replay: BattleReplay, currentStep: number): BattleUnit[] {

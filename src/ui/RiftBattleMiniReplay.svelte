@@ -28,6 +28,7 @@
   export let result: BattleOutcome = 'draw';
   export let opponentOutcome = false;
   export let delayMs = 0;
+  export let startFinished = false;
   export let portraits: Record<string, string> = {};
 
   let stepIndex = -1;
@@ -48,7 +49,7 @@
 
   onMount(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) {
+    if (prefersReducedMotion || startFinished) {
       stepIndex = replay.steps.length - 1;
       finished = true;
       return;

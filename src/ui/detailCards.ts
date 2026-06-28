@@ -301,11 +301,13 @@ type BuildResolvedUnitDetailOptions = {
   abilities: AbilityDefinition[];
   statBreakdowns?: Partial<Record<ExplainedStatKey | 'quantity', StatBreakdown>>;
   getRaceUnitPortrait: (raceId: RaceId, unitClassId: UnitClassId) => string;
+  summonPreviewTrail?: string[];
 };
 
 export function buildResolvedUnitDetail(options: BuildResolvedUnitDetailOptions): DetailCard {
   const safeDescription = options.description ?? 'Troop preview.';
   const lowerDescription = safeDescription.toLowerCase();
+  const summonPreviewTrail = options.summonPreviewTrail ?? [];
   return {
     detailKey: options.detailKey,
     kind: 'unit',
@@ -338,17 +340,22 @@ export function buildResolvedUnitDetail(options: BuildResolvedUnitDetailOptions)
         key: `${ability.id}:${preview.unitClassId}:${preview.count}:${preview.grantedAbilityIds.join(',')}`,
         label: preview.troop.label,
         count: preview.count,
-        detail: buildResolvedUnitDetail({
-          detailKey: `summon-preview:${options.detailKey}:${ability.id}:${preview.unitClassId}:${preview.grantedAbilityIds.join(',')}`,
-          label: preview.troop.label,
-          raceId: preview.troop.raceId,
-          unitClassId: preview.troop.unitClassId,
-          stats: preview.troop.stats,
-          quantity: preview.troop.quantity,
-          description: `${preview.count > 1 ? `${preview.count} units. ` : ''}${preview.consumesCorpse ? 'Requires a corpse. ' : ''}Summoned by ${ability.label}.`,
-          abilities: preview.troop.abilities,
-          getRaceUnitPortrait: options.getRaceUnitPortrait,
-        }),
+        detail: (() => {
+          const previewKey = `${ability.id}:${preview.unitClassId}:${preview.grantedAbilityIds.join(',')}`;
+          const repeatsPreview = summonPreviewTrail.includes(previewKey);
+          return buildResolvedUnitDetail({
+            detailKey: `summon-preview:${options.detailKey}:${ability.id}:${preview.unitClassId}:${preview.grantedAbilityIds.join(',')}`,
+            label: preview.troop.label,
+            raceId: preview.troop.raceId,
+            unitClassId: preview.troop.unitClassId,
+            stats: preview.troop.stats,
+            quantity: preview.troop.quantity,
+            description: `${preview.count > 1 ? `${preview.count} units. ` : ''}${preview.consumesCorpse ? 'Requires a corpse. ' : ''}Summoned by ${ability.label}.`,
+            abilities: repeatsPreview ? [] : preview.troop.abilities,
+            getRaceUnitPortrait: options.getRaceUnitPortrait,
+            summonPreviewTrail: [...summonPreviewTrail, previewKey],
+          });
+        })(),
       }));
       return {
         id: ability.id,

@@ -112,7 +112,7 @@
     },
     'finish-replay': {
       title: 'Replay End',
-      body: ['Finish the battle at any pace. 64x automatic playback is recommended.'],
+      body: ['Finish the battle at any pace. 4x automatic playback is recommended.'],
       task: 'Reach the final replay step.',
       placement: 'replay-low',
       targets: ['[data-tutorial-target="replay-play"]', '[data-tutorial-target="replay-speed"]'],

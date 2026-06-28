@@ -409,6 +409,31 @@ describe('gameStore progression flow', () => {
     expect(state.cycleEndConfirmationPending).toBe(false);
   });
 
+  it('automatically reveals the opening Contest Essence draft', async () => {
+    gameStore.startNewCampaign(1, 'contest');
+    const opening = currentStoreState<{ game: GameState }>().game;
+    const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(opening);
+
+    gameStore.claimOpeningTroop(firstTroopUnlockId);
+    gameStore.claimOpeningTroop(secondTroopUnlockId);
+    await gameStore.startOpeningCampaign();
+
+    const state = currentStoreState<{
+      game: {
+        gameMode: string;
+        phase: string;
+        essence: number;
+        activeTroopOffer: unknown;
+        activeUpgradeOffer: unknown;
+      };
+    }>();
+    expect(state.game.gameMode).toBe('contest');
+    expect(state.game.phase).toBe('planning');
+    expect(state.game.essence).toBe(0);
+    expect(state.game.activeTroopOffer).not.toBeNull();
+    expect(state.game.activeUpgradeOffer).not.toBeNull();
+  });
+
   it('keeps active draft offers stable through save and reload', () => {
     gameStore.startNewCampaign(1);
     claimDefaultOpeningTroops();
@@ -676,6 +701,33 @@ describe('gameStore progression flow', () => {
     expect(storage.getItem('shiftmake:slot:2:replay:stale')).toBeNull();
     expect(storage.getItem(`shiftmake:slot:2:replay:v3.19:${imported.game.replayIndex[0]?.replayId}`)).not.toBeNull();
     expect(storage.getItem('shiftmake:slot:1:save:v3')).not.toBeNull();
+  });
+
+  it('exports campaign reports directly from occupied save slots', () => {
+    gameStore.startNewCampaign(1);
+    claimDefaultOpeningTroops();
+    const uiContext: CampaignReportUiContext = {
+      screen: 'main_menu',
+      centerMode: 'rifts',
+      selectedRiftId: null,
+      selectedTroopId: null,
+      selectedReplayId: null,
+      currentReplayStep: null,
+      systemMessage: null,
+      validationMessages: [],
+    };
+
+    gameStore.returnToMainMenu();
+
+    const report = gameStore.createCampaignReportForSlot(1, uiContext);
+    expect(report).toBeTruthy();
+    const decoded = decodeCampaignReport(report!);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) {
+      return;
+    }
+    expect(decoded.payload.summary.phase).toBe('planning');
+    expect(decoded.payload.uiContext.screen).toBe('main_menu');
   });
 
   it('preserves unsubmitted multiplayer edits when the other player submits readiness', () => {

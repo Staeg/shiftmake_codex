@@ -9,6 +9,7 @@
   export let selectedReplayId: string | null = null;
   export let selectedRiftId: string | null = null;
   export let rendererDiagnostics: BattleReportDiagnostic[] = [];
+  export let reportSlotId: SaveSlotId | null = null;
   export let onCampaignImport: (selectedTroopId: TroopId | null, selectedReplayId: string | null) => void = () => {};
 
   let battleReportImportText = '';
@@ -48,7 +49,9 @@
   }
 
   function createCampaignReportString(): string | null {
-    return gameStore.createCampaignReport(currentCampaignReportUiContext());
+    return reportSlotId
+      ? gameStore.createCampaignReportForSlot(reportSlotId, currentCampaignReportUiContext())
+      : gameStore.createCampaignReport(currentCampaignReportUiContext());
   }
 
   async function copyText(report: string | null, missingMessage: string, setMessage: (message: string) => void): Promise<void> {
@@ -177,7 +180,7 @@
     class="debug-icon-button ui-debug-target"
     data-ui-name="Copy campaign report"
     on:click={() => void copyCampaignReport()}
-    disabled={!$gameStore.activeSlotId}
+    disabled={!reportSlotId && !$gameStore.activeSlotId}
     title="Copy current game state report"
     aria-label="Copy current game state report"
   >

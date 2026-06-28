@@ -277,7 +277,7 @@ function makeInitialState(): StoreState {
     currentStep: -1,
     selectedEvent: null,
     autoPlay: false,
-    speedMs: 8,
+    speedMs: 125,
     validationMessages: [],
     systemMessage: null,
     cycleEndConfirmationPending: false,
@@ -307,6 +307,10 @@ function saveActiveCampaign(state: StoreState): StoreState {
     ...state,
     slots: listSaveSlots(localStorage),
   };
+}
+
+function autoRevealContestEssenceDraft(game: GameState): GameState {
+  return game.gameMode === 'contest' ? revealEssenceDraft(game) : game;
 }
 
 function persistTutorialProgress(state: StoreState, progress: TutorialProgress | null): StoreState {
@@ -444,6 +448,7 @@ function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState
     replayWriteResult.replayIndex !== applied.nextState.replayIndex
       ? { ...applied.nextState, replayIndex: replayWriteResult.replayIndex }
       : applied.nextState;
+  const game = autoRevealContestEssenceDraft(nextGame);
 
   let systemMessage: string | null = null;
   if (replayWriteResult.failedReplayIds.size > 0) {
@@ -460,7 +465,7 @@ function applyResolvedCycleToStoreState(state: StoreState, sourceGame: GameState
   return saveActiveCampaign({
     ...state,
     activeSlotId,
-    game: nextGame,
+    game,
     validationMessages: [],
     systemMessage,
     cycleEndConfirmationPending: false,
@@ -527,6 +532,19 @@ function collectReplayPayloadsForCampaign(state: Pick<StoreState, 'activeSlotId'
     }
   });
   return { replayPayloads, missingReplayIds };
+}
+
+function createCampaignReportForGame(slotId: SaveSlotId | null, game: GameState, uiContext: CampaignReportUiContext): string {
+  const { replayPayloads, missingReplayIds } = collectReplayPayloadsForCampaign({ activeSlotId: slotId, game });
+  return encodeCampaignReport(
+    buildCampaignReportPayload({
+      game,
+      replayPayloads,
+      missingReplayIds,
+      uiContext,
+      ...(import.meta.env.MODE ? { buildMode: import.meta.env.MODE } : {}),
+    }),
+  );
 }
 
 export function persistReplayPayloadWrites(
@@ -1042,7 +1060,7 @@ export const gameStore = (() => {
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: startOpeningCampaign(state.game),
+              game: autoRevealContestEssenceDraft(startOpeningCampaign(state.game)),
               systemMessage: null,
             }),
       );
@@ -1053,7 +1071,7 @@ export const gameStore = (() => {
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: claimRaceUnlockOffer(state.game, raceId),
+              game: autoRevealContestEssenceDraft(claimRaceUnlockOffer(state.game, raceId)),
               systemMessage: null,
             }),
       );
@@ -1064,7 +1082,7 @@ export const gameStore = (() => {
           ? state
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
-              game: claimTroopClassUnlockOffer(state.game, troopUnlockId),
+              game: autoRevealContestEssenceDraft(claimTroopClassUnlockOffer(state.game, troopUnlockId)),
               systemMessage: null,
             }),
       );
@@ -1455,16 +1473,15 @@ export const gameStore = (() => {
         return null;
       }
 
-      const { replayPayloads, missingReplayIds } = collectReplayPayloadsForCampaign(snapshot);
-      return encodeCampaignReport(
-        buildCampaignReportPayload({
-          game: snapshot.game,
-          replayPayloads,
-          missingReplayIds,
-          uiContext,
-          ...(import.meta.env.MODE ? { buildMode: import.meta.env.MODE } : {}),
-        }),
-      );
+      return createCampaignReportForGame(snapshot.activeSlotId, snapshot.game, uiContext);
+    },
+    createCampaignReportForSlot(slotId: SaveSlotId, uiContext: CampaignReportUiContext): string | null {
+      const game = loadSaveSlot(localStorage, slotId);
+      if (!game) {
+        return null;
+      }
+
+      return createCampaignReportForGame(slotId, game, uiContext);
     },
     previewCampaignReport(encodedReport: string): { ok: true; payload: CampaignReportPayload } | { ok: false; message: string } {
       const decoded = decodeCampaignReport(encodedReport);

@@ -53,7 +53,7 @@ import type {
 
 const OPENING_RACE_OPTION_COUNT = 4;
 export const CAMPAIGN_FINAL_CYCLE = 10;
-export const CONTEST_FINAL_CYCLE = 8;
+export const CONTEST_FINAL_CYCLE = 10;
 const AI_MIN_ESTIMATED_WIN_MARGIN = -20;
 
 export interface ContestAiPlannerOptions {
@@ -1565,8 +1565,39 @@ function firstWinningAiAllocation(state: GameState, options: ContestAiPlannerOpt
     : empty;
 }
 
+function fallbackAiAllocationByLowestTier(state: GameState): Map<string, TroopId[]> {
+  const availableRifts = state.openRifts
+    .filter((rift) => rift.state === 'discovered' && getAiRiftValue(rift) > 0)
+    .sort((left, right) => left.tier - right.tier || left.id.localeCompare(right.id));
+  const readyTroops = [...getContestReadyTroops(state, 'ai')].sort((left, right) => left.id.localeCompare(right.id));
+  const allocation = new Map<string, TroopId[]>();
+  const unusedTroops = [...readyTroops];
+
+  for (const rift of availableRifts) {
+    const group: StateTroopArray = [];
+    for (let index = 0; index < unusedTroops.length;) {
+      const troop = unusedTroops[index]!;
+      if (!isValidAiTroopGroupAddition(state, group, troop)) {
+        index += 1;
+        continue;
+      }
+      group.push(troop);
+      unusedTroops.splice(index, 1);
+    }
+    if (group.length > 0) {
+      allocation.set(rift.id, group.map((troop) => troop.id));
+    }
+    if (unusedTroops.length === 0) {
+      break;
+    }
+  }
+
+  return allocation;
+}
+
 function assignAiContestTroops(state: GameState, options: ContestAiPlannerOptions): GameState {
-  const allocation = firstWinningAiAllocation(state, options);
+  const winningAllocation = firstWinningAiAllocation(state, options);
+  const allocation = winningAllocation.size > 0 ? winningAllocation : fallbackAiAllocationByLowestTier(state);
   if (allocation.size === 0) {
     return state;
   }
