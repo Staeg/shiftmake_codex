@@ -60,6 +60,7 @@ export interface AbilityTriggerDefinition {
   maxUses?: number;
   condition?: 'forsaken';
   repeatPerDistinctFriendlyTroopClass?: boolean;
+  repeatPerDistinctFriendlyTroop?: boolean;
   repeatPerTouchingFriendlyUnit?: boolean;
   fallen?: {
     allegiance: AbilityAllegiance;

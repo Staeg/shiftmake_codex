@@ -39,6 +39,7 @@ Footprint sizes:
 - Cost: 20
 - Troop upgrades:
   - `Crippling Shots` (tier 3): on attack, reduce the target armor by 1 and speed by 1 for the battle
+  - `Barrage` (tier 3): while not engaged in melee, shoot all enemies in range, but deal 40% less damage
 
 ### Avenger
 
@@ -60,7 +61,7 @@ Footprint sizes:
 - Cost: 60
 - Troop upgrades:
   - `Bloodhounds` (tier 3): starting wolves summon more wolves on kills; if engaged, a wolf touching the Beastmaster joins the fight and heals 10
-  - `Thrill of the Hunt` (tier 3): wolves touching the Beastmaster gain 10 initiative at end of turn, and any wolf kill gives allies touching the fallen unit +2 damage for the battle
+  - `Thrill of the Hunt` (tier 3): wolves touching the Beastmaster gain 10 initiative at end of turn, and any allied wolf kill gives all allied units +2 damage for the battle
 
 ### Champion
 
@@ -71,6 +72,7 @@ Footprint sizes:
 - Cost: 60
 - Troop upgrades:
   - `Anointed Executioner` (tier 3): target the lowest-HP legal enemy; healing and positive stat gains affecting the Champion are doubled
+  - `Honorable Duel` (tier 3): Champions cannot be targeted by normal attacks from enemies they are not engaged with
 
 ### Druid
 
@@ -100,7 +102,7 @@ Footprint sizes:
 - Abilities: `Charge 4 Summon Elemental`
 - Cost: 30
 - Troop upgrades:
-  - `Crackling Mitosis` (tier 3): when an allied elemental dies, blast its hex for 8; each summoned elemental can repeat the elemental summon once
+  - `Crackling Mitosis` (tier 3): when an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8; each summoned elemental can repeat the elemental summon once
   - `Living Circuit` (tier 3): end of turn, the Elementalist gains 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative
 
 ### Knight
@@ -112,7 +114,7 @@ Footprint sizes:
 - Cost: 60
 - Troop upgrades:
   - `Dine in Hell` (tier 3): start of turn, if engaged at full capacity, gain +5 armor until next turn; while engaged at full capacity, answer normal attacks with one normal attack
-  - `Sentinel Runes` (tier 3): the first enemy to move out of contact with the Knight causes 2 elementals to be summoned at its new position; if unused, this triggers on death instead
+  - `Sentinel Runes` (tier 3): the first enemy to move out of contact with the Knight causes 2 elementals to be summoned at its new position; they immediately engage and attack that unit. If unused, this triggers on death against the killer instead
 
 ### Militia
 
@@ -122,7 +124,7 @@ Footprint sizes:
 - Abilities: none
 - Cost: 10
 - Troop upgrades:
-  - `Rat Behavior` (tier 3): start of turn, gain +1 initiative per other Militia touching them
+  - `R-selected` (tier 3): start of turn, gain +10 initiative per other Militia touching them; multiple Militia troops may enter the same Rift
   - `Dogpile` (tier 3): attacks against enemies engaged by at least 3 allies strike 1 extra time
 
 ### Necromancer
@@ -133,7 +135,7 @@ Footprint sizes:
 - Abilities: `Corpse Summon Skeleton`
 - Cost: 40
 - Troop upgrades:
-  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; summoned skeletons heal allies touching them for 7 each turn
+  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; allied summoned Skeletons heal allies touching them for 7 each turn
   - `Explosion Corpse` (tier 3): summoned skeletons spawn with 100 initiative; consuming a corpse makes enemies adjacent to that corpse lose 1 armor and 1 damage for the battle
 
 ### Priest
@@ -184,8 +186,9 @@ Footprint sizes:
 - Role: frontline
 - Abilities: none
 - Cost: 24
-- Troop upgrade:
+- Troop upgrades:
   - `Shield Drill` (tier 3): Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers
+  - `Dreamwork` (tier 3): once per beat, Soldiers attack an adjacent enemy when that enemy is hit by another ally's normal attack
 
 ### Wizard
 
@@ -195,8 +198,8 @@ Footprint sizes:
 - Abilities: `Blast 5`
 - Cost: 20
 - Troop upgrades:
-  - `Storm Rods` (tier 3): every 4 turns, make 4 extra strikes against a random enemy in range; `Blast` deals +1 damage per elemental overlapping the target cell, and Wizards summon 1 elemental at battle start
-  - `Spell Echo` (tier 2): `Blast` chains to an adjacent hex that has not already been hit in that chain
+  - `Storm Rods` (tier 3): every 4 turns, make 2 extra strikes against a random enemy in range; `Blast` deals +1 damage per allied elemental anywhere on the battlefield, and Wizards summon 1 elemental at battle start
+  - `Spell Echo` (tier 2): each `Blast` echoes from every enemy hit by that `Blast` or its echoes, but each enemy can be hit only once per `Blast` chain
 
 ### Wolf
 
@@ -211,31 +214,30 @@ Footprint sizes:
 ### Humans
 
 - `Tubthumping` (tier 1): multiple Human troops may enter the same Rift; harmful damage or speed reductions become `+1` instead
-- `Human Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop class in the battle
+- `Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop on its side
 - `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
 
 ### Elves
 
-- `Elven Reflexes` (tier 1): all non-melee Elven troops gain +1 range; the first time an Elven backline unit is engaged each battle, it retreats 1 hex for free
-- `Elven Forsaken` (tier 3): if fighting alone with no other friendly troop classes, gain +80% health, damage, and speed
+- `Feline Grace` (tier 1): all non-melee Elven troops gain +2 range; the first time an Elven backline unit is engaged each battle, it retreats 1 hex for free
+- `Forsaken` (tier 3): if this is the only troop on its side, gain +80% health, damage, and speed
 - `Silvershot Doctrine` (tier 2): ranged and caster attacks gain +1 damage and +2 initiative per hex of distance; attacks made from max range make the target lose 30 initiative
 
 ### Goblins
 
-- `Goblin Behavior` (tier 1): on death, make 1 extra strike against a random touching enemy; on kill, enemies touching the fallen unit lose 20 initiative
-- `Goblin Pack` (tier 2): start of turn, gain +1 damage per other friendly unit touching it until end of turn
-- `Loot Frenzy` (tier 3): on kill, allies touching the fallen unit heal 10 and gain 30 initiative
+- `Gallowsworn` (tier 1): on death, make 1 extra strike against a random touching enemy; on kill, all enemies lose 10 initiative
+- `Horde` (tier 2): start of turn, gain +4 damage per other friendly unit touching it until end of turn
 
 ### Trolls
 
-- `Roll the Boulder` (tier 1): end of turn, gain +1 damage for the battle; melee kills deal splash damage equal to `5 x size` to enemies touching the fallen unit
-- `Mossblood` (tier 2): the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`; after taking damage, gain +1 damage for the battle
-- `Rowdy Regrowth` (tier 2): whenever a Troll is healed, it gains 20 initiative
+- `Roll the Boulder` (tier 1): melee kills deal splash damage equal to `10 x size` to enemies touching the fallen unit; end of turn, gain +2 damage for the battle
+- `Mossblood` (tier 2): after taking damage, gain +1 damage for the battle; the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`
+- `Rowdy Regrowth` (tier 2): whenever a Troll regains health, it gains 20 initiative
 
 ### Dwarves
 
 - `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
-- `Ale and Hearty` (tier 2): Dwarven troops gain +40% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
+- `Ale and Hearty` (tier 2): Dwarven troops gain +60% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
 - `Stall Warts` (tier 3): Dwarven troops gain +1 armor and lose 1 speed for the battle after they are hit by normal attacks
 
 ### Orcs

@@ -335,6 +335,20 @@ describe('campaign progression', () => {
     ).toBe(true);
   });
 
+  it('excludes the first upgrade class and second upgrade race before targeting the third upgrade offer', () => {
+    const state = revealEssenceDraft(finishOpening(3));
+    const [firstUpgradeId, secondUpgradeId, thirdUpgradeId] = state.activeUpgradeOffer!.optionUpgradeIds;
+    const excludedUnitClassId = TROOP_CLASS_UPGRADES[firstUpgradeId!]?.unitClassId;
+    const excludedRaceId = RACE_UPGRADES[secondUpgradeId!]?.raceId;
+
+    expect(state.troops.map((troop) => `${troop.raceId}/${troop.unitClassId}`)).toEqual(['fae/shaman', 'dwarf/soldier']);
+    expect(excludedUnitClassId).toBe('soldier');
+    expect(excludedRaceId).toBe('dwarf');
+    expect(TROOP_CLASS_UPGRADES[thirdUpgradeId!]?.unitClassId).not.toBe(excludedUnitClassId);
+    expect(RACE_UPGRADES[thirdUpgradeId!]?.raceId).not.toBe(excludedRaceId);
+    expect(upgradeAffectsTroop(thirdUpgradeId!, state.troops[0]!)).toBe(true);
+  });
+
   it('does not use locked-race troops as a third troop fallback when no recent Rift troops are available', () => {
     const state = revealEssenceDraft(finishOpening(101, 'human/soldier'));
     const ownedRaceIds = new Set(state.unlockedRaceIds);
@@ -507,6 +521,24 @@ describe('campaign progression', () => {
       conflictTroopId: 'human/soldier',
       riftId,
     });
+  });
+
+  it('allows multiple Militia assignments with R-selected', () => {
+    const opening = startNewGame(12);
+    const [firstTroopUnlockId, secondTroopUnlockId] = pickOpeningPair(opening);
+    const opened = startOpeningCampaign(claimOpeningTroop(claimOpeningTroop(opening, firstTroopUnlockId), secondTroopUnlockId));
+    const riftId = opened.openRifts[0]!.id;
+    const state = {
+      ...opened,
+      troopClassUpgradeIds: ['militia-rat-behavior'],
+      troops: [createTroopInstance('human', 'militia'), createTroopInstance('goblin', 'militia')],
+    };
+
+    const firstAssigned = assignTroopToRift(state, 'human/militia', riftId);
+    const secondAssigned = assignTroopToRift(firstAssigned, 'goblin/militia', riftId);
+
+    expect(secondAssigned.troops.find((troop) => troop.id === 'goblin/militia')?.assignmentRiftId).toBe(riftId);
+    expect(validateAssignments(secondAssigned).issues.some((issue) => issue.kind === 'same_class_conflict')).toBe(false);
   });
 
   it('opens scheduled race unlocks at cycles three and seven with preselected troop grants', () => {

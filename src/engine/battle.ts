@@ -98,6 +98,7 @@ type ActiveTimedEffect =
 
 type InternalUnit = {
   id: string;
+  combatantId: string | null;
   troopInstanceId: string | null;
   troopLabel: string;
   unitClassId: string;
@@ -175,6 +176,7 @@ interface InternalState {
   changelingTriggeredSides: Set<SideId>;
   pendingGraveVigorBlocks: Array<{ unitId: string; side: SideId }>;
   distinctTypeCache: Map<SideId, string[]>;
+  dreamworkTriggeredUnitIdsThisBeat: Set<string>;
 }
 
 const BASE_MAP_RADIUS = 3;
@@ -327,6 +329,7 @@ function createPlacedUnit(
   const unitId = `${side}_${combatant.combatantId}_${index}`;
   return {
     id: unitId,
+    combatantId: combatant.combatantId,
     troopInstanceId: combatant.troopInstanceId,
     troopLabel: combatant.label,
     unitClassId: combatant.unitClassId,
@@ -1318,6 +1321,14 @@ function getDistinctFriendlyTroopClasses(state: InternalState, unit: InternalUni
   return result;
 }
 
+function getFriendlyTroopKey(unit: InternalUnit): string {
+  return unit.troopInstanceId ?? unit.combatantId ?? unit.id;
+}
+
+function getDistinctFriendlyTroops(state: InternalState, unit: InternalUnit): string[] {
+  return [...new Set(getAliveUnits(state, unit.side).map(getFriendlyTroopKey))];
+}
+
 function formatSigned(value: number): string {
   return value >= 0 ? `+${formatFixed(value)}` : formatFixed(value);
 }
@@ -2116,19 +2127,15 @@ function getBlastDefaultTargets(state: InternalState, actor: InternalUnit, event
   if (!event.attackTarget) {
     return [];
   }
-  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, event.attackTarget!));
+  return blastTargetsFromFootprint(state, actor, event.attackTarget.occupiedHexes);
 }
 
-function blastTargetsOnHex(state: InternalState, actor: InternalUnit, coord: HexCoord): InternalUnit[] {
-  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitOverlapsHex(unit, coord));
+function unitDistanceFromAnyHex(unit: InternalUnit, origins: HexCoord[]): number {
+  return Math.min(...origins.map((origin) => unitDistanceFromHex(unit, origin)));
 }
 
-function chooseAdjacentBlastHex(state: InternalState, actor: InternalUnit, origin: HexCoord, visited: Set<string>): HexCoord | null {
-  const options = neighbors(origin)
-    .filter((coord) => state.mapHexes.has(hexKey(coord)))
-    .filter((coord) => !visited.has(hexKey(coord)))
-    .filter((coord) => blastTargetsOnHex(state, actor, coord).length > 0);
-  return options.length > 0 ? pickRandomHex(state, options) : null;
+function blastTargetsFromFootprint(state: InternalState, actor: InternalUnit, origins: HexCoord[]): InternalUnit[] {
+  return getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitDistanceFromAnyHex(unit, origins) <= 2);
 }
 
 function getStrikeDefaultTarget(event: AbilityTriggerEvent): InternalUnit[] {
@@ -2229,7 +2236,7 @@ function canTriggerAbility(state: InternalState, actor: InternalUnit, runtime: R
   if (runtime.usesRemaining !== null && runtime.usesRemaining <= 0) {
     return false;
   }
-  if (trigger.condition === 'forsaken' && getDistinctFriendlyTroopClasses(state, actor).length > 1) {
+  if (trigger.condition === 'forsaken' && getDistinctFriendlyTroops(state, actor).length > 1) {
     return false;
   }
   if (trigger.fallen && event.fallenUnit) {
@@ -2263,6 +2270,10 @@ function canTriggerAbility(state: InternalState, actor: InternalUnit, runtime: R
 function getAbilityRepeatCount(state: InternalState, actor: InternalUnit, runtime: RuntimeAbilityState): number {
   if (runtime.definition.trigger.repeatPerDistinctFriendlyTroopClass) {
     return Math.max(0, getDistinctFriendlyTroopClasses(state, actor).filter((classTag) => classTag !== actor.unitClassTag).length);
+  }
+  if (runtime.definition.trigger.repeatPerDistinctFriendlyTroop) {
+    const actorTroopKey = getFriendlyTroopKey(actor);
+    return Math.max(0, getDistinctFriendlyTroops(state, actor).filter((troopKey) => troopKey !== actorTroopKey).length);
   }
   if (runtime.definition.trigger.repeatPerTouchingFriendlyUnit) {
     return getAliveUnits(state, actor.side).filter((ally) => ally.id !== actor.id && unitsTouchOrOverlap(ally, actor)).length;
@@ -2342,15 +2353,18 @@ function summonUnit(
   runtime: RuntimeAbilityState,
   effect: Extract<AbilityEffectDefinition, { kind: 'summon' }>,
   origin: HexCoord,
-): boolean {
+): InternalUnit | null {
   const troop = composeSummonedTroopDefinition(actor.raceId, effect.unitClassId);
   const summonPlacement = tryFindSummonPlacement(state, origin, troop.stats.size);
   if (!summonPlacement) {
-    return false;
+    return null;
   }
   const summonIndex = [...state.units.values()].filter((unit) => unit.side === actor.side && unit.troopLabel === troop.label).length + 1;
   const unitId = `${actor.id}-summon-${effect.unitClassId}-${summonIndex}`;
   const grantedAbilities = (effect.grantedAbilityIds ?? []).map(getAbility);
+  if (effect.unitClassId === 'skeleton' && sideHasTroopClassUpgrade(state, actor.side, 'necromancer-hemomancy')) {
+    grantedAbilities.push(getAbility('heal-ally-0-7'));
+  }
   const mergedAbilities = [...troop.abilities];
   grantedAbilities.forEach((ability) => {
     if (!mergedAbilities.some((entry) => entry.id === ability.id)) {
@@ -2359,6 +2373,7 @@ function summonUnit(
   });
   const summonedUnit: InternalUnit = {
     id: unitId,
+    combatantId: null,
     troopInstanceId: null,
     troopLabel: troop.label,
     unitClassId: troop.unitClassId,
@@ -2402,7 +2417,7 @@ function summonUnit(
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label,
   });
-  return true;
+  return summonedUnit;
 }
 
 function summonUnitsAtHex(
@@ -2414,7 +2429,7 @@ function summonUnitsAtHex(
   origin: HexCoord,
   grantedAbilityIds: string[] = [],
   initialInitiative?: number,
-): boolean {
+): InternalUnit[] {
   const runtime = createRuntimeAbilityState(getAbility(sourceAbilityId));
   const effect: Extract<AbilityEffectDefinition, { kind: 'summon' }> = {
     kind: 'summon',
@@ -2423,24 +2438,42 @@ function summonUnitsAtHex(
     grantedAbilityIds,
     initialInitiative,
   };
-  let summonedAny = false;
+  const summonedUnits: InternalUnit[] = [];
   for (let index = 0; index < count; index += 1) {
-    summonedAny = summonUnit(state, actor, runtime, effect, origin) || summonedAny;
+    const summonedUnit = summonUnit(state, actor, runtime, effect, origin);
+    if (summonedUnit) {
+      summonedUnits.push(summonedUnit);
+    }
   }
-  return summonedAny;
+  return summonedUnits;
 }
 
-function triggerSentinelRunes(state: InternalState, knight: InternalUnit, origin: HexCoord, message: string): void {
+function triggerSentinelRunes(state: InternalState, knight: InternalUnit, origin: HexCoord, triggerUnit: InternalUnit | null, message: string): void {
   if (knight.sentinelRunesTriggered || !hasAbility(knight, 'sentinel-runes')) {
     return;
   }
-  if (summonUnitsAtHex(state, knight, 'sentinel-runes', 'elemental', 2, origin)) {
+  const summonedUnits = summonUnitsAtHex(state, knight, 'sentinel-runes', 'elemental', 2, origin);
+  if (summonedUnits.length > 0) {
     knight.sentinelRunesTriggered = true;
     buildStep(state, 'buff', [knight.id], [], message, {
       effect: 'sentinelRunes',
       sourceAbilityId: 'sentinel-runes',
       sourceAbilityLabel: getAbility('sentinel-runes').label,
     });
+    if (triggerUnit?.alive) {
+      summonedUnits.forEach((elemental) => {
+        if (!triggerUnit.alive || elemental.engagedWith.has(triggerUnit.id) || triggerUnit.resolvedStats.size > availableCapacity(state, elemental)) {
+          return;
+        }
+        createEngagement(state, elemental, triggerUnit);
+        buildStep(state, 'engage', [elemental.id], [triggerUnit.id], `${elemental.troopLabel} answers Sentinel Runes.`, {
+          effect: 'sentinelRunesEngage',
+          sourceAbilityId: 'sentinel-runes',
+          sourceAbilityLabel: getAbility('sentinel-runes').label,
+        });
+        attack(state, elemental, triggerUnit, 'melee', true, 0, 'strike');
+      });
+    }
   }
 }
 
@@ -2448,7 +2481,7 @@ function handleMoveOffKnightHex(state: InternalState, mover: InternalUnit, previ
   getAliveUnits(state)
     .filter((unit) => unit.side !== mover.side && footprintsTouchOrOverlap(unit.occupiedHexes, previousFootprint) && hasAbility(unit, 'sentinel-runes'))
     .forEach((knight) => {
-      triggerSentinelRunes(state, knight, to, `${knight.troopLabel} triggers Sentinel Runes.`);
+      triggerSentinelRunes(state, knight, to, mover, `${knight.troopLabel} triggers Sentinel Runes.`);
     });
 }
 
@@ -2468,15 +2501,12 @@ function applyBlastSequence(
   actor: InternalUnit,
   runtime: RuntimeAbilityState,
   amount: number,
-  origin: HexCoord,
-  visited: Set<string>,
+  originFootprint: HexCoord[],
+  damagedTargetIds: Set<string>,
+  echoedOriginIds = new Set<string>(),
 ): boolean {
-  const key = hexKey(origin);
-  if (visited.has(key)) {
-    return false;
-  }
-  visited.add(key);
-  const targets = blastTargetsOnHex(state, actor, origin);
+  const targets = blastTargetsFromFootprint(state, actor, originFootprint)
+    .filter((target) => !damagedTargetIds.has(target.id));
   if (targets.length === 0) {
     return false;
   }
@@ -2485,12 +2515,14 @@ function applyBlastSequence(
     hasAbility(actor, 'lightning-rods') ?
       fixedAdd(
         amount,
-        getAliveUnits(state).filter((unit) => unit.unitClassTag === 'elemental' && unitOverlapsHex(unit, origin)).length,
+        getAliveUnits(state, actor.side).filter((unit) => unit.unitClassTag === 'elemental').length,
       )
     : amount;
 
   let applied = false;
+  const echoQueue: InternalUnit[] = [];
   targets.forEach((target) => {
+    damagedTargetIds.add(target.id);
     const damage = fixedMax(totalAmount, 0);
     const inflictedDamage = canTakeDamage(target) ? damage : 0;
     if (inflictedDamage > 0) {
@@ -2507,6 +2539,7 @@ function applyBlastSequence(
       sourceAbilityLabel: runtime.definition.label,
     });
     applied = true;
+    echoQueue.push(target);
     if (target.hp <= 0 && target.alive) {
       handleDeath(state, actor, target, { mode: 'blast', category: 'strike' });
     } else if (target.alive && canTakeDamage(target)) {
@@ -2518,10 +2551,13 @@ function applyBlastSequence(
   });
 
   if (applied && hasAbility(actor, 'spell-echo')) {
-    const nextHex = chooseAdjacentBlastHex(state, actor, origin, visited);
-    if (nextHex) {
-      applyBlastSequence(state, actor, runtime, amount, nextHex, visited);
-    }
+    echoQueue.forEach((target) => {
+      if (echoedOriginIds.has(target.id)) {
+        return;
+      }
+      echoedOriginIds.add(target.id);
+      applyBlastSequence(state, actor, runtime, amount, target.occupiedHexes, damagedTargetIds, echoedOriginIds);
+    });
   }
 
   return applied;
@@ -2577,7 +2613,7 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     }
     let summonedAny = false;
     for (let index = 0; index < summon.count; index += 1) {
-      summonedAny = summonUnit(state, actor, runtime, summon, origin) || summonedAny;
+      summonedAny = Boolean(summonUnit(state, actor, runtime, summon, origin)) || summonedAny;
     }
     if (summonedAny && summon.consumeFallenUnitCorpse && event.fallenUnit) {
       applyCarrionChoir(state, actor, event.fallenUnit.position);
@@ -2590,7 +2626,15 @@ const PER_TARGET_EFFECT_HANDLERS: Partial<Record<AbilityEffectDefinition['kind']
     const strikeCount = Math.max(0, Math.floor(e.amount));
     if (strikeCount > 0 && target.alive) {
       for (let i = 0; i < strikeCount; i += 1) {
-        attack(state, actor, target, actor.resolvedStats.range > 0 ? 'ranged' : 'melee', false, 0, 'strike');
+        attack(
+          state,
+          actor,
+          target,
+          actor.resolvedStats.range > 0 ? 'ranged' : 'melee',
+          _runtime.definition.id === 'charge-4-random-enemy-r-strike-4',
+          0,
+          'strike',
+        );
         if (!target.alive) {
           break;
         }
@@ -2631,7 +2675,7 @@ function executeAbilityEffect(
     if (!firstTarget) {
       return false;
     }
-    return applyBlastSequence(state, actor, runtime, (effect as Extract<AbilityEffectDefinition, { kind: 'blast' }>).amount, firstTarget.position, new Set<string>());
+    return applyBlastSequence(state, actor, runtime, (effect as Extract<AbilityEffectDefinition, { kind: 'blast' }>).amount, firstTarget.occupiedHexes, new Set<string>());
   }
 
   if (!handler) {
@@ -2716,7 +2760,11 @@ function triggerUnitAbilities(
 }
 
 function isArmyCompositionAbility(runtime: RuntimeAbilityState): boolean {
-  return !!(runtime.definition.trigger.condition || runtime.definition.trigger.repeatPerDistinctFriendlyTroopClass);
+  return !!(
+    runtime.definition.trigger.condition ||
+    runtime.definition.trigger.repeatPerDistinctFriendlyTroopClass ||
+    runtime.definition.trigger.repeatPerDistinctFriendlyTroop
+  );
 }
 
 function executeStartOfBattleAbilities(state: InternalState): void {
@@ -2944,9 +2992,8 @@ function performLootFrenzy(state: InternalState, actor: InternalUnit, fallenFoot
     });
 }
 
-function performThrillKillBuff(state: InternalState, actor: InternalUnit, fallenFootprint: HexCoord[]): void {
+function performThrillKillBuff(state: InternalState, actor: InternalUnit): void {
   getAliveUnits(state, actor.side)
-    .filter((unit) => unitTouchesAnyHex(unit, fallenFootprint))
     .forEach((unit) => {
       applyRamp(state, actor, unit, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
         kind: 'ramp',
@@ -3007,7 +3054,7 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   });
 
   if (hasAbility(target, 'sentinel-runes') && !target.sentinelRunesTriggered) {
-    triggerSentinelRunes(state, target, target.position, `${target.troopLabel} releases Sentinel Runes in death.`);
+    triggerSentinelRunes(state, target, target.position, actor, `${target.troopLabel} releases Sentinel Runes in death.`);
   }
 
   const bondedDependents = getAliveUnits(state, target.side).filter(
@@ -3018,12 +3065,12 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   performScavengersHunger(state, actor, target);
   if (hasAbility(actor, 'snatch-the-moment')) {
     getAliveUnits(state)
-      .filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, target))
+      .filter((unit) => unit.side !== actor.side)
       .forEach((unit) => {
-        unit.initiative = fixedMax(fixedSub(unit.initiative, 20), 0);
-        buildStep(state, 'buff', [actor.id], [unit.id], `${unit.troopLabel} loses 20 initiative.`, {
+        unit.initiative = fixedMax(fixedSub(unit.initiative, 10), 0);
+        buildStep(state, 'buff', [actor.id], [unit.id], `${unit.troopLabel} loses 10 initiative.`, {
           effect: 'snatchTheMoment',
-          amount: -20,
+          amount: -10,
           sourceAbilityId: 'snatch-the-moment',
           sourceAbilityLabel: getAbility('snatch-the-moment').label,
         });
@@ -3033,10 +3080,10 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     performLootFrenzy(state, actor, target.occupiedHexes);
   }
   if (actor.unitClassTag === 'wolf' && sideHasTroopClassUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
-    performThrillKillBuff(state, actor, target.occupiedHexes);
+    performThrillKillBuff(state, actor);
   }
   if (hasAbility(actor, 'crushing-sweep') && context.mode === 'melee') {
-    const splash = actor.resolvedStats.size * 5;
+    const splash = actor.resolvedStats.size * 10;
     getAliveUnits(state)
       .filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, target))
       .forEach((unit) => {
@@ -3071,7 +3118,7 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
     if (unit.id !== target.id) {
       triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
       if (target.unitClassTag === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === actor.side) {
-        applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.position, new Set<string>());
+        applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.occupiedHexes, new Set<string>());
       }
     }
   });
@@ -3109,7 +3156,7 @@ function handleEnvironmentalDeath(
   });
 
   if (hasAbility(target, 'sentinel-runes') && !target.sentinelRunesTriggered) {
-    triggerSentinelRunes(state, target, target.position, `${target.troopLabel} releases Sentinel Runes in death.`);
+    triggerSentinelRunes(state, target, target.position, null, `${target.troopLabel} releases Sentinel Runes in death.`);
   }
 
   const bondedDependents = getAliveUnits(state, target.side).filter(
@@ -3122,7 +3169,7 @@ function handleEnvironmentalDeath(
     if (unit.id !== target.id) {
       triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
       if (target.unitClassTag === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === target.side) {
-        applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.position, new Set<string>());
+        applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.occupiedHexes, new Set<string>());
       }
     }
   });
@@ -3132,12 +3179,22 @@ function handleEnvironmentalDeath(
 }
 
 function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit {
+  const legalCandidates = filterLegalNormalAttackTargets(actor, candidates);
+  const targetCandidates = legalCandidates.length > 0 ? legalCandidates : candidates;
   if (hasAbility(actor, 'executioner')) {
-    const lowestHp = Math.min(...candidates.map((enemy) => enemy.hp));
-    const lowest = candidates.filter((enemy) => enemy.hp === lowestHp);
+    const lowestHp = Math.min(...targetCandidates.map((enemy) => enemy.hp));
+    const lowest = targetCandidates.filter((enemy) => enemy.hp === lowestHp);
     return state.rng.pick(lowest);
   }
-  return state.rng.pick(candidates);
+  return state.rng.pick(targetCandidates);
+}
+
+function canTargetWithNormalAttack(actor: InternalUnit, target: InternalUnit): boolean {
+  return !hasAbility(target, 'honorable-duel') || target.engagedWith.has(actor.id);
+}
+
+function filterLegalNormalAttackTargets(actor: InternalUnit, candidates: InternalUnit[]): InternalUnit[] {
+  return candidates.filter((target) => canTargetWithNormalAttack(actor, target));
 }
 
 function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: InternalUnit, mode: 'melee' | 'ranged', category: AttackCategory): boolean {
@@ -3190,14 +3247,18 @@ function attack(
   allowOnAttackAbilities = true,
   strikeCount = 0,
   category: AttackCategory = 'normal',
+  damageMultiplier = 1,
 ): void {
   assertUnitLive(actor, 'attack/actor');
   assertUnitLive(target, 'attack/target');
+  if (category === 'normal' && !canTargetWithNormalAttack(actor, target)) {
+    return;
+  }
   if (tryApplyGlamour(state, actor, target, mode, category)) {
     return;
   }
   const attackContext: AttackContext = { mode, category };
-  let attackDamage = actor.resolvedStats.damage;
+  let attackDamage = fixedMul(actor.resolvedStats.damage, damageMultiplier);
   const distanceToTarget = unitFootprintDistance(actor, target);
   const heartseekerActive = hasAbility(actor, 'heartseeker') && target.engagedWith.size === 0;
   if (heartseekerActive) {
@@ -3241,6 +3302,7 @@ function attack(
     armorReduction: armorReduction || undefined,
     armorApplied: armorAfterMods,
     rangedMultiplier: mode === 'ranged' ? state.effects.rangedDamageMultiplier : undefined,
+    damageMultiplier: damageMultiplier !== 1 ? damageMultiplier : undefined,
     },
   );
 
@@ -3282,6 +3344,9 @@ function attack(
       }
     }
   });
+  if (category === 'normal') {
+    damageRecipients.forEach((recipient) => triggerDreamwork(state, actor, recipient));
+  }
   if (target.alive) {
     if (category === 'normal' && hasAbility(target, 'thornhide') && target.role === 'frontline' && target.resolvedStats.range === 0 && target.alive) {
       const thornDamage = canTakeDamage(actor) ? 6 : 0;
@@ -3329,6 +3394,38 @@ function attack(
       }
     }
   }
+}
+
+function triggerDreamwork(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
+  if (!actor.alive || !target.alive) {
+    return;
+  }
+  const soldiers = getAliveUnits(state, actor.side)
+    .filter((unit) => unit.id !== actor.id)
+    .filter((unit) => hasAbility(unit, 'dreamwork'))
+    .filter((unit) => !state.dreamworkTriggeredUnitIdsThisBeat.has(unit.id))
+    .filter((unit) => unitsTouchOrOverlap(unit, target))
+    .filter((unit) => canTargetWithNormalAttack(unit, target));
+  state.rng.shuffle(soldiers).forEach((soldier) => {
+    if (!soldier.alive || !target.alive || state.dreamworkTriggeredUnitIdsThisBeat.has(soldier.id)) {
+      return;
+    }
+    state.dreamworkTriggeredUnitIdsThisBeat.add(soldier.id);
+    attack(state, soldier, target, 'melee', true, 0, 'normal');
+  });
+}
+
+function barrage(state: InternalState, actor: InternalUnit, targets: InternalUnit[]): boolean {
+  const legalTargets = filterLegalNormalAttackTargets(actor, targets);
+  if (!hasAbility(actor, 'barrage') || actor.engagedWith.size > 0 || legalTargets.length === 0) {
+    return false;
+  }
+  state.rng.shuffle(legalTargets).forEach((target) => {
+    if (actor.alive && target.alive && unitsInRange(actor, target)) {
+      attack(state, actor, target, 'ranged', true, 0, 'normal', 0.6);
+    }
+  });
+  return true;
 }
 
 function pileOn(state: InternalState, actor: InternalUnit): boolean {
@@ -3888,7 +3985,10 @@ function moveToward(
 }
 
 function enemiesInRange(state: InternalState, actor: InternalUnit): InternalUnit[] {
-  return getAliveUnits(state).filter((enemy) => enemy.side !== actor.side && unitsInRange(actor, enemy));
+  return filterLegalNormalAttackTargets(
+    actor,
+    getAliveUnits(state).filter((enemy) => enemy.side !== actor.side && unitsInRange(actor, enemy)),
+  );
 }
 
 function nearestEnemyDistance(state: InternalState, actor: InternalUnit): number | null {
@@ -4294,6 +4394,9 @@ function executeTurnActions(state: InternalState, actor: InternalUnit): void {
   }
   const inRange = enemiesInRange(state, actor);
   if (inRange.length > 0) {
+    if (barrage(state, actor, inRange)) {
+      return;
+    }
     attack(state, actor, chooseAttackTarget(state, actor, inRange), 'ranged');
     return;
   }
@@ -4351,6 +4454,7 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
     changelingTriggeredSides: new Set<SideId>(),
     pendingGraveVigorBlocks: [],
     distinctTypeCache: new Map<SideId, string[]>(),
+    dreamworkTriggeredUnitIdsThisBeat: new Set<string>(),
   };
   state.units.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
 
@@ -4363,6 +4467,7 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
 
   while (!isBattleOver(state) && state.beatCount < MAX_BEATS) {
     state.beatCount += 1;
+    state.dreamworkTriggeredUnitIdsThisBeat.clear();
     getAliveUnits(state).forEach((unit) => {
       unit.initiative = fixedAdd(unit.initiative, fixedAdd(unit.resolvedStats.speed, state.effects.initiativeBonusPerBeat));
     });

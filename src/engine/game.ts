@@ -5,6 +5,7 @@ import {
   getTroopById,
   getTroopsAssignedToRift,
   isRaceUnited,
+  isUnitClassUnited,
   resolveTroopCombatant,
   tickRecovery,
   VICTORY_RECOVERY,
@@ -573,27 +574,34 @@ function buildLeastUpgradedTroopUpgradeBucket(
   availableUpgradeIds: UpgradeId[],
   selected: Set<string>,
   rng: ReturnType<typeof createRng>,
+  excludedUnitClassId: UnitClassId | null,
+  excludedRaceId: RaceId | null,
 ): UpgradeId[] {
   if (state.troops.length === 0) {
     return [];
   }
 
-  const leastUpgradeCount = Math.min(...state.troops.map((troop) => countExistingUpgradesAffectingTroop(state, troop)));
-  const targetTroops = state.troops.filter((troop) => countExistingUpgradesAffectingTroop(state, troop) === leastUpgradeCount);
-  const shuffledTargetTroops = rng.shuffle(targetTroops);
-
-  for (const troop of shuffledTargetTroops) {
-    const bucket = availableUpgradeIds.filter(
-      (upgradeId) =>
-        !selected.has(upgradeId) &&
-        upgradeAffectsTroop(upgradeId, troop),
-    );
-    if (bucket.length > 0) {
-      return bucket;
-    }
+  const bucketByTroop = state.troops
+    .map((troop) => ({
+      troop,
+      bucket: availableUpgradeIds.filter(
+        (upgradeId) =>
+          !selected.has(upgradeId) &&
+          TROOP_CLASS_UPGRADES[upgradeId]?.unitClassId !== excludedUnitClassId &&
+          RACE_UPGRADES[upgradeId]?.raceId !== excludedRaceId &&
+          upgradeAffectsTroop(upgradeId, troop),
+      ),
+    }))
+    .filter(({ bucket }) => bucket.length > 0);
+  if (bucketByTroop.length === 0) {
+    return [];
   }
 
-  return [];
+  const leastUpgradeCount = Math.min(...bucketByTroop.map(({ troop }) => countExistingUpgradesAffectingTroop(state, troop)));
+  const targetTroops = bucketByTroop.filter(({ troop }) => countExistingUpgradesAffectingTroop(state, troop) === leastUpgradeCount);
+  const shuffledTargetTroops = rng.shuffle(targetTroops);
+
+  return shuffledTargetTroops[0]?.bucket ?? [];
 }
 
 function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
@@ -613,14 +621,27 @@ function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
   const rng = createRng(deriveSeed(state.campaignSeed, state.cycleNumber * 20_003 + state.upgradeOfferRolls + 1));
   const selected = new Set<string>();
 
-  [troopUpgradeBucket, raceUpgradeBucket].forEach((bucket) => {
-    const picked = pickUnselectedOption(rng, bucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
-    if (picked) {
-      selected.add(picked);
-    }
-  });
+  const pickedTroopClassUpgrade = pickUnselectedOption(rng, troopUpgradeBucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
+  if (pickedTroopClassUpgrade) {
+    selected.add(pickedTroopClassUpgrade);
+  }
 
-  const leastUpgradedTroopBucket = buildLeastUpgradedTroopUpgradeBucket(state, availableUpgradeIds, selected, rng);
+  const pickedRaceUpgrade = pickUnselectedOption(rng, raceUpgradeBucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
+  if (pickedRaceUpgrade) {
+    selected.add(pickedRaceUpgrade);
+  }
+
+  const excludedUnitClassId = TROOP_CLASS_UPGRADES[pickedTroopClassUpgrade ?? '']?.unitClassId ?? null;
+  const excludedRaceId = RACE_UPGRADES[pickedRaceUpgrade ?? '']?.raceId ?? null;
+
+  const leastUpgradedTroopBucket = buildLeastUpgradedTroopUpgradeBucket(
+    state,
+    availableUpgradeIds,
+    selected,
+    rng,
+    excludedUnitClassId,
+    excludedRaceId,
+  );
   const pickedTargetedUpgrade =
     pickUnselectedOption(rng, leastUpgradedTroopBucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
   if (pickedTargetedUpgrade) {
@@ -917,7 +938,7 @@ export function validateAssignments(state: GameState): ValidationResult {
         }
       });
       groupedUnitClasses.forEach((count, unitClassId) => {
-        if (count > 1) {
+        if (count > 1 && !isUnitClassUnited(state, unitClassId)) {
           const conflictingTroops = troops.filter((troop) => troop.unitClassId === unitClassId);
           issues.push({
             kind: 'same_class_conflict',
@@ -988,7 +1009,7 @@ function getAssignmentIssue(state: GameState, troopId: TroopId, riftId: string):
   const sameTypeTroop = getTroopsAssignedToRift(state, riftId).find(
     (assignedTroop) => assignedTroop.id !== troopId && assignedTroop.unitClassId === troop.unitClassId,
   );
-  if (sameTypeTroop) {
+  if (sameTypeTroop && !isUnitClassUnited(state, troop.unitClassId)) {
     return {
       kind: 'same_class_conflict',
       troopId,
@@ -1304,7 +1325,7 @@ function resolveContestPvpBattle(
 }
 
 function isValidAiTroopGroupAddition(state: GameState, target: typeof state.troops, troop: (typeof state.troops)[number]): boolean {
-  if (target.some((entry) => entry.id === troop.id || entry.unitClassId === troop.unitClassId)) {
+  if (target.some((entry) => entry.id === troop.id || (entry.unitClassId === troop.unitClassId && !isUnitClassUnited(contestPlayerState(state, 'ai'), troop.unitClassId)))) {
     return false;
   }
   if (target.some((entry) => entry.raceId === troop.raceId) && !isRaceUnited(contestPlayerState(state, 'ai'), troop.raceId)) {

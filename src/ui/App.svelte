@@ -115,6 +115,22 @@
     active: boolean;
   };
 
+  function getDetailInspectLabel(detail: DetailCard): string {
+    if (detail.kind === 'mutator') {
+      return 'Mutator Effect';
+    }
+    if (detail.kind === 'race') {
+      return 'Race Modifiers';
+    }
+    if (detail.kind === 'upgrade') {
+      return detail.inspectLabel ?? 'Upgrade Effects';
+    }
+    if (detail.kind === 'rift') {
+      return 'Rift Rule';
+    }
+    return detail.inspectLabel;
+  }
+
   type BattleLogVisual = {
     key: string;
     replay: BattleReplay | null;
@@ -3680,7 +3696,7 @@
           {#if activeDetail}
             <div class="detail-panel opening-detail-panel">
               {#if activeDetail.kind !== 'unit'}
-                <p class="eyebrow">{activeDetail.kind === 'race' ? 'Race Modifiers' : 'Detail'}</p>
+                <p class="eyebrow">{getDetailInspectLabel(activeDetail)}</p>
               {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
@@ -3939,11 +3955,7 @@
             <div class="detail-panel opening-detail-panel">
               {#if activeDetail.kind !== 'unit'}
                 <p class="eyebrow">
-                  {activeDetail.kind === 'race'
-                    ? 'Race Modifiers'
-                    : activeDetail.kind === 'upgrade'
-                      ? 'Upgrade Effects'
-                      : 'Detail'}
+                  {getDetailInspectLabel(activeDetail)}
                 </p>
               {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
@@ -4365,15 +4377,7 @@
           <div class="detail-panel overworld-detail-panel" role="presentation" on:mouseleave={clearDetail}>
             {#if activeDetail.kind !== 'unit'}
               <p class="eyebrow">
-                {activeDetail.kind === 'mutator'
-                  ? 'Mutator Effect'
-                  : activeDetail.kind === 'race'
-                    ? 'Race Modifiers'
-                    : activeDetail.kind === 'upgrade'
-                      ? 'Upgrade Preview'
-                      : activeDetail.kind === 'rift'
-                        ? 'Rift Rule'
-                        : activeDetail.inspectLabel}
+                {getDetailInspectLabel(activeDetail)}
               </p>
             {/if}
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
@@ -5250,13 +5254,7 @@
       {#if false && activeDetail && $gameStore.centerMode !== 'troops'}
         <div class="panel detail-panel" role="presentation" on:mouseleave={clearDetail}>
           <p class="eyebrow">
-            {activeDetail.kind === 'mutator'
-              ? 'Mutator Effect'
-              : activeDetail.kind === 'race'
-                ? 'Race Modifiers'
-                : activeDetail.kind === 'upgrade'
-                  ? 'Upgrade Preview'
-                  : 'Unit Inspect'}
+            {getDetailInspectLabel(activeDetail)}
           </p>
           <h2>{activeDetail.label}</h2>
           {#if activeDetail.kind === 'unit'}
@@ -5921,7 +5919,7 @@
       <section class="panel focus-panel ui-debug-target" data-ui-name="Replay focus panel">
         {#if activeDetail}
           <div class="detail-panel replay-detail-panel">
-            <p class="eyebrow">{activeDetail.kind === 'mutator' ? 'Mutator Effect' : activeDetail.kind === 'upgrade' ? 'Upgrade Preview' : activeDetail.kind === 'rift' ? 'Rift Rule' : 'Battle Detail'}</p>
+            <p class="eyebrow">{getDetailInspectLabel(activeDetail)}</p>
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             <p>{activeDetail.description}</p>
           </div>

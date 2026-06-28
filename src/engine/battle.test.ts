@@ -192,8 +192,8 @@ describe('resolveDebugBattle', () => {
       player: { 'human/archer': 5 },
       enemy: { 'human/archer': 5 },
       playerRaceUpgradeIds: ['human-tubthumping'],
-      playerTroopClassUpgradeIds: ['archer-pinning-volley'],
-      enemyTroopClassUpgradeIds: ['archer-pinning-volley'],
+      playerTroopClassUpgradeIds: ['archer-crippling-shots'],
+      enemyTroopClassUpgradeIds: ['archer-crippling-shots'],
     });
 
     const playerProfile = replay.troopProfiles.find((profile) => profile.side === 'player' && profile.unitClassId === 'archer');
@@ -636,7 +636,7 @@ describe('ability mechanics', () => {
     expect(beatsBeforeShapeshift).toBeGreaterThanOrEqual(5);
   });
 
-  it('forsaken: triggers for a solo troop but not when an ally of a different class is present', () => {
+  it('forsaken: triggers for a solo troop but not when another troop is present', () => {
     const forsakenAbility = getAbility('forsaken-80');
     const enemy = makeBattleCombatant('human/soldier', 'enemy');
 
@@ -656,7 +656,7 @@ describe('ability mechanics', () => {
     expect(countPreBeatBuffs(alliedReplay)).toBe(0); // forsaken blocked when ally is present
   });
 
-  it('combined arms: fires once per distinct other friendly troop class at startOfBattle', () => {
+  it('combined arms: fires once per distinct other friendly troop at startOfBattle', () => {
     const combinedArmsAbility = getAbility('combined-arms-20');
 
     const countStartOfBattleBuffs = (extraAllies: string[]) => {
@@ -670,9 +670,9 @@ describe('ability mechanics', () => {
     };
 
     // combined-arms-20 has 3 effects (bolster, haste, ramp) per repeat
-    expect(countStartOfBattleBuffs([])).toBe(0); // solo: 0 other troop classes → 0 repeats
-    expect(countStartOfBattleBuffs(['human/archer'])).toBe(3); // 1 other class -> 1 repeat x 3 effects
-    expect(countStartOfBattleBuffs(['human/archer', 'human/militia'])).toBe(6); // 2 other classes -> 2 repeats x 3 effects
+    expect(countStartOfBattleBuffs([])).toBe(0); // solo: 0 other troops -> 0 repeats
+    expect(countStartOfBattleBuffs(['human/archer'])).toBe(3); // 1 other troop -> 1 repeat x 3 effects
+    expect(countStartOfBattleBuffs(['human/archer', 'human/militia'])).toBe(6); // 2 other troops -> 2 repeats x 3 effects
   });
 
   it('pack: grants temporary damage at start of turn and expires after the acting unit turn', () => {
@@ -720,7 +720,6 @@ describe('ability mechanics', () => {
         'elf-elven-reflexes',
         'elf-silvershot-doctrine',
         'goblin-behavior',
-        'goblin-loot-frenzy',
         'troll-mossblood',
         'troll-roll-the-boulder',
         'troll-rowdy-regrowth',
@@ -736,12 +735,15 @@ describe('ability mechanics', () => {
       ],
       troopClassUpgradeIds: [
         'soldier-shield-drill',
+        'soldier-dreamwork',
         'archer-crippling-shots',
+        'archer-barrage',
         'avenger-witness',
         'avenger-sevenfold',
         'beastmaster-bloodhounds',
         'beastmaster-thrill-of-the-hunt',
         'champion-anointed-executioner',
+        'champion-honorable-duel',
         'druid-forest-friends',
         'druid-true-form',
         'druid-ents-visage',
@@ -765,6 +767,7 @@ describe('ability mechanics', () => {
     };
 
     const humanSoldier = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'soldier'), 'player');
+    const humanChampion = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'champion'), 'player');
     const humanArcher = resolveTroopCombatant(upgradedState, createTroopInstance('human', 'archer'), 'player');
     const elfArcher = resolveTroopCombatant(upgradedState, createTroopInstance('elf', 'archer'), 'player');
     const trollAvenger = resolveTroopCombatant(upgradedState, createTroopInstance('troll', 'avenger'), 'player');
@@ -783,8 +786,13 @@ describe('ability mechanics', () => {
     const faeWizard = resolveTroopCombatant(upgradedState, createTroopInstance('fae', 'wizard'), 'player');
 
     expect(humanSoldier.abilities.map((ability) => ability.id)).toContain('shield-drill');
+    expect(humanSoldier.abilities.map((ability) => ability.id)).toContain('dreamwork');
+    expect(humanChampion.abilities.map((ability) => ability.id)).toContain('executioner');
+    expect(humanChampion.abilities.map((ability) => ability.id)).toContain('anointed');
+    expect(humanChampion.abilities.map((ability) => ability.id)).toContain('honorable-duel');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('pinning-volley');
+    expect(humanArcher.abilities.map((ability) => ability.id)).toContain('barrage');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('long-shot-doctrine');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('silver-distance');
@@ -793,7 +801,7 @@ describe('ability mechanics', () => {
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('last-witness');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('stoneblood');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('frenzy-ramp-1');
-    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('ramp-1');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('ramp-2');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('crushing-sweep');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('summon-wolf-2-blood');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('packmasters-whistle');
@@ -841,7 +849,7 @@ describe('ability mechanics', () => {
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('diggy-hole');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('ale-and-hearty');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stall-warts');
-    expect(dwarfSoldier.stats.speed).toBe(11.9);
+    expect(dwarfSoldier.stats.speed).toBe(13.6);
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('seeing-red');
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('first-blood');
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('berserk');
@@ -891,7 +899,7 @@ describe('ability mechanics', () => {
 
     expect(aleStep).toBeTruthy();
     const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.raceId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
-    expect(dwarfSpeeds).toEqual([1, 11.9, 11.9]);
+    expect(dwarfSpeeds).toEqual([1, 13.6, 13.6]);
   });
 
   it('stall warts grants Dwarves armor and reduces speed after normal attacks hit them', () => {
@@ -1062,7 +1070,7 @@ describe('ability mechanics', () => {
 
   it('executioner prioritizes the lowest-current-hp legal attack target', () => {
     const champion = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['champion-executioner'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['champion-anointed-executioner'] },
       createTroopInstance('human', 'champion'),
       'player',
     );
@@ -1083,7 +1091,7 @@ describe('ability mechanics', () => {
 
   it('shredding arrows applies a battle-long armor reduction that can go below zero', () => {
     const archer = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-shredding-arrows'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-crippling-shots'] },
       createTroopInstance('human', 'archer'),
       'player',
     );
@@ -1099,7 +1107,7 @@ describe('ability mechanics', () => {
 
   it('concussive shots resets the attacked target initiative', () => {
     const ranger = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['ranger-concussive-shots'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['ranger-on-the-hunt'] },
       createTroopInstance('elf', 'ranger'),
       'player',
     );
@@ -1113,7 +1121,7 @@ describe('ability mechanics', () => {
 
   it('pinning volley applies a battle-long speed reduction', () => {
     const archer = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-pinning-volley'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-crippling-shots'] },
       createTroopInstance('human', 'archer'),
       'player',
     );
@@ -1122,9 +1130,81 @@ describe('ability mechanics', () => {
     expect(replay.steps.some((step) => step.kind === 'buff' && step.message.includes('Human Soldier loses 1 speed'))).toBe(true);
   });
 
+  it('barrage makes unengaged Archers shoot every legal enemy in range at reduced damage', () => {
+    const archer = resolveTroopCombatant(
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-barrage'] },
+      createTroopInstance('human', 'archer'),
+      'player',
+    );
+    archer.stats = { ...archer.stats, speed: 100 };
+    const enemies = ['human/soldier', 'goblin/soldier', 'orc/soldier'].map((troopId, index) => {
+      const enemy = makeBattleCombatant(troopId, 'enemy');
+      enemy.combatantId = `${enemy.combatantId}-${index}`;
+      enemy.stats = { ...enemy.stats, damage: 0, speed: 1, health: 200 };
+      return enemy;
+    });
+
+    const replay = resolveBattle(makeBattleInput([archer], enemies, 124));
+    const openingArcherAttacks = replay.steps
+      .filter((step) => step.kind === 'attack' && step.actorIds[0]?.startsWith('player_') && step.message.includes('Human Archer hits'))
+      .slice(0, 3);
+
+    expect(openingArcherAttacks.length).toBeGreaterThanOrEqual(2);
+    expect(openingArcherAttacks.every((step) => step.metadata?.damageMultiplier === 0.6)).toBe(true);
+  });
+
+  it('honorable duel only allows normal attacks from enemies engaged with the Champion', () => {
+    const archer = makeBattleCombatant('human/archer', 'player');
+    archer.stats = { ...archer.stats, speed: 100, damage: 100 };
+    const champion = resolveTroopCombatant(
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['champion-honorable-duel'] },
+      createTroopInstance('human', 'champion'),
+      'enemy',
+    );
+    champion.stats = { ...champion.stats, speed: 1, damage: 0, health: 200 };
+
+    const replay = resolveBattle(makeBattleInput([archer], [champion], 125));
+    const illegalArcherHits = replay.steps.filter((step) => {
+      if (step.kind !== 'attack' || !step.message.includes('Human Archer hits Human Champion') || step.metadata?.category !== 'normal') {
+        return false;
+      }
+      const actorId = step.actorIds[0];
+      const target = step.targetIds[0] ? step.snapshot.units.find((unit) => unit.id === step.targetIds[0]) : null;
+      return !actorId || !target?.engagedWithIds.includes(actorId);
+    });
+
+    expect(illegalArcherHits).toEqual([]);
+  });
+
+  it('dreamwork lets Soldiers assist against adjacent enemies hit by another ally once per beat', () => {
+    const soldier = resolveTroopCombatant(
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['soldier-dreamwork'] },
+      createTroopInstance('human', 'soldier'),
+      'player',
+    );
+    const archer = makeBattleCombatant('human/archer', 'player');
+    soldier.stats = { ...soldier.stats, damage: 7, speed: 1, move: 3 };
+    archer.stats = { ...archer.stats, damage: 7, speed: 100 };
+    const enemy = makeBattleCombatant('human/knight', 'enemy');
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1, health: 400 };
+
+    const replay = resolveBattle(makeBattleInput([soldier, archer], [enemy], 126));
+    const dreamworkAttack = replay.steps.find((step, index) => {
+      if (step.kind !== 'attack' || !step.message.includes('Human Soldier hits Human Knight')) {
+        return false;
+      }
+      const previousAttack = replay.steps
+        .slice(Math.max(0, index - 3), index)
+        .find((candidate) => candidate.kind === 'attack' && candidate.message.includes('Human Archer hits Human Knight'));
+      return Boolean(previousAttack);
+    });
+
+    expect(dreamworkAttack).toBeDefined();
+  });
+
   it('rabble rush grants militia initiative based on touching militia allies', () => {
     const militia = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['militia-rabble-rush'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['militia-rat-behavior'] },
       createTroopInstance('human', 'militia'),
       'player',
     );
@@ -1135,7 +1215,7 @@ describe('ability mechanics', () => {
 
   it('early riser gives necromancer skeleton summons immediate initiative', () => {
     const necromancer = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['necromancer-early-riser'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['necromancer-explosion-corpse'] },
       createTroopInstance('troll', 'necromancer'),
       'player',
     );
@@ -1168,7 +1248,7 @@ describe('ability mechanics', () => {
       'player',
     );
     const enemyArcher = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-pinning-volley'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['archer-crippling-shots'] },
       createTroopInstance('human', 'archer'),
       'enemy',
     );
@@ -1209,7 +1289,7 @@ describe('ability mechanics', () => {
 
   it('serve once more reacts to both regen and other beneficial effects', () => {
     const shaman = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['shaman-serve-once-more'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['shaman-grave-vigor'] },
       createTroopInstance('troll', 'shaman'),
       'player',
     );
@@ -1287,7 +1367,7 @@ describe('ability mechanics', () => {
 
   it('alternate fuel can substitute health for missing corpses, but never fatally', () => {
     const upgradedNecromancer = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['necromancer-alternate-fuel'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['necromancer-hemomancy'] },
       createTroopInstance('troll', 'necromancer'),
       'player',
     );
@@ -1327,7 +1407,7 @@ describe('ability mechanics', () => {
 
   it('mitosis grants recursively summoned elementals the split ability', () => {
     const elementalist = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['elementalist-mitosis'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['elementalist-crackling-mitosis'] },
       createTroopInstance('elf', 'elementalist'),
       'player',
     );
@@ -1370,7 +1450,7 @@ describe('ability mechanics', () => {
 
   it('bramble snare stacks once per shapeshift, including true form', () => {
     const druid = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['druid-true-form', 'druid-bramble-snare'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['druid-true-form', 'druid-ents-visage'] },
       createTroopInstance('elf', 'druid'),
       'player',
     );
@@ -1434,7 +1514,7 @@ describe('ability mechanics', () => {
 
   it("scavenger's hunger consumes early ranger kills into wolf summons", () => {
     const ranger = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['ranger-scavengers-hunger'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['ranger-on-the-hunt'] },
       createTroopInstance('elf', 'ranger'),
       'player',
     );
@@ -1448,7 +1528,7 @@ describe('ability mechanics', () => {
 
   it('lightning rods adds a start-of-battle elemental summon to wizards', () => {
     const wizard = resolveTroopCombatant(
-      { raceUpgradeIds: [], troopClassUpgradeIds: ['wizard-lightning-rods'] },
+      { raceUpgradeIds: [], troopClassUpgradeIds: ['wizard-storm-rods'] },
       createTroopInstance('goblin', 'wizard'),
       'player',
     );

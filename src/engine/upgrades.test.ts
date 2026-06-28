@@ -8,7 +8,6 @@ const ALL_RACE_IDS = Object.keys(RACES) as RaceId[];
 const ALL_UNIT_CLASS_IDS = Object.keys(UNIT_CLASSES) as UnitClassId[];
 const ALL_TROOPS = ALL_RACE_IDS.flatMap((raceId) => ALL_UNIT_CLASS_IDS.map((unitClassId) => createTroopInstance(raceId, unitClassId)));
 const ELVEN_BACKLINE_UPGRADE_UNIT_CLASSES: UnitClassId[] = ['druid', 'elementalist', 'archer', 'wizard', 'priest', 'ranger', 'necromancer', 'shaman'];
-const GOBLIN_PACK_UNIT_CLASSES = ALL_UNIT_CLASS_IDS.filter((unitClassId) => unitClassId !== 'wolf');
 
 function combatantDiffers(left: ResolvedCombatantDefinition, right: ResolvedCombatantDefinition): boolean {
   const statChanged = Object.keys(left.stats).some((stat) => left.stats[stat as keyof typeof left.stats] !== right.stats[stat as keyof typeof right.stats]);
@@ -57,8 +56,7 @@ const EXPECTED_AFFECTED_TROOPS_BY_UPGRADE: Record<string, string[]> = {
   'elven-forsaken': raceTroopIds('elf'),
   'elf-silvershot-doctrine': raceTroopIds('elf', ELVEN_BACKLINE_UPGRADE_UNIT_CLASSES),
   'goblin-behavior': raceTroopIds('goblin'),
-  'goblin-pack': raceTroopIds('goblin', GOBLIN_PACK_UNIT_CLASSES),
-  'goblin-loot-frenzy': raceTroopIds('goblin'),
+  'goblin-pack': raceTroopIds('goblin'),
   'troll-roll-the-boulder': raceTroopIds('troll'),
   'troll-mossblood': raceTroopIds('troll'),
   'troll-rowdy-regrowth': raceTroopIds('troll'),
@@ -73,12 +71,15 @@ const EXPECTED_AFFECTED_TROOPS_BY_UPGRADE: Record<string, string[]> = {
   'fae-changeling': raceTroopIds('fae'),
   'fae-whimsy': raceTroopIds('fae'),
   'soldier-shield-drill': unitClassIds('soldier'),
+  'soldier-dreamwork': unitClassIds('soldier'),
   'archer-crippling-shots': unitClassIds('archer'),
+  'archer-barrage': unitClassIds('archer'),
   'avenger-sevenfold': unitClassIds('avenger'),
   'avenger-witness': unitClassIds('avenger'),
   'beastmaster-bloodhounds': unitClassIds('beastmaster'),
   'beastmaster-thrill-of-the-hunt': unitClassIds('beastmaster'),
   'champion-anointed-executioner': unitClassIds('champion'),
+  'champion-honorable-duel': unitClassIds('champion'),
   'knight-dine-in-hell': unitClassIds('knight'),
   'knight-sentinel-runes': unitClassIds('knight'),
   'druid-forest-friends': unitClassIds('druid'),

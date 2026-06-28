@@ -32,14 +32,16 @@ Each ability definition has:
 - `maxUses`
 - `condition: 'forsaken'`
 - `repeatPerDistinctFriendlyTroopClass`
+- `repeatPerDistinctFriendlyTroop`
 - `repeatPerTouchingFriendlyUnit`
 - `fallen: { allegiance, radius, radiusSource? }`
 - `effectApplication: { effectKinds?, dispositions? }`
 
 Meaning:
 
-- `condition: 'forsaken'` requires no other friendly troop classes to be present.
+- `condition: 'forsaken'` requires the unit to be in the only troop on its side.
 - `repeatPerDistinctFriendlyTroopClass` counts distinct friendly primary troop classes other than the acting unit's own.
+- `repeatPerDistinctFriendlyTroop` counts distinct friendly troop groups other than the acting unit's own.
 - `repeatPerTouchingFriendlyUnit` repeats once per other friendly unit whose footprint touches the acting unit's footprint.
 - `fallen.radiusSource: 'selfRange'` makes the fallen-unit trigger use the acting unit's resolved range.
 - `effectApplication.effectKinds` filters reactions to successful applications of particular effect kinds such as `heal`.
@@ -85,7 +87,7 @@ Filters match against a unit's combined primary `unitClassTag` plus `attributes`
 
 ### Blast
 
-- deals flat damage to all enemies on the attacked hex
+- deals flat damage to all enemies within 2 hexes of the target's occupied hexes
 
 ### Bolster
 
@@ -159,7 +161,7 @@ This is how:
 
 - `Bloodhounds` propagates wolf replication
 - `Crackling Mitosis` propagates elemental splitting
-- `Hemomancy` propagates skeleton healing
+- `Hemomancy` gives healing to allied summoned Skeletons from any source
 
 ### Corpse substitution
 
@@ -195,20 +197,20 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 
 - `onAttack`
 - instant
-- Effect: all enemies on the attacked hex take 5 damage
+- Effect: all enemies within 2 hexes of the target's occupied hexes take 5 damage
 
 ### Bonded
 
 - `passive`
 - Effect: dies when its summoner dies
 
-### Charge 4 Random Enemy R Strike 4
+### Charge 4 Random Enemy R Strike 2
 
 - `endOfTurn`
 - instant
 - `trigger modifier: chargeEvery: 4`
 - `target: random enemy R`
-- Effect: strike 4
+- Effect: strike 2; each strike resolves on-attack effects such as `Blast`
 
 ### Charge 4 Summon Elemental
 
@@ -251,7 +253,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `onFallen`
 - battle
 - `trigger modifier: fallen: { allegiance: all, radius: 0, radiusSource: 'selfRange' }`
-- Effect: consume a valid corpse in range to summon 1 skeleton with `AoE Ally 0 Heal 7`
+- Effect: consume a valid corpse in range to summon 1 skeleton. If that side owns `Hemomancy`, the summoned Skeleton gains `AoE Ally 0 Heal 7`; this also applies to allied Skeletons summoned by other sources.
 
 ### Explosion Corpse
 
@@ -277,7 +279,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `target: self`
 - `trigger modifier: condition: 'forsaken'`
-- Effect: gain +80% health, damage, and speed if no other friendly troop classes are present
+- Effect: gain +80% health, damage, and speed if this is the only troop on its side
 
 ### Frenzy: Ramp 1
 
@@ -338,8 +340,8 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `startOfBattle`
 - battle
 - `target: self`
-- `trigger modifier: repeatPerDistinctFriendlyTroopClass`
-- Effect: gain +20% health, damage, and speed per other friendly troop class
+- `trigger modifier: repeatPerDistinctFriendlyTroop`
+- Effect: gain +20% health, damage, and speed per other friendly troop on this side
 
 ### Ramp 1
 
@@ -395,6 +397,21 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `target: default`
 - Effect: reduce the attacked target armor by 1 and speed by 1 for the battle
+
+### Barrage
+
+- passive
+- While unengaged, Archers attack all legal enemies in range at 60% damage
+
+### Honorable Duel
+
+- passive
+- Champions cannot be targeted by normal attacks unless the attacker is engaged with them
+
+### Dreamwork
+
+- passive
+- Once per beat, Soldiers attack an adjacent enemy when another ally hits that enemy with a normal attack
 
 ### Summon Wolf 2
 

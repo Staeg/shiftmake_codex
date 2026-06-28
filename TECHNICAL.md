@@ -103,7 +103,7 @@ Resolved combatants expose both:
 
 Ability filters match against the combined visible set of `unitClassTag + attributes`.
 
-Combined Arms style logic counts distinct friendly primary `unitClassTag` values only.
+Combined Arms style logic counts distinct friendly troop groups, not individual unit bodies.
 
 ### Catalog
 
@@ -201,7 +201,7 @@ Upgrade offer buckets:
 
 1. a troop-class upgrade for an owned troop class
 2. a race upgrade for an owned race
-3. a random upgrade affecting a random allied troop among those with the fewest existing race-plus-class upgrades affecting them
+3. excluding the troop class chosen in bucket 1 and the race chosen in bucket 2, a random upgrade affecting a random allied troop among those with the fewest existing race-plus-class upgrades affecting them and at least one available upgrade after those exclusions
 
 If a bucket is empty, the picker falls back to any remaining unowned option.
 
@@ -361,7 +361,7 @@ Battle report and campaign report modules build and validate report payloads in 
 
 `BattleInput` may also carry each side's owned race and troop-class upgrade ids alongside the resolved combatants.
 
-The battle engine uses this for side-wide rules that must keep working for future summons even when the troop that normally grants the synergy is not present in that fight. Example: wolves summoned by Druids or Rangers can still benefit from owned wolf-synergy upgrades such as `Thrill of the Hunt`.
+The battle engine uses this for side-wide rules that must keep working for future summons even when the troop that normally grants the synergy is not present in that fight. Examples: wolves summoned by Druids or Rangers can still benefit from owned wolf-synergy upgrades such as `Thrill of the Hunt`, and Skeletons from any allied source can gain Hemomancy healing.
 
 ## Campaign Loop
 

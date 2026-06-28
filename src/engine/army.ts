@@ -60,6 +60,13 @@ export function isRaceUnited(state: Pick<GameState, 'raceUpgradeIds'>, raceId: R
     .some((upgrade) => upgrade.effects.some((effect) => effect.kind === 'addAbility' && getAbility(effect.abilityId).overworldEffectId === 'united'));
 }
 
+export function isUnitClassUnited(state: Pick<GameState, 'troopClassUpgradeIds'>, unitClassId: UnitClassId): boolean {
+  return state.troopClassUpgradeIds
+    .map(getTroopClassUpgrade)
+    .filter((upgrade) => upgrade.unitClassId === unitClassId)
+    .some((upgrade) => upgrade.effects.some((effect) => effect.kind === 'addAbility' && getAbility(effect.abilityId).overworldEffectId === 'united'));
+}
+
 function applyTierScaling(stats: UnitStats, tier: number | null): UnitStats {
   if (tier === null || tier < 4) {
     return stats;

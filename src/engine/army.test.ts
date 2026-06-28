@@ -65,10 +65,10 @@ describe('troop composition', () => {
     const archerResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, archer, 'player');
 
     expect(soldierResolved.stats.range).toBe(0);
-    expect(archerResolved.stats.range).toBe(7);
+    expect(archerResolved.stats.range).toBe(8);
   });
 
-  it('does not grant backline-only Elven Reflexes abilities to Elven Champions', () => {
+  it('does not grant backline-only Feline Grace abilities to Elven Champions', () => {
     const champion = createTroopInstance('elf', 'champion');
     const championResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, champion, 'player');
 
@@ -94,7 +94,7 @@ describe('troop composition', () => {
     const tier4Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 4, 'enemy-2');
 
     expect(tier3Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves']);
-    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Elven Reflexes']);
+    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Feline Grace']);
     expect(tier4Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Enemy Rift Tier 4']);
 
     expect(tier3Enemy.stats.health).toBe(humanSoldierBase.stats.health);

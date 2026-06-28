@@ -213,7 +213,7 @@ describe('save slot repository', () => {
           },
         ],
         raceUpgradeIds: ['human-tubthumping', 'retired-upgrade'],
-        troopClassUpgradeIds: ['archer-shredding-arrows', 'retired-class-upgrade'],
+        troopClassUpgradeIds: ['archer-crippling-shots', 'retired-class-upgrade'],
         activeTroopOffer: { kind: 'troop', optionTroopUnlockIds: ['human/soldier', 'retired-race/soldier'] },
         activeUpgradeOffer: { kind: 'upgrade', optionUpgradeIds: ['human-tubthumping', 'retired-upgrade'] },
       }),
@@ -232,7 +232,7 @@ describe('save slot repository', () => {
     expect(loaded.state?.recentTroopUnlockIds).toEqual([]);
     expect(loaded.state?.troops.some((troop) => troop.raceId === 'retired-race')).toBe(false);
     expect(loaded.state?.raceUpgradeIds).toEqual(['human-tubthumping']);
-    expect(loaded.state?.troopClassUpgradeIds).toEqual(['archer-shredding-arrows']);
+    expect(loaded.state?.troopClassUpgradeIds).toEqual(['archer-crippling-shots']);
     expect(loaded.state?.activeTroopOffer?.optionTroopUnlockIds).toEqual(['human/soldier']);
     expect(loaded.state?.activeUpgradeOffer?.optionUpgradeIds).toEqual(['human-tubthumping']);
   });

@@ -35,6 +35,7 @@ export type DetailCard =
   | {
       detailKey: string;
       kind: 'mutator' | 'race' | 'upgrade' | 'rift';
+      inspectLabel?: string;
       label: string;
       description: string;
       iconKind?: 'upgrade' | 'mutator';
@@ -100,21 +101,25 @@ export function formatRiftDisplayId(riftId: string): string {
   return `C${cycleNumber}R${riftNumber}`;
 }
 
-export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; description: string; bucket: string } {
+export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; description: string; bucket: string; inspectLabel: string } {
   if (upgradeId in RACE_UPGRADES) {
     const upgrade = RACE_UPGRADES[upgradeId]!;
+    const race = getRace(upgrade.raceId);
     return {
       label: upgrade.label,
       description: upgrade.description,
-      bucket: `${getRace(upgrade.raceId).label} race upgrade`,
+      bucket: `${race.label} race upgrade`,
+      inspectLabel: `${race.singularLabel} Upgrade`,
     };
   }
 
   const upgrade = getTroopClassUpgrade(upgradeId);
+  const unitClass = getUnitClass(upgrade.unitClassId);
   return {
     label: upgrade.label,
     description: upgrade.description,
-    bucket: `${getUnitClass(upgrade.unitClassId).label} troop upgrade`,
+    bucket: `${unitClass.label} troop upgrade`,
+    inspectLabel: `${unitClass.label} Upgrade`,
   };
 }
 
@@ -283,6 +288,7 @@ export function buildUpgradeDetail(upgradeId: UpgradeId): DetailCard {
   return {
     detailKey: `upgrade:${upgradeId}`,
     kind: 'upgrade',
+    inspectLabel: details.inspectLabel,
     label: details.label,
     description: details.description,
     iconKind: 'upgrade',

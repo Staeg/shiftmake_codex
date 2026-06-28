@@ -72,6 +72,12 @@ Ranged attacks are further multiplied by any active mutator effect, currently on
 
 `Shield Drill` is a Soldier sidegrade: Soldiers have lower armor, but ranged attacks against Soldiers are capped at 1 damage after all other modifiers.
 
+`Barrage` lets unengaged Archers make ranged normal attacks against every legal enemy in range at 60% damage.
+
+`Honorable Duel` prevents enemies from targeting a Champion with normal attacks unless that enemy is engaged with the Champion.
+
+`Dreamwork` lets a Soldier make one normal attack per beat against an adjacent enemy when another ally hits that enemy with a normal attack.
+
 Current mutator-specific battle rules include:
 
 - `Momentum`: all units gain +10 initiative each beat
@@ -144,4 +150,4 @@ Every battle produces a deterministic replay containing:
 
 The renderer is only a replay consumer.
 
-Because replay steps carry source ability ids and labels, upgrade moments such as `Bolstering Light`, `Living Circuit`, `Loot Frenzy`, `Sentinel Runes`, and `Thrill of the Hunt` can be audited directly from the log.
+Because replay steps carry source ability ids and labels, upgrade moments such as `Bolstering Light`, `Living Circuit`, `Sentinel Runes`, `Gallowsworn`, and `Thrill of the Hunt` can be audited directly from the log.

@@ -30,7 +30,7 @@ These are the currently implemented default recruit pools for each race.
 Race upgrades:
 
 - Tier 1: `Tubthumping` - all human troops gain `United`; harmful damage or speed reductions become `+1` instead
-- Tier 2: `Human Combined Arms` - all human troops gain `Combined Arms 20`
+- Tier 2: `Combined Arms` - all human troops gain `Combined Arms 20`
 - Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
 
 ## Elves
@@ -45,9 +45,9 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Elven Reflexes` - all non-melee elven troops gain +1 range; the first time each battle an engaged elven backline unit retreats 1 hex for free
+- Tier 1: `Feline Grace` - all non-melee elven troops gain +2 range; the first time each battle an engaged elven backline unit retreats 1 hex for free
 - Tier 2: `Silvershot Doctrine` - ranged and caster attacks gain +1 damage and +2 initiative per hex of distance; attacks made from max range make the target lose 30 initiative
-- Tier 3: `Elven Forsaken` - all elven troops gain `Forsaken 80`
+- Tier 3: `Forsaken` - all elven troops gain `Forsaken 80`
 
 ## Goblins
 
@@ -63,9 +63,8 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Goblin Behavior` - all goblin troops gain `Goblin Farewell` and `Snatch the Moment`
-- Tier 2: `Goblin Pack` - all goblin troops gain `Pack 1`
-- Tier 3: `Loot Frenzy` - when a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative
+- Tier 1: `Gallowsworn` - all goblin troops gain `Goblin Farewell` and `Snatch the Moment`
+- Tier 2: `Horde` - all goblin troops gain `Horde 4`
 
 ## Trolls
 
@@ -80,9 +79,9 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Roll the Boulder` - all troll troops gain `Ramp 1` and `Crushing Sweep`
-- Tier 2: `Mossblood` - each troll survives the first lethal hit at 25 HP and loses Regen for that battle; all troll troops gain `Frenzy: Ramp 1`
-- Tier 2: `Rowdy Regrowth` - whenever a Troll is healed, it gains 20 initiative
+- Tier 1: `Roll the Boulder` - all troll troops gain `Ramp 2` and `Crushing Sweep`
+- Tier 2: `Mossblood` - all troll troops gain `Frenzy: Ramp 1`; each troll survives the first lethal hit at 25 HP and loses Regen for that battle
+- Tier 2: `Rowdy Regrowth` - whenever a Troll regains health, it gains 20 initiative
 
 ## Dwarves
 
@@ -97,7 +96,7 @@ Race upgrades:
 Race upgrades:
 
 - Tier 1: `Diggy Hole` - Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
-- Tier 2: `Ale and Hearty` - Dwarven troops gain +40% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
+- Tier 2: `Ale and Hearty` - Dwarven troops gain +60% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
 - Tier 3: `Stall Warts` - Dwarven troops gain +1 armor and lose 1 speed for the battle after they are hit by normal attacks
 
 ## Orcs

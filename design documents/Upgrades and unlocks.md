@@ -108,7 +108,7 @@ Buckets are filled in this order:
 
 1. a troop-class upgrade for a troop class the player already owns
 2. a race upgrade for a race the player already owns
-3. a random upgrade affecting a random allied troop among those with the fewest existing race-plus-class upgrades affecting them
+3. excluding the troop class chosen in bucket 1 and the race chosen in bucket 2, a random upgrade affecting a random allied troop among those with the fewest existing race-plus-class upgrades affecting them and at least one available upgrade after those exclusions
 
 If any bucket cannot be satisfied, that slot falls back to a random unowned upgrade from the remaining pool.
 
@@ -116,15 +116,14 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 
 ## Implemented race upgrades
 
-- `Human Combined Arms`
+- `Combined Arms`
 - `Tubthumping`
 - `Hold the Standard`
-- `Elven Reflexes`
-- `Elven Forsaken`
+- `Feline Grace`
+- `Forsaken`
 - `Silvershot Doctrine`
-- `Goblin Behavior`
-- `Goblin Pack`
-- `Loot Frenzy`
+- `Gallowsworn`
+- `Horde`
 - `Roll the Boulder`
 - `Mossblood`
 - `Rowdy Regrowth`
@@ -141,12 +140,15 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 ## Implemented troop-class upgrades
 
 - `Shield Drill`
+- `Dreamwork`
 - `Crippling Shots`
+- `Barrage`
 - `Sevenfold`
 - `Witness`
 - `Bloodhounds`
 - `Thrill of the Hunt`
 - `Anointed Executioner`
+- `Honorable Duel`
 - `Forest Friends`
 - `True Form`
 - `Ent's Visage`
@@ -154,7 +156,7 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 - `Living Circuit`
 - `Dine in Hell`
 - `Sentinel Runes`
-- `Rat Behavior`
+- `R-selected`
 - `Dogpile`
 - `Hemomancy`
 - `Explosion Corpse`

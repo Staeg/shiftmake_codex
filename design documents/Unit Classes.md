@@ -40,7 +40,7 @@ Troop-class upgrades key off the primary unit `unitClassTag`, not race.
 Examples:
 
 - `Crippling Shots` applies to all Archers
-- `Rat Behavior` applies to all Militia
+- `R-selected` applies to all Militia
 - `Storm Rods` applies to all Wizards
 
 Race upgrades key off race only and can modify:
