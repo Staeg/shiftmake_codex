@@ -77,11 +77,42 @@ const MAX_MESSAGES_PER_WINDOW = 40;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const MAX_HTTP_BODY_BYTES = 256 * 1024;
 const ladderRepository = getLadderRepository();
-let ladderReadyPromise: Promise<void> | null = null;
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function createLadderReadinessManager(repository = ladderRepository, logger: Pick<Console, 'error'> = console): {
+  ensureReady: () => Promise<void>;
+  warmForStartup: () => void;
+} {
+  let readyPromise: Promise<void> | null = null;
+
+  const ensureReady = (): Promise<void> => {
+    readyPromise ??= repository
+      .init()
+      .then(() => repository.seedBaseline())
+      .catch((error) => {
+        readyPromise = null;
+        throw error;
+      });
+    return readyPromise;
+  };
+
+  return {
+    ensureReady,
+    warmForStartup: () => {
+      ensureReady().catch((error) => {
+        logger.error(`Shiftmake Ladder storage initialization failed: ${describeError(error)}. Ladder HTTP endpoints will retry on demand.`);
+      });
+    },
+  };
+}
+
+const ladderReadiness = createLadderReadinessManager(ladderRepository);
 
 function ensureLadderReady(): Promise<void> {
-  ladderReadyPromise ??= ladderRepository.init().then(() => ladderRepository.seedBaseline());
-  return ladderReadyPromise;
+  return ladderReadiness.ensureReady();
 }
 
 function makeRoomId(): string {
@@ -700,7 +731,7 @@ export function startContestMultiplayerServer(config: MultiplayerServerConfig = 
     clearInterval(heartbeatInterval);
   });
 
-  void ensureLadderReady();
+  ladderReadiness.warmForStartup();
   httpServer.listen(baseOptions, () => console.log(describeMultiplayerListenAddress(config)));
   return server;
 }
@@ -723,6 +754,7 @@ export const contestMultiplayerServerInternals = {
   getRequestClientAddress,
   markSocketAlive,
   checkSocketHeartbeat,
+  createLadderReadinessManager,
   normalizeRoomId,
   parseClientMessage,
   reconnectClient,

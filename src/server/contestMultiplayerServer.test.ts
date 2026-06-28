@@ -4,6 +4,7 @@ import { claimOpeningTroop, getOpeningRaceStarterTroopUnlockIds, startNewGame } 
 import { buildContestMultiplayerSubmission, projectContestStateForPlayer } from '../engine/multiplayerContest';
 import type { GameState, TroopUnlockId } from '../engine/types';
 import { contestMultiplayerServerInternals } from './contestMultiplayerServer';
+import type { LadderRepository } from './ladderRepository';
 
 type SnapshotMessage = {
   kind: 'room-snapshot';
@@ -376,5 +377,31 @@ describe('Contest multiplayer reconnect rooms', () => {
 
     expect(playerOne.closeCalls.at(-1)?.code).toBe(1001);
     expect(contestMultiplayerServerInternals.rooms.get('ROOM13')?.clients.human).toBeUndefined();
+  });
+
+  it('logs startup Ladder initialization failures and retries later', async () => {
+    const repository: LadderRepository = {
+      init: vi.fn()
+        .mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND dpg-example'))
+        .mockResolvedValueOnce(undefined),
+      seedBaseline: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      draw: vi.fn(),
+      markCompatibility: vi.fn(),
+      incrementAppearances: vi.fn(),
+      markSpent: vi.fn(),
+      harvestChild: vi.fn(),
+      list: vi.fn(),
+      storageStats: vi.fn(),
+    };
+    const logger = { error: vi.fn() };
+    const readiness = contestMultiplayerServerInternals.createLadderReadinessManager(repository, logger);
+
+    readiness.warmForStartup();
+    await vi.waitFor(() => expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('ENOTFOUND')));
+    await readiness.ensureReady();
+
+    expect(repository.init).toHaveBeenCalledTimes(2);
+    expect(repository.seedBaseline).toHaveBeenCalledTimes(1);
   });
 });
