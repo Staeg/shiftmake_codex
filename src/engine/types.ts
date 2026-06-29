@@ -34,7 +34,7 @@ export type RiftState = 'discovered' | 'resolved_victory' | 'resolved_defeat' | 
 export type BattleOutcome = 'victory' | 'defeat' | 'draw';
 export type EffectDisposition = 'beneficial' | 'harmful' | 'neutral';
 export type GameMode = 'campaign' | 'contest' | 'ladder';
-export type ContestPlayerId = 'human' | 'ai';
+export type ContestPlayerId = 'playerOne' | 'playerTwo';
 export type ContestRiftController = 'neutral' | ContestPlayerId;
 export type LadderCompatibilityStatus = 'valid' | 'incompatible';
 
@@ -233,6 +233,14 @@ export interface TroopClassUpgradeDefinition {
         attribute: string;
       }
     | {
+        kind: 'removeAttribute';
+        attribute: string;
+      }
+    | {
+        kind: 'setRole';
+        role: RoleId;
+      }
+    | {
         kind: 'modifyStats';
         statModifiers: Partial<Record<TroopStatKey, { flat?: number; multiplier?: number }>>;
       }
@@ -403,7 +411,7 @@ export interface BattleStepMetadata {
   routedAroundBlockedQ?: number;
   routedAroundBlockedR?: number;
   explanation?: BattleStepExplanation;
-  [key: string]: number | string | string[] | boolean | BattleStepExplanation | undefined;
+  extra?: Record<string, unknown>;
 }
 
 export interface BattleStep {
@@ -706,14 +714,15 @@ export interface ContestPlayerState {
 
 export interface ContestState {
   players: {
-    ai: ContestPlayerState;
+    playerOne: ContestPlayerState;
+    playerTwo: ContestPlayerState;
   };
   opponentInfo: ContestOpponentInfoSnapshot | null;
 }
 
 export interface ContestOpponentInfoSnapshot {
   cycleNumber: number;
-  ai: ContestPlayerState;
+  playerTwo: ContestPlayerState;
 }
 
 export interface GameState {

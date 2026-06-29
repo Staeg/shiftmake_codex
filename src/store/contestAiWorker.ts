@@ -9,7 +9,7 @@ self.onmessage = (event: MessageEvent<ContestAiWorkerRequest>) => {
   const response: ContestAiWorkerResponse = {
     kind: 'contest-ai-plan',
     key: request.key,
-    ai: planContestAiForWorker(request.game),
+    playerTwo: planContestAiForWorker(request.game),
   };
   self.postMessage(response);
 };

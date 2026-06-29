@@ -62,7 +62,6 @@ import {
   listSaveSlots,
   loadSaveSlot,
   loadSaveSlotWithRepairs,
-  migrateLegacySave,
   readSlotReplay,
   readSlotReplayPayload,
   removeSlotReplay,
@@ -147,8 +146,8 @@ interface ReplayWriteResult {
   evictedReplayIds: string[];
 }
 
-const REPLAY_IDENTITY_KEY = (replayId: string): string => replayId;
 const TUTORIAL_CYCLE_REWIND_KEY = 'shiftmake:tutorial:cycle-rewind:v1';
+const MULTIPLAYER_ANIMATION_RECOVERY = 1;
 
 let multiplayerReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let multiplayerReconnectAttempts = 0;
@@ -182,14 +181,17 @@ function buildMultiplayerCycleAnimation(
   }
   const records = newPayloads.map(([replayId, payload]) => {
     const replay = resolveBattle(payload.input);
+    const riftId = payload.input.riftId ?? replayId;
+    const rift = sourceGame.openRifts.find((entry) => entry.id === riftId);
+    const assignedTroopIds = payload.input.playerCombatants.map((combatant) => combatant.troopInstanceId).filter((troopId): troopId is TroopId => !!troopId);
     return {
-      riftId: payload.input.riftId ?? replayId,
-      assignedTroopIds: payload.input.playerCombatants.map((combatant) => combatant.troopInstanceId).filter((troopId): troopId is TroopId => !!troopId),
+      riftId,
+      assignedTroopIds,
       battleInput: payload.input,
       replay,
       outcome: replay.outcome,
-      victoryPoints: payload.input.tier ?? 0,
-      recoveryMap: {},
+      victoryPoints: rift?.victoryPoints ?? payload.input.tier ?? 0,
+      recoveryMap: Object.fromEntries(assignedTroopIds.map((troopId) => [troopId, MULTIPLAYER_ANIMATION_RECOVERY])),
     };
   });
   return records.length > 0 ? { records, preparedState: sourceGame } : null;
@@ -213,7 +215,7 @@ function closeMultiplayerSocket(options: { notifyServer: boolean } = { notifySer
 
 interface ContestAiPlanCache {
   key: string;
-  ai: ContestPlayerState;
+  playerTwo: ContestPlayerState;
 }
 
 let contestAiWorker: Worker | null = null;
@@ -231,7 +233,7 @@ function getContestAiWorker(): Worker | null {
       if (response.kind !== 'contest-ai-plan') {
         return;
       }
-      contestAiPlanCache = { key: response.key, ai: response.ai };
+      contestAiPlanCache = { key: response.key, playerTwo: response.playerTwo };
       if (contestAiPendingKey === response.key) {
         contestAiPendingKey = null;
       }
@@ -255,7 +257,7 @@ function scheduleContestAiPlanning(game: GameState): void {
 
 function getPreparedContestAiPlan(game: GameState): ContestPlayerState | undefined {
   const key = buildContestAiPlanKey(game);
-  return key && contestAiPlanCache?.key === key ? contestAiPlanCache.ai : undefined;
+  return key && contestAiPlanCache?.key === key ? contestAiPlanCache.playerTwo : undefined;
 }
 
 function makeInitialGame(): GameState {
@@ -330,7 +332,7 @@ function writeTutorialFixture(): ReturnType<typeof buildTutorialReplayFixture> {
 }
 
 function writeTutorialCycleRewindGame(game: GameState): void {
-  localStorage.setItem(TUTORIAL_CYCLE_REWIND_KEY, JSON.stringify(serializeGameState(game)));
+  localStorage.setItem(TUTORIAL_CYCLE_REWIND_KEY, serializeGameState(game));
 }
 
 function readTutorialCycleRewindGame(): GameState | null {
@@ -339,6 +341,10 @@ function readTutorialCycleRewindGame(): GameState | null {
     return null;
   }
   try {
+    const direct = deserializeGameState(raw);
+    if (direct.ok && direct.state) {
+      return direct.state;
+    }
     const parsed = JSON.parse(raw);
     const loaded = deserializeGameState(parsed);
     return loaded.ok && loaded.state ? loaded.state : null;
@@ -551,7 +557,7 @@ export function persistReplayPayloadWrites(
   storage: StorageLike,
   replayIndex: ReplayIndexEntry[],
   writes: ReplayPayloadWrite[],
-  toStorageKey: (replayId: string) => string = REPLAY_IDENTITY_KEY,
+  toStorageKey: (replayId: string) => string = (replayId) => replayId,
 ): ReplayWriteResult {
   let nextReplayIndex = replayIndex;
   const failedReplayIds = new Set<string>();
@@ -618,7 +624,7 @@ export const gameStore = (() => {
       if (!current?.roomId || current.connected) {
         return;
       }
-      connectMultiplayerContest(current.serverUrl, current.roomId, playerName ?? current.playerNames[current.playerId ?? 'human']);
+      connectMultiplayerContest(current.serverUrl, current.roomId, playerName ?? current.playerNames[current.playerId ?? 'playerOne']);
     }, delayMs);
   }
 
@@ -635,8 +641,8 @@ export const gameStore = (() => {
         roomId: roomId || null,
         playerId: storedIdentity?.playerId ?? null,
         playerToken: storedIdentity?.playerToken ?? null,
-        readiness: { human: false, ai: false },
-        connectedPlayers: { human: false, ai: false },
+        readiness: { playerOne: false, playerTwo: false },
+        connectedPlayers: { playerOne: false, playerTwo: false },
         playerNames: { ...DEFAULT_CONTEST_PLAYER_NAMES },
         message: 'Connecting to Contest room...',
       },
@@ -686,7 +692,7 @@ export const gameStore = (() => {
               playerId: message.playerId,
               playerToken: message.playerToken,
               readiness: message.readiness,
-              connectedPlayers: message.connectedPlayers ?? state.multiplayer?.connectedPlayers ?? { human: true, ai: true },
+              connectedPlayers: message.connectedPlayers ?? state.multiplayer?.connectedPlayers ?? { playerOne: true, playerTwo: true },
               playerNames: message.playerNames,
               message: message.message,
             },
@@ -785,13 +791,13 @@ export const gameStore = (() => {
       update((state) => ({ ...state, systemMessage: 'No multiplayer room is available to reconnect.' }));
       return;
     }
-    connectMultiplayerContest(session.serverUrl, session.roomId, playerName ?? session.playerNames[session.playerId ?? 'human']);
+    connectMultiplayerContest(session.serverUrl, session.roomId, playerName ?? session.playerNames[session.playerId ?? 'playerOne']);
   }
 
   return {
     subscribe,
     initialize() {
-      const slots = migrateLegacySave(localStorage);
+      const slots = listSaveSlots(localStorage);
       set({
         ...makeInitialState(),
         slots,

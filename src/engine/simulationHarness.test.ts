@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRoleScenarioBattleInput,
   buildSimulationBattleInput,
-  buildEqualCostBundle,
   countRoleIntentSteps,
   createCatalogTroopCombatant,
   createSeedRange,
@@ -11,7 +10,74 @@ import {
   findFirstRoleIntentBeat,
   runBattleWithMetrics,
   sweepBattleSeeds,
+  sweepBattleSeedsChunked,
 } from './simulationHarness';
+import { fixed } from './fixed';
+
+function buildEqualCostBundle(leftCost: number, rightCost: number): { leftInstances: number; rightInstances: number; totalCost: number } {
+  const MAX_EXACT_INSTANCES = 12;
+  const MAX_APPROX_INSTANCES = 12;
+  const scaledLeft = Math.round(leftCost * 100);
+  const scaledRight = Math.round(rightCost * 100);
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const divisor = gcd(scaledLeft, scaledRight);
+  const scaledTotalCost = (scaledLeft * scaledRight) / divisor;
+  const exactLeftInstances = scaledTotalCost / scaledLeft;
+  const exactRightInstances = scaledTotalCost / scaledRight;
+
+  if (exactLeftInstances <= MAX_EXACT_INSTANCES && exactRightInstances <= MAX_EXACT_INSTANCES) {
+    return {
+      leftInstances: exactLeftInstances,
+      rightInstances: exactRightInstances,
+      totalCost: fixed(scaledTotalCost / 100),
+    };
+  }
+
+  let best:
+    | {
+        leftInstances: number;
+        rightInstances: number;
+        gap: number;
+        totalCost: number;
+      }
+    | undefined;
+
+  for (let leftInstances = 1; leftInstances <= MAX_APPROX_INSTANCES; leftInstances += 1) {
+    for (let rightInstances = 1; rightInstances <= MAX_APPROX_INSTANCES; rightInstances += 1) {
+      const leftTotal = fixed(leftInstances * leftCost);
+      const rightTotal = fixed(rightInstances * rightCost);
+      const gap = Math.abs(leftTotal - rightTotal);
+      const totalCost = Math.max(leftTotal, rightTotal);
+      if (
+        !best ||
+        gap < best.gap ||
+        (gap === best.gap && totalCost < best.totalCost) ||
+        (gap === best.gap && totalCost === best.totalCost && leftInstances + rightInstances < best.leftInstances + best.rightInstances)
+      ) {
+        best = {
+          leftInstances,
+          rightInstances,
+          gap,
+          totalCost,
+        };
+      }
+    }
+  }
+
+  if (!best) {
+    return {
+      leftInstances: 1,
+      rightInstances: 1,
+      totalCost: fixed(Math.max(leftCost, rightCost)),
+    };
+  }
+
+  return {
+    leftInstances: best.leftInstances,
+    rightInstances: best.rightInstances,
+    totalCost: best.totalCost,
+  };
+}
 
 describe('simulationHarness builders', () => {
   it('builds equal-cost bundles from whole troop instances', () => {
@@ -102,23 +168,47 @@ describe('extractSimulationMetrics', () => {
 });
 
 describe('sweepBattleSeeds', () => {
+  const makeSimpleInput = (seed: number) =>
+    buildSimulationBattleInput(
+      seed,
+      [createCatalogTroopCombatant('human/soldier', { side: 'player', quantity: 1 })],
+      [createCatalogTroopCombatant('human/militia', { side: 'enemy', quantity: 1 })],
+    );
+
   it('aggregates deterministic seed sweeps into summary stats', () => {
     const seeds = createSeedRange(5, 100);
-    const result = sweepBattleSeeds(
-      (seed) =>
-        buildSimulationBattleInput(
-          seed,
-          [createCatalogTroopCombatant('human/soldier', { side: 'player', quantity: 1 })],
-          [createCatalogTroopCombatant('human/militia', { side: 'enemy', quantity: 1 })],
-        ),
-      seeds,
-    );
+    const result = sweepBattleSeeds(makeSimpleInput, seeds);
 
     expect(result.entries).toHaveLength(5);
     expect(result.summary.battles).toBe(5);
     expect(result.summary.wins + result.summary.losses + result.summary.draws).toBe(5);
     expect(result.summary.percentiles.beatsToEnd.p10).toBeLessThanOrEqual(result.summary.percentiles.beatsToEnd.median);
     expect(result.summary.percentiles.beatsToEnd.median).toBeLessThanOrEqual(result.summary.percentiles.beatsToEnd.p90);
+  });
+
+  it('matches sync results while reporting chunked progress', async () => {
+    const seeds = createSeedRange(4, 120);
+    const progress: number[] = [];
+    const sync = sweepBattleSeeds(makeSimpleInput, seeds);
+    const chunked = await sweepBattleSeedsChunked(makeSimpleInput, seeds, {
+      chunkSize: 2,
+      onProgress: ({ completed, partial }) => {
+        progress.push(completed);
+        expect(partial.summary.battles).toBe(completed);
+      },
+    });
+
+    expect(chunked).toEqual(sync);
+    expect(progress).toEqual([2, 4]);
+  });
+
+  it('rejects cleanly when aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(sweepBattleSeedsChunked(makeSimpleInput, createSeedRange(3, 140), { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
   });
 });
 

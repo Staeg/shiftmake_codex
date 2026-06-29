@@ -4,13 +4,12 @@ import {
   deserializeGameState,
   getOpeningRaceOptionIds,
   getOpeningRaceStarterTroopUnlockIds,
-  serializeGameState,
   startNewGame,
   startOpeningCampaign,
 } from '../engine/game';
 import { RACES } from '../engine/unitCatalog';
 import type { GameState, TroopUnlockId } from '../engine/types';
-import { createNewSlotCampaign, listSaveSlots, migrateLegacySave, readSlotReplay, saveToSlot, verifyReplayIndexAgainstStoredPayloads, writeSlotReplay } from './saveSlots';
+import { createNewSlotCampaign, listSaveSlots, readSlotReplay, saveToSlot, verifyReplayIndexAgainstStoredPayloads, writeSlotReplay } from './saveSlots';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -109,7 +108,7 @@ describe('save slot repository', () => {
     expect(readSlotReplay(storage, 2, 'test-battle')).not.toBeNull();
   });
 
-  it('writes replay payloads to the explicit minor-versioned v3 key and still reads legacy keys', () => {
+  it('writes and reads replay payloads only from the explicit current minor-versioned key', () => {
     const storage = new MemoryStorage();
     const payload = JSON.stringify({
       version: 1,
@@ -118,11 +117,12 @@ describe('save slot repository', () => {
 
     writeSlotReplay(storage, 1, 'new-battle', payload);
     expect(storage.getItem('shiftmake:slot:1:replay:v3.19:new-battle')).toBe(payload);
+    expect(readSlotReplay(storage, 1, 'new-battle')).not.toBeNull();
 
     storage.setItem('shiftmake:slot:1:replay:v3.0:old-v30', payload);
     storage.setItem('shiftmake:slot:1:replay:old-unversioned', payload);
-    expect(readSlotReplay(storage, 1, 'old-v30')).not.toBeNull();
-    expect(readSlotReplay(storage, 1, 'old-unversioned')).not.toBeNull();
+    expect(readSlotReplay(storage, 1, 'old-v30')).toBeNull();
+    expect(readSlotReplay(storage, 1, 'old-unversioned')).toBeNull();
   });
 
   it('marks archived battles whose stored input now resolves to a different result', () => {
@@ -274,37 +274,15 @@ describe('save slot repository', () => {
     expect(verified.game.replayIndex[0]?.summaryOnly).toBe(true);
   });
 
-  it('migrates a legacy save into slot one and copies legacy replay payloads', () => {
+  it('ignores unsupported legacy v1 saves', () => {
     const storage = new MemoryStorage();
-    const opened = finishOpening(startNewGame(9));
-    const game = {
-      ...opened,
-      replayIndex: [
-        {
-          id: 'test-battle',
-          riftId: 'rift',
-          cycleNumber: 1,
-          battleSeed: 3,
-          outcome: 'victory' as const,
-          playerTroopLabels: ['Elven Archers'],
-          mutatorIds: [],
-          summary: 'VICTORY // Elven Archers',
-          replayId: 'test-battle',
-          estimatedBytes: 100,
-        },
-      ],
-    };
-    storage.setItem('shiftmake:save:v1', serializeGameState(game));
+    storage.setItem('shiftmake:save:v1', JSON.stringify({ version: 3 }));
     storage.setItem('shiftmake:replay:test-battle', JSON.stringify({ version: 1, input: { seed: 3, riftId: 'rift', tier: 1, mutatorIds: [], playerCombatants: [], enemyCombatants: [] } }));
 
-    const slots = migrateLegacySave(storage);
+    const slots = listSaveSlots(storage);
 
-    expect(slots[0]).toMatchObject({
-      slotId: 1,
-      status: 'occupied',
-      raceLabel: RACES[opened.unlockedRaceIds[0]!].label,
-    });
-    expect(storage.getItem('shiftmake:save:v1')).toBeNull();
-    expect(readSlotReplay(storage, 1, 'test-battle')).not.toBeNull();
+    expect(slots.every((slot) => slot.status === 'empty')).toBe(true);
+    expect(storage.getItem('shiftmake:save:v1')).not.toBeNull();
+    expect(readSlotReplay(storage, 1, 'test-battle')).toBeNull();
   });
 });

@@ -15,8 +15,9 @@ function combatantDiffers(left: ResolvedCombatantDefinition, right: ResolvedComb
   const rightAbilityIds = right.abilities.map((ability) => ability.id).sort();
   const leftAttributes = [...left.attributes].sort();
   const rightAttributes = [...right.attributes].sort();
+  const roleChanged = left.role !== right.role;
 
-  return statChanged || JSON.stringify(leftAbilityIds) !== JSON.stringify(rightAbilityIds) || JSON.stringify(leftAttributes) !== JSON.stringify(rightAttributes);
+  return roleChanged || statChanged || JSON.stringify(leftAbilityIds) !== JSON.stringify(rightAbilityIds) || JSON.stringify(leftAttributes) !== JSON.stringify(rightAttributes);
 }
 
 function troopUnlockId(raceId: RaceId, unitClassId: UnitClassId): string {
@@ -57,7 +58,8 @@ const EXPECTED_AFFECTED_TROOPS_BY_UPGRADE: Record<string, string[]> = {
   'elf-silvershot-doctrine': raceTroopIds('elf', ELVEN_BACKLINE_UPGRADE_UNIT_CLASSES),
   'goblin-behavior': raceTroopIds('goblin'),
   'goblin-pack': raceTroopIds('goblin'),
-  'troll-roll-the-boulder': raceTroopIds('troll'),
+  'goblin-overwhelm-hex': raceTroopIds('goblin'),
+  'troll-gargantuan-zeal': raceTroopIds('troll'),
   'troll-mossblood': raceTroopIds('troll'),
   'troll-rowdy-regrowth': raceTroopIds('troll'),
   'human-hold-the-standard': raceTroopIds('human'),
@@ -72,33 +74,46 @@ const EXPECTED_AFFECTED_TROOPS_BY_UPGRADE: Record<string, string[]> = {
   'fae-whimsy': raceTroopIds('fae'),
   'soldier-shield-drill': unitClassIds('soldier'),
   'soldier-dreamwork': unitClassIds('soldier'),
+  'soldier-martyrs-zeal': unitClassIds('soldier'),
   'archer-crippling-shots': unitClassIds('archer'),
   'archer-barrage': unitClassIds('archer'),
+  'archer-hexing-shots': unitClassIds('archer'),
   'avenger-sevenfold': unitClassIds('avenger'),
   'avenger-witness': unitClassIds('avenger'),
-  'beastmaster-bloodhounds': unitClassIds('beastmaster'),
+  'avenger-wages-of-virtue': unitClassIds('avenger'),
+  'beastmaster-opening': unitClassIds('beastmaster'),
   'beastmaster-thrill-of-the-hunt': unitClassIds('beastmaster'),
+  'beastmaster-throwing-axes': unitClassIds('beastmaster'),
   'champion-anointed-executioner': unitClassIds('champion'),
   'champion-honorable-duel': unitClassIds('champion'),
+  'champion-triumph': unitClassIds('champion'),
   'knight-dine-in-hell': unitClassIds('knight'),
   'knight-sentinel-runes': unitClassIds('knight'),
+  'knight-sunder': unitClassIds('knight'),
   'druid-forest-friends': unitClassIds('druid'),
   'druid-true-form': unitClassIds('druid'),
   'druid-ents-visage': unitClassIds('druid'),
   'elementalist-crackling-mitosis': unitClassIds('elementalist'),
+  'elementalist-crack-exploits': unitClassIds('elementalist'),
   'elementalist-living-circuit': unitClassIds('elementalist'),
   'militia-rat-behavior': unitClassIds('militia'),
   'militia-dogpile': unitClassIds('militia'),
+  'militia-crippling-hex': unitClassIds('militia'),
   'necromancer-hemomancy': unitClassIds('necromancer'),
   'necromancer-explosion-corpse': unitClassIds('necromancer'),
+  'necromancer-saintbane': unitClassIds('necromancer'),
   'priest-bolstering-light': unitClassIds('priest'),
+  'priest-holy-constructs': unitClassIds('priest'),
   'priest-mercy-before-dawn': unitClassIds('priest'),
   'ranger-on-the-hunt': unitClassIds('ranger'),
   'ranger-shadows-embrace': unitClassIds('ranger'),
+  'ranger-hunters-zeal': unitClassIds('ranger'),
   'shaman-grave-vigor': unitClassIds('shaman'),
+  'shaman-final-hex': unitClassIds('shaman'),
   'shaman-war-drums': unitClassIds('shaman'),
   'wizard-storm-rods': unitClassIds('wizard'),
   'wizard-spell-echo': unitClassIds('wizard'),
+  'wizard-vulnerability-hex': unitClassIds('wizard'),
 };
 
 describe('troop unlock availability', () => {

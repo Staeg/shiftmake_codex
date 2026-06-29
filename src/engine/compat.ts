@@ -2,9 +2,6 @@ import type { BattleInput, BattleStateSnapshot, BattleUnit, ResolvedCombatantDef
 import { footprintForSize } from './hex';
 
 export function normalizeRoleId(role: unknown): RoleId {
-  if (role === 'chaff') {
-    return 'pusher';
-  }
   if (role === 'frontline' || role === 'pusher' || role === 'backline') {
     return role;
   }

@@ -124,7 +124,8 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 - `Silvershot Doctrine`
 - `Gallowsworn`
 - `Horde`
-- `Roll the Boulder`
+- `Overwhelm Hex`
+- `Gargantuan Zeal`
 - `Mossblood`
 - `Rowdy Regrowth`
 - `Diggy Hole`
@@ -141,32 +142,45 @@ Generated offers persist in save data until they are claimed or the cycle advanc
 
 - `Shield Drill`
 - `Dreamwork`
+- `Martyr's Zeal`
 - `Crippling Shots`
 - `Barrage`
+- `Hexing Shots`
 - `Sevenfold`
 - `Witness`
-- `Bloodhounds`
+- `Wages of Virtue`
+- `Throwing Axes`
+- `Opening`
 - `Thrill of the Hunt`
 - `Anointed Executioner`
 - `Honorable Duel`
+- `Triumphant Zeal`
 - `Forest Friends`
 - `True Form`
 - `Ent's Visage`
 - `Crackling Mitosis`
+- `Crack Exploits`
 - `Living Circuit`
 - `Dine in Hell`
 - `Sentinel Runes`
+- `Sunder`
 - `R-selected`
 - `Dogpile`
+- `Crippling Hex`
 - `Hemomancy`
 - `Explosion Corpse`
+- `Saintbane`
 - `Bolstering Light`
+- `Holy Constructs`
 - `Mercy Before Dawn`
 - `On the Hunt`
 - `Shadow's Embrace`
+- `Hunter's Zeal`
 - `War Drums`
 - `Grave Vigor`
+- `Final Hex`
 - `Storm Rods`
 - `Spell Echo`
+- `Vulnerability Hex`
 
 Legacy removed upgrade names are intentionally omitted from current design docs.

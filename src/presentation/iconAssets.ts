@@ -20,7 +20,6 @@ const GENERIC_ABILITY_RASTER_IDS = new Set<AbilityId>(['blast', 'blast-5']);
 const upgradeIconAliases: Record<string, string[]> = {
   'archer-crippling-shots': ['archer-shredding-arrows', 'archer-pinning-volley'],
   'avenger-witness': ['avenger-last-witness', 'avenger-blood-oath'],
-  'beastmaster-bloodhounds': ['beastmaster-blood-in-the-water', 'beastmaster-packmasters-whistle'],
   'champion-anointed-executioner': ['champion-anointed', 'champion-executioner'],
   'druid-forest-friends': ['druid-wild-call', 'druid-wild-growth'],
   'druid-ents-visage': ['druid-thornhide', 'druid-bramble-snare'],

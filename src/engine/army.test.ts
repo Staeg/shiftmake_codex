@@ -35,12 +35,10 @@ describe('troop composition', () => {
 
   it('maps summon abilities to inspectable summoned profiles including upgraded grants', () => {
     const wolf = getSummonedUnitPreviews(getAbility('summon-wolf-2'), 'goblin')[0]!;
-    const bloodWolf = getSummonedUnitPreviews(getAbility('summon-wolf-2-blood'), 'goblin')[0]!;
     const skeleton = getSummonedUnitPreviews(getAbility('corpse-summon-skeleton-rising'), 'troll')[0]!;
     const elemental = getSummonedUnitPreviews(getAbility('charge-4-summon-elemental-mitosis'), 'elf')[0]!;
 
     expect(wolf.troop.unitClassId).toBe('wolf');
-    expect(bloodWolf.troop.abilities.map((ability) => ability.id)).toContain('onkill-summon-wolf-1');
     expect(skeleton.troop.abilities.map((ability) => ability.id)).toContain('heal-ally-0-7');
     expect(elemental.troop.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });

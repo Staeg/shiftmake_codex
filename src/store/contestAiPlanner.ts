@@ -10,7 +10,7 @@ export interface ContestAiWorkerRequest {
 export interface ContestAiWorkerResponse {
   kind: 'contest-ai-plan';
   key: string;
-  ai: ContestPlayerState;
+  playerTwo: ContestPlayerState;
 }
 
 export function buildContestAiPlanKey(state: GameState): string | null {
@@ -21,13 +21,20 @@ export function buildContestAiPlanKey(state: GameState): string | null {
   return JSON.stringify({
     campaignSeed: state.campaignSeed,
     cycleNumber: state.cycleNumber,
-    ai: state.contest?.players.ai ?? null,
+    playerTwo: state.contest?.players.playerTwo ?? null,
     openRifts: state.openRifts.map((rift) => ({
       id: rift.id,
       seed: rift.seed,
       tier: rift.tier,
       mutatorIds: rift.mutatorIds,
-      enemyArmy: rift.enemyArmy,
+      enemyArmy: rift.enemyArmy.map((guardian) => ({
+        combatantId: guardian.combatantId,
+        raceId: guardian.raceId,
+        unitClassId: guardian.unitClassId,
+        troopInstanceId: guardian.troopInstanceId ?? null,
+      })),
+      enemyRaceUpgradeIds: rift.enemyRaceUpgradeIds ?? [],
+      enemyTroopClassUpgradeIds: rift.enemyTroopClassUpgradeIds ?? [],
       victoryPoints: rift.victoryPoints,
       state: rift.state,
       controller: rift.controller ?? 'neutral',

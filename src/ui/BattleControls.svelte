@@ -1,4 +1,6 @@
-﻿<script lang="ts">
+<script lang="ts">
+  import { BASE_STEP_MS } from '../rendering/renderingConstants';
+
   export let replayLength = 0;
   export let currentStep = -1;
   export let autoPlay = false;
@@ -10,7 +12,6 @@
   export let onToggleAuto: () => void;
   export let onSetSpeed: (ms: number) => void;
 
-  const BASE_STEP_MS = 500;
   const SPEED_MULTIPLIERS = [0.25, 1, 4, 16, 64];
   const SPEED_PRESETS = SPEED_MULTIPLIERS.map((multiplier) => ({
     label: `${multiplier}x`,

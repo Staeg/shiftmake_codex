@@ -9,6 +9,7 @@ import {
   renderPermutationReport,
   resolvePermutationQuantity,
   runPermutationBatch,
+  runPermutationBatchChunked,
 } from './permutationReport';
 
 describe('permutationReport', () => {
@@ -83,5 +84,36 @@ describe('permutationReport', () => {
     expect(markdown).toContain('## Overall troop winrates');
     expect(markdown).toContain('## Against every troop class');
     expect(markdown).toContain('## Alongside every troop class');
+  });
+
+  it('matches sync matchup batches while reporting chunked progress', async () => {
+    const unitClassIds = ['archer', 'champion', 'militia', 'soldier'] as const;
+    const teams = generatePermutationTeams(2, [...unitClassIds]);
+    const matchups = generatePermutationMatchups(teams).slice(0, 2);
+    const progress: number[] = [];
+
+    const sync = runPermutationBatch(2, matchups, 1, [...unitClassIds]);
+    const chunked = await runPermutationBatchChunked(2, matchups, 1, [...unitClassIds], {
+      chunkSize: 1,
+      onProgress: ({ completed, results }) => {
+        progress.push(completed);
+        expect(results).toHaveLength(completed);
+      },
+    });
+
+    expect(chunked).toEqual(sync);
+    expect(progress).toEqual([1, 2]);
+  });
+
+  it('rejects chunked batches when aborted', async () => {
+    const unitClassIds = ['archer', 'champion', 'militia', 'soldier'] as const;
+    const teams = generatePermutationTeams(2, [...unitClassIds]);
+    const matchups = generatePermutationMatchups(teams).slice(0, 1);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(runPermutationBatchChunked(2, matchups, 1, [...unitClassIds], { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
   });
 });

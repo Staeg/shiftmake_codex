@@ -101,6 +101,7 @@ Filters match against a unit's combined primary `unitClassTag` plus `attributes`
 
 - restores HP immediately
 - Mercy Before Dawn uses the heal pipeline when it preserves a dying ally, so heal synergies and healing reductions apply to that save
+- Mercy Before Dawn also repeats Priest heals on allies in range below 10% health
 
 ### Ramp
 
@@ -159,7 +160,7 @@ Summons can carry extra runtime abilities through the summon effect itself. If o
 
 This is how:
 
-- `Bloodhounds` propagates wolf replication
+- `Thrill of the Hunt` applies wolf replication as a side-wide wolf synergy
 - `Crackling Mitosis` propagates elemental splitting
 - `Hemomancy` gives healing to allied summoned Skeletons from any source
 
@@ -239,7 +240,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Bolstering Light
 
 - `passive`
-- Effect: if a heal brings the target to full HP, the target gains +1 speed and +1 damage for the battle; otherwise, the target gains 40 initiative
+- Effect: if a Priest heal brings the target to full HP, the target and the Priest gain +1 speed and +1 damage for the battle; otherwise, the target and the Priest gain 40 initiative
 
 ### Corpse Summon Skeleton
 
@@ -327,6 +328,11 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `target: self`
 - Effect: summon 1 wolf, and summoned wolves inherit the same ability
 
+### Thrill of the Hunt
+
+- passive
+- Side-wide wolf synergy: whenever an allied Wolf gets a kill, that Wolf summons 1 Wolf and all allies gain +1 damage for the battle
+
 ### Pack 1
 
 - `startOfTurn`
@@ -403,6 +409,11 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - passive
 - While unengaged, Archers attack all legal enemies in range at 60% damage
 
+### Hexing Shots
+
+- passive
+- Archer attacks deal +1 damage per Hex stack on the target
+
 ### Honorable Duel
 
 - passive
@@ -413,19 +424,92 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - passive
 - Once per beat, Soldiers attack an adjacent enemy when another ally hits that enemy with a normal attack
 
+### Wages of Virtue
+
+- passive
+- Avengers redirect incoming normal attack damage to a random touching ally if possible; redirect chains track visited units so they cannot loop forever
+- When a touching ally is actually healed, the Avenger receives the same amount of healing without causing a recursive heal loop
+
+### Throwing Axes
+
+- passive
+- Beastmasters become ranged backline attackers and add damage equal to 10% of the target's current HP before normal attack damage is resolved
+
+### Opening
+
+- passive
+- When a Beastmaster hits an enemy, allies touching the target also make normal attacks against that enemy; each Beastmaster-target pair can trigger once per attack chain
+
+### Triumphant Zeal
+
+- passive
+- When a Champion kills an enemy, the Champion and touching allies gain 1 stack of Zeal
+- Zeal gives allies +10% damage, +10% speed, and +10% max HP per stack
+
+### Hunter's Zeal
+
+- passive
+- When a Ranger kills an enemy, the Ranger and allies adjacent to the killed enemy gain 1 stack of Zeal
+- At end of turn, allies gain 5 initiative per Zeal stack
+
+### Martyr's Zeal
+
+- passive
+- When a Soldier dies, all allies gain 1 stack of Zeal
+- At end of turn, allies heal 5 health per Zeal stack
+
+### Crippling Hex
+
+- passive
+- Enemies who kill Militia gain 1 stack of Hex
+- Enemies lose 30% speed per Hex stack
+
+### Vulnerability Hex
+
+- passive
+- If a Wizard is present, enemies damaged by Blast have a 20% chance to gain 1 stack of Hex
+- Enemies take an additional 100% Blast damage per Hex stack
+
+### Gargantuan Zeal
+
+- passive
+- When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start
+- Allies gain damage equal to `5 x size` per Zeal stack
+
+### Overwhelm Hex
+
+- passive
+- When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at battle start
+- Enemies lose health equal to your living Goblins per Hex stack at end of turn
+
+### Crack Exploits
+
+- passive
+- Elementalists lose 5 damage; when an enemy actually loses armor, each allied Elementalist makes a normal attack against that enemy ignoring range
+- Allied Elementals remove 1 armor on attack
+
+### Saintbane
+
+- passive
+- When an enemy actually heals or gains positive stats, adjacent corpses are raised as allied Skeletons
+
+### Holy Constructs
+
+- passive
+- While an allied Priest is present, the first actual heal on each non-`Fading` ally summons an Elemental adjacent to that ally
+- Allied Elementals heal touching allies for 20 when they die
+
+### Final Hex
+
+- passive
+- Shaman attacks add 1 `Hexed` stack; attacking a target that already has 5 stacks kills it directly
+
 ### Summon Wolf 2
 
 - `startOfBattle`
 - battle
 - `target: self`
 - Effect: summon 2 wolves
-
-### Summon Wolf 2 (Bloodhounds)
-
-- `startOfBattle`
-- battle
-- `target: self`
-- Effect: summon 2 wolves, each with `On Kill Summon Wolf 1`
 
 ### Taunt
 

@@ -38,8 +38,8 @@ import type {
 } from './types';
 
 export interface ContestReadiness {
-  human: boolean;
-  ai: boolean;
+  playerOne: boolean;
+  playerTwo: boolean;
 }
 
 export interface ContestSubmission {
@@ -78,14 +78,14 @@ export interface ContestAdvanceResult {
 
 export type ContestPlayerNames = Record<ContestPlayerId, string>;
 
-const PLAYER_IDS: ContestPlayerId[] = ['human', 'ai'];
+const PLAYER_IDS: ContestPlayerId[] = ['playerOne', 'playerTwo'];
 const PLAYER_SEED_SALTS: Record<ContestPlayerId, number> = {
-  human: 71_311,
-  ai: 131_071,
+  playerOne: 71_311,
+  playerTwo: 131_071,
 };
 
 function otherPlayerId(playerId: ContestPlayerId): ContestPlayerId {
-  return playerId === 'human' ? 'ai' : 'human';
+  return playerId === 'playerOne' ? 'playerTwo' : 'playerOne';
 }
 
 function swapContestPlayerId(playerId: ContestPlayerId | null | undefined): ContestPlayerId | null | undefined {
@@ -96,18 +96,18 @@ function swapContestPlayerId(playerId: ContestPlayerId | null | undefined): Cont
 }
 
 function swapContestRiftController(controller: ContestRiftController | undefined): ContestRiftController | undefined {
-  if (controller === 'human') {
-    return 'ai';
+  if (controller === 'playerOne') {
+    return 'playerTwo';
   }
-  if (controller === 'ai') {
-    return 'human';
+  if (controller === 'playerTwo') {
+    return 'playerOne';
   }
   return controller;
 }
 
 export const DEFAULT_CONTEST_PLAYER_NAMES: ContestPlayerNames = {
-  human: 'Player 1',
-  ai: 'Player 2',
+  playerOne: 'Player 1',
+  playerTwo: 'Player 2',
 };
 
 function getParticipantLabel(participant: BattleSideParticipants[keyof BattleSideParticipants], playerNames: ContestPlayerNames): string {
@@ -288,26 +288,27 @@ function projectRiftForOpponent(rift: RiftInstance): RiftInstance {
 }
 
 function swapContestPerspective(state: GameState): GameState {
-  const human = extractContestPlayerProgress(state);
-  const ai = getContestPlayerProgress(state, 'ai');
+  const playerOne = extractContestPlayerProgress(state);
+  const playerTwo = getContestPlayerProgress(state, 'playerTwo');
   return applyContestPlayerProgress(
     {
-      ...applyContestPlayerProgress(state, 'human', ai),
+      ...applyContestPlayerProgress(state, 'playerOne', playerTwo),
       openRifts: state.openRifts.map(projectRiftForOpponent),
       contest: {
         players: {
-          ai: human,
+          playerOne: playerTwo,
+          playerTwo: playerOne,
         },
         opponentInfo: state.contest?.opponentInfo
           ? {
               cycleNumber: state.contest.opponentInfo.cycleNumber,
-              ai: human,
+              playerTwo: playerOne,
             }
           : null,
       },
     },
-    'ai',
-    human,
+    'playerTwo',
+    playerOne,
   );
 }
 
@@ -316,7 +317,7 @@ export function getContestMultiplayerPlayerSeed(state: Pick<GameState, 'campaign
 }
 
 export function projectContestStateForPlayer(state: GameState, playerId: ContestPlayerId): GameState {
-  const projected = playerId === 'human' ? state : swapContestPerspective(state);
+  const projected = playerId === 'playerOne' ? state : swapContestPerspective(state);
   return {
     ...projected,
     campaignSeed: getContestMultiplayerPlayerSeed(state, playerId),
@@ -335,19 +336,15 @@ function troopUnlockIdFromTroop(troop: GameState['troops'][number]): TroopUnlock
   return `${troop.raceId}/${troop.unitClassId}` as TroopUnlockId;
 }
 
-function uniqueInOrder<T>(items: T[]): T[] {
-  return [...new Set(items)];
-}
-
 export function buildContestMultiplayerSubmission(state: GameState): ContestMultiplayerSubmission {
   return {
     kind: 'contest-submission',
     cycleNumber: state.cycleNumber,
     phase: state.phase,
-    selectedStartingTroopUnlockIds: uniqueInOrder(state.troops.map(troopUnlockIdFromTroop)),
-    selectedRaceIds: uniqueInOrder(state.unlockedRaceIds),
-    selectedTroopUnlockIds: uniqueInOrder(state.troops.map(troopUnlockIdFromTroop)),
-    selectedUpgradeIds: uniqueInOrder([...state.raceUpgradeIds, ...state.troopClassUpgradeIds]),
+    selectedStartingTroopUnlockIds: [...new Set(state.troops.map(troopUnlockIdFromTroop))],
+    selectedRaceIds: [...new Set(state.unlockedRaceIds)],
+    selectedTroopUnlockIds: [...new Set(state.troops.map(troopUnlockIdFromTroop))],
+    selectedUpgradeIds: [...new Set([...state.raceUpgradeIds, ...state.troopClassUpgradeIds])],
     troopAssignments: state.troops.map((troop) => ({ troopId: troop.id, riftId: troop.assignmentRiftId })),
     endCycleConfirmed: state.phase === 'planning',
   };
@@ -366,7 +363,7 @@ export function mergeContestSubmissions(state: GameState, submissions: Record<Co
 
 function additionalSelectedIds<T extends string>(baseIds: T[], submittedIds: T[]): T[] {
   const base = new Set(baseIds);
-  return uniqueInOrder(submittedIds).filter((id) => !base.has(id));
+  return [...new Set(submittedIds)].filter((id) => !base.has(id));
 }
 
 function rejectSubmission(message: string): ContestSubmissionValidationResult {
@@ -382,7 +379,7 @@ function applyOpeningSubmission(projected: GameState, submission: ContestMultipl
   }
 
   let next = { ...projected, troops: [], unlockedRaceIds: [] };
-  for (const troopUnlockId of uniqueInOrder(submission.selectedStartingTroopUnlockIds)) {
+  for (const troopUnlockId of [...new Set(submission.selectedStartingTroopUnlockIds)]) {
     const applied = claimOpeningTroop(next, troopUnlockId);
     if (applied === next) {
       return rejectSubmission(`Opening troop ${troopUnlockId} is not a legal starting choice.`);
@@ -434,11 +431,12 @@ function applyPlanningDraftChoices(projected: GameState, submission: ContestMult
   let next = projected;
   const troopChoices = additionalSelectedIds(projected.troops.map(troopUnlockIdFromTroop), submission.selectedTroopUnlockIds);
   const upgradeChoices = additionalSelectedIds([...projected.raceUpgradeIds, ...projected.troopClassUpgradeIds], submission.selectedUpgradeIds);
+  const guardLimit = Math.max(troopChoices.length + upgradeChoices.length + 5, 30);
   let guard = 0;
 
   while (troopChoices.length > 0 || upgradeChoices.length > 0) {
     guard += 1;
-    if (guard > 20) {
+    if (guard > guardLimit) {
       return rejectSubmission('Too many draft choices were submitted.');
     }
 
@@ -484,7 +482,7 @@ function applyPlanningDraftChoices(projected: GameState, submission: ContestMult
 function applyPlanningAssignments(projected: GameState, submission: ContestMultiplayerSubmission): ContestSubmissionValidationResult {
   const heldTroopIds = new Set(
     projected.openRifts
-      .filter((rift) => rift.controller === 'human')
+      .filter((rift) => rift.controller === 'playerOne')
       .flatMap((rift) => rift.occupyingTroopIds ?? []),
   );
   let next = projected.troops.reduce(
@@ -590,7 +588,7 @@ function startSubmittedContest(state: GameState): GameState {
   return {
     ...withEssence,
     phase: 'planning',
-    essence: getContestPlayerProgress(withEssence, 'human').essence,
+    essence: getContestPlayerProgress(withEssence, 'playerOne').essence,
     openRifts: generateContestCycleRifts(withEssence),
   };
 }
@@ -635,7 +633,7 @@ function applyScheduledUnlocksToBothPlayers(state: GameState): GameState {
   ) as Record<ContestPlayerId, ContestPlayerState>;
 
   const next = PLAYER_IDS.reduce((current, playerId) => applyContestPlayerProgress(current, playerId, progressByPlayer[playerId]), base);
-  const scheduledPhase = progressByPlayer.human.activeRaceUnlockOffer || progressByPlayer.ai.activeRaceUnlockOffer ? 'race_unlock' : base.phase;
+  const scheduledPhase = progressByPlayer.playerOne.activeRaceUnlockOffer || progressByPlayer.playerTwo.activeRaceUnlockOffer ? 'race_unlock' : base.phase;
   return {
     ...next,
     phase: scheduledPhase,
@@ -666,7 +664,7 @@ export function advanceContestMultiplayerRoom(state: GameState, submissions: Rec
   }
 
   const merged = mergeContestSubmissions(state, submissions);
-  const aiProgress = getContestPlayerProgress(merged, 'ai');
+  const aiProgress = getContestPlayerProgress(merged, 'playerTwo');
   const resolution = resolveAssignedRifts(merged, aiProgress);
   const applied: ApplyCycleOutcomeResult = applyCycleOutcomes(merged, resolution);
   return {

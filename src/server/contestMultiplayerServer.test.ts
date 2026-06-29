@@ -9,11 +9,11 @@ import type { LadderRepository } from './ladderRepository';
 type SnapshotMessage = {
   kind: 'room-snapshot';
   roomId: string;
-  playerId: 'human' | 'ai';
+  playerId: 'playerOne' | 'playerTwo';
   playerToken: string;
-  readiness: { human: boolean; ai: boolean };
-  connectedPlayers: { human: boolean; ai: boolean };
-  playerNames: { human: string; ai: string };
+  readiness: { playerOne: boolean; playerTwo: boolean };
+  connectedPlayers: { playerOne: boolean; playerTwo: boolean };
+  playerNames: { playerOne: string; playerTwo: string };
 };
 
 type ErrorMessage = {
@@ -91,7 +91,7 @@ describe('Contest multiplayer reconnect rooms', () => {
 
     const snapshot = latestSnapshot(socket);
     expect(snapshot.roomId).toBe('ROOM1');
-    expect(snapshot.playerId).toBe('human');
+    expect(snapshot.playerId).toBe('playerOne');
     expect(snapshot.playerToken).toEqual(expect.any(String));
     expect(snapshot.playerToken.length).toBeGreaterThan(20);
   });
@@ -105,7 +105,7 @@ describe('Contest multiplayer reconnect rooms', () => {
 
     const firstSnapshot = latestSnapshot(playerOne);
     const secondSnapshot = latestSnapshot(playerTwo);
-    expect(secondSnapshot.playerId).toBe('ai');
+    expect(secondSnapshot.playerId).toBe('playerTwo');
     expect(secondSnapshot.playerToken).toEqual(expect.any(String));
     expect(secondSnapshot.playerToken).not.toBe(firstSnapshot.playerToken);
   });
@@ -117,8 +117,8 @@ describe('Contest multiplayer reconnect rooms', () => {
 
     sendClientMessage(playerTwo, { kind: 'join-room', roomId: 'ROOM16', playerName: 'Byron' });
 
-    expect(latestSnapshot(playerOne).playerNames).toEqual({ human: 'Ada', ai: 'Byron' });
-    expect(latestSnapshot(playerOne).connectedPlayers).toEqual({ human: true, ai: true });
+    expect(latestSnapshot(playerOne).playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
+    expect(latestSnapshot(playerOne).connectedPlayers).toEqual({ playerOne: true, playerTwo: true });
   });
 
   it('lets a player explicitly leave and frees their seat and name', () => {
@@ -130,9 +130,9 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(playerTwo, { kind: 'leave-room' });
 
     const hostSnapshot = latestSnapshot(playerOne);
-    expect(hostSnapshot.playerNames).toEqual({ human: 'Ada', ai: 'Player 2' });
-    expect(hostSnapshot.connectedPlayers).toEqual({ human: true, ai: false });
-    expect(contestMultiplayerServerInternals.rooms.get('ROOM17')?.playerTokens.ai).toBeUndefined();
+    expect(hostSnapshot.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Player 2' });
+    expect(hostSnapshot.connectedPlayers).toEqual({ playerOne: true, playerTwo: false });
+    expect(contestMultiplayerServerInternals.rooms.get('ROOM17')?.playerTokens.playerTwo).toBeUndefined();
     expect(contestMultiplayerServerInternals.socketRooms.has(playerTwo as never)).toBe(false);
     expect(playerTwo.closeCalls.at(-1)).toEqual({ code: 1000, reason: 'Left multiplayer room.' });
   });
@@ -144,12 +144,12 @@ describe('Contest multiplayer reconnect rooms', () => {
     contestMultiplayerServerInternals.handleSocketClose(playerOne as never);
 
     const reconnect = new FakeSocket();
-    sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM3', playerId: 'human', token, playerName: 'One Again' });
+    sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM3', playerId: 'playerOne', token, playerName: 'One Again' });
 
     const snapshot = latestSnapshot(reconnect);
-    expect(snapshot.playerId).toBe('human');
-    expect(snapshot.playerNames.human).toBe('One Again');
-    expect(snapshot.connectedPlayers.human).toBe(true);
+    expect(snapshot.playerId).toBe('playerOne');
+    expect(snapshot.playerNames.playerOne).toBe('One Again');
+    expect(snapshot.connectedPlayers.playerOne).toBe(true);
   });
 
   it('frees a disconnected pre-start seat for any later joiner', () => {
@@ -164,9 +164,9 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(replacement, { kind: 'join-room', roomId: 'ROOM14', playerName: 'Three' });
 
     const snapshot = latestSnapshot(replacement);
-    expect(snapshot.playerId).toBe('ai');
-    expect(snapshot.playerNames.ai).toBe('Three');
-    expect(snapshot.connectedPlayers).toEqual({ human: true, ai: true });
+    expect(snapshot.playerId).toBe('playerTwo');
+    expect(snapshot.playerNames.playerTwo).toBe('Three');
+    expect(snapshot.connectedPlayers).toEqual({ playerOne: true, playerTwo: true });
   });
 
   it('allows a normal join to claim the host seat after a pre-start host disconnect', () => {
@@ -178,8 +178,8 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(replacement, { kind: 'join-room', roomId: 'ROOM15', playerName: 'Three' });
 
     const snapshot = latestSnapshot(replacement);
-    expect(snapshot.playerId).toBe('human');
-    expect(snapshot.playerNames.human).toBe('Three');
+    expect(snapshot.playerId).toBe('playerOne');
+    expect(snapshot.playerNames.playerOne).toBe('Three');
   });
 
   it('rejects reconnects with the wrong token', () => {
@@ -187,7 +187,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM4', seed: 4, playerName: 'One' });
 
     const reconnect = new FakeSocket();
-    sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM4', playerId: 'human', token: 'wrong-token', playerName: 'Imposter' });
+    sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM4', playerId: 'playerOne', token: 'wrong-token', playerName: 'Imposter' });
 
     expect(latestError(reconnect).message).toContain('Could not reconnect');
   });
@@ -199,17 +199,17 @@ describe('Contest multiplayer reconnect rooms', () => {
     const room = contestMultiplayerServerInternals.rooms.get('ROOM5')!;
     sendClientMessage(playerOne, {
       kind: 'submit-ready',
-      submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'human'))),
+      submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'playerOne'))),
     });
 
     const reconnect = new FakeSocket();
-    sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM5', playerId: 'human', token, playerName: 'One' });
+    sendClientMessage(reconnect, { kind: 'reconnect-room', roomId: 'ROOM5', playerId: 'playerOne', token, playerName: 'One' });
     contestMultiplayerServerInternals.handleSocketClose(playerOne as never);
 
     const snapshot = latestSnapshot(reconnect);
-    expect(snapshot.playerId).toBe('human');
-    expect(snapshot.readiness.human).toBe(true);
-    expect(contestMultiplayerServerInternals.rooms.get('ROOM5')?.clients.human?.socket).toBe(reconnect);
+    expect(snapshot.playerId).toBe('playerOne');
+    expect(snapshot.readiness.playerOne).toBe(true);
+    expect(contestMultiplayerServerInternals.rooms.get('ROOM5')?.clients.playerOne?.socket).toBe(reconnect);
   });
 
   it('rejects legacy full-state ready submissions', () => {
@@ -219,7 +219,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(playerOne, { kind: 'submit-ready', game: chooseFirstTwoOpeningTroops(startNewGame(6, 'contest')) });
 
     expect(latestError(playerOne).message).toContain('Full-state multiplayer submissions');
-    expect(contestMultiplayerServerInternals.rooms.get('ROOM6')?.submissions.human).toBeUndefined();
+    expect(contestMultiplayerServerInternals.rooms.get('ROOM6')?.submissions.playerOne).toBeUndefined();
   });
 
   it('removes empty rooms after the lifecycle TTL', () => {
@@ -255,7 +255,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     vi.setSystemTime(5_000);
     sendClientMessage(playerOne, {
       kind: 'submit-ready',
-      submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'human'))),
+      submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'playerOne'))),
     });
 
     expect(room.updatedAt).toBe(5_000);
@@ -306,7 +306,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(playerTwo, { kind: 'join-room', roomId: 'room11', playerName: 'Two' });
 
     expect(latestSnapshot(playerOne).roomId).toBe('ROOM11');
-    expect(latestSnapshot(playerTwo).playerId).toBe('ai');
+    expect(latestSnapshot(playerTwo).playerId).toBe('playerTwo');
   });
 
   it('rejects duplicate requested room ids instead of hijacking an existing room', () => {
@@ -376,7 +376,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(contestMultiplayerServerInternals.checkSocketHeartbeat(playerOne as never)).toBe(false);
 
     expect(playerOne.closeCalls.at(-1)?.code).toBe(1001);
-    expect(contestMultiplayerServerInternals.rooms.get('ROOM13')?.clients.human).toBeUndefined();
+    expect(contestMultiplayerServerInternals.rooms.get('ROOM13')?.clients.playerOne).toBeUndefined();
   });
 
   it('logs startup Ladder initialization failures and retries later', async () => {

@@ -453,7 +453,7 @@ Current keys are versioned for the rewrite:
 - save payload: `shiftmake:slot:<id>:save:v3`
 - replay payloads: `shiftmake:slot:<id>:replay:v3.19:<replayId>`
 
-Replay payload storage uses explicit minor versions such as `v3.0` and `v3.19`, not bare `v3`, so deterministic replay payload shape changes can coexist with the same campaign save generation. The loader still accepts older replay keys, including `v3.0`, bare `v3`, `v2`, and early unversioned slot replay keys.
+Replay payload storage uses explicit minor versions such as `v3.19`, not bare `v3`, so deterministic replay payload shape changes can coexist with the same campaign save generation. The loader reads only the current replay key prefix.
 
 Replay payloads are stored as serialized `BattleInput`, not full replay output. Archived battles are reconstructed by re-running the deterministic resolver when opened.
 
@@ -463,7 +463,7 @@ Replay archive retention:
 - soft storage cap of about 4 MB for replay payloads
 - older payloads may be evicted and reduced to summary-only archive entries
 
-Legacy campaign saves are intentionally unsupported and are not migrated.
+Legacy campaign saves are intentionally unsupported and are not migrated. Legacy v1 save keys and old replay prefixes are ignored.
 
 Ladder save data remains in the normal save-slot payload. The shared Ladder Rift-set database is not mirrored into `localStorage`; saves only persist the current source Rift-set metadata and the currently drawn `openRifts`.
 

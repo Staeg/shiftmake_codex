@@ -4,6 +4,7 @@
   import { footprintCenter } from '../engine/hex';
   import { UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
   import { buildBattlePresentationTimeline } from '../rendering/battlePresentationTimeline';
+  import { BASE_STEP_MS } from '../rendering/renderingConstants';
 
   type Point = { x: number; y: number };
   type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
@@ -18,7 +19,6 @@
   const UNIT_SIZE = 18;
   const MAP_PADDING = 12;
   const BATTLE_SPEED_MULTIPLIER = 64;
-  const BASE_STEP_MS = 500;
 
   export let replay: BattleReplay;
   export let leftSource: SideId = 'enemy';

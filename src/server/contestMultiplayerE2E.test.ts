@@ -197,14 +197,14 @@ describe('Contest multiplayer two-client smoke suite', () => {
     clients.push(host, guest);
 
     host.send({ kind: 'create-room', roomId: 'E2E1', seed: 42, playerName: 'Ada' });
-    const created = await host.waitForSnapshot((message) => message.roomId === 'E2E1' && message.playerId === 'human');
+    const created = await host.waitForSnapshot((message) => message.roomId === 'E2E1' && message.playerId === 'playerOne');
 
     guest.send({ kind: 'join-room', roomId: created.roomId.toLowerCase(), playerName: 'Byron' });
-    const hostJoined = await host.waitForSnapshot((message) => message.playerNames.ai === 'Byron');
-    const guestJoined = await guest.waitForSnapshot((message) => message.roomId === 'E2E1' && message.playerId === 'ai');
+    const hostJoined = await host.waitForSnapshot((message) => message.playerNames.playerTwo === 'Byron');
+    const guestJoined = await guest.waitForSnapshot((message) => message.roomId === 'E2E1' && message.playerId === 'playerTwo');
 
-    expect(hostJoined.playerNames).toEqual({ human: 'Ada', ai: 'Byron' });
-    expect(guestJoined.playerNames).toEqual({ human: 'Ada', ai: 'Byron' });
+    expect(hostJoined.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
+    expect(guestJoined.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
 
     host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(hostJoined.game)) });
     guest.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(guestJoined.game)) });
@@ -214,8 +214,8 @@ describe('Contest multiplayer two-client smoke suite', () => {
 
     expect(hostPlanning.game.troops).toHaveLength(2);
     expect(guestPlanning.game.troops).toHaveLength(2);
-    expect(hostPlanning.playerId).toBe('human');
-    expect(guestPlanning.playerId).toBe('ai');
+    expect(hostPlanning.playerId).toBe('playerOne');
+    expect(guestPlanning.playerId).toBe('playerTwo');
 
     host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(hostPlanning.game))) });
     guest.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(guestPlanning.game))) });
@@ -238,19 +238,19 @@ describe('Contest multiplayer two-client smoke suite', () => {
     clients.push(host);
 
     host.send({ kind: 'create-room', roomId: 'E2E2', seed: 84, playerName: 'Ada' });
-    const created = await host.waitForSnapshot((message) => message.roomId === 'E2E2' && message.playerId === 'human');
+    const created = await host.waitForSnapshot((message) => message.roomId === 'E2E2' && message.playerId === 'playerOne');
 
     host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(created.game)) });
-    const waiting = await host.waitForSnapshot((message) => message.readiness.human && !message.readiness.ai);
+    const waiting = await host.waitForSnapshot((message) => message.readiness.playerOne && !message.readiness.playerTwo);
     host.close();
 
     const replacement = await connectClient(serverUrl());
     clients.push(replacement);
     replacement.send({ kind: 'join-room', roomId: waiting.roomId, playerName: 'Cleo' });
 
-    const joined = await replacement.waitForSnapshot((message) => message.playerId === 'human' && message.playerNames.human === 'Cleo');
+    const joined = await replacement.waitForSnapshot((message) => message.playerId === 'playerOne' && message.playerNames.playerOne === 'Cleo');
     expect(joined.roomId).toBe('E2E2');
     expect(joined.playerToken).not.toBe(waiting.playerToken);
-    expect(joined.readiness.human).toBe(false);
+    expect(joined.readiness.playerOne).toBe(false);
   });
 });

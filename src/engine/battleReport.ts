@@ -1,10 +1,10 @@
 import { resolveBattle } from './battle';
 import type { BattleReportDiagnostic, BattleReportPayload, BattleReplay, ReplayIndexEntry, StoredReplayPayload } from './types';
 import { decodeBase64Url, encodeBase64Url, hashString, stableStringify } from '../shared/reportEncoding';
+import { APP_VERSION } from './appVersion';
 
 const REPORT_PREFIX = 'SMBR1.';
 const REPORT_VERSION = 1;
-const APP_VERSION = '0.1.0';
 
 type BattleReportOptions = {
   replay: BattleReplay;

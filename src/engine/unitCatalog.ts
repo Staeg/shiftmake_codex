@@ -24,6 +24,18 @@ const STAT_KEYS: Array<keyof UnitStats> = ['health', 'damage', 'speed', 'move', 
 const TROOP_UNIT_BUDGET = 120;
 
 function makeAbility(definition: AbilityDefinition): AbilityDefinition {
+  if (!definition.id.trim()) {
+    throw new Error('Ability definitions must have a non-empty id.');
+  }
+  if (!definition.label.trim()) {
+    throw new Error(`Ability ${definition.id} must have a non-empty label.`);
+  }
+  if (!definition.trigger?.timing) {
+    throw new Error(`Ability ${definition.id} must define a trigger timing.`);
+  }
+  if (!Array.isArray(definition.effects)) {
+    throw new Error(`Ability ${definition.id} must define effects.`);
+  }
   return definition;
 }
 
@@ -188,7 +200,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board.',
+    shortText: 'Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 initiative.',
   }),
   'ale-and-hearty': makeAbility({
     id: 'ale-and-hearty',
@@ -388,24 +400,6 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [summonEffect('wolf', 2)],
     shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes.',
   }),
-  'summon-wolf-2-blood': makeAbility({
-    id: 'summon-wolf-2-blood',
-    label: 'Summon Wolf 2',
-    trigger: { timing: 'startOfBattle' },
-    duration: battleDuration(),
-    target: selfTarget(),
-    effects: [summonEffect('wolf', 2, false, ['onkill-summon-wolf-1'])],
-    shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes. Those wolves summon 1 more wolf on each kill, and new wolves inherit that effect.',
-  }),
-  'onkill-summon-wolf-1': makeAbility({
-    id: 'onkill-summon-wolf-1',
-    label: 'On Kill Summon Wolf 1',
-    trigger: { timing: 'onKill' },
-    duration: battleDuration(),
-    target: selfTarget(),
-    effects: [summonEffect('wolf', 1, false, ['onkill-summon-wolf-1'])],
-    shortText: 'On kill: summon 1 wolf on this unit or an adjacent hex. Summoned wolves inherit this ability.',
-  }),
   'charge-4-summon-elemental': makeAbility({
     id: 'charge-4-summon-elemental',
     label: 'Charge 4 Summon Elemental',
@@ -576,6 +570,14 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [statDeltaEffect('speed', -1, 'flat')],
     shortText: 'On attack: reduce the target speed by 1 for the battle.',
   }),
+  'hexing-shots': makeAbility({
+    id: 'hexing-shots',
+    label: 'Hexing Shots',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: Archer attacks deal +1 damage per Hex stack on the target.',
+  }),
   'blood-oath': makeAbility({
     id: 'blood-oath',
     label: 'Blood Oath',
@@ -584,14 +586,6 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     target: selfTarget(),
     effects: [initiativeSetEffect(100)],
     shortText: 'When a touching ally dies: set initiative to 100.',
-  }),
-  'packmasters-whistle': makeAbility({
-    id: 'packmasters-whistle',
-    label: "Packmaster's Whistle",
-    trigger: { timing: 'passive' },
-    duration: instantDuration(),
-    effects: [],
-    shortText: 'End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.',
   }),
   'shapeshift-bear-2': makeAbility({
     id: 'shapeshift-bear-2',
@@ -664,7 +658,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP.",
+    shortText: "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest heals repeat on allies in range below 10% HP.",
   }),
   'bolstering-light': makeAbility({
     id: 'bolstering-light',
@@ -672,7 +666,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: heals that bring a target to full HP give +1 speed and +1 damage; other heals give 40 initiative.',
+    shortText: 'Passive: Priest heals that bring a target to full HP give the target and Priest +1 speed and +1 damage; other Priest heals give both 40 initiative.',
   }),
   'skirmishers-step': makeAbility({
     id: 'skirmishers-step',
@@ -832,7 +826,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.',
+    shortText: 'Passive: whenever a non-Fading ally dies, heal each Human unit for 15.',
   }),
   'loot-frenzy': makeAbility({
     id: 'loot-frenzy',
@@ -848,7 +842,23 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: whenever this unit is healed, gain 20 initiative.',
+    shortText: 'Passive: whenever this unit is healed, gain 20 initiative and +1 damage.',
+  }),
+  'gargantuan-zeal': makeAbility({
+    id: 'gargantuan-zeal',
+    label: 'Gargantuan Zeal',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on size.',
+  }),
+  'overwhelm-hex': makeAbility({
+    id: 'overwhelm-hex',
+    label: 'Overwhelm Hex',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when a Goblin is present, one random unit from each enemy troop gains Hex at battle start. Hex drains health at end of turn.',
   }),
   'wild-call': makeAbility({
     id: 'wild-call',
@@ -915,13 +925,126 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [],
     shortText: 'Passive: healing and positive stat gains affecting this unit are doubled.',
   }),
+  'wages-of-virtue': makeAbility({
+    id: 'wages-of-virtue',
+    label: 'Wages of Virtue',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: redirect incoming attack damage to a touching ally if possible. When a touching ally is healed, this unit is also healed.',
+  }),
+  'throwing-axes': makeAbility({
+    id: 'throwing-axes',
+    label: 'Throwing Axes',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: "Passive: attacks deal extra damage equal to 10% of the target's current health before damage.",
+  }),
+  opening: makeAbility({
+    id: 'opening',
+    label: 'Opening',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when this unit hits an enemy, allies touching the target also attack that enemy.',
+  }),
+  triumph: makeAbility({
+    id: 'triumph',
+    label: 'Triumphant Zeal',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% speed, and +10% max health.',
+  }),
+  'hunters-zeal': makeAbility({
+    id: 'hunters-zeal',
+    label: "Hunter's Zeal",
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants initiative at end of turn.',
+  }),
+  'martyrs-zeal': makeAbility({
+    id: 'martyrs-zeal',
+    label: "Martyr's Zeal",
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.',
+  }),
+  'crippling-hex': makeAbility({
+    id: 'crippling-hex',
+    label: 'Crippling Hex',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: enemies who kill this Militia gain Hex. Hex reduces enemy speed.',
+  }),
+  'vulnerability-hex': makeAbility({
+    id: 'vulnerability-hex',
+    label: 'Vulnerability Hex',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: if a Wizard is present, enemies damaged by Blast can gain Hex. Hex makes enemies take more Blast damage.',
+  }),
+  'crack-exploits': makeAbility({
+    id: 'crack-exploits',
+    label: 'Crack Exploits',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when an enemy loses armor, each allied Elementalist makes a normal attack against them ignoring range.',
+  }),
+  'elemental-sunder-1': makeAbility({
+    id: 'elemental-sunder-1',
+    label: 'Elemental Sunder',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: allied elementals remove 1 armor on attack.',
+  }),
+  sunder: makeAbility({
+    id: 'sunder',
+    label: 'Sunder',
+    trigger: { timing: 'onAttack' },
+    duration: battleDuration(),
+    target: { mode: 'default' },
+    effects: [statDeltaEffect('armor', -20, 'flat')],
+    shortText: 'On attack: remove 20 armor from the target.',
+  }),
+  saintbane: makeAbility({
+    id: 'saintbane',
+    label: 'Saintbane',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: when an enemy heals or gains stats, raise adjacent corpses as Skeletons.',
+  }),
+  'holy-constructs': makeAbility({
+    id: 'holy-constructs',
+    label: 'Holy Constructs',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: while a Priest is present, the first time each non-Fading ally is healed, summon an Elemental adjacent to them. Elementals heal adjacent allies on death.',
+  }),
+  'final-hex': makeAbility({
+    id: 'final-hex',
+    label: 'Final Hex',
+    trigger: { timing: 'passive' },
+    duration: instantDuration(),
+    effects: [],
+    shortText: 'Passive: attacks apply Hexed. Attacking an enemy with 5 Hexed stacks kills it.',
+  }),
   'thrill-of-the-hunt': makeAbility({
     id: 'thrill-of-the-hunt',
     label: 'Thrill of the Hunt',
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: end of turn, touching wolves gain 10 initiative; when this side's wolf kills, all allied units gain +2 damage for the battle.",
+    shortText: "Passive: when this side's wolf kills, summon 1 Wolf and all allied units gain +1 damage for the battle.",
   }),
 };
 
@@ -1271,13 +1394,21 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     description: 'Start of turn: each goblin unit gains +4 damage per other friendly unit touching it until end of turn.',
     effects: [{ kind: 'addAbility', abilityId: 'horde-4' }],
   },
-  'troll-roll-the-boulder': {
-    id: 'troll-roll-the-boulder',
-    raceId: 'troll',
-    label: 'Roll the Boulder',
+  'goblin-overwhelm-hex': {
+    id: 'goblin-overwhelm-hex',
+    raceId: 'goblin',
+    label: 'Overwhelm Hex',
     tier: 1,
-    description: "When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 10 times that troll's size. Each troll unit gains +2 damage for the rest of the battle at the end of its turn.",
-    effects: [{ kind: 'addAbility', abilityId: 'ramp-2' }, { kind: 'addAbility', abilityId: 'crushing-sweep' }],
+    description: 'When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn.',
+    effects: [{ kind: 'addAbility', abilityId: 'overwhelm-hex' }],
+  },
+  'troll-gargantuan-zeal': {
+    id: 'troll-gargantuan-zeal',
+    raceId: 'troll',
+    label: 'Gargantuan Zeal',
+    tier: 1,
+    description: 'When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.',
+    effects: [{ kind: 'addAbility', abilityId: 'gargantuan-zeal' }],
   },
   'troll-mossblood': {
     id: 'troll-mossblood',
@@ -1292,7 +1423,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'troll',
     label: 'Rowdy Regrowth',
     tier: 2,
-    description: 'Whenever a Troll regains health, it gains 20 initiative.',
+    description: 'Whenever a Troll regains health, it gains 20 initiative and +1 damage.',
     effects: [{ kind: 'addAbility', abilityId: 'rowdy-regrowth' }],
   },
   'human-hold-the-standard': {
@@ -1300,7 +1431,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'human',
     label: 'Hold the Standard',
     tier: 2,
-    description: 'Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.',
+    description: 'Whenever a non-Fading ally dies, each Human unit heals 15.',
     effects: [{ kind: 'addAbility', abilityId: 'hold-the-standard' }],
   },
   'dwarf-diggy-hole': {
@@ -1308,7 +1439,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'dwarf',
     label: 'Diggy Hole',
     tier: 1,
-    description: 'Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.',
+    description: 'Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.',
     effects: [{ kind: 'addAbility', abilityId: 'diggy-hole' }],
   },
   'dwarf-ale-and-hearty': {
@@ -1397,6 +1528,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: "Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat.",
     effects: [{ kind: 'addAbility', abilityId: 'dreamwork' }],
   },
+  'soldier-martyrs-zeal': {
+    id: 'soldier-martyrs-zeal',
+    unitClassId: 'soldier',
+    label: "Martyr's Zeal",
+    tier: 3,
+    description: 'When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.',
+    effects: [{ kind: 'addAbility', abilityId: 'martyrs-zeal' }],
+  },
   'archer-crippling-shots': {
     id: 'archer-crippling-shots',
     unitClassId: 'archer',
@@ -1412,6 +1551,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     tier: 3,
     description: "Archers shoot all enemies within their attack range when they aren't engaged in melee, but their attacks deal 40% less damage.",
     effects: [{ kind: 'addAbility', abilityId: 'barrage' }],
+  },
+  'archer-hexing-shots': {
+    id: 'archer-hexing-shots',
+    unitClassId: 'archer',
+    label: 'Hexing Shots',
+    tier: 3,
+    description: 'Archer attacks deal +1 damage per Hex stack on the target.',
+    effects: [{ kind: 'addAbility', abilityId: 'hexing-shots' }],
   },
   'avenger-sevenfold': {
     id: 'avenger-sevenfold',
@@ -1429,20 +1576,42 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: 'When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.',
     effects: [{ kind: 'addAbility', abilityId: 'blood-oath' }, { kind: 'addAbility', abilityId: 'last-witness' }],
   },
-  'beastmaster-bloodhounds': {
-    id: 'beastmaster-bloodhounds',
-    unitClassId: 'beastmaster',
-    label: 'Bloodhounds',
+  'avenger-wages-of-virtue': {
+    id: 'avenger-wages-of-virtue',
+    unitClassId: 'avenger',
+    label: 'Wages of Virtue',
     tier: 3,
-    description: 'Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.',
-    effects: [{ kind: 'replaceAbility', removeAbilityId: 'summon-wolf-2', addAbilityId: 'summon-wolf-2-blood' }, { kind: 'addAbility', abilityId: 'packmasters-whistle' }],
+    description: 'Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.',
+    effects: [{ kind: 'addAbility', abilityId: 'wages-of-virtue' }],
+  },
+  'beastmaster-throwing-axes': {
+    id: 'beastmaster-throwing-axes',
+    unitClassId: 'beastmaster',
+    label: 'Throwing Axes',
+    tier: 3,
+    description: "Beastmasters gain 4 range. Their attacks deal additional damage equal to 10% of the enemy's current health.",
+    effects: [
+      { kind: 'removeAttribute', attribute: 'melee' },
+      { kind: 'addAttribute', attribute: 'ranged' },
+      { kind: 'setRole', role: 'backline' },
+      { kind: 'modifyStats', statModifiers: { range: { flat: 4 } } },
+      { kind: 'addAbility', abilityId: 'throwing-axes' },
+    ],
+  },
+  'beastmaster-opening': {
+    id: 'beastmaster-opening',
+    unitClassId: 'beastmaster',
+    label: 'Opening',
+    tier: 3,
+    description: 'When a Beastmaster hits an enemy, all allies adjacent to the target also attack that enemy.',
+    effects: [{ kind: 'addAbility', abilityId: 'opening' }],
   },
   'beastmaster-thrill-of-the-hunt': {
     id: 'beastmaster-thrill-of-the-hunt',
     unitClassId: 'beastmaster',
     label: 'Thrill of the Hunt',
     tier: 3,
-    description: "End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever this side's wolf gets a kill, all allied units gain +2 damage for the battle.",
+    description: 'Wolves summon 1 Wolf on each kill. Whenever any wolf gets a kill, all allies gain +1 damage for the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'thrill-of-the-hunt' }],
   },
   'champion-anointed-executioner': {
@@ -1461,6 +1630,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: "Champions cannot be targeted with normal attacks by enemies they aren't engaged with.",
     effects: [{ kind: 'addAbility', abilityId: 'honorable-duel' }],
   },
+  'champion-triumph': {
+    id: 'champion-triumph',
+    unitClassId: 'champion',
+    label: 'Triumphant Zeal',
+    tier: 3,
+    description: 'On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.',
+    effects: [{ kind: 'addAbility', abilityId: 'triumph' }],
+  },
   'knight-dine-in-hell': {
     id: 'knight-dine-in-hell',
     unitClassId: 'knight',
@@ -1476,6 +1653,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     tier: 3,
     description: "The first time an enemy moves out of contact with a Knight, summon 2 elementals at that unit's new position; they immediately engage and attack that unit. If unused, this also triggers on death against the killer.",
     effects: [{ kind: 'addAbility', abilityId: 'sentinel-runes' }],
+  },
+  'knight-sunder': {
+    id: 'knight-sunder',
+    unitClassId: 'knight',
+    label: 'Sunder',
+    tier: 3,
+    description: 'Knights remove 20 armor on attack.',
+    effects: [{ kind: 'addAbility', abilityId: 'sunder' }],
   },
   'druid-forest-friends': {
     id: 'druid-forest-friends',
@@ -1517,6 +1702,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: 'End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.',
     effects: [{ kind: 'addAbility', abilityId: 'living-circuit' }],
   },
+  'elementalist-crack-exploits': {
+    id: 'elementalist-crack-exploits',
+    unitClassId: 'elementalist',
+    label: 'Crack Exploits',
+    tier: 3,
+    description: 'Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack.',
+    effects: [{ kind: 'modifyStats', statModifiers: { damage: { flat: -5 } } }, { kind: 'addAbility', abilityId: 'crack-exploits' }, { kind: 'addAbility', abilityId: 'elemental-sunder-1' }],
+  },
   'militia-rat-behavior': {
     id: 'militia-rat-behavior',
     unitClassId: 'militia',
@@ -1532,6 +1725,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     tier: 3,
     description: 'When Militia attack an enemy engaged by at least 3 allies, they strike 1 extra time.',
     effects: [{ kind: 'addAbility', abilityId: 'dogpile' }],
+  },
+  'militia-crippling-hex': {
+    id: 'militia-crippling-hex',
+    unitClassId: 'militia',
+    label: 'Crippling Hex',
+    tier: 3,
+    description: 'Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.',
+    effects: [{ kind: 'addAbility', abilityId: 'crippling-hex' }],
   },
   'necromancer-hemomancy': {
     id: 'necromancer-hemomancy',
@@ -1549,12 +1750,20 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: 'Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.',
     effects: [{ kind: 'addAbility', abilityId: 'early-riser' }, { kind: 'addAbility', abilityId: 'carrion-choir' }],
   },
+  'necromancer-saintbane': {
+    id: 'necromancer-saintbane',
+    unitClassId: 'necromancer',
+    label: 'Saintbane',
+    tier: 3,
+    description: 'Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.',
+    effects: [{ kind: 'addAbility', abilityId: 'saintbane' }],
+  },
   'priest-bolstering-light': {
     id: 'priest-bolstering-light',
     unitClassId: 'priest',
     label: 'Bolstering Light',
     tier: 3,
-    description: 'When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.',
+    description: 'When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.',
     effects: [{ kind: 'addAbility', abilityId: 'bolstering-light' }],
   },
   'priest-mercy-before-dawn': {
@@ -1562,8 +1771,16 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'priest',
     label: 'Mercy Before Dawn',
     tier: 3,
-    description: "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.",
+    description: "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.",
     effects: [{ kind: 'addAbility', abilityId: 'mercy-before-dawn' }],
+  },
+  'priest-holy-constructs': {
+    id: 'priest-holy-constructs',
+    unitClassId: 'priest',
+    label: 'Holy Constructs',
+    tier: 3,
+    description: 'While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.',
+    effects: [{ kind: 'addAbility', abilityId: 'holy-constructs' }],
   },
   'ranger-on-the-hunt': {
     id: 'ranger-on-the-hunt',
@@ -1581,6 +1798,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: 'After attacking, Rangers move to the safest hex that still keeps an enemy in range. Ranger attacks against unengaged targets deal double damage.',
     effects: [{ kind: 'addAbility', abilityId: 'skirmishers-step' }, { kind: 'addAbility', abilityId: 'heartseeker' }],
   },
+  'ranger-hunters-zeal': {
+    id: 'ranger-hunters-zeal',
+    unitClassId: 'ranger',
+    label: "Hunter's Zeal",
+    tier: 3,
+    description: 'On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.',
+    effects: [{ kind: 'addAbility', abilityId: 'hunters-zeal' }],
+  },
   'shaman-grave-vigor': {
     id: 'shaman-grave-vigor',
     unitClassId: 'shaman',
@@ -1597,6 +1822,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     description: 'Enhance 1 affects all allies on the chosen ally hex instead of one random ally.',
     effects: [{ kind: 'replaceAbility', removeAbilityId: 'enhance-1', addAbilityId: 'war-drums' }],
   },
+  'shaman-final-hex': {
+    id: 'shaman-final-hex',
+    unitClassId: 'shaman',
+    label: 'Final Hex',
+    tier: 3,
+    description: 'Shamans apply 1 stack of Hexed to enemies they attack. When attacking an enemy with 5 stacks of Hexed, Shamans kill that enemy.',
+    effects: [{ kind: 'addAbility', abilityId: 'final-hex' }],
+  },
   'wizard-storm-rods': {
     id: 'wizard-storm-rods',
     unitClassId: 'wizard',
@@ -1612,6 +1845,14 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     tier: 2,
     description: "Each time this Wizard's Blast hits enemies, repeat that Blast from every enemy hit by that Blast or its echoes, but no enemy can be hit more than once per Blast chain.",
     effects: [{ kind: 'addAbility', abilityId: 'spell-echo' }],
+  },
+  'wizard-vulnerability-hex': {
+    id: 'wizard-vulnerability-hex',
+    unitClassId: 'wizard',
+    label: 'Vulnerability Hex',
+    tier: 3,
+    description: 'If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.',
+    effects: [{ kind: 'addAbility', abilityId: 'vulnerability-hex' }],
   },
 };
 
@@ -1665,8 +1906,6 @@ const LEGACY_TROOP_CLASS_UPGRADE_IDS: Record<string, string> = {
   'archer-pinning-volley': 'archer-crippling-shots',
   'avenger-blood-oath': 'avenger-witness',
   'avenger-last-witness': 'avenger-witness',
-  'beastmaster-blood-in-the-water': 'beastmaster-bloodhounds',
-  'beastmaster-packmasters-whistle': 'beastmaster-bloodhounds',
   'champion-executioner': 'champion-anointed-executioner',
   'champion-anointed': 'champion-anointed-executioner',
   'knight-brace': 'knight-dine-in-hell',
@@ -1745,6 +1984,10 @@ export function getTroopClassUpgrade(id: string): TroopClassUpgradeDefinition {
     throw new Error(`Unknown troop-class upgrade ${id}`);
   }
   return upgrade;
+}
+
+export function isKnownTroopClassUpgradeId(value: unknown): value is string {
+  return typeof value === 'string' && (value in TROOP_CLASS_UPGRADES || value in LEGACY_TROOP_CLASS_UPGRADE_IDS);
 }
 
 export function getMutator(id: string): MutatorDefinition {

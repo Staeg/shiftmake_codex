@@ -1,4 +1,4 @@
-import { buildSimulationBattleInput, createSeedRange, createUnitClassCombatant, sweepBattleSeeds } from './simulationHarness';
+import { buildSimulationBattleInput, createSeedRange, createUnitClassCombatant, sweepBattleSeeds, sweepBattleSeedsChunked } from './simulationHarness';
 import { fixed } from './fixed';
 import { UNIT_CLASSES, getUnitClass } from './unitCatalog';
 import type { BattleOutcome, UnitClassId } from './types';
@@ -39,8 +39,6 @@ export interface PermutationMatrixEntry extends PermutationRecord {
   drawRate: number;
 }
 
-export interface PermutationOverallEntry extends PermutationMatrixEntry {}
-
 export interface PermutationTroopSection {
   troopId: UnitClassId;
   label: string;
@@ -67,7 +65,7 @@ export interface FinalizedPermutationReportData {
   elapsedMs: number;
   generatedAt: string;
   troops: PermutationTroopInfo[];
-  overall: PermutationOverallEntry[];
+  overall: PermutationMatrixEntry[];
   against: PermutationTroopSection[];
   alongside: PermutationTroopSection[];
 }
@@ -80,6 +78,18 @@ export interface PermutationRunResult {
     draws: number;
     samples: number;
   };
+}
+
+export interface RunPermutationBatchChunkedOptions {
+  chunkSize?: number;
+  yieldMs?: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: {
+    completed: number;
+    total: number;
+    aggregate: PermutationAggregate;
+    results: PermutationRunResult[];
+  }) => void;
 }
 
 function compareTroopIds(left: UnitClassId, right: UnitClassId): number {
@@ -120,12 +130,16 @@ function cloneRecord(record?: PermutationRecord): PermutationRecord {
 }
 
 export function getEligiblePermutationUnitClassIds(): UnitClassId[] {
-  return filterEligiblePermutationUnitClassIds((Object.values(UNIT_CLASSES) as Array<(typeof UNIT_CLASSES)[string]>).map((unitClass) => unitClass.id));
+  return (Object.values(UNIT_CLASSES) as Array<(typeof UNIT_CLASSES)[string]>)
+    .filter((unitClass) => !unitClass.attributes.includes('summoned'))
+    .map((unitClass) => unitClass.id)
+    .sort(compareTroopIds);
 }
 
 export function filterEligiblePermutationUnitClassIds(unitClassIds: UnitClassId[]): UnitClassId[] {
+  const requested = new Set(unitClassIds);
   return (Object.values(UNIT_CLASSES) as Array<(typeof UNIT_CLASSES)[string]>)
-    .filter((unitClass) => unitClassIds.includes(unitClass.id))
+    .filter((unitClass) => requested.has(unitClass.id))
     .filter((unitClass) => !unitClass.attributes.includes('summoned'))
     .map((unitClass) => unitClass.id)
     .sort(compareTroopIds);
@@ -275,6 +289,7 @@ export function applyPermutationOutcome(
 }
 
 export function mergePermutationAggregates(base: PermutationAggregate, incoming: PermutationAggregate): PermutationAggregate {
+  // Mutates the accumulator in place to avoid cloning large matrix reports.
   base.troopIds.forEach((troopId) => {
     const baseOverall = base.overall[troopId] as PermutationRecord;
     const incomingOverall = incoming.overall[troopId] as PermutationRecord;
@@ -438,43 +453,97 @@ export function runPermutationBatch(
 ): { aggregate: PermutationAggregate; results: PermutationRunResult[] } {
   const aggregate = createEmptyPermutationAggregate(unitClassIds);
   const quantities = Object.fromEntries(unitClassIds.map((troopId) => [troopId, resolvePermutationQuantity(troopId)]));
-  const results = matchups.map((matchup) => {
-    const sweep = sweepBattleSeeds(
-      (seed) =>
-        buildSimulationBattleInput(
-          seed,
-          matchup.left.troopIds.map((troopId, index) =>
-            createUnitClassCombatant(troopId, {
-              side: 'player',
-              quantity: quantities[troopId] as number,
-              combatantId: `player-${matchup.index}-${index}-${troopId}`,
-            }),
-          ),
-          matchup.right.troopIds.map((troopId, index) =>
-            createUnitClassCombatant(troopId, {
-              side: 'enemy',
-              quantity: quantities[troopId] as number,
-              combatantId: `enemy-${matchup.index}-${index}-${troopId}`,
-            }),
-          ),
-        ),
-      createPermutationSeeds(teamSize, matchup.index, runCount),
-    );
+  const results = matchups.map((matchup) => runPermutationMatchup(teamSize, matchup, runCount, quantities, aggregate));
 
+  return { aggregate, results };
+}
+
+function buildPermutationInputFactory(matchup: PermutationMatchup, quantities: Record<string, number>): (seed: number) => ReturnType<typeof buildSimulationBattleInput> {
+  return (seed) =>
+    buildSimulationBattleInput(
+      seed,
+      matchup.left.troopIds.map((troopId, index) =>
+        createUnitClassCombatant(troopId, {
+          side: 'player',
+          quantity: quantities[troopId] as number,
+          combatantId: `player-${matchup.index}-${index}-${troopId}`,
+        }),
+      ),
+      matchup.right.troopIds.map((troopId, index) =>
+        createUnitClassCombatant(troopId, {
+          side: 'enemy',
+          quantity: quantities[troopId] as number,
+          combatantId: `enemy-${matchup.index}-${index}-${troopId}`,
+        }),
+      ),
+    );
+}
+
+function permutationResultFromSweep(matchup: PermutationMatchup, sweep: ReturnType<typeof sweepBattleSeeds>): PermutationRunResult {
+  return {
+    matchupKey: matchup.key,
+    record: {
+      playerWins: sweep.summary.wins,
+      enemyWins: sweep.summary.losses,
+      draws: sweep.summary.draws,
+      samples: sweep.summary.battles,
+    },
+  };
+}
+
+function runPermutationMatchup(
+  teamSize: PermutationTeamSize,
+  matchup: PermutationMatchup,
+  runCount: number,
+  quantities: Record<string, number>,
+  aggregate: PermutationAggregate,
+): PermutationRunResult {
+  const sweep = sweepBattleSeeds(buildPermutationInputFactory(matchup, quantities), createPermutationSeeds(teamSize, matchup.index, runCount));
+
+  sweep.entries.forEach((entry) => {
+    applyPermutationOutcome(aggregate, matchup.left.troopIds, matchup.right.troopIds, entry.metrics.outcome);
+  });
+
+  return permutationResultFromSweep(matchup, sweep);
+}
+
+export async function runPermutationBatchChunked(
+  teamSize: PermutationTeamSize,
+  matchups: PermutationMatchup[],
+  runCount: number,
+  unitClassIds: UnitClassId[],
+  options: RunPermutationBatchChunkedOptions = {},
+): Promise<{ aggregate: PermutationAggregate; results: PermutationRunResult[] }> {
+  const aggregate = createEmptyPermutationAggregate(unitClassIds);
+  const quantities = Object.fromEntries(unitClassIds.map((troopId) => [troopId, resolvePermutationQuantity(troopId)]));
+  const results: PermutationRunResult[] = [];
+  const chunkSize = Math.max(1, Math.floor(options.chunkSize ?? 1));
+
+  for (let index = 0; index < matchups.length; index += 1) {
+    if (options.signal?.aborted) {
+      throw new DOMException('Permutation batch aborted.', 'AbortError');
+    }
+    const matchup = matchups[index]!;
+    const sweep = await sweepBattleSeedsChunked(
+      buildPermutationInputFactory(matchup, quantities),
+      createPermutationSeeds(teamSize, matchup.index, runCount),
+      {
+        chunkSize,
+        yieldMs: options.yieldMs,
+        signal: options.signal,
+      },
+    );
     sweep.entries.forEach((entry) => {
       applyPermutationOutcome(aggregate, matchup.left.troopIds, matchup.right.troopIds, entry.metrics.outcome);
     });
-
-    return {
-      matchupKey: matchup.key,
-      record: {
-        playerWins: sweep.summary.wins,
-        enemyWins: sweep.summary.losses,
-        draws: sweep.summary.draws,
-        samples: sweep.summary.battles,
-      },
-    };
-  });
+    results.push(permutationResultFromSweep(matchup, sweep));
+    options.onProgress?.({
+      completed: results.length,
+      total: matchups.length,
+      aggregate: serializePermutationAggregate(aggregate),
+      results: [...results],
+    });
+  }
 
   return { aggregate, results };
 }

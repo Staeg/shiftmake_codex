@@ -3,6 +3,7 @@ import {
   equalsHex,
   footprintDistance,
   footprintForSize,
+  footprintsOverlap as footprintsCollide,
   footprintsTouchOrOverlap,
   hexDistance,
   hexKey,
@@ -41,6 +42,7 @@ import type {
   BattleStateSnapshot,
   BattleStep,
   BattleStepKind,
+  BattleUnit,
   EffectDisposition,
   HexCoord,
   ResolvedCombatantDefinition,
@@ -131,6 +133,9 @@ type InternalUnit = {
   sentinelRunesTriggered: boolean;
   berserkDeathPending: boolean;
   berserkTurnsUntilDeath: number;
+  holyConstructsTriggered: boolean;
+  hexedStacks: number;
+  zealStacks: number;
 };
 
 type AbilityTriggerEvent = {
@@ -151,13 +156,20 @@ type AttackContext = {
   category: AttackCategory;
 };
 
+type RecordedBattleStep = Omit<BattleStep, 'snapshot'> & {
+  unitDeltas: BattleUnit[];
+};
+
 interface InternalState {
   units: Map<string, InternalUnit>;
+  aliveUnitIds: Record<SideId, Set<string>>;
   pendingDiggyHoleCombatants: Record<SideId, ResolvedCombatantDefinition[]>;
   copiousAleAppliedTroopKeys: Set<string>;
   corpses: Map<string, HexCoord>;
   summonedProfiles: Map<string, ReplayTroopProfile>;
-  steps: BattleStep[];
+  steps: RecordedBattleStep[];
+  dirtyUnitIds: Set<string>;
+  snapshotCache: Map<string, BattleUnit>;
   mapRadius: number;
   mapHexes: Set<string>;
   rng: Rng;
@@ -177,6 +189,7 @@ interface InternalState {
   pendingGraveVigorBlocks: Array<{ unitId: string; side: SideId }>;
   distinctTypeCache: Map<SideId, string[]>;
   dreamworkTriggeredUnitIdsThisBeat: Set<string>;
+  crackExploitsDepth: number;
 }
 
 const BASE_MAP_RADIUS = 3;
@@ -220,11 +233,6 @@ function footprintForUnitAt(unit: Pick<InternalUnit, 'resolvedStats' | 'footprin
 
 function footprintFitsMap(footprint: HexCoord[], mapHexes: Set<string>): boolean {
   return footprint.every((hex) => mapHexes.has(hexKey(hex)));
-}
-
-function footprintsCollide(left: HexCoord[], right: HexCoord[]): boolean {
-  const rightKeys = new Set(right.map(hexKey));
-  return left.some((hex) => rightKeys.has(hexKey(hex)));
 }
 
 function isFootprintPlacementLegal(state: Pick<InternalState, 'units' | 'mapHexes'>, footprint: HexCoord[], movingUnitId?: string): boolean {
@@ -362,6 +370,9 @@ function createPlacedUnit(
     sentinelRunesTriggered: false,
     berserkDeathPending: false,
     berserkTurnsUntilDeath: 0,
+    holyConstructsTriggered: false,
+    hexedStacks: 0,
+    zealStacks: 0,
   };
 }
 
@@ -386,6 +397,7 @@ function placeCombatantCategory(
   combatants: ResolvedCombatantDefinition[],
   units: Map<string, InternalUnit>,
   mapHexes: Set<string>,
+  anchors: HexCoord[],
   rng: Rng,
   indexOffset: number,
   rangedUnits: InternalUnit[],
@@ -396,7 +408,6 @@ function placeCombatantCategory(
 
   const placed: InternalUnit[] = [];
   const shuffled = rng.shuffle(combatants);
-  const anchors = sortedMapAnchors(mapHexes, placementSide);
   let referenceLineHex: HexCoord | null = null;
   let meleeReferenceHex: HexCoord | null = null;
 
@@ -490,12 +501,13 @@ function placeUnitsForSide(
   };
   const ranged = combatants.filter((combatant) => combatant.stats.range > 0);
   const melee = combatants.filter((combatant) => combatant.stats.range === 0);
-  const rangedPlaced = placeCombatantCategory(side, placementSide, 'ranged', ranged, units, mapHexes, rng, 0, []);
+  const anchors = sortedMapAnchors(mapHexes, placementSide);
+  const rangedPlaced = placeCombatantCategory(side, placementSide, 'ranged', ranged, units, mapHexes, anchors, rng, 0, []);
   if (!rangedPlaced) {
     rollback();
     return false;
   }
-  const meleePlaced = placeCombatantCategory(side, placementSide, 'melee', melee, units, mapHexes, rng, ranged.length, rangedPlaced);
+  const meleePlaced = placeCombatantCategory(side, placementSide, 'melee', melee, units, mapHexes, anchors, rng, ranged.length, rangedPlaced);
   if (!meleePlaced) {
     rollback();
     return false;
@@ -508,6 +520,9 @@ function expandedMapHexes(mapHexes: Set<string>, placementSide: SideId, margin: 
   if (current.length === 0) {
     return new Set(mapHexesForRadius(BASE_MAP_RADIUS + margin).map(hexKey));
   }
+  // Emergency placement overflow deliberately uses a rectangular axial bound.
+  // It preserves the visible map's row-contiguous shape better than a radial
+  // hex expansion when very large footprints need extra staging room.
   const qValues = current.map((hex) => hex.q);
   const rValues = current.map((hex) => hex.r);
   const minQ = Math.min(...qValues) - (placementSide === 'player' ? margin : 0);
@@ -677,30 +692,80 @@ function sideHasTroopClassUpgrade(state: InternalState, side: SideId, upgradeId:
   return getSideTroopClassUpgradeIds(state, side).includes(upgradeId);
 }
 
+function snapshotUnit(unit: InternalUnit): BattleUnit {
+  return {
+    id: unit.id,
+    troopInstanceId: unit.troopInstanceId,
+    troopId: `${unit.raceId}/${unit.unitClassId}`,
+    troopLabel: unit.troopLabel,
+    unitClassId: unit.unitClassId,
+    raceId: unit.raceId,
+    side: unit.side,
+    role: unit.role,
+    unitClassTag: unit.unitClassTag,
+    attributes: [...unit.attributes],
+    position: { ...unit.position },
+    occupiedHexes: unit.occupiedHexes.map((hex) => ({ ...hex })),
+    footprintOrientation: unit.footprintOrientation,
+    stats: { ...unit.resolvedStats },
+    hp: fixed(unit.hp),
+    maxHp: fixed(unit.maxHp),
+    initiative: fixed(unit.initiative),
+    alive: unit.alive,
+    engagedWithIds: [...unit.engagedWith],
+  };
+}
+
+function cloneBattleUnit(unit: BattleUnit): BattleUnit {
+  return {
+    ...unit,
+    attributes: [...unit.attributes],
+    position: { ...unit.position },
+    occupiedHexes: unit.occupiedHexes.map((hex) => ({ ...hex })),
+    stats: { ...unit.stats },
+    engagedWithIds: [...unit.engagedWithIds],
+  };
+}
+
 function cloneSnapshot(units: Map<string, InternalUnit>): BattleStateSnapshot {
   return {
-    units: [...units.values()].map((unit) => ({
-      id: unit.id,
-      troopInstanceId: unit.troopInstanceId,
-      troopId: `${unit.raceId}/${unit.unitClassId}`,
-      troopLabel: unit.troopLabel,
-      unitClassId: unit.unitClassId,
-      raceId: unit.raceId,
-      side: unit.side,
-      role: unit.role,
-      unitClassTag: unit.unitClassTag,
-      attributes: [...unit.attributes],
-      position: { ...unit.position },
-      occupiedHexes: unit.occupiedHexes.map((hex) => ({ ...hex })),
-      footprintOrientation: unit.footprintOrientation,
-      stats: { ...unit.resolvedStats },
-      hp: fixed(unit.hp),
-      maxHp: fixed(unit.maxHp),
-      initiative: fixed(unit.initiative),
-      alive: unit.alive,
-      engagedWithIds: [...unit.engagedWith],
-    })),
+    units: [...units.values()].map(snapshotUnit),
   };
+}
+
+function battleUnitChanged(left: BattleUnit | undefined, right: BattleUnit): boolean {
+  return !left || JSON.stringify(left) !== JSON.stringify(right);
+}
+
+function recordStepDeltas(state: InternalState): BattleUnit[] {
+  const deltas: BattleUnit[] = [];
+  state.dirtyUnitIds.clear();
+  state.units.forEach((unit) => {
+    const next = snapshotUnit(unit);
+    if (!battleUnitChanged(state.snapshotCache.get(unit.id), next)) {
+      return;
+    }
+    state.snapshotCache.set(unit.id, cloneBattleUnit(next));
+    state.dirtyUnitIds.add(unit.id);
+    deltas.push(next);
+  });
+  return deltas;
+}
+
+function materializeRecordedSteps(initial: BattleStateSnapshot, recordedSteps: RecordedBattleStep[]): BattleStep[] {
+  const cache = new Map(initial.units.map((unit) => [unit.id, cloneBattleUnit(unit)]));
+  return recordedSteps.map(({ unitDeltas, ...step }) => {
+    unitDeltas.forEach((unit) => {
+      cache.set(unit.id, cloneBattleUnit(unit));
+    });
+    return {
+      ...step,
+      actorIds: [...step.actorIds],
+      targetIds: [...step.targetIds],
+      metadata: step.metadata ? { ...step.metadata } : undefined,
+      snapshot: { units: [...cache.values()].map(cloneBattleUnit) },
+    };
+  });
 }
 
 function createAliveCount(snapshot: BattleStateSnapshot): BattleReplay['aliveCounts'][number] {
@@ -843,7 +908,7 @@ function buildStep(
     targetIds,
     message: formattedMessage,
     metadata: enrichedMetadata,
-    snapshot: cloneSnapshot(state.units),
+    unitDeltas: recordStepDeltas(state),
   });
 }
 
@@ -910,7 +975,7 @@ function subjectVerb(subject: string, singularVerb: string, pluralVerb: string):
   return subject.includes(' and ') ? pluralVerb : singularVerb;
 }
 
-function rebuildBatchedMessage(state: InternalState, step: BattleStep): string {
+function rebuildBatchedMessage(state: InternalState, step: Pick<BattleStep, 'actorIds' | 'kind' | 'message' | 'metadata' | 'targetIds'>): string {
   const metadata = step.metadata;
   if (!metadata) {
     return step.message;
@@ -954,13 +1019,13 @@ function rebuildBatchedMessage(state: InternalState, step: BattleStep): string {
   return step.message;
 }
 
-function kindIsAttackStep(step: BattleStep): boolean {
+function kindIsAttackStep(step: Pick<BattleStep, 'kind'>): boolean {
   return step.kind === 'attack';
 }
 
 function tryMergeStep(
   state: InternalState,
-  previous: BattleStep,
+  previous: RecordedBattleStep,
   kind: BattleStepKind,
   actorIds: string[],
   targetIds: string[],
@@ -985,7 +1050,7 @@ function tryMergeStep(
     }
   }
   previousMetadata.batchCount = ((typeof previousMetadata.batchCount === 'number' ? previousMetadata.batchCount : 1) + 1);
-  previous.snapshot = cloneSnapshot(state.units);
+  previous.unitDeltas = recordStepDeltas(state);
   previous.metadata = enrichStepMetadata(state, previous.kind, previous.actorIds, previous.targetIds, previousMetadata);
   previous.message = rebuildBatchedMessage(state, previous);
   return true;
@@ -1174,12 +1239,57 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
   throw new Error('Failed to place initial battle units after expanding the explicit battlefield.');
 }
 
+function createAliveIndex(units: Map<string, InternalUnit>): Record<SideId, Set<string>> {
+  const aliveUnitIds: Record<SideId, Set<string>> = { player: new Set<string>(), enemy: new Set<string>() };
+  units.forEach((unit) => {
+    if (unit.alive) {
+      aliveUnitIds[unit.side].add(unit.id);
+    }
+  });
+  return aliveUnitIds;
+}
+
+function assertAliveIndexValid(state: InternalState): void {
+  if (!import.meta.env?.DEV) {
+    return;
+  }
+  (['player', 'enemy'] as SideId[]).forEach((side) => {
+    const actual = [...state.units.values()].filter((unit) => unit.alive && unit.side === side).map((unit) => unit.id).sort();
+    const indexed = [...state.aliveUnitIds[side]].sort();
+    if (actual.length !== indexed.length || actual.some((id, index) => id !== indexed[index])) {
+      throw new Error(`[battle] Alive index mismatch for ${side}. actual=${actual.join(',')} indexed=${indexed.join(',')}`);
+    }
+  });
+}
+
+function registerAliveUnit(state: InternalState, unit: InternalUnit): void {
+  state.aliveUnitIds[unit.side].add(unit.id);
+}
+
+function markUnitDead(state: InternalState, unit: InternalUnit): void {
+  unit.alive = false;
+  unit.hp = 0;
+  state.aliveUnitIds[unit.side].delete(unit.id);
+}
+
+function transferAliveUnitSide(state: InternalState, unit: InternalUnit, side: SideId): void {
+  if (unit.side === side) {
+    return;
+  }
+  if (unit.alive) {
+    state.aliveUnitIds[unit.side].delete(unit.id);
+    state.aliveUnitIds[side].add(unit.id);
+  }
+  unit.side = side;
+}
+
 function getAliveUnits(state: InternalState, side?: SideId): InternalUnit[] {
-  return [...state.units.values()].filter((unit) => unit.alive && (!side || unit.side === side));
+  const ids = side ? [...state.aliveUnitIds[side]] : [...state.aliveUnitIds.player, ...state.aliveUnitIds.enemy];
+  return ids.map((id) => state.units.get(id)).filter((unit): unit is InternalUnit => Boolean(unit?.alive));
 }
 
 function assertUnitLive(unit: InternalUnit, context: string): void {
-  if (import.meta.env.DEV && !unit.alive) {
+  if (import.meta.env?.DEV && !unit.alive) {
     throw new Error(`[battle] Mutation attempted on dead unit "${unit.id}" (${unit.troopLabel}) in ${context}`);
   }
 }
@@ -1197,14 +1307,20 @@ function resolveBattleOutcome(state: InternalState): 'victory' | 'defeat' | 'dra
 }
 
 function clearStaleEngagements(state: InternalState): void {
+  const removals: Array<{ unitId: string; enemyId: string }> = [];
   state.units.forEach((unit) => {
     unit.engagedWith.forEach((enemyId) => {
       const enemy = state.units.get(enemyId);
       if (!enemy?.alive || enemy.side === unit.side || !unitsTouchOrOverlap(enemy, unit)) {
-        unit.engagedWith.delete(enemyId);
-        enemy?.engagedWith.delete(unit.id);
+        removals.push({ unitId: unit.id, enemyId });
       }
     });
+  });
+  removals.forEach(({ unitId, enemyId }) => {
+    const unit = state.units.get(unitId);
+    const enemy = state.units.get(enemyId);
+    unit?.engagedWith.delete(enemyId);
+    enemy?.engagedWith.delete(unitId);
   });
 }
 
@@ -1334,7 +1450,7 @@ function formatSigned(value: number): string {
 }
 
 function formatPossessive(label: string): string {
-  return `${label}'s`;
+  return label.endsWith('s') ? `${label}'` : `${label}'s`;
 }
 
 function sourceLabelForStep(state: InternalState, actorIds: string[], metadata?: BattleStepMetadata): string | null {
@@ -1373,6 +1489,10 @@ function appendSourceContext(state: InternalState, actorIds: string[], message: 
 
 function hasAbility(unit: InternalUnit, abilityId: string): boolean {
   return unit.resolvedAbilities.some((runtime) => runtime.definition.id === abilityId);
+}
+
+function opposingSide(side: SideId): SideId {
+  return side === 'player' ? 'enemy' : 'player';
 }
 
 function isDwarf(unit: InternalUnit): boolean {
@@ -1444,6 +1564,9 @@ function healUnitToHp(
   });
   if (actual > 0) {
     maybeApplyRowdyRegrowth(state, target);
+    applyWagesOfVirtueHeal(state, actor, target, actual);
+    maybeApplyHolyConstructs(state, target, actual);
+    maybeApplySaintbane(state, target);
   }
   maybeApplyBolsteringLight(state, actor, target, actual);
   maybeApplyOverflowingGrace(state, actor, target, actual);
@@ -1461,16 +1584,27 @@ function healUnitToHp(
 function preventDeath(state: InternalState, actor: InternalUnit, target: InternalUnit): boolean {
   const protectingPriest = !target.mercyBeforeDawnUsed ? findProtectingPriest(state, target) : null;
   if (protectingPriest) {
+    const runtime = protectingPriest.resolvedAbilities.find((entry) => entry.definition.id === 'mercy-before-dawn');
+    if (!runtime || (runtime.usesRemaining !== null && runtime.usesRemaining <= 0)) {
+      return false;
+    }
     target.mercyBeforeDawnUsed = true;
-    return healUnitToHp(
+    const applied = healUnitToHp(
       state,
       protectingPriest,
       target,
-      createRuntimeAbilityState(getAbility('mercy-before-dawn')),
+      runtime,
       1,
       `${protectingPriest.troopLabel} preserves ${target.troopLabel} at 1 HP.`,
       'mercyBeforeDawn',
     );
+    if (applied) {
+      runtime.triggerCount += 1;
+      if (runtime.usesRemaining !== null) {
+        runtime.usesRemaining -= 1;
+      }
+    }
+    return applied;
   }
 
   if (!target.stonebloodUsed && hasAbility(target, 'stoneblood')) {
@@ -1524,6 +1658,79 @@ function maybeApplyRowdyRegrowth(state: InternalState, target: InternalUnit): vo
     sourceAbilityId: 'rowdy-regrowth',
     sourceAbilityLabel: getAbility('rowdy-regrowth').label,
   });
+  applyRamp(state, target, target, createRuntimeAbilityState(getAbility('rowdy-regrowth')), {
+    kind: 'ramp',
+    amount: 1,
+    mode: 'flat',
+    disposition: 'beneficial',
+  });
+}
+
+function findHolyConstructsPriest(state: InternalState, side: SideId): InternalUnit | null {
+  if (!sideHasTroopClassUpgrade(state, side, 'priest-holy-constructs')) {
+    return null;
+  }
+  const priests = getAliveUnits(state, side).filter((unit) => unit.unitClassTag === 'priest');
+  return priests[0] ?? null;
+}
+
+function applyWagesOfVirtueHeal(state: InternalState, actor: InternalUnit, target: InternalUnit, amount: number): void {
+  if (amount <= 0) {
+    return;
+  }
+  getAliveUnits(state, target.side)
+    .filter((unit) => unit.id !== target.id && hasAbility(unit, 'wages-of-virtue') && unitsTouchOrOverlap(unit, target))
+    .forEach((avenger) => {
+      const missing = fixedSub(avenger.maxHp, avenger.hp);
+      const actual = fixedClamp(amount, 0, missing);
+      if (actual <= 0) {
+        return;
+      }
+      avenger.hp = fixedAdd(avenger.hp, actual);
+      buildStep(state, 'heal', [actor.id], [avenger.id], `${avenger.troopLabel} shares ${target.troopLabel}'s healing for ${formatFixed(actual)}.`, {
+        amount: actual,
+        effect: 'wagesOfVirtueHeal',
+        sourceAbilityId: 'wages-of-virtue',
+        sourceAbilityLabel: getAbility('wages-of-virtue').label,
+      });
+      maybeApplyRowdyRegrowth(state, avenger);
+    });
+}
+
+function maybeApplyHolyConstructs(state: InternalState, target: InternalUnit, actualHeal: number): void {
+  if (actualHeal <= 0 || target.holyConstructsTriggered || hasAbility(target, 'fading')) {
+    return;
+  }
+  const priest = findHolyConstructsPriest(state, target.side);
+  if (!priest) {
+    return;
+  }
+  const summoned = summonUnitsAtHex(state, priest, 'holy-constructs', 'elemental', 1, target.position);
+  if (summoned.length > 0) {
+    target.holyConstructsTriggered = true;
+  }
+}
+
+function findSaintbaneSummoner(state: InternalState, side: SideId): InternalUnit | null {
+  return getAliveUnits(state, side).find((unit) => unit.unitClassTag === 'necromancer') ?? getAliveUnits(state, side)[0] ?? null;
+}
+
+function maybeApplySaintbane(state: InternalState, target: InternalUnit): void {
+  const punishingSide = opposingSide(target.side);
+  if (!sideHasTroopClassUpgrade(state, punishingSide, 'necromancer-saintbane')) {
+    return;
+  }
+  const summoner = findSaintbaneSummoner(state, punishingSide);
+  if (!summoner) {
+    return;
+  }
+  const adjacentCorpses = [...state.corpses.entries()].filter(([, corpsePosition]) => unitDistanceFromHex(target, corpsePosition) <= 1);
+  adjacentCorpses.forEach(([corpseUnitId, corpsePosition]) => {
+    const summoned = summonUnitsAtHex(state, summoner, 'saintbane', 'skeleton', 1, corpsePosition);
+    if (summoned.length > 0) {
+      state.corpses.delete(corpseUnitId);
+    }
+  });
 }
 
 function maybeApplyOverflowingGrace(state: InternalState, actor: InternalUnit, target: InternalUnit, actualHeal: number): void {
@@ -1545,16 +1752,28 @@ function maybeApplyBolsteringLight(state: InternalState, actor: InternalUnit, ta
     return;
   }
   const runtime = createRuntimeAbilityState(getAbility('bolstering-light'));
+  const recipients = target.id === actor.id ? [target] : [target, actor];
   if (target.hp >= target.maxHp) {
-    applyHaste(state, actor, target, runtime, { kind: 'haste', amount: 1, mode: 'flat', disposition: 'beneficial' });
-    applyRamp(state, actor, target, runtime, { kind: 'ramp', amount: 1, mode: 'flat', disposition: 'beneficial' });
+    recipients.forEach((recipient) => {
+      applyHaste(state, actor, recipient, runtime, { kind: 'haste', amount: 1, mode: 'flat', disposition: 'beneficial' });
+      applyRamp(state, actor, recipient, runtime, { kind: 'ramp', amount: 1, mode: 'flat', disposition: 'beneficial' });
+    });
     return;
   }
-  applyInitiativeDelta(state, actor, target, runtime, {
-    kind: 'initiativeDelta',
-    amount: 40,
-    disposition: 'beneficial',
+  recipients.forEach((recipient) => {
+    applyInitiativeDelta(state, actor, recipient, runtime, {
+      kind: 'initiativeDelta',
+      amount: 40,
+      disposition: 'beneficial',
+    });
   });
+}
+
+function getMercyBeforeDawnRepeatTargets(state: InternalState, actor: InternalUnit): InternalUnit[] {
+  if (actor.unitClassTag !== 'priest' || !hasAbility(actor, 'mercy-before-dawn')) {
+    return [];
+  }
+  return getAliveUnits(state, actor.side).filter((unit) => unitsInRange(actor, unit) && unit.hp < fixedMul(unit.maxHp, 0.1));
 }
 
 function maybeGrantStaticCharge(state: InternalState, actor: InternalUnit, runtime: RuntimeAbilityState, target: InternalUnit, effect: AbilityEffectDefinition): void {
@@ -1630,6 +1849,9 @@ function applyBolster(
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label,
   });
+  if (maxIncrease > 0 || currentIncrease > 0) {
+    maybeApplySaintbane(state, target);
+  }
   return true;
 }
 
@@ -1655,6 +1877,9 @@ function applyRamp(
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label,
   });
+  if (increase > 0) {
+    maybeApplySaintbane(state, target);
+  }
   return true;
 }
 
@@ -1680,6 +1905,9 @@ function applyHaste(
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label,
   });
+  if (increase > 0) {
+    maybeApplySaintbane(state, target);
+  }
   return true;
 }
 
@@ -1689,10 +1917,12 @@ function healUnit(
   target: InternalUnit,
   runtime: RuntimeAbilityState,
   effect: Extract<AbilityEffectDefinition, { kind: 'heal' }>,
+  allowMercyBeforeDawnRepeat = true,
 ): boolean {
   if (!target.alive) {
     return false;
   }
+  const mercyRepeatTargets = allowMercyBeforeDawnRepeat ? getMercyBeforeDawnRepeatTargets(state, actor) : [];
   const missing = fixedSub(target.maxHp, target.hp);
   const amount = amplifyPositiveAmount(target, effect.mode === 'percent' ? fixedMul(missing, effect.amount / 100) : effect.amount);
   const nextHp = fixedClamp(fixedAdd(target.hp, amount), 0, target.maxHp);
@@ -1706,9 +1936,15 @@ function healUnit(
   });
   if (actual > 0) {
     maybeApplyRowdyRegrowth(state, target);
+    applyWagesOfVirtueHeal(state, actor, target, actual);
+    maybeApplyHolyConstructs(state, target, actual);
+    maybeApplySaintbane(state, target);
   }
   maybeApplyBolsteringLight(state, actor, target, actual);
   maybeApplyOverflowingGrace(state, actor, target, actual);
+  mercyRepeatTargets.forEach((repeatTarget) => {
+    healUnit(state, actor, repeatTarget, runtime, effect, false);
+  });
   return true;
 }
 
@@ -1738,6 +1974,9 @@ function applyStatDelta(
       sourceAbilityId: runtime.definition.id,
       sourceAbilityLabel: runtime.definition.label,
     });
+    if (delta > 0) {
+      maybeApplySaintbane(state, target);
+    }
     return true;
   }
 
@@ -1766,6 +2005,12 @@ function applyStatDelta(
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label,
   });
+  if (actual > 0) {
+    maybeApplySaintbane(state, target);
+  }
+  if (effect.stat === 'armor' && actual < 0) {
+    triggerCrackExploits(state, actor, target);
+  }
   return true;
 }
 
@@ -2406,9 +2651,13 @@ function summonUnit(
     sentinelRunesTriggered: false,
     berserkDeathPending: false,
     berserkTurnsUntilDeath: 0,
+    holyConstructsTriggered: false,
+    hexedStacks: 0,
+    zealStacks: 0,
   };
   applyMutatorAdjustmentsToUnit(summonedUnit, state.effects);
   state.units.set(unitId, summonedUnit);
+  registerAliveUnit(state, summonedUnit);
   state.distinctTypeCache.delete(summonedUnit.side);
   recordSummonedProfile(state, summonedUnit);
   buildStep(state, 'buff', [actor.id], [unitId], `${actor.troopLabel} summons ${troop.label}.`, {
@@ -2511,18 +2760,21 @@ function applyBlastSequence(
     return false;
   }
 
-  const totalAmount =
+  const baseBlastAmount =
     hasAbility(actor, 'lightning-rods') ?
       fixedAdd(
         amount,
         getAliveUnits(state, actor.side).filter((unit) => unit.unitClassTag === 'elemental').length,
       )
     : amount;
+  const vulnerabilityHexActive =
+    sideHasTroopClassUpgrade(state, actor.side, 'wizard-vulnerability-hex') && sideHasAliveUnitClass(state, actor.side, 'wizard');
 
   let applied = false;
   const echoQueue: InternalUnit[] = [];
   targets.forEach((target) => {
     damagedTargetIds.add(target.id);
+    const totalAmount = vulnerabilityHexActive ? fixedMul(baseBlastAmount, 1 + target.hexedStacks) : baseBlastAmount;
     const damage = fixedMax(totalAmount, 0);
     const inflictedDamage = canTakeDamage(target) ? damage : 0;
     if (inflictedDamage > 0) {
@@ -2543,6 +2795,9 @@ function applyBlastSequence(
     if (target.hp <= 0 && target.alive) {
       handleDeath(state, actor, target, { mode: 'blast', category: 'strike' });
     } else if (target.alive && canTakeDamage(target)) {
+      if (vulnerabilityHexActive && inflictedDamage > 0 && state.rng.next() < 0.2) {
+        addHexStack(state, actor, target, 'vulnerability-hex');
+      }
       triggerUnitAbilities(state, target, { timing: 'onDamaged' });
       if (inflictedDamage > 0) {
         applyWhimsy(state, target);
@@ -2849,21 +3104,6 @@ function performLivingCircuit(state: InternalState, actor: InternalUnit): void {
   });
 }
 
-function performThrillOfTheHunt(state: InternalState, actor: InternalUnit): void {
-  if (!hasAbility(actor, 'thrill-of-the-hunt')) {
-    return;
-  }
-  getAliveUnits(state, actor.side)
-    .filter((unit) => unit.unitClassTag === 'wolf' && unitsTouchOrOverlap(unit, actor))
-    .forEach((wolf) => {
-      applyInitiativeDelta(state, actor, wolf, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
-        kind: 'initiativeDelta',
-        amount: 10,
-        disposition: 'beneficial',
-      });
-    });
-}
-
 function handleShapeshiftTriggers(state: InternalState, actor: InternalUnit, runtime: RuntimeAbilityState): void {
   if (runtime.definition.id !== 'shapeshift-bear' && runtime.definition.id !== 'shapeshift-bear-2') {
     return;
@@ -2880,25 +3120,6 @@ function handleShapeshiftTriggers(state: InternalState, actor: InternalUnit, run
   if (hasAbility(actor, 'wild-call') || hasAbility(actor, 'forest-friends')) {
     summonUnitsAtHex(state, actor, hasAbility(actor, 'forest-friends') ? 'forest-friends' : 'wild-call', 'wolf', 2, actor.position);
   }
-}
-
-function performPackmastersWhistle(state: InternalState, actor: InternalUnit): void {
-  if (!hasAbility(actor, 'packmasters-whistle') || actor.engagedWith.size === 0) {
-    return;
-  }
-  const wolf = getAliveUnits(state, actor.side).find((ally) => ally.unitClassTag === 'wolf' && unitsTouchOrOverlap(ally, actor));
-  const engagedTarget = [...actor.engagedWith].map((unitId) => state.units.get(unitId)).find((unit): unit is InternalUnit => Boolean(unit?.alive));
-  if (!wolf || !engagedTarget || wolf.engagedWith.has(engagedTarget.id) || engagedTarget.resolvedStats.size > availableCapacity(state, wolf)) {
-    return;
-  }
-  createEngagement(state, wolf, engagedTarget);
-  wolf.hp = fixedClamp(fixedAdd(wolf.hp, 10), 0, wolf.maxHp);
-  buildStep(state, 'engage', [wolf.id], [engagedTarget.id], `${wolf.troopLabel} answers ${actor.troopLabel}'s whistle.`, {
-    effect: 'packmastersWhistle',
-    amount: 10,
-    sourceAbilityId: 'packmasters-whistle',
-    sourceAbilityLabel: getAbility('packmasters-whistle').label,
-  });
 }
 
 function performForestFriends(state: InternalState, actor: InternalUnit): void {
@@ -2945,12 +3166,14 @@ function performWarDrums(state: InternalState, actor: InternalUnit): void {
 }
 
 function executeEndOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
-  performPackmastersWhistle(state, actor);
   performForestFriends(state, actor);
   performWarDrums(state, actor);
   performLivingCircuit(state, actor);
-  performThrillOfTheHunt(state, actor);
   triggerUnitAbilities(state, actor, { timing: 'endOfTurn' });
+  performZealEndOfTurn(state, actor);
+  if (actor.alive) {
+    performOverwhelmHexEndOfTurn(state, actor);
+  }
 }
 
 function executeStartOfTurnAbilities(state: InternalState, actor: InternalUnit): void {
@@ -2963,7 +3186,7 @@ function performHoldTheStandard(state: InternalState, fallen: InternalUnit): voi
     return;
   }
   getAliveUnits(state, fallen.side)
-    .filter((unit) => hasAbility(unit, 'hold-the-standard') && unitsTouchOrOverlap(unit, fallen))
+    .filter((unit) => hasAbility(unit, 'hold-the-standard'))
     .forEach((unit) => {
       healUnit(state, unit, unit, createRuntimeAbilityState(getAbility('hold-the-standard')), {
         kind: 'heal',
@@ -2997,11 +3220,271 @@ function performThrillKillBuff(state: InternalState, actor: InternalUnit): void 
     .forEach((unit) => {
       applyRamp(state, actor, unit, createRuntimeAbilityState(getAbility('thrill-of-the-hunt')), {
         kind: 'ramp',
-        amount: 2,
+        amount: 1,
         mode: 'flat',
         disposition: 'beneficial',
       });
     });
+}
+
+function performThrillWolfSummon(state: InternalState, actor: InternalUnit): void {
+  if (actor.unitClassTag !== 'wolf' || !sideHasTroopClassUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
+    return;
+  }
+  summonUnitsAtHex(state, actor, 'thrill-of-the-hunt', 'wolf', 1, actor.position);
+  performThrillKillBuff(state, actor);
+}
+
+function sideHasAliveUnitClass(state: InternalState, side: SideId, unitClassTag: string): boolean {
+  return getAliveUnits(state, side).some((unit) => unit.unitClassTag === unitClassTag);
+}
+
+function sideHasAliveRace(state: InternalState, side: SideId, raceId: string): boolean {
+  return getAliveUnits(state, side).some((unit) => unit.raceId === raceId);
+}
+
+function addZealStack(state: InternalState, source: InternalUnit, target: InternalUnit, sourceAbilityId: string): void {
+  if (!target.alive) {
+    return;
+  }
+  target.zealStacks += 1;
+  const ability = getAbility(sourceAbilityId);
+  buildStep(state, 'buff', [source.id], [target.id], `${target.troopLabel} gains 1 Zeal stack.`, {
+    effect: 'zeal',
+    amount: 1,
+    value: target.zealStacks,
+    sourceAbilityId,
+    sourceAbilityLabel: ability.label,
+  });
+  const runtime = createRuntimeAbilityState(ability);
+  if (sideHasTroopClassUpgrade(state, target.side, 'champion-triumph')) {
+    applyRamp(state, source, target, runtime, { kind: 'ramp', amount: 10, mode: 'percent', disposition: 'beneficial' });
+    applyHaste(state, source, target, runtime, { kind: 'haste', amount: 10, mode: 'percent', disposition: 'beneficial' });
+    applyBolster(state, source, target, runtime, { kind: 'bolster', amount: 10, mode: 'percent', disposition: 'beneficial' });
+  }
+  if (sideHasRaceUpgrade(state, target.side, 'troll-gargantuan-zeal')) {
+    applyRamp(state, source, target, runtime, {
+      kind: 'ramp',
+      amount: fixedMul(target.resolvedStats.size, 5),
+      mode: 'flat',
+      disposition: 'beneficial',
+    });
+  }
+}
+
+function addHexStack(state: InternalState, source: InternalUnit, target: InternalUnit, sourceAbilityId: string): void {
+  if (!target.alive) {
+    return;
+  }
+  target.hexedStacks += 1;
+  const ability = getAbility(sourceAbilityId);
+  buildStep(state, 'buff', [source.id], [target.id], `${target.troopLabel} gains 1 Hex stack.`, {
+    effect: 'hexed',
+    amount: 1,
+    value: target.hexedStacks,
+    sourceAbilityId,
+    sourceAbilityLabel: ability.label,
+  });
+  if (sideHasTroopClassUpgrade(state, opposingSide(target.side), 'militia-crippling-hex')) {
+    applyHaste(state, source, target, createRuntimeAbilityState(ability), {
+      kind: 'haste',
+      amount: -30,
+      mode: 'percent',
+      disposition: 'harmful',
+    });
+  }
+}
+
+function applyStartOfBattleStackSeeds(state: InternalState): void {
+  (['player', 'enemy'] as SideId[]).forEach((side) => {
+    if (sideHasRaceUpgrade(state, side, 'troll-gargantuan-zeal') && sideHasAliveRace(state, side, 'troll')) {
+      const source = getAliveUnits(state, side).find((unit) => unit.raceId === 'troll') ?? getAliveUnits(state, side)[0];
+      const byTroop = new Map<string, InternalUnit[]>();
+      getAliveUnits(state, side).forEach((unit) => {
+        const key = unit.troopInstanceId ?? unit.combatantId ?? unit.troopLabel;
+        byTroop.set(key, [...(byTroop.get(key) ?? []), unit]);
+      });
+      byTroop.forEach((units) => {
+        addZealStack(state, source, state.rng.pick(units), 'gargantuan-zeal');
+      });
+    }
+
+    if (sideHasRaceUpgrade(state, side, 'goblin-overwhelm-hex') && sideHasAliveRace(state, side, 'goblin')) {
+      const source = getAliveUnits(state, side).find((unit) => unit.raceId === 'goblin') ?? getAliveUnits(state, side)[0];
+      const enemySide = opposingSide(side);
+      const byTroop = new Map<string, InternalUnit[]>();
+      getAliveUnits(state, enemySide).forEach((unit) => {
+        const key = unit.troopInstanceId ?? unit.combatantId ?? unit.troopLabel;
+        byTroop.set(key, [...(byTroop.get(key) ?? []), unit]);
+      });
+      byTroop.forEach((units) => {
+        addHexStack(state, source, state.rng.pick(units), 'overwhelm-hex');
+      });
+    }
+  });
+}
+
+function performZealEndOfTurn(state: InternalState, actor: InternalUnit): void {
+  if (actor.zealStacks <= 0) {
+    return;
+  }
+  if (sideHasTroopClassUpgrade(state, actor.side, 'ranger-hunters-zeal')) {
+    applyInitiativeDelta(state, actor, actor, createRuntimeAbilityState(getAbility('hunters-zeal')), {
+      kind: 'initiativeDelta',
+      amount: fixedMul(actor.zealStacks, 5),
+      disposition: 'beneficial',
+    });
+  }
+  if (sideHasTroopClassUpgrade(state, actor.side, 'soldier-martyrs-zeal')) {
+    healUnit(state, actor, actor, createRuntimeAbilityState(getAbility('martyrs-zeal')), {
+      kind: 'heal',
+      amount: fixedMul(actor.zealStacks, 5),
+      mode: 'flat',
+      disposition: 'beneficial',
+    });
+  }
+}
+
+function performOverwhelmHexEndOfTurn(state: InternalState, actor: InternalUnit): void {
+  if (actor.hexedStacks <= 0) {
+    return;
+  }
+  const goblinSide = opposingSide(actor.side);
+  if (!sideHasRaceUpgrade(state, goblinSide, 'goblin-overwhelm-hex')) {
+    return;
+  }
+  const livingGoblins = getAliveUnits(state, goblinSide).filter((unit) => unit.raceId === 'goblin').length;
+  const damage = fixedMul(livingGoblins, actor.hexedStacks);
+  if (damage <= 0) {
+    return;
+  }
+  if (canTakeDamage(actor)) {
+    actor.hp = fixedSub(actor.hp, damage);
+  }
+  buildStep(state, 'attack', [], [actor.id], `${actor.troopLabel} loses ${formatFixed(damage)} health to Overwhelm Hex.`, {
+    damage,
+    mode: 'blast',
+    category: 'strike',
+    baseDamage: damage,
+    attackDamageBeforeArmor: damage,
+    armorIgnored: true,
+    sourceAbilityId: 'overwhelm-hex',
+    sourceAbilityLabel: getAbility('overwhelm-hex').label,
+  });
+  if (actor.hp <= 0 && actor.alive) {
+    handleEnvironmentalDeath(state, actor, 'overwhelm-hex', getAbility('overwhelm-hex').label, `${actor.troopLabel} is overwhelmed by Hex.`);
+  } else if (actor.alive && canTakeDamage(actor)) {
+    triggerUnitAbilities(state, actor, { timing: 'onDamaged' });
+    applyWhimsy(state, actor);
+  }
+}
+
+function triggerCrackExploits(state: InternalState, source: InternalUnit, target: InternalUnit): void {
+  if (!target.alive || state.crackExploitsDepth > 4) {
+    return;
+  }
+  const elementalists = getAliveUnits(state, source.side)
+    .filter((unit) => unit.side !== target.side && unit.unitClassTag === 'elementalist' && hasAbility(unit, 'crack-exploits'));
+  if (elementalists.length === 0) {
+    return;
+  }
+  state.crackExploitsDepth += 1;
+  state.rng.shuffle(elementalists).forEach((elementalist) => {
+    if (elementalist.alive && target.alive && canTargetWithNormalAttack(elementalist, target)) {
+      attack(state, elementalist, target, elementalist.resolvedStats.range > 0 ? 'ranged' : 'melee', true, 0, 'normal');
+    }
+  });
+  state.crackExploitsDepth -= 1;
+}
+
+function performTriumph(state: InternalState, actor: InternalUnit): void {
+  if (actor.unitClassTag !== 'champion' || !hasAbility(actor, 'triumph')) {
+    return;
+  }
+  getAliveUnits(state, actor.side)
+    .filter((unit) => unit.id === actor.id || unitsTouchOrOverlap(unit, actor))
+    .forEach((unit) => {
+      addZealStack(state, actor, unit, 'triumph');
+    });
+}
+
+function performHuntersZeal(state: InternalState, actor: InternalUnit, fallen: InternalUnit): void {
+  if (actor.unitClassTag !== 'ranger' || !hasAbility(actor, 'hunters-zeal')) {
+    return;
+  }
+  getAliveUnits(state, actor.side)
+    .filter((unit) => unit.id === actor.id || unitsTouchOrOverlap(unit, fallen))
+    .forEach((unit) => addZealStack(state, actor, unit, 'hunters-zeal'));
+}
+
+function performMartyrsZeal(state: InternalState, fallen: InternalUnit): void {
+  if (fallen.unitClassTag !== 'soldier' || !hasAbility(fallen, 'martyrs-zeal')) {
+    return;
+  }
+  getAliveUnits(state, fallen.side).forEach((unit) => addZealStack(state, fallen, unit, 'martyrs-zeal'));
+}
+
+function performHolyConstructsElementalDeath(state: InternalState, elemental: InternalUnit): void {
+  if (elemental.unitClassTag !== 'elemental' || !sideHasTroopClassUpgrade(state, elemental.side, 'priest-holy-constructs')) {
+    return;
+  }
+  const runtime = createRuntimeAbilityState(getAbility('holy-constructs'));
+  getAliveUnits(state, elemental.side)
+    .filter((ally) => unitsTouchOrOverlap(ally, elemental))
+    .forEach((ally) => {
+      healUnit(state, elemental, ally, runtime, { kind: 'heal', amount: 20, mode: 'flat', disposition: 'beneficial' });
+    });
+}
+
+function directKill(state: InternalState, actor: InternalUnit, target: InternalUnit, sourceAbilityId: string): void {
+  if (!target.alive) {
+    return;
+  }
+  markUnitDead(state, target);
+  state.distinctTypeCache.delete(target.side);
+  removeAllEngagements(state, target);
+  clearBacklineCommitmentsTo(state, target.id);
+  if (!hasAbility(target, 'fading')) {
+    state.corpses.set(target.id, { ...target.position });
+  }
+  buildStep(state, 'death', [actor.id], [target.id], `${target.troopLabel} is killed by ${getAbility(sourceAbilityId).label}.`, {
+    effect: sourceAbilityId,
+    sourceAbilityId,
+    sourceAbilityLabel: getAbility(sourceAbilityId).label,
+  });
+
+  if (hasAbility(target, 'sentinel-runes') && !target.sentinelRunesTriggered) {
+    triggerSentinelRunes(state, target, target.position, actor, `${target.troopLabel} releases Sentinel Runes in death.`);
+  }
+
+  const bondedDependents = getAliveUnits(state, target.side).filter(
+    (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
+  );
+
+  triggerUnitAbilities(state, actor, { timing: 'onKill', fallenUnit: target });
+  performScavengersHunger(state, actor, target);
+  if (target.unitClassTag === 'militia' && hasAbility(target, 'crippling-hex')) {
+    addHexStack(state, target, actor, 'crippling-hex');
+  }
+  performThrillWolfSummon(state, actor);
+  performHuntersZeal(state, actor, target);
+  performTriumph(state, actor);
+  performLastWitness(state, actor, target);
+  performHolyConstructsElementalDeath(state, target);
+  performHoldTheStandard(state, target);
+  performMartyrsZeal(state, target);
+  triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
+  getAliveUnits(state).forEach((unit) => {
+    if (unit.id !== target.id) {
+      triggerUnitAbilities(state, unit, { timing: 'onFallen', fallenUnit: target });
+      if (target.unitClassTag === 'elemental' && hasAbility(unit, 'arc-conductor') && unit.side === actor.side) {
+        applyBlastSequence(state, unit, createRuntimeAbilityState(getAbility('arc-conductor-blast-8')), 8, target.occupiedHexes, new Set<string>());
+      }
+    }
+  });
+  bondedDependents.forEach((unit) =>
+    handleEnvironmentalDeath(state, unit, 'bonded', getAbility('bonded').label, `${unit.troopLabel} is destroyed when its summoner falls.`, true),
+  );
 }
 
 function performLastWitness(state: InternalState, killer: InternalUnit, fallen: InternalUnit): void {
@@ -3039,8 +3522,7 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   if (preventDeath(state, actor, target)) {
     return;
   }
-  target.alive = false;
-  target.hp = 0;
+  markUnitDead(state, target);
   state.distinctTypeCache.delete(target.side);
   removeAllEngagements(state, target);
   clearBacklineCommitmentsTo(state, target.id);
@@ -3063,6 +3545,9 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
 
   triggerUnitAbilities(state, actor, { timing: 'onKill', fallenUnit: target });
   performScavengersHunger(state, actor, target);
+  if (target.unitClassTag === 'militia' && hasAbility(target, 'crippling-hex')) {
+    addHexStack(state, target, actor, 'crippling-hex');
+  }
   if (hasAbility(actor, 'snatch-the-moment')) {
     getAliveUnits(state)
       .filter((unit) => unit.side !== actor.side)
@@ -3079,9 +3564,9 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
   if (hasAbility(actor, 'loot-frenzy')) {
     performLootFrenzy(state, actor, target.occupiedHexes);
   }
-  if (actor.unitClassTag === 'wolf' && sideHasTroopClassUpgrade(state, actor.side, 'beastmaster-thrill-of-the-hunt')) {
-    performThrillKillBuff(state, actor);
-  }
+  performThrillWolfSummon(state, actor);
+  performHuntersZeal(state, actor, target);
+  performTriumph(state, actor);
   if (hasAbility(actor, 'crushing-sweep') && context.mode === 'melee') {
     const splash = actor.resolvedStats.size * 10;
     getAliveUnits(state)
@@ -3112,7 +3597,9 @@ function handleDeath(state: InternalState, actor: InternalUnit, target: Internal
       });
   }
   performLastWitness(state, actor, target);
+  performHolyConstructsElementalDeath(state, target);
   performHoldTheStandard(state, target);
+  performMartyrsZeal(state, target);
   triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
   getAliveUnits(state).forEach((unit) => {
     if (unit.id !== target.id) {
@@ -3141,8 +3628,7 @@ function handleEnvironmentalDeath(
   if (!bypassPrevention && preventDeath(state, target, target)) {
     return;
   }
-  target.alive = false;
-  target.hp = 0;
+  markUnitDead(state, target);
   state.distinctTypeCache.delete(target.side);
   removeAllEngagements(state, target);
   clearBacklineCommitmentsTo(state, target.id);
@@ -3163,7 +3649,9 @@ function handleEnvironmentalDeath(
     (unit) => unit.summonerUnitId === target.id && hasAbility(unit, 'bonded'),
   );
 
+  performHolyConstructsElementalDeath(state, target);
   performHoldTheStandard(state, target);
+  performMartyrsZeal(state, target);
   triggerUnitAbilities(state, target, { timing: 'onDeath', fallenUnit: target });
   getAliveUnits(state).forEach((unit) => {
     if (unit.id !== target.id) {
@@ -3218,6 +3706,74 @@ function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: Inte
   return true;
 }
 
+function resolveWagesOfVirtueRecipient(
+  state: InternalState,
+  target: InternalUnit,
+  visitedUnitIds = new Set<string>(),
+): InternalUnit {
+  if (!hasAbility(target, 'wages-of-virtue') || visitedUnitIds.has(target.id)) {
+    return target;
+  }
+  visitedUnitIds.add(target.id);
+  const candidates = getAliveUnits(state, target.side)
+    .filter((unit) => unit.id !== target.id && !visitedUnitIds.has(unit.id))
+    .filter((unit) => unitsTouchOrOverlap(unit, target));
+  if (candidates.length === 0) {
+    return target;
+  }
+  const redirected = state.rng.pick(candidates);
+  buildStep(state, 'buff', [target.id], [redirected.id], `${target.troopLabel} redirects damage to ${redirected.troopLabel}.`, {
+    effect: 'wagesOfVirtueRedirect',
+    sourceAbilityId: 'wages-of-virtue',
+    sourceAbilityLabel: getAbility('wages-of-virtue').label,
+  });
+  return resolveWagesOfVirtueRecipient(state, redirected, visitedUnitIds);
+}
+
+function applyElementalSunder(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
+  if (actor.unitClassTag !== 'elemental' || !sideHasTroopClassUpgrade(state, actor.side, 'elementalist-crack-exploits') || !target.alive) {
+    return;
+  }
+  applyStatDelta(state, actor, target, createRuntimeAbilityState(getAbility('elemental-sunder-1')), {
+    kind: 'statDelta',
+    stat: 'armor',
+    amount: -1,
+    mode: 'flat',
+    disposition: 'harmful',
+  });
+}
+
+function applyFinalHexStack(state: InternalState, actor: InternalUnit, target: InternalUnit): void {
+  if (actor.unitClassTag !== 'shaman' || !hasAbility(actor, 'final-hex') || !target.alive) {
+    return;
+  }
+  addHexStack(state, actor, target, 'final-hex');
+}
+
+function triggerOpening(
+  state: InternalState,
+  actor: InternalUnit,
+  target: InternalUnit,
+  openingChain: Set<string>,
+): void {
+  if (!hasAbility(actor, 'opening') || !target.alive) {
+    return;
+  }
+  const pairKey = `${actor.id}->${target.id}`;
+  if (openingChain.has(pairKey)) {
+    return;
+  }
+  openingChain.add(pairKey);
+  const allies = getAliveUnits(state, actor.side)
+    .filter((unit) => unit.id !== actor.id && unitsTouchOrOverlap(unit, target))
+    .filter((unit) => canTargetWithNormalAttack(unit, target));
+  state.rng.shuffle(allies).forEach((ally) => {
+    if (ally.alive && target.alive) {
+      attack(state, ally, target, ally.resolvedStats.range > 0 ? 'ranged' : 'melee', true, 0, 'normal', 1, openingChain);
+    }
+  });
+}
+
 function applyStallWarts(state: InternalState, unit: InternalUnit): void {
   if (!unit.alive || !hasAbility(unit, 'stall-warts')) {
     return;
@@ -3248,10 +3804,15 @@ function attack(
   strikeCount = 0,
   category: AttackCategory = 'normal',
   damageMultiplier = 1,
+  openingChain = new Set<string>(),
 ): void {
   assertUnitLive(actor, 'attack/actor');
   assertUnitLive(target, 'attack/target');
   if (category === 'normal' && !canTargetWithNormalAttack(actor, target)) {
+    return;
+  }
+  if (category === 'normal' && actor.unitClassTag === 'shaman' && hasAbility(actor, 'final-hex') && target.hexedStacks >= 5) {
+    directKill(state, actor, target, 'final-hex');
     return;
   }
   if (tryApplyGlamour(state, actor, target, mode, category)) {
@@ -3259,6 +3820,10 @@ function attack(
   }
   const attackContext: AttackContext = { mode, category };
   let attackDamage = fixedMul(actor.resolvedStats.damage, damageMultiplier);
+  const throwingAxesDamage = hasAbility(actor, 'throwing-axes') ? fixedMul(target.hp, 0.1) : 0;
+  attackDamage = fixedAdd(attackDamage, throwingAxesDamage);
+  const hexingShotsDamage = hasAbility(actor, 'hexing-shots') ? target.hexedStacks : 0;
+  attackDamage = fixedAdd(attackDamage, hexingShotsDamage);
   const distanceToTarget = unitFootprintDistance(actor, target);
   const heartseekerActive = hasAbility(actor, 'heartseeker') && target.engagedWith.size === 0;
   if (heartseekerActive) {
@@ -3272,7 +3837,8 @@ function attack(
   const modifiedDamage = mode === 'ranged' ? fixedMul(baseDamage, state.effects.rangedDamageMultiplier) : baseDamage;
   const shieldDrillDamageCap = mode === 'ranged' && hasAbility(target, 'shield-drill') ? 1 : null;
   const damage = fixedMax(shieldDrillDamageCap === null ? modifiedDamage : Math.min(modifiedDamage, shieldDrillDamageCap), 0);
-  const damageRecipients = [target];
+  const damageRecipient = category === 'normal' && damage > 0 ? resolveWagesOfVirtueRecipient(state, target) : target;
+  const damageRecipients = [damageRecipient];
   const damagePerRecipient = damage;
   const inflictedDamage = fixedSum(damageRecipients.map((recipient) => (canTakeDamage(recipient) ? damagePerRecipient : 0)));
   damageRecipients.forEach((recipient) => {
@@ -3296,6 +3862,8 @@ function attack(
     category,
     baseDamage: actor.resolvedStats.damage,
     attackDamageBeforeArmor: attackDamage,
+    throwingAxesDamage: throwingAxesDamage || undefined,
+    hexingShotsDamage: hexingShotsDamage || undefined,
     heartseekerMultiplier: heartseekerActive ? 2 : undefined,
     distanceBonus: distanceBonus.damage || undefined,
     armorBefore: target.resolvedStats.armor,
@@ -3308,6 +3876,10 @@ function attack(
 
   if (allowOnAttackAbilities) {
     triggerUnitAbilities(state, actor, { timing: 'onAttack', attackTarget: target });
+  }
+
+  if (category === 'normal') {
+    applyElementalSunder(state, actor, target);
   }
 
   if (mode === 'melee' && hasAbility(actor, 'bramble-snare') && actor.brambleSnareStacks > 0 && target.alive) {
@@ -3346,6 +3918,10 @@ function attack(
   });
   if (category === 'normal') {
     damageRecipients.forEach((recipient) => triggerDreamwork(state, actor, recipient));
+  }
+  if (category === 'normal' && inflictedDamage > 0 && target.alive) {
+    applyFinalHexStack(state, actor, target);
+    triggerOpening(state, actor, target, openingChain);
   }
   if (target.alive) {
     if (category === 'normal' && hasAbility(target, 'thornhide') && target.role === 'frontline' && target.resolvedStats.range === 0 && target.alive) {
@@ -4247,7 +4823,11 @@ function spawnPendingDiggyHoleUnits(state: InternalState): void {
     state.mapHexes = placeUnitsForSideWithMapExpansion(side, pending, state.units, state.mapHexes, state.rng, placementSide);
     state.pendingDiggyHoleCombatants[side] = [];
     const spawned = [...state.units.values()].filter((unit) => !before.has(unit.id));
-    spawned.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
+    spawned.forEach((unit) => {
+      applyMutatorAdjustmentsToUnit(unit, state.effects);
+      unit.initiative = fixedMax(unit.initiative, 100);
+      registerAliveUnit(state, unit);
+    });
     buildStep(
       state,
       'move',
@@ -4288,7 +4868,7 @@ function applyChangeling(state: InternalState): void {
     byTroop.forEach((units) => {
       const unit = state.rng.pick(units);
       removeAllEngagements(state, unit);
-      unit.side = side;
+      transferAliveUnitSide(state, unit, side);
       unit.committedBacklineTargetId = null;
       unit.initiative = 0;
       changed.push(unit);
@@ -4438,11 +5018,14 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
   const init = initializeUnits(input, rng);
   const state: InternalState = {
     units: init.units,
+    aliveUnitIds: createAliveIndex(init.units),
     pendingDiggyHoleCombatants: init.pendingDiggyHoleCombatants,
     copiousAleAppliedTroopKeys: new Set<string>(),
     corpses: new Map<string, HexCoord>(),
     summonedProfiles: new Map<string, ReplayTroopProfile>(),
     steps: [],
+    dirtyUnitIds: new Set<string>(),
+    snapshotCache: new Map<string, BattleUnit>(),
     mapRadius: init.mapRadius,
     mapHexes: new Set(init.mapHexes.map(hexKey)),
     rng,
@@ -4455,15 +5038,19 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
     pendingGraveVigorBlocks: [],
     distinctTypeCache: new Map<SideId, string[]>(),
     dreamworkTriggeredUnitIdsThisBeat: new Set<string>(),
+    crackExploitsDepth: 0,
   };
   state.units.forEach((unit) => applyMutatorAdjustmentsToUnit(unit, state.effects));
+  assertAliveIndexValid(state);
 
   const troopLabels = Object.fromEntries(
     [...input.playerCombatants, ...input.enemyCombatants].map((combatant) => [combatant.combatantId, combatant.label]),
   );
   const initial = cloneSnapshot(state.units);
+  state.snapshotCache = new Map(initial.units.map((unit) => [unit.id, cloneBattleUnit(unit)]));
   executeStartOfBattleAbilities(state);
   applyCopiousAle(state);
+  applyStartOfBattleStackSeeds(state);
 
   while (!isBattleOver(state) && state.beatCount < MAX_BEATS) {
     state.beatCount += 1;
@@ -4486,8 +5073,10 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
       executeTurn(state, unit);
     });
   }
+  assertAliveIndexValid(state);
 
-  const snapshots = [initial, ...state.steps.map((step) => step.snapshot)];
+  const steps = materializeRecordedSteps(initial, state.steps);
+  const snapshots = [initial, ...steps.map((step) => step.snapshot)];
   const finalCounts = createAliveCount(snapshots[snapshots.length - 1] ?? initial);
 
   return {
@@ -4499,7 +5088,7 @@ export function resolveBattle(rawInput: BattleInput): BattleReplay {
     mapRadius: state.mapRadius,
     mapHexes: hexSetToCoords(state.mapHexes),
     initial,
-    steps: state.steps,
+    steps,
     outcome: resolveBattleOutcome(state),
     troopLabels,
     troopProfiles: buildTroopProfiles(input, state.summonedProfiles, state.effects),

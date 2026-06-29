@@ -77,7 +77,7 @@ export interface SimulationMetrics {
   beatsToEnd: number;
   firstContactBeat: number | null;
   firstBacklineThreatBeat: number | null;
-  backlineBreachRate: number;
+  backlineBreached: boolean;
   ownTurnsTakenPerUnit: number;
   playerSurvivors: number;
   enemySurvivors: number;
@@ -326,71 +326,6 @@ export function buildSimulationBattleInput(
     mutatorIds,
     playerCombatants,
     enemyCombatants,
-  };
-}
-
-export function buildEqualCostBundle(leftCost: number, rightCost: number): { leftInstances: number; rightInstances: number; totalCost: number } {
-  const MAX_EXACT_INSTANCES = 12;
-  const MAX_APPROX_INSTANCES = 12;
-  const scaledLeft = Math.round(leftCost * 100);
-  const scaledRight = Math.round(rightCost * 100);
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-  const divisor = gcd(scaledLeft, scaledRight);
-  const scaledTotalCost = (scaledLeft * scaledRight) / divisor;
-  const exactLeftInstances = scaledTotalCost / scaledLeft;
-  const exactRightInstances = scaledTotalCost / scaledRight;
-
-  if (exactLeftInstances <= MAX_EXACT_INSTANCES && exactRightInstances <= MAX_EXACT_INSTANCES) {
-    return {
-      leftInstances: exactLeftInstances,
-      rightInstances: exactRightInstances,
-      totalCost: fixed(scaledTotalCost / 100),
-    };
-  }
-
-  let best:
-    | {
-        leftInstances: number;
-        rightInstances: number;
-        gap: number;
-        totalCost: number;
-      }
-    | undefined;
-
-  for (let leftInstances = 1; leftInstances <= MAX_APPROX_INSTANCES; leftInstances += 1) {
-    for (let rightInstances = 1; rightInstances <= MAX_APPROX_INSTANCES; rightInstances += 1) {
-      const leftTotal = fixed(leftInstances * leftCost);
-      const rightTotal = fixed(rightInstances * rightCost);
-      const gap = Math.abs(leftTotal - rightTotal);
-      const totalCost = Math.max(leftTotal, rightTotal);
-      if (
-        !best ||
-        gap < best.gap ||
-        (gap === best.gap && totalCost < best.totalCost) ||
-        (gap === best.gap && totalCost === best.totalCost && leftInstances + rightInstances < best.leftInstances + best.rightInstances)
-      ) {
-        best = {
-          leftInstances,
-          rightInstances,
-          gap,
-          totalCost,
-        };
-      }
-    }
-  }
-
-  if (!best) {
-    return {
-      leftInstances: 1,
-      rightInstances: 1,
-      totalCost: fixed(Math.max(leftCost, rightCost)),
-    };
-  }
-
-  return {
-    leftInstances: best.leftInstances,
-    rightInstances: best.rightInstances,
-    totalCost: best.totalCost,
   };
 }
 
@@ -664,7 +599,7 @@ export function extractSimulationMetrics(replay: BattleReplay): SimulationMetric
     beatsToEnd,
     firstContactBeat,
     firstBacklineThreatBeat,
-    backlineBreachRate: firstBacklineThreatBeat === null ? 0 : 1,
+    backlineBreached: firstBacklineThreatBeat !== null,
     ownTurnsTakenPerUnit: fixed(totalTurnsTaken / initialUnitCount),
     playerSurvivors: finalAlive.player,
     enemySurvivors: finalAlive.enemy,
@@ -687,45 +622,103 @@ export function runBattleWithMetrics(input: BattleInput): { replay: BattleReplay
   };
 }
 
-export function sweepBattleSeeds(makeInput: (seed: number) => BattleInput, seeds: number[]): SimulationSweepResult {
-  const entries = seeds.map((seed) => {
-    const { replay, metrics } = runBattleWithMetrics(makeInput(seed));
-    return {
-      seed,
-      replayId: replay.id,
-      metrics,
-    };
-  });
-
+function summarizeSimulationEntries(entries: SimulationSweepEntry[]): SimulationSweepResult['summary'] {
   const wins = entries.filter((entry) => entry.metrics.outcome === 'victory').length;
   const losses = entries.filter((entry) => entry.metrics.outcome === 'defeat').length;
   const draws = entries.filter((entry) => entry.metrics.outcome === 'draw').length;
 
   return {
-    entries,
-    summary: {
-      battles: entries.length,
-      wins,
-      losses,
-      draws,
-      winRate: entries.length === 0 ? 0 : fixed(wins / entries.length),
-      drawRate: entries.length === 0 ? 0 : fixed(draws / entries.length),
-      average: {
-        beatsToEnd: average(entries.map((entry) => entry.metrics.beatsToEnd)),
-        firstContactBeat: averageNullable(entries.map((entry) => entry.metrics.firstContactBeat)),
-        firstBacklineThreatBeat: averageNullable(entries.map((entry) => entry.metrics.firstBacklineThreatBeat)),
-        ownTurnsTakenPerUnit: average(entries.map((entry) => entry.metrics.ownTurnsTakenPerUnit)),
-        summonUptimeBeats: average(entries.map((entry) => entry.metrics.summonUptimeBeats)),
-        summonRealizedValue: average(entries.map((entry) => entry.metrics.summonRealizedValue)),
-        scalingValueRealized: average(entries.map((entry) => entry.metrics.scalingValueRealized)),
-        damagePer100Beats: average(entries.map((entry) => entry.metrics.damagePer100Beats)),
-        effectiveHpPreserved: average(entries.map((entry) => entry.metrics.effectiveHpPreserved)),
-      },
-      percentiles: {
-        beatsToEnd: buildPercentiles(entries.map((entry) => entry.metrics.beatsToEnd)),
-        firstContactBeat: buildNullablePercentiles(entries.map((entry) => entry.metrics.firstContactBeat)),
-        firstBacklineThreatBeat: buildNullablePercentiles(entries.map((entry) => entry.metrics.firstBacklineThreatBeat)),
-      },
+    battles: entries.length,
+    wins,
+    losses,
+    draws,
+    winRate: entries.length === 0 ? 0 : fixed(wins / entries.length),
+    drawRate: entries.length === 0 ? 0 : fixed(draws / entries.length),
+    average: {
+      beatsToEnd: average(entries.map((entry) => entry.metrics.beatsToEnd)),
+      firstContactBeat: averageNullable(entries.map((entry) => entry.metrics.firstContactBeat)),
+      firstBacklineThreatBeat: averageNullable(entries.map((entry) => entry.metrics.firstBacklineThreatBeat)),
+      ownTurnsTakenPerUnit: average(entries.map((entry) => entry.metrics.ownTurnsTakenPerUnit)),
+      summonUptimeBeats: average(entries.map((entry) => entry.metrics.summonUptimeBeats)),
+      summonRealizedValue: average(entries.map((entry) => entry.metrics.summonRealizedValue)),
+      scalingValueRealized: average(entries.map((entry) => entry.metrics.scalingValueRealized)),
+      damagePer100Beats: average(entries.map((entry) => entry.metrics.damagePer100Beats)),
+      effectiveHpPreserved: average(entries.map((entry) => entry.metrics.effectiveHpPreserved)),
     },
+    percentiles: {
+      beatsToEnd: buildPercentiles(entries.map((entry) => entry.metrics.beatsToEnd)),
+      firstContactBeat: buildNullablePercentiles(entries.map((entry) => entry.metrics.firstContactBeat)),
+      firstBacklineThreatBeat: buildNullablePercentiles(entries.map((entry) => entry.metrics.firstBacklineThreatBeat)),
+    },
+  };
+}
+
+export interface SweepBattleSeedsChunkedOptions {
+  chunkSize?: number;
+  yieldMs?: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: {
+    completed: number;
+    total: number;
+    partial: SimulationSweepResult;
+  }) => void;
+}
+
+function waitForChunkYield(yieldMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, yieldMs);
+  });
+}
+
+function runSimulationSeed(makeInput: (seed: number) => BattleInput, seed: number): SimulationSweepEntry {
+  const { replay, metrics } = runBattleWithMetrics(makeInput(seed));
+  return {
+    seed,
+    replayId: replay.id,
+    metrics,
+  };
+}
+
+export function sweepBattleSeeds(makeInput: (seed: number) => BattleInput, seeds: number[]): SimulationSweepResult {
+  const entries = seeds.map((seed) => runSimulationSeed(makeInput, seed));
+  return {
+    entries,
+    summary: summarizeSimulationEntries(entries),
+  };
+}
+
+export async function sweepBattleSeedsChunked(
+  makeInput: (seed: number) => BattleInput,
+  seeds: number[],
+  options: SweepBattleSeedsChunkedOptions = {},
+): Promise<SimulationSweepResult> {
+  const chunkSize = Math.max(1, Math.floor(options.chunkSize ?? 25));
+  const yieldMs = Math.max(0, options.yieldMs ?? 0);
+  const entries: SimulationSweepEntry[] = [];
+
+  for (let index = 0; index < seeds.length; index += chunkSize) {
+    if (options.signal?.aborted) {
+      throw new DOMException('Battle seed sweep aborted.', 'AbortError');
+    }
+    const chunk = seeds.slice(index, index + chunkSize);
+    chunk.forEach((seed) => {
+      if (options.signal?.aborted) {
+        throw new DOMException('Battle seed sweep aborted.', 'AbortError');
+      }
+      entries.push(runSimulationSeed(makeInput, seed));
+    });
+    options.onProgress?.({
+      completed: entries.length,
+      total: seeds.length,
+      partial: { entries: [...entries], summary: summarizeSimulationEntries(entries) },
+    });
+    if (index + chunkSize < seeds.length && yieldMs > 0) {
+      await waitForChunkYield(yieldMs);
+    }
+  }
+
+  return {
+    entries,
+    summary: summarizeSimulationEntries(entries),
   };
 }

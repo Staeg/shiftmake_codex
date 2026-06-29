@@ -27,8 +27,7 @@ import type {
   UnitClassId,
 } from './types';
 
-export const VICTORY_RECOVERY = 1;
-export const DEFEAT_RECOVERY = 1;
+export const BATTLE_RECOVERY = 1;
 const EXPLAINED_STAT_KEYS: ExplainedStatKey[] = ['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'];
 
 export function createTroopInstance(raceId: RaceId, unitClassId: UnitClassId): TroopInstance {
@@ -195,14 +194,16 @@ function applyRaceUpgradeEffectsDetailed(
 
 function applyTroopClassUpgradeEffects(
   state: Pick<GameState, 'troopClassUpgradeIds'>,
+  role: RoleId,
   unitClassId: UnitClassId,
   stats: UnitStats,
   abilities: AbilityDefinition[],
   attributes: string[],
-): { stats: UnitStats; abilities: AbilityDefinition[]; attributes: string[] } {
+): { role: RoleId; stats: UnitStats; abilities: AbilityDefinition[]; attributes: string[] } {
+  let nextRole = role;
   let nextStats = { ...stats };
   let nextAbilities = [...abilities];
-  const nextAttributes = [...attributes];
+  let nextAttributes = [...attributes];
 
   state.troopClassUpgradeIds
     .map(getTroopClassUpgrade)
@@ -233,23 +234,35 @@ function applyTroopClassUpgradeEffects(
           return;
         }
 
+        if (effect.kind === 'removeAttribute') {
+          nextAttributes = nextAttributes.filter((attribute) => attribute !== effect.attribute);
+          return;
+        }
+
+        if (effect.kind === 'setRole') {
+          nextRole = effect.role;
+          return;
+        }
+
         nextStats = applyStatModifier(nextStats, effect.statModifiers, nextAttributes);
       });
     });
 
-  return { stats: nextStats, abilities: nextAbilities, attributes: nextAttributes };
+  return { role: nextRole, stats: nextStats, abilities: nextAbilities, attributes: nextAttributes };
 }
 
 function applyTroopClassUpgradeEffectsDetailed(
   state: Pick<GameState, 'troopClassUpgradeIds'>,
+  role: RoleId,
   unitClassId: UnitClassId,
   stats: UnitStats,
   abilities: AbilityDefinition[],
   attributes: string[],
-): { stats: UnitStats; abilities: AbilityDefinition[]; attributes: string[]; statContributions: UpgradeStatContributions } {
+): { role: RoleId; stats: UnitStats; abilities: AbilityDefinition[]; attributes: string[]; statContributions: UpgradeStatContributions } {
+  let nextRole = role;
   let nextStats = { ...stats };
   let nextAbilities = [...abilities];
-  const nextAttributes = [...attributes];
+  let nextAttributes = [...attributes];
   const statContributions: UpgradeStatContributions = {};
 
   state.troopClassUpgradeIds
@@ -281,6 +294,16 @@ function applyTroopClassUpgradeEffectsDetailed(
           return;
         }
 
+        if (effect.kind === 'removeAttribute') {
+          nextAttributes = nextAttributes.filter((attribute) => attribute !== effect.attribute);
+          return;
+        }
+
+        if (effect.kind === 'setRole') {
+          nextRole = effect.role;
+          return;
+        }
+
         const before = nextStats;
         nextStats = applyStatModifier(nextStats, effect.statModifiers, nextAttributes);
         EXPLAINED_STAT_KEYS.forEach((stat) => {
@@ -292,7 +315,7 @@ function applyTroopClassUpgradeEffectsDetailed(
       });
     });
 
-  return { stats: nextStats, abilities: nextAbilities, attributes: nextAttributes, statContributions };
+  return { role: nextRole, stats: nextStats, abilities: nextAbilities, attributes: nextAttributes, statContributions };
 }
 
 function buildStatBreakdowns(
@@ -356,11 +379,11 @@ export function getResolvedStatBreakdowns(
     size: clampStat('size', unitClass.stats.size),
   };
   const tierStats = applyTierScaling(base.stats, side === 'enemy' ? enemyTier : null);
-  const troopClassDetailed = applyTroopClassUpgradeEffectsDetailed(state, troop.unitClassId, tierStats, base.abilities, base.attributes);
+  const troopClassDetailed = applyTroopClassUpgradeEffectsDetailed(state, base.role, troop.unitClassId, tierStats, base.abilities, base.attributes);
   const raceDetailed = applyRaceUpgradeEffectsDetailed(
     state,
     troop.raceId,
-    base.role,
+    troopClassDetailed.role,
     troopClassDetailed.stats,
     troopClassDetailed.abilities,
     troopClassDetailed.attributes,
@@ -428,11 +451,11 @@ export function resolveTroopCombatant(
 ): ResolvedCombatantDefinition {
   const base = composeBaseTroopDefinition(troop.raceId, troop.unitClassId);
   const scaled = applyTierScaling(base.stats, side === 'enemy' ? enemyTier : null);
-  const withTroopClassEffects = applyTroopClassUpgradeEffects(state, troop.unitClassId, scaled, base.abilities, base.attributes);
+  const withTroopClassEffects = applyTroopClassUpgradeEffects(state, base.role, troop.unitClassId, scaled, base.abilities, base.attributes);
   const withRaceEffects = applyRaceUpgradeEffects(
     state,
     troop.raceId,
-    base.role,
+    withTroopClassEffects.role,
     withTroopClassEffects.stats,
     withTroopClassEffects.abilities,
     withTroopClassEffects.attributes,
@@ -444,7 +467,7 @@ export function resolveTroopCombatant(
     unitClassId: troop.unitClassId,
     troopInstanceId: troop.id,
     label: base.label,
-    role: base.role,
+    role: withTroopClassEffects.role,
     unitClassTag: base.unitClassTag,
     attributes: withRaceEffects.attributes,
     stats: withRaceEffects.stats,

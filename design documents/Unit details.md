@@ -40,6 +40,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Crippling Shots` (tier 3): on attack, reduce the target armor by 1 and speed by 1 for the battle
   - `Barrage` (tier 3): while not engaged in melee, shoot all enemies in range, but deal 40% less damage
+  - `Hexing Shots` (tier 3): Archer attacks deal +1 damage per Hex stack on the target
 
 ### Avenger
 
@@ -51,6 +52,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Sevenfold` (tier 2): consume nearby corpses to summon skeletons, up to 7 times
   - `Witness` (tier 3): when a nearby ally falls, set initiative to 100; when an ally dies touching the Avenger, strike the killer once if it is still there
+  - `Wages of Virtue` (tier 3): redirect incoming damage to a random touching ally if possible; when a touching ally is healed, the Avenger is healed too
 
 ### Beastmaster
 
@@ -60,8 +62,9 @@ Footprint sizes:
 - Abilities: `Summon Wolf 2`
 - Cost: 60
 - Troop upgrades:
-  - `Bloodhounds` (tier 3): starting wolves summon more wolves on kills; if engaged, a wolf touching the Beastmaster joins the fight and heals 10
-  - `Thrill of the Hunt` (tier 3): wolves touching the Beastmaster gain 10 initiative at end of turn, and any allied wolf kill gives all allied units +2 damage for the battle
+  - `Throwing Axes` (tier 3): gain 4 range; attacks deal additional damage equal to 10% of the enemy's current health
+  - `Opening` (tier 3): when a Beastmaster hits an enemy, all allies adjacent to the target also attack that enemy
+  - `Thrill of the Hunt` (tier 3): Wolves summon 1 Wolf on each kill; whenever any allied wolf gets a kill, all allies gain +1 damage for the battle
 
 ### Champion
 
@@ -73,6 +76,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Anointed Executioner` (tier 3): target the lowest-HP legal enemy; healing and positive stat gains affecting the Champion are doubled
   - `Honorable Duel` (tier 3): Champions cannot be targeted by normal attacks from enemies they are not engaged with
+  - `Triumphant Zeal` (tier 3): on kill, the Champion and touching allies gain a stack of Zeal; allies gain +10% damage, +10% speed, and +10% max health per Zeal stack
 
 ### Druid
 
@@ -104,6 +108,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Crackling Mitosis` (tier 3): when an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8; each summoned elemental can repeat the elemental summon once
   - `Living Circuit` (tier 3): end of turn, the Elementalist gains 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative
+  - `Crack Exploits` (tier 3): Elementalists lose 5 damage; when an enemy loses armor, each allied Elementalist attacks it ignoring range; allied elementals remove 1 armor on attack
 
 ### Knight
 
@@ -115,6 +120,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Dine in Hell` (tier 3): start of turn, if engaged at full capacity, gain +5 armor until next turn; while engaged at full capacity, answer normal attacks with one normal attack
   - `Sentinel Runes` (tier 3): the first enemy to move out of contact with the Knight causes 2 elementals to be summoned at its new position; they immediately engage and attack that unit. If unused, this triggers on death against the killer instead
+  - `Sunder` (tier 3): Knights remove 20 armor on attack
 
 ### Militia
 
@@ -126,6 +132,7 @@ Footprint sizes:
 - Troop upgrades:
   - `R-selected` (tier 3): start of turn, gain +10 initiative per other Militia touching them; multiple Militia troops may enter the same Rift
   - `Dogpile` (tier 3): attacks against enemies engaged by at least 3 allies strike 1 extra time
+  - `Crippling Hex` (tier 3): enemies who kill Militia gain 1 stack of Hex; enemies get -30% speed for each Hex stack
 
 ### Necromancer
 
@@ -137,6 +144,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; allied summoned Skeletons heal allies touching them for 7 each turn
   - `Explosion Corpse` (tier 3): summoned skeletons spawn with 100 initiative; consuming a corpse makes enemies adjacent to that corpse lose 1 armor and 1 damage for the battle
+  - `Saintbane` (tier 3): whenever an enemy heals or gains stats, raise all corpses adjacent to them as allied Skeletons
 
 ### Priest
 
@@ -146,8 +154,9 @@ Footprint sizes:
 - Abilities: `Mend 4`
 - Cost: 20
 - Troop upgrades:
-  - `Bolstering Light` (tier 3): when a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle; otherwise, that target gains 40 initiative
-  - `Mercy Before Dawn` (tier 3): the first time each battle an ally in range would die, it survives at 1 HP
+  - `Bolstering Light` (tier 3): when a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle; otherwise, that target and the Priest gain 40 initiative
+  - `Mercy Before Dawn` (tier 3): the first time each battle an ally in range would die, it survives at 1 HP; whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health
+  - `Holy Constructs` (tier 3): while a Priest is present, the first time each non-`Fading` ally is actually healed, summon an Elemental adjacent to them; allied Elementals heal adjacent allies for 20 on death
 
 ### Ranger
 
@@ -159,6 +168,7 @@ Footprint sizes:
 - Troop upgrades:
   - `On the Hunt` (tier 3): on attack, set the target initiative to 0; the first 2 kills against non-`Fading` enemies consume the corpse and summon a wolf there
   - `Shadow's Embrace` (tier 3): after ranged attacks, move to a safer hex that still keeps an enemy in range; attacks against unengaged targets deal double damage
+  - `Hunter's Zeal` (tier 3): on kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal; allies gain 5 initiative per Zeal stack at end of turn
 
 ### Shaman
 
@@ -170,6 +180,7 @@ Footprint sizes:
 - Troop upgrades:
   - `War Drums` (tier 2): `Enhance 1` affects all allies on the chosen allied hex
   - `Grave Vigor` (tier 3): beneficial effects also make the target summon a skeleton on death and leave no corpse; `Enhance` gives affected allies 1 extra strike on their next normal attack; targets affected by any beneficial effect from a Grave Vigor Shaman ignore future beneficial effects and targeting from Grave Vigor Shamans
+  - `Final Hex` (tier 3): Shaman attacks apply 1 stack of `Hexed`; attacking an enemy with 5 stacks kills it directly
 
 ### Skeleton
 
@@ -189,6 +200,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Shield Drill` (tier 3): Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers
   - `Dreamwork` (tier 3): once per beat, Soldiers attack an adjacent enemy when that enemy is hit by another ally's normal attack
+  - `Martyr's Zeal` (tier 3): when a Soldier dies, all allies gain a stack of Zeal; at end of turn, allies heal 5 health per Zeal stack
 
 ### Wizard
 
@@ -200,6 +212,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Storm Rods` (tier 3): every 4 turns, make 2 extra strikes against a random enemy in range; `Blast` deals +1 damage per allied elemental anywhere on the battlefield, and Wizards summon 1 elemental at battle start
   - `Spell Echo` (tier 2): each `Blast` echoes from every enemy hit by that `Blast` or its echoes, but each enemy can be hit only once per `Blast` chain
+  - `Vulnerability Hex` (tier 3): if a Wizard is present, enemies damaged by `Blast` have a 20% chance to gain a stack of Hex; each Hex stack makes that enemy take an additional 100% damage from `Blast`
 
 ### Wolf
 
@@ -215,7 +228,7 @@ Footprint sizes:
 
 - `Tubthumping` (tier 1): multiple Human troops may enter the same Rift; harmful damage or speed reductions become `+1` instead
 - `Combined Arms` (tier 2): gain +20% health, damage, and speed for each other friendly troop on its side
-- `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
+- `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies, each Human unit heals 15
 
 ### Elves
 
@@ -227,16 +240,17 @@ Footprint sizes:
 
 - `Gallowsworn` (tier 1): on death, make 1 extra strike against a random touching enemy; on kill, all enemies lose 10 initiative
 - `Horde` (tier 2): start of turn, gain +4 damage per other friendly unit touching it until end of turn
+- `Overwhelm Hex` (tier 1): when a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at battle start; enemies lose health equal to your living Goblins per Hex stack at end of turn
 
 ### Trolls
 
-- `Roll the Boulder` (tier 1): melee kills deal splash damage equal to `10 x size` to enemies touching the fallen unit; end of turn, gain +2 damage for the battle
+- `Gargantuan Zeal` (tier 1): when a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start; allies gain damage equal to `5 x size` per Zeal stack
 - `Mossblood` (tier 2): after taking damage, gain +1 damage for the battle; the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`
-- `Rowdy Regrowth` (tier 2): whenever a Troll regains health, it gains 20 initiative
+- `Rowdy Regrowth` (tier 2): whenever a Troll regains health, it gains 20 initiative and +1 damage
 
 ### Dwarves
 
-- `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
+- `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board with 100 initiative
 - `Ale and Hearty` (tier 2): Dwarven troops gain +60% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
 - `Stall Warts` (tier 3): Dwarven troops gain +1 armor and lose 1 speed for the battle after they are hit by normal attacks
 

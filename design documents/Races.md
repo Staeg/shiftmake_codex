@@ -31,7 +31,7 @@ Race upgrades:
 
 - Tier 1: `Tubthumping` - all human troops gain `United`; harmful damage or speed reductions become `+1` instead
 - Tier 2: `Combined Arms` - all human troops gain `Combined Arms 20`
-- Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies touching a Human unit, that Human unit heals 15
+- Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies, each Human unit heals 15
 
 ## Elves
 
@@ -65,6 +65,7 @@ Race upgrades:
 
 - Tier 1: `Gallowsworn` - all goblin troops gain `Goblin Farewell` and `Snatch the Moment`
 - Tier 2: `Horde` - all goblin troops gain `Horde 4`
+- Tier 1: `Overwhelm Hex` - when a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at battle start; enemies lose health equal to your living Goblins per Hex stack at end of turn
 
 ## Trolls
 
@@ -79,9 +80,9 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Roll the Boulder` - all troll troops gain `Ramp 2` and `Crushing Sweep`
+- Tier 1: `Gargantuan Zeal` - when a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start; allies gain damage equal to `5 x size` per Zeal stack
 - Tier 2: `Mossblood` - all troll troops gain `Frenzy: Ramp 1`; each troll survives the first lethal hit at 25 HP and loses Regen for that battle
-- Tier 2: `Rowdy Regrowth` - whenever a Troll regains health, it gains 20 initiative
+- Tier 2: `Rowdy Regrowth` - whenever a Troll regains health, it gains 20 initiative and +1 damage
 
 ## Dwarves
 
@@ -95,7 +96,7 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Diggy Hole` - Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board
+- Tier 1: `Diggy Hole` - Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board with 100 initiative
 - Tier 2: `Ale and Hearty` - Dwarven troops gain +60% speed, but one random unit from each Dwarven troop has speed set to 1 at combat start
 - Tier 3: `Stall Warts` - Dwarven troops gain +1 armor and lose 1 speed for the battle after they are hit by normal attacks
 

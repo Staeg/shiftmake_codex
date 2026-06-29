@@ -1,14 +1,13 @@
 import { buildBattleInputFromResolvedCombatants, resolveBattle } from './battle';
 import {
+  BATTLE_RECOVERY,
   createTroopInstance,
-  DEFEAT_RECOVERY,
   getTroopById,
   getTroopsAssignedToRift,
   isRaceUnited,
   isUnitClassUnited,
   resolveTroopCombatant,
   tickRecovery,
-  VICTORY_RECOVERY,
 } from './army';
 import { fixed } from './fixed';
 import { createRng } from './rng';
@@ -118,7 +117,17 @@ function buildInitialState(seed: number, gameMode: GameMode = 'campaign'): GameS
     postgameDismissed: false,
     openRifts: [],
     replayIndex: [],
-    ...(gameMode === 'contest' ? { contest: { players: { ai: buildEmptyContestPlayerState() }, opponentInfo: null } } : {}),
+    ...(gameMode === 'contest'
+      ? {
+          contest: {
+            players: {
+              playerOne: buildEmptyContestPlayerState(),
+              playerTwo: buildEmptyContestPlayerState(),
+            },
+            opponentInfo: null,
+          },
+        }
+      : {}),
     ...(gameMode === 'ladder' ? { ladder: { currentRiftSetId: null, currentGeneration: null, currentSourceCycleNumber: null } } : {}),
   };
 }
@@ -382,15 +391,15 @@ function splitTroopUnlockId(troopUnlockId: TroopUnlockId): [RaceId, UnitClassId]
   return troopUnlockId.split('/') as [RaceId, UnitClassId];
 }
 
-function countAvailableAssignmentRifts(state: Pick<GameState, 'openRifts'>): number {
-  return state.openRifts.filter((rift) => rift.state === 'discovered').length;
+function countRosterAssignmentSlots(state: Pick<GameState, 'openRifts'>): number {
+  return state.openRifts.filter((rift) => rift.state === 'discovered' || (rift.occupyingTroopIds?.length ?? 0) > 0).length;
 }
 
 function rosterCanFitOpenRifts(
   state: Pick<GameState, 'troops' | 'openRifts'>,
   extraTroopUnlockId: TroopUnlockId | null = null,
 ): boolean {
-  const riftCount = countAvailableAssignmentRifts(state);
+  const riftCount = countRosterAssignmentSlots(state);
   if (riftCount <= 0) {
     return false;
   }
@@ -411,21 +420,52 @@ function rosterCanFitOpenRifts(
   return [...raceCounts.values(), ...unitClassCounts.values()].every((count) => count <= riftCount);
 }
 
-function getContestAi(state: GameState): ContestPlayerState {
-  return state.contest?.players.ai ?? buildEmptyContestPlayerState();
+export function getRootProgress(state: GameState): ContestPlayerState {
+  return progressFromPseudoState(state);
 }
 
-function withContestAi(state: GameState, ai: ContestPlayerState): GameState {
+export function withRootProgress(state: GameState, progress: ContestPlayerState): GameState {
   return {
     ...state,
+    victoryPoints: progress.victoryPoints,
+    essence: progress.essence,
+    unlockedRaceIds: progress.unlockedRaceIds,
+    unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
+    recentTroopUnlockIds: progress.recentTroopUnlockIds,
+    troops: progress.troops,
+    raceUpgradeIds: progress.raceUpgradeIds,
+    troopClassUpgradeIds: progress.troopClassUpgradeIds,
+    activeTroopOffer: progress.activeTroopOffer,
+    activeUpgradeOffer: progress.activeUpgradeOffer,
+    activeRaceUnlockOffer: progress.activeRaceUnlockOffer,
+    activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
+    troopOfferRolls: progress.troopOfferRolls,
+    upgradeOfferRolls: progress.upgradeOfferRolls,
+  };
+}
+
+function getContestPlayerTwo(state: GameState): ContestPlayerState {
+  return state.contest?.players.playerTwo ?? buildEmptyContestPlayerState();
+}
+
+function withContestPlayers(state: GameState, players: Partial<Record<ContestPlayerId, ContestPlayerState>>): GameState {
+  const playerOne = players.playerOne ?? getRootProgress(state);
+  const playerTwo = players.playerTwo ?? state.contest?.players.playerTwo ?? buildEmptyContestPlayerState();
+  return {
+    ...withRootProgress(state, playerOne),
     contest: {
       ...state.contest,
       players: {
-        ai,
+        playerOne,
+        playerTwo,
       },
       opponentInfo: state.contest?.opponentInfo ?? null,
     },
   };
+}
+
+export function syncContestRootFromPlayer(state: GameState, playerId: ContestPlayerId): GameState {
+  return withRootProgress(state, getContestPlayerProgress(state, playerId));
 }
 
 function chooseAiOpeningTroops(seed: number): ContestPlayerState {
@@ -440,7 +480,7 @@ function chooseAiOpeningTroops(seed: number): ContestPlayerState {
 }
 
 function contestPlayerState(state: GameState, playerId: ContestPlayerId): ProgressState & { essence: number; victoryPoints: number } {
-  return playerId === 'human' ? state : getContestAi(state);
+  return playerId === 'playerOne' ? state : getContestPlayerTwo(state);
 }
 
 function getContestPlayerTroops(state: GameState, playerId: ContestPlayerId) {
@@ -716,14 +756,21 @@ export function startOpeningCampaign(state: GameState): GameState {
   }
 
   if (state.gameMode === 'contest') {
-    return withContestAi(
+    const playerOne = {
+      ...getRootProgress(state),
+      essence: 2,
+    };
+    return withContestPlayers(
       {
         ...state,
         phase: 'planning',
         essence: 2,
         openRifts: generateContestCycleRifts(state),
       },
-      chooseAiOpeningTroops(state.campaignSeed),
+      {
+        playerOne,
+        playerTwo: chooseAiOpeningTroops(state.campaignSeed),
+      },
     );
   }
 
@@ -883,7 +930,7 @@ export function validateAssignments(state: GameState): ValidationResult {
   const issues: ValidationIssue[] = [];
   const occupiedHumanTroopIds = new Set(
     state.gameMode === 'contest'
-      ? state.openRifts.filter((rift) => rift.controller === 'human').flatMap((rift) => rift.occupyingTroopIds ?? [])
+      ? state.openRifts.filter((rift) => rift.controller === 'playerOne').flatMap((rift) => rift.occupyingTroopIds ?? [])
       : [],
   );
   const assignedTroops = state.troops.filter((troop) => troop.assignmentRiftId !== null && !occupiedHumanTroopIds.has(troop.id));
@@ -973,7 +1020,7 @@ function getAssignmentIssue(state: GameState, troopId: TroopId, riftId: string):
   }
 
   const heldRift = state.gameMode === 'contest'
-    ? state.openRifts.find((rift) => rift.controller === 'human' && (rift.occupyingTroopIds ?? []).includes(troop.id))
+    ? state.openRifts.find((rift) => rift.controller === 'playerOne' && (rift.occupyingTroopIds ?? []).includes(troop.id))
     : null;
   if (heldRift) {
     return {
@@ -989,7 +1036,7 @@ function getAssignmentIssue(state: GameState, troopId: TroopId, riftId: string):
     return { kind: 'unknown_rift', riftId, message: `Rift ${riftId} is not available for assignment.` };
   }
 
-  if (state.gameMode === 'contest' && rift.controller === 'human') {
+  if (state.gameMode === 'contest' && rift.controller === 'playerOne') {
     return { kind: 'own_rift', riftId, message: 'You already control this Rift.' };
   }
 
@@ -1056,7 +1103,7 @@ export function clearTroopAssignment(state: GameState, troopId: TroopId): GameSt
 
   if (
     state.gameMode === 'contest' &&
-    state.openRifts.some((rift) => rift.controller === 'human' && (rift.occupyingTroopIds ?? []).includes(troopId))
+    state.openRifts.some((rift) => rift.controller === 'playerOne' && (rift.occupyingTroopIds ?? []).includes(troopId))
   ) {
     return state;
   }
@@ -1116,7 +1163,7 @@ function randomlyAdvanceAiUnlocks(state: GameState): GameState {
   }
 
   const rng = createRng(deriveSeed(state.campaignSeed, state.cycleNumber * 44_441 + 19));
-  let pseudo = applyScheduledCycleUnlock(buildProgressPseudoState(state, getContestAi(state)));
+  let pseudo = applyScheduledCycleUnlock(buildProgressPseudoState(state, getContestPlayerTwo(state)));
 
   if (pseudo.activeRaceUnlockOffer) {
     const pickedRace = rng.pick(pseudo.activeRaceUnlockOffer.optionRaceIds);
@@ -1148,7 +1195,7 @@ function randomlyAdvanceAiUnlocks(state: GameState): GameState {
     }
   }
 
-  return withContestAi(state, progressFromPseudoState(pseudo));
+  return withContestPlayers(state, { playerTwo: progressFromPseudoState(pseudo) });
 }
 
 export function extractContestPlayerProgress(state: GameState): ContestPlayerState {
@@ -1156,31 +1203,15 @@ export function extractContestPlayerProgress(state: GameState): ContestPlayerSta
 }
 
 export function applyContestPlayerProgress(state: GameState, playerId: ContestPlayerId, progress: ContestPlayerState): GameState {
-  if (playerId === 'human') {
-    return {
-      ...state,
-      victoryPoints: progress.victoryPoints,
-      essence: progress.essence,
-      unlockedRaceIds: progress.unlockedRaceIds,
-      unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
-      recentTroopUnlockIds: progress.recentTroopUnlockIds,
-      troops: progress.troops,
-      raceUpgradeIds: progress.raceUpgradeIds,
-      troopClassUpgradeIds: progress.troopClassUpgradeIds,
-      activeTroopOffer: progress.activeTroopOffer,
-      activeUpgradeOffer: progress.activeUpgradeOffer,
-      activeRaceUnlockOffer: progress.activeRaceUnlockOffer,
-      activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
-      troopOfferRolls: progress.troopOfferRolls,
-      upgradeOfferRolls: progress.upgradeOfferRolls,
-    };
+  if (playerId === 'playerOne') {
+    return withContestPlayers(state, { playerOne: progress });
   }
 
-  return withContestAi(state, progress);
+  return withContestPlayers(state, { playerTwo: progress });
 }
 
 export function getContestPlayerProgress(state: GameState, playerId: ContestPlayerId): ContestPlayerState {
-  return playerId === 'human' ? extractContestPlayerProgress(state) : getContestAi(state);
+  return playerId === 'playerOne' ? extractContestPlayerProgress(state) : getContestPlayerTwo(state);
 }
 
 export function applyScheduledUnlockToContestProgress(state: GameState, progress: ContestPlayerState): ContestPlayerState {
@@ -1248,16 +1279,16 @@ function resolveContestBattle(
     defender.combatants,
   ), {
     player: {
-      kind: attackerId === 'human' ? 'player' : 'opponent',
-      label: attackerId === 'human' ? 'Player' : 'Rival',
+      kind: attackerId === 'playerOne' ? 'player' : 'opponent',
+      label: attackerId === 'playerOne' ? 'Player' : 'Rival',
       playerId: attackerId,
     },
     enemy:
       defender.defenderId === 'neutral'
         ? { kind: 'neutral', label: 'Neutral Guardians' }
         : {
-            kind: defender.defenderId === 'human' ? 'player' : 'opponent',
-            label: defender.defenderId === 'human' ? 'Player' : 'Rival',
+            kind: defender.defenderId === 'playerOne' ? 'player' : 'opponent',
+            label: defender.defenderId === 'playerOne' ? 'Player' : 'Rival',
             playerId: defender.defenderId,
           },
   });
@@ -1271,7 +1302,7 @@ function resolveContestBattle(
     replay,
     outcome: attackerWon ? 'victory' : 'defeat',
     victoryPoints: rift.victoryPoints,
-    recoveryMap: Object.fromEntries(attackingTroops.map((troop) => [troop.id, fixed(VICTORY_RECOVERY)])),
+    recoveryMap: Object.fromEntries(attackingTroops.map((troop) => [troop.id, fixed(BATTLE_RECOVERY)])),
     contest: {
       kind: defender.defenderId === 'neutral' ? 'guardian' : 'occupation',
       attackerId,
@@ -1290,8 +1321,8 @@ function resolveContestPvpBattle(
 ): RiftResolutionRecord {
   const assignedTroopIds = [...humanTroops, ...aiTroops].map((troop) => troop.id).sort((a, b) => a.localeCompare(b));
   const battleSeed = deriveSeed(rift.seed, salt + assignedTroopIds.join('|').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
-  const human = contestPlayerState(state, 'human');
-  const ai = contestPlayerState(state, 'ai');
+  const human = contestPlayerState(state, 'playerOne');
+  const ai = contestPlayerState(state, 'playerTwo');
   const battleInput = withBattleSideParticipants(buildBattleInputFromResolvedCombatants(
     battleSeed,
     rift.id,
@@ -1301,11 +1332,11 @@ function resolveContestPvpBattle(
     human.troopClassUpgradeIds,
     ai.raceUpgradeIds,
     ai.troopClassUpgradeIds,
-    getContestCombatantsForTroops(state, 'human', humanTroops, 'player'),
-    getContestCombatantsForTroops(state, 'ai', aiTroops, 'enemy'),
+    getContestCombatantsForTroops(state, 'playerOne', humanTroops, 'player'),
+    getContestCombatantsForTroops(state, 'playerTwo', aiTroops, 'enemy'),
   ), {
-    player: { kind: 'player', label: 'Player', playerId: 'human' },
-    enemy: { kind: 'opponent', label: 'Rival', playerId: 'ai' },
+    player: { kind: 'player', label: 'Player', playerId: 'playerOne' },
+    enemy: { kind: 'opponent', label: 'Rival', playerId: 'playerTwo' },
   });
   const replay = resolveBattle(battleInput);
   return {
@@ -1315,27 +1346,27 @@ function resolveContestPvpBattle(
     replay,
     outcome: replay.outcome,
     victoryPoints: rift.victoryPoints,
-    recoveryMap: Object.fromEntries(assignedTroopIds.map((troopId) => [troopId, fixed(VICTORY_RECOVERY)])),
+    recoveryMap: Object.fromEntries(assignedTroopIds.map((troopId) => [troopId, fixed(BATTLE_RECOVERY)])),
     contest: {
       kind: 'pvp',
       defenderId: 'neutral',
-      winnerId: replay.outcome === 'victory' ? 'human' : replay.outcome === 'defeat' ? 'ai' : null,
+      winnerId: replay.outcome === 'victory' ? 'playerOne' : replay.outcome === 'defeat' ? 'playerTwo' : null,
     },
   };
 }
 
 function isValidAiTroopGroupAddition(state: GameState, target: typeof state.troops, troop: (typeof state.troops)[number]): boolean {
-  if (target.some((entry) => entry.id === troop.id || (entry.unitClassId === troop.unitClassId && !isUnitClassUnited(contestPlayerState(state, 'ai'), troop.unitClassId)))) {
+  if (target.some((entry) => entry.id === troop.id || (entry.unitClassId === troop.unitClassId && !isUnitClassUnited(contestPlayerState(state, 'playerTwo'), troop.unitClassId)))) {
     return false;
   }
-  if (target.some((entry) => entry.raceId === troop.raceId) && !isRaceUnited(contestPlayerState(state, 'ai'), troop.raceId)) {
+  if (target.some((entry) => entry.raceId === troop.raceId) && !isRaceUnited(contestPlayerState(state, 'playerTwo'), troop.raceId)) {
     return false;
   }
   return true;
 }
 
 function getAiRiftValue(rift: RiftInstance): number {
-  const controllerMultiplier = rift.controller === 'human' ? 2 : rift.controller === 'neutral' || !rift.controller ? 1 : 0;
+  const controllerMultiplier = rift.controller === 'playerOne' ? 2 : rift.controller === 'neutral' || !rift.controller ? 1 : 0;
   return rift.victoryPoints * 100 * controllerMultiplier;
 }
 
@@ -1359,7 +1390,7 @@ function scoreResolvedCombatantPower(combatant: ResolvedCombatantDefinition): nu
 }
 
 function scoreAiTroopForDeployment(state: GameState, troop: (typeof state.troops)[number]): number {
-  return scoreResolvedCombatantPower(resolveTroopCombatant(contestPlayerState(state, 'ai'), troop, 'player'));
+  return scoreResolvedCombatantPower(resolveTroopCombatant(contestPlayerState(state, 'playerTwo'), troop, 'player'));
 }
 
 function scoreAiCombatantGroupPower(combatants: ResolvedCombatantDefinition[]): number {
@@ -1422,7 +1453,7 @@ function buildAiCandidateGroupsForRift(
   const candidates: AiCandidateGroup[] = [];
   const visit = (startIndex: number, group: typeof state.troops): void => {
     if (group.length > 0) {
-      const combatants = getContestCombatantsForTroops(state, 'ai', group, 'player');
+      const combatants = getContestCombatantsForTroops(state, 'playerTwo', group, 'player');
       const groupPower = scoreAiCombatantGroupPower(combatants);
       const roleMixScore = scoreAiRoleMix(combatants);
       const estimatedWinMargin = ((groupPower + roleMixScore - defenderPower) / Math.max(defenderPower, 1)) * 100;
@@ -1467,7 +1498,7 @@ function buildAiWinningGroupsForRift(
     const key = `${rift.id}:${rift.controller}:${(rift.occupyingTroopIds ?? []).join(',')}:${candidate.troops.map((troop) => troop.id).sort().join(',')}`;
     let won = battleCache.get(key);
     if (won === undefined) {
-      won = resolveContestBattle(state, rift, 'ai', candidate.troops, 91_003).outcome === 'victory';
+      won = resolveContestBattle(state, rift, 'playerTwo', candidate.troops, 91_003).outcome === 'victory';
       battleCache.set(key, won);
     }
     if (!won) {
@@ -1485,7 +1516,7 @@ function buildAiWinningGroupsForRift(
 
 function firstWinningAiAllocation(state: GameState, options: ContestAiPlannerOptions): Map<string, TroopId[]> {
   const availableRifts = sortAiRiftsForDeployment(state.openRifts.filter((rift) => rift.state === 'discovered' && getAiRiftValue(rift) > 0));
-  const readyTroops = [...getContestReadyTroops(state, 'ai')].sort(
+  const readyTroops = [...getContestReadyTroops(state, 'playerTwo')].sort(
     (left, right) => scoreAiTroopForDeployment(state, right) - scoreAiTroopForDeployment(state, left) || left.id.localeCompare(right.id),
   );
   const empty = new Map<string, TroopId[]>();
@@ -1520,7 +1551,7 @@ function firstWinningAiAllocation(state: GameState, options: ContestAiPlannerOpt
     const riftValueSum = selected.reduce((sum, choice) => sum + getAiRiftValue(choice.rift), 0);
     const totalCommittedPower = selected.reduce((sum, choice) => sum + choice.group.groupPower, 0);
     const totalTroopCount = selected.reduce((sum, choice) => sum + choice.group.troops.length, 0);
-    const humanHeldCount = selected.filter((choice) => choice.rift.controller === 'human').length;
+    const humanHeldCount = selected.filter((choice) => choice.rift.controller === 'playerOne').length;
     const victoryPoints = selected.reduce((sum, choice) => sum + choice.rift.victoryPoints, 0);
     const key = selected
       .map((choice) => `${choice.rift.id}:${choice.group.troops.map((troop) => troop.id).sort().join(',')}`)
@@ -1590,7 +1621,7 @@ function fallbackAiAllocationByLowestTier(state: GameState): Map<string, TroopId
   const availableRifts = state.openRifts
     .filter((rift) => rift.state === 'discovered' && getAiRiftValue(rift) > 0)
     .sort((left, right) => left.tier - right.tier || left.id.localeCompare(right.id));
-  const readyTroops = [...getContestReadyTroops(state, 'ai')].sort((left, right) => left.id.localeCompare(right.id));
+  const readyTroops = [...getContestReadyTroops(state, 'playerTwo')].sort((left, right) => left.id.localeCompare(right.id));
   const allocation = new Map<string, TroopId[]>();
   const unusedTroops = [...readyTroops];
 
@@ -1622,14 +1653,16 @@ function assignAiContestTroops(state: GameState, options: ContestAiPlannerOption
   if (allocation.size === 0) {
     return state;
   }
-  const ai = getContestAi(state);
+  const ai = getContestPlayerTwo(state);
   const assignedTroopIds = new Map<TroopId, string>();
   allocation.forEach((troopIds, riftId) => {
     troopIds.forEach((troopId) => assignedTroopIds.set(troopId, riftId));
   });
-  return withContestAi(state, {
-    ...ai,
-    troops: ai.troops.map((troop) => (assignedTroopIds.has(troop.id) ? { ...troop, assignmentRiftId: assignedTroopIds.get(troop.id)! } : troop)),
+  return withContestPlayers(state, {
+    playerTwo: {
+      ...ai,
+      troops: ai.troops.map((troop) => (assignedTroopIds.has(troop.id) ? { ...troop, assignmentRiftId: assignedTroopIds.get(troop.id)! } : troop)),
+    },
   });
 }
 
@@ -1638,7 +1671,7 @@ function prepareContestCycle(state: GameState, options: ContestAiPlannerOptions 
 }
 
 export function prepareContestAiForCycle(state: GameState, options: ContestAiPlannerOptions = CONTEST_AI_WORKER_OPTIONS): ContestPlayerState {
-  return getContestAi(prepareContestCycle(state, options));
+  return getContestPlayerTwo(prepareContestCycle(state, options));
 }
 
 function resolveContestAssignedRifts(state: GameState): CycleResolution {
@@ -1647,10 +1680,10 @@ function resolveContestAssignedRifts(state: GameState): CycleResolution {
   state.openRifts
     .filter((rift) => rift.state === 'discovered')
     .forEach((rift, index) => {
-      const humanOccupants = new Set(rift.controller === 'human' ? rift.occupyingTroopIds ?? [] : []);
-      const aiOccupants = new Set(rift.controller === 'ai' ? rift.occupyingTroopIds ?? [] : []);
+      const humanOccupants = new Set(rift.controller === 'playerOne' ? rift.occupyingTroopIds ?? [] : []);
+      const aiOccupants = new Set(rift.controller === 'playerTwo' ? rift.occupyingTroopIds ?? [] : []);
       const humanTroops = state.troops.filter((troop) => troop.assignmentRiftId === rift.id && !humanOccupants.has(troop.id));
-      const aiTroops = getContestAi(state).troops.filter((troop) => troop.assignmentRiftId === rift.id && !aiOccupants.has(troop.id));
+      const aiTroops = getContestPlayerTwo(state).troops.filter((troop) => troop.assignmentRiftId === rift.id && !aiOccupants.has(troop.id));
 
       if (humanTroops.length === 0 && aiTroops.length === 0) {
         return;
@@ -1658,8 +1691,8 @@ function resolveContestAssignedRifts(state: GameState): CycleResolution {
 
       if (rift.controller === 'neutral' || !rift.controller) {
         const humanGuardianRecord =
-          humanTroops.length > 0 ? resolveContestBattle(state, rift, 'human', humanTroops, 10_000 + index * 101) : null;
-        const aiGuardianRecord = aiTroops.length > 0 ? resolveContestBattle(state, rift, 'ai', aiTroops, 20_000 + index * 101) : null;
+          humanTroops.length > 0 ? resolveContestBattle(state, rift, 'playerOne', humanTroops, 10_000 + index * 101) : null;
+        const aiGuardianRecord = aiTroops.length > 0 ? resolveContestBattle(state, rift, 'playerTwo', aiTroops, 20_000 + index * 101) : null;
         if (humanGuardianRecord) {
           records.push(humanGuardianRecord);
         }
@@ -1672,13 +1705,13 @@ function resolveContestAssignedRifts(state: GameState): CycleResolution {
         return;
       }
 
-      if (rift.controller === 'human' && aiTroops.length > 0) {
-        records.push(resolveContestBattle(state, rift, 'ai', aiTroops, 40_000 + index * 101));
+      if (rift.controller === 'playerOne' && aiTroops.length > 0) {
+        records.push(resolveContestBattle(state, rift, 'playerTwo', aiTroops, 40_000 + index * 101));
         return;
       }
 
-      if (rift.controller === 'ai' && humanTroops.length > 0) {
-        records.push(resolveContestBattle(state, rift, 'human', humanTroops, 50_000 + index * 101));
+      if (rift.controller === 'playerTwo' && humanTroops.length > 0) {
+        records.push(resolveContestBattle(state, rift, 'playerOne', humanTroops, 50_000 + index * 101));
       }
     });
 
@@ -1714,13 +1747,13 @@ function isContestRecordVisibleToHuman(record: RiftResolutionRecord): boolean {
   return (
     record.contest.kind === 'guardian' ||
     record.contest.kind === 'pvp' ||
-    record.contest.attackerId === 'human' ||
-    record.contest.defenderId === 'human'
+    record.contest.attackerId === 'playerOne' ||
+    record.contest.defenderId === 'playerOne'
   );
 }
 
 function getContestEncounterLabel(record: RiftResolutionRecord): string {
-  if (record.contest?.kind === 'guardian' && record.contest.attackerId === 'ai') {
+  if (record.contest?.kind === 'guardian' && record.contest.attackerId === 'playerTwo') {
     return 'Rival vs Neutral Guardians';
   }
   return record.contest?.kind === 'guardian' ? 'Neutral Guardians' : 'Rival';
@@ -1731,10 +1764,10 @@ function getHumanVisibleContestOutcome(record: RiftResolutionRecord): ReplayInde
     return record.outcome;
   }
   const winnerId = record.contest?.winnerId;
-  if (winnerId === 'human') {
+  if (winnerId === 'playerOne') {
     return 'victory';
   }
-  if (winnerId === 'ai') {
+  if (winnerId === 'playerTwo') {
     return 'defeat';
   }
   return record.replay.outcome;
@@ -1752,7 +1785,7 @@ function clearContestTroopAssignments(progress: ContestPlayerState, occupiedByRi
         return {
           ...troop,
           assignmentRiftId: remainsOccupied ? troop.assignmentRiftId : null,
-          recoveryCyclesRemaining: remainsOccupied ? 0 : fixed(VICTORY_RECOVERY),
+          recoveryCyclesRemaining: remainsOccupied ? 0 : fixed(BATTLE_RECOVERY),
         };
       }),
     ),
@@ -1765,10 +1798,10 @@ function clearContestTroopAssignments(progress: ContestPlayerState, occupiedByRi
 
 function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution): ApplyCycleOutcomeResult {
   const humanUnlocks = [
-    ...new Set(resolution.records.filter((record) => record.contest?.attackerId === 'human').flatMap((record) => getGuardianUnlocksForRecord(state, record))),
+    ...new Set(resolution.records.filter((record) => record.contest?.attackerId === 'playerOne').flatMap((record) => getGuardianUnlocksForRecord(state, record))),
   ];
   const aiUnlocks = [
-    ...new Set(resolution.records.filter((record) => record.contest?.attackerId === 'ai').flatMap((record) => getGuardianUnlocksForRecord(state, record))),
+    ...new Set(resolution.records.filter((record) => record.contest?.attackerId === 'playerTwo').flatMap((record) => getGuardianUnlocksForRecord(state, record))),
   ];
 
   let nextHumanProgress: ContestPlayerState = applyContestUnlocksToProgress(
@@ -1790,7 +1823,7 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
     },
     humanUnlocks,
   );
-  let nextAiProgress = applyContestUnlocksToProgress(getContestAi(state), aiUnlocks);
+  let nextAiProgress = applyContestUnlocksToProgress(getContestPlayerTwo(state), aiUnlocks);
 
   const nextRifts = state.openRifts.map((rift) => {
     if (rift.state !== 'discovered') {
@@ -1805,10 +1838,10 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
     if (pvp) {
       const winnerId = pvp.contest?.winnerId ?? null;
       const occupyingTroopIds =
-        winnerId === 'human'
+        winnerId === 'playerOne'
           ? state.troops.filter((troop) => troop.assignmentRiftId === rift.id).map((troop) => troop.id)
-          : winnerId === 'ai'
-            ? getContestAi(state).troops.filter((troop) => troop.assignmentRiftId === rift.id).map((troop) => troop.id)
+          : winnerId === 'playerTwo'
+            ? getContestPlayerTwo(state).troops.filter((troop) => troop.assignmentRiftId === rift.id).map((troop) => troop.id)
             : [];
       return {
         ...rift,
@@ -1849,10 +1882,10 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
   const occupiedByHuman = new Map<string, Set<TroopId>>();
   const occupiedByAi = new Map<string, Set<TroopId>>();
   nextRifts.forEach((rift) => {
-    if (rift.occupyingPlayerId === 'human') {
+    if (rift.occupyingPlayerId === 'playerOne') {
       occupiedByHuman.set(rift.id, new Set(rift.occupyingTroopIds ?? []));
     }
-    if (rift.occupyingPlayerId === 'ai') {
+    if (rift.occupyingPlayerId === 'playerTwo') {
       occupiedByAi.set(rift.id, new Set(rift.occupyingTroopIds ?? []));
     }
   });
@@ -1864,16 +1897,16 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
     if (rift.state !== 'discovered') {
       return;
     }
-    if (rift.controller === 'human') {
+    if (rift.controller === 'playerOne') {
       nextHumanProgress = { ...nextHumanProgress, victoryPoints: nextHumanProgress.victoryPoints + rift.tier };
     }
-    if (rift.controller === 'ai') {
+    if (rift.controller === 'playerTwo') {
       nextAiProgress = { ...nextAiProgress, victoryPoints: nextAiProgress.victoryPoints + rift.tier };
     }
   });
 
   const cycleNumber = state.cycleNumber + 1;
-  let nextState: GameState = withContestAi(
+  let nextState: GameState = withContestPlayers(
     {
       ...state,
       cycleNumber,
@@ -1894,9 +1927,24 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
       replayIndex: [...state.replayIndex],
     },
     {
-      ...nextAiProgress,
-      essence: nextAiProgress.essence + 2,
-      recentTroopUnlockIds: aiUnlocks,
+      playerOne: {
+        ...nextHumanProgress,
+        essence: nextHumanProgress.essence + 2,
+        recentTroopUnlockIds: humanUnlocks,
+        activeTroopOffer: null,
+        activeUpgradeOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
+      },
+      playerTwo: {
+        ...nextAiProgress,
+        essence: nextAiProgress.essence + 2,
+        recentTroopUnlockIds: aiUnlocks,
+        activeTroopOffer: null,
+        activeUpgradeOffer: null,
+        activeRaceUnlockOffer: null,
+        activeTroopClassUnlockOffer: null,
+      },
     },
   );
   nextState = applyScheduledCycleUnlock(nextState);
@@ -1907,7 +1955,7 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
           ...nextState.contest,
           opponentInfo: {
             cycleNumber: state.cycleNumber,
-            ai: nextState.contest.players.ai,
+            playerTwo: nextState.contest.players.playerTwo,
           },
         }
       : nextState.contest,
@@ -1962,7 +2010,7 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
 
 export function resolveAssignedRifts(state: GameState, preparedContestAi?: ContestPlayerState): CycleResolution {
   if (state.gameMode === 'contest') {
-    const preparedState = preparedContestAi ? withContestAi(state, preparedContestAi) : prepareContestCycle(state, CONTEST_AI_SYNC_FALLBACK_OPTIONS);
+    const preparedState = preparedContestAi ? withContestPlayers(state, { playerTwo: preparedContestAi }) : prepareContestCycle(state, CONTEST_AI_SYNC_FALLBACK_OPTIONS);
     return {
       ...resolveContestAssignedRifts(preparedState),
       preparedState,
@@ -1999,7 +2047,7 @@ export function resolveAssignedRifts(state: GameState, preparedContestAi?: Conte
       const recoveryMap = Object.fromEntries(
         troops.map((troop) => [
           troop.id,
-          fixed(replay.outcome === 'victory' ? VICTORY_RECOVERY : DEFEAT_RECOVERY),
+          fixed(BATTLE_RECOVERY),
         ]),
       );
 

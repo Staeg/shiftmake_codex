@@ -15,6 +15,7 @@ import { footprintCenter, hexKey } from '../engine/hex';
 import projectileUrl from '../assets/sprites/projectile.svg';
 import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../presentation/iconAssets';
 import { loadRaceUnitTextures } from './unitVisuals';
+import { BASE_STEP_MS } from './renderingConstants';
 import type { BattleReportDiagnostic } from '../engine/types';
 
 const HEX_SIZE = 30;
@@ -22,7 +23,6 @@ const UNIT_PIXEL_SIZE = 32;
 const HEX_MARGIN = 5;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const BASE_EFFECT_MS = 1000;
-const BASE_STEP_MS = 500;
 const AUTO_ATTACK_EFFECT_MS = 640;
 const BASE_DEATH_FADE_MS = 2000;
 const HIT_FLASH_RED = 0xff1f24;

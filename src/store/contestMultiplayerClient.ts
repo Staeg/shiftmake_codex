@@ -5,10 +5,10 @@ export interface MultiplayerSession {
   connected: boolean;
   serverUrl: string;
   roomId: string | null;
-  playerId: 'human' | 'ai' | null;
+  playerId: 'playerOne' | 'playerTwo' | null;
   playerToken: string | null;
-  readiness: { human: boolean; ai: boolean };
-  connectedPlayers: { human: boolean; ai: boolean };
+  readiness: { playerOne: boolean; playerTwo: boolean };
+  connectedPlayers: { playerOne: boolean; playerTwo: boolean };
   playerNames: ContestPlayerNames;
   message: string | null;
 }
@@ -17,11 +17,11 @@ export type MultiplayerServerMessage =
   | {
       kind: 'room-snapshot';
       roomId: string;
-      playerId: 'human' | 'ai';
+      playerId: 'playerOne' | 'playerTwo';
       playerToken: string;
       game: GameState;
-      readiness: { human: boolean; ai: boolean };
-      connectedPlayers?: { human: boolean; ai: boolean };
+      readiness: { playerOne: boolean; playerTwo: boolean };
+      connectedPlayers?: { playerOne: boolean; playerTwo: boolean };
       playerNames: ContestPlayerNames;
       replayPayloads: Record<string, StoredReplayPayload>;
       message: string | null;
@@ -31,7 +31,7 @@ export type MultiplayerServerMessage =
 export interface StoredMultiplayerIdentity {
   serverUrl: string;
   roomId: string;
-  playerId: 'human' | 'ai';
+  playerId: 'playerOne' | 'playerTwo';
   playerToken: string;
 }
 
@@ -69,7 +69,7 @@ export function readStoredMultiplayerIdentity(serverUrl: string, roomId: string 
     if (
       parsed.serverUrl === serverUrl &&
       parsed.roomId === roomId &&
-      (parsed.playerId === 'human' || parsed.playerId === 'ai') &&
+      (parsed.playerId === 'playerOne' || parsed.playerId === 'playerTwo') &&
       typeof parsed.playerToken === 'string' &&
       parsed.playerToken
     ) {

@@ -1,5 +1,6 @@
 import type {
   CampaignPhase,
+  ContestPlayerId,
   ContestPlayerState,
   ContestState,
   RaceUnlockOffer,
@@ -16,7 +17,7 @@ import type {
   TroopClassUnlockOffer,
   UpgradeDraftOffer,
 } from './types';
-import { ALL_TROOP_UNLOCK_IDS, RACE_UPGRADES, RACES, TROOP_CLASS_UPGRADES, UNIT_CLASSES, getTroopClassUpgrade } from './unitCatalog';
+import { ALL_TROOP_UNLOCK_IDS, RACE_UPGRADES, RACES, UNIT_CLASSES, isKnownTroopClassUpgradeId } from './unitCatalog';
 
 export function serializeGameState(state: GameState): string {
   return JSON.stringify(state);
@@ -72,21 +73,6 @@ function isKnownRaceUpgradeId(value: unknown): value is string {
   return typeof value === 'string' && value in RACE_UPGRADES;
 }
 
-function isKnownTroopClassUpgradeId(value: unknown): value is string {
-  if (typeof value !== 'string') {
-    return false;
-  }
-  if (value in TROOP_CLASS_UPGRADES) {
-    return true;
-  }
-  try {
-    getTroopClassUpgrade(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function isKnownUpgradeId(value: unknown): value is string {
   return isKnownRaceUpgradeId(value) || isKnownTroopClassUpgradeId(value);
 }
@@ -120,6 +106,16 @@ function isKnownTroop(troop: TroopInstance): boolean {
 
 function isKnownCombatant(combatant: ResolvedCombatantDefinition): boolean {
   return isKnownRaceId(combatant.raceId) && isKnownUnitClassId(combatant.unitClassId);
+}
+
+function normalizeContestPlayerId(value: unknown): ContestPlayerId | null {
+  if (value === 'playerOne' || value === 'human') {
+    return 'playerOne';
+  }
+  if (value === 'playerTwo' || value === 'ai') {
+    return 'playerTwo';
+  }
+  return null;
 }
 
 function filterKnownRaces(values: unknown[], repairs: LoadGameRepairReport): string[] {
@@ -185,6 +181,8 @@ function normalizeTroops(value: unknown, repairs: LoadGameRepairReport): TroopIn
 }
 
 function normalizeRift(rift: RiftInstance, repairs: LoadGameRepairReport): RiftInstance {
+  const controller = normalizeContestPlayerId(rift.controller);
+  const occupyingPlayerId = normalizeContestPlayerId(rift.occupyingPlayerId);
   return {
     id: rift.id,
     cycleNumber: numberOr(rift.cycleNumber, 1),
@@ -202,8 +200,8 @@ function normalizeRift(rift: RiftInstance, repairs: LoadGameRepairReport): RiftI
     enemyTroopClassUpgradeIds: filterKnownTroopClassUpgrades(arrayOrEmpty(rift.enemyTroopClassUpgradeIds), repairs),
     victoryPoints: numberOr(rift.victoryPoints, numberOr(rift.tier, 1)),
     state: rift.state ?? 'discovered',
-    controller: rift.controller,
-    occupyingPlayerId: rift.occupyingPlayerId ?? null,
+    controller: controller ?? (rift.controller === 'neutral' ? 'neutral' : undefined),
+    occupyingPlayerId,
     occupyingTroopIds: arrayOrEmpty(rift.occupyingTroopIds),
   };
 }
@@ -305,19 +303,20 @@ function normalizeContestPlayerState(value: unknown, repairs: LoadGameRepairRepo
   };
 }
 
-function normalizeContestState(value: unknown, repairs: LoadGameRepairReport): ContestState {
+function normalizeContestState(value: unknown, repairs: LoadGameRepairReport, rootProgress: ContestPlayerState): ContestState {
   const contest = isObject(value) ? value : {};
   const players = isObject(contest.players) ? contest.players : {};
   const opponentInfo = isObject(contest.opponentInfo) ? contest.opponentInfo : null;
   return {
     players: {
-      ai: normalizeContestPlayerState(players.ai, repairs),
+      playerOne: normalizeContestPlayerState(players.playerOne ?? players.human ?? rootProgress, repairs),
+      playerTwo: normalizeContestPlayerState(players.playerTwo ?? players.ai, repairs),
     },
     opponentInfo: opponentInfo
       ? {
           ...opponentInfo,
           cycleNumber: numberOr(opponentInfo.cycleNumber, 0),
-          ai: normalizeContestPlayerState(opponentInfo.ai, repairs),
+          playerTwo: normalizeContestPlayerState(opponentInfo.playerTwo ?? opponentInfo.ai, repairs),
         }
       : null,
   };
@@ -345,7 +344,7 @@ function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairR
       : phase;
   const gameMode = gameModeOr(parsed.gameMode);
 
-  return {
+  const state: GameState = {
     ...parsed,
     version: 3,
     gameMode,
@@ -369,34 +368,56 @@ function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairR
     postgameDismissed: parsed.postgameDismissed === true,
     openRifts: arrayOrEmpty<RiftInstance>(parsed.openRifts).map((rift) => normalizeRift(rift, repairs)),
     replayIndex: arrayOrEmpty<ReplayIndexEntry>(parsed.replayIndex).map(normalizeReplayIndexEntry),
-    ...(gameMode === 'contest' ? { contest: normalizeContestState(parsed.contest, repairs) } : {}),
     ...(gameMode === 'ladder' ? { ladder: normalizeLadderState(parsed.ladder) } : {}),
   };
+  const rootProgress: ContestPlayerState = {
+    victoryPoints: state.victoryPoints,
+    essence: state.essence,
+    unlockedRaceIds: state.unlockedRaceIds,
+    unlockedTroopUnlockIds: state.unlockedTroopUnlockIds,
+    recentTroopUnlockIds: state.recentTroopUnlockIds,
+    troops: state.troops,
+    raceUpgradeIds: state.raceUpgradeIds,
+    troopClassUpgradeIds: state.troopClassUpgradeIds,
+    activeTroopOffer: state.activeTroopOffer,
+    activeUpgradeOffer: state.activeUpgradeOffer,
+    activeRaceUnlockOffer: state.activeRaceUnlockOffer,
+    activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
+    troopOfferRolls: state.troopOfferRolls,
+    upgradeOfferRolls: state.upgradeOfferRolls,
+  };
+  return gameMode === 'contest'
+    ? { ...state, contest: normalizeContestState(parsed.contest, repairs, rootProgress) }
+    : state;
 }
 
 export function deserializeGameState(json: string): LoadGameResult {
   try {
     const parsed = JSON.parse(json) as Partial<GameState>;
-    if (!parsed || parsed.version !== 3) {
-      return { ok: false, error: 'unsupported_version' };
-    }
-    if (
-      !Array.isArray(parsed.troops) ||
-      !Array.isArray(parsed.openRifts) ||
-      !Array.isArray(parsed.replayIndex) ||
-      !Array.isArray(parsed.unlockedRaceIds) ||
-      !Array.isArray(parsed.unlockedTroopUnlockIds)
-    ) {
-      return { ok: false, error: 'invalid_shape' };
-    }
-    const repairs = makeRepairReport();
-    const state = normalizeGameState(parsed, repairs);
-    return {
-      ok: true,
-      state,
-      ...(hasRepairs(repairs) ? { repairs } : {}),
-    };
+    return deserializeGameStateObject(parsed);
   } catch {
     return { ok: false, error: 'invalid_json' };
   }
+}
+
+export function deserializeGameStateObject(parsed: unknown): LoadGameResult {
+  if (!isObject(parsed) || parsed.version !== 3) {
+    return { ok: false, error: 'unsupported_version' };
+  }
+  if (
+    !Array.isArray(parsed.troops) ||
+    !Array.isArray(parsed.openRifts) ||
+    !Array.isArray(parsed.replayIndex) ||
+    !Array.isArray(parsed.unlockedRaceIds) ||
+    !Array.isArray(parsed.unlockedTroopUnlockIds)
+  ) {
+    return { ok: false, error: 'invalid_shape' };
+  }
+  const repairs = makeRepairReport();
+  const state = normalizeGameState(parsed as Partial<GameState>, repairs);
+  return {
+    ok: true,
+    state,
+    ...(hasRepairs(repairs) ? { repairs } : {}),
+  };
 }

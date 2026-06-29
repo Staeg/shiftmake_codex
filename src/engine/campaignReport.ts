@@ -1,10 +1,10 @@
-import { deserializeGameState } from './game';
+import { deserializeGameStateObject } from './save';
 import type { CampaignReportPayload, CampaignReportUiContext, GameState, StoredReplayPayload } from './types';
 import { decodeBase64Url, encodeBase64Url, hashString, stableStringify } from '../shared/reportEncoding';
+import { APP_VERSION } from './appVersion';
 
 const REPORT_PREFIX = 'SMCR1.';
 const REPORT_VERSION = 1;
-const APP_VERSION = '0.1.0';
 
 type CampaignReportOptions = {
   game: GameState;
@@ -124,7 +124,7 @@ export function decodeCampaignReport(value: string): CampaignReportDecodeResult 
     return { ok: false, error: 'unsupported_version' };
   }
 
-  const gameResult = deserializeGameState(JSON.stringify(parsed.game));
+  const gameResult = deserializeGameStateObject(parsed.game);
   if (!gameResult.ok || !gameResult.state) {
     return { ok: false, error: 'invalid_game_state' };
   }

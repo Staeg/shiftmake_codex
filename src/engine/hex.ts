@@ -117,11 +117,14 @@ export function footprintDistance(left: HexCoord[], right: HexCoord[]): number {
     return Number.POSITIVE_INFINITY;
   }
   let best = Number.POSITIVE_INFINITY;
-  left.forEach((leftHex) => {
-    right.forEach((rightHex) => {
+  for (const leftHex of left) {
+    for (const rightHex of right) {
       best = Math.min(best, hexDistance(leftHex, rightHex));
-    });
-  });
+      if (best === 0) {
+        return 0;
+      }
+    }
+  }
   return best;
 }
 
@@ -140,4 +143,3 @@ export function leftmostHex(hexes: HexCoord[]): HexCoord {
 export function rightmostHex(hexes: HexCoord[]): HexCoord {
   return [...hexes].sort((left, right) => visualVerticalLineKey(right) - visualVerticalLineKey(left) || left.r - right.r || left.q - right.q)[0] ?? { q: 0, r: 0 };
 }
-

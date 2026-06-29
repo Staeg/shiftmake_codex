@@ -100,6 +100,14 @@ function troopClassUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstanc
       return !definition.attributes.includes(effect.attribute);
     }
 
+    if (effect.kind === 'removeAttribute') {
+      return definition.attributes.includes(effect.attribute);
+    }
+
+    if (effect.kind === 'setRole') {
+      return definition.role !== effect.role;
+    }
+
     const modified = applyStatModifier(definition.stats, effect.statModifiers, definition.attributes);
     return Object.keys(effect.statModifiers).some((stat) => modified[stat as keyof typeof modified] !== definition.stats[stat as keyof typeof definition.stats]);
   });

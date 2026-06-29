@@ -4,9 +4,8 @@ import {
   RACE_UPGRADES,
   RACES,
   MUTATORS,
-  TROOP_CLASS_UPGRADES,
   UNIT_CLASSES,
-  getTroopClassUpgrade,
+  isKnownTroopClassUpgradeId,
 } from './unitCatalog';
 import type {
   RaceId,
@@ -30,18 +29,6 @@ export const LADDER_FINAL_CYCLE = 10;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isKnownTroopClassUpgradeId(value: string): boolean {
-  if (value in TROOP_CLASS_UPGRADES) {
-    return true;
-  }
-  try {
-    getTroopClassUpgrade(value);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function issue(

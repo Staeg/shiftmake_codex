@@ -1,6 +1,5 @@
 import type { BattleReplay, BattleStep } from '../engine/types';
-
-const BASE_STEP_MS = 500;
+import { BASE_STEP_MS } from './renderingConstants';
 
 export type BattlePresentationCueKind = 'move' | 'engage' | 'attack' | 'death' | 'heal' | 'buff';
 

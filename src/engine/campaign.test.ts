@@ -456,8 +456,8 @@ describe('campaign progression', () => {
       openRifts: [
         {
           ...contest.openRifts[0]!,
-          controller: 'human',
-          occupyingPlayerId: 'human',
+          controller: 'playerOne',
+          occupyingPlayerId: 'playerOne',
           occupyingTroopIds: [heldTroopId],
         },
         ...contest.openRifts.slice(1),
@@ -682,8 +682,8 @@ describe('campaign progression', () => {
     expect(state.gameMode).toBe('contest');
     expect(state.openRifts).toHaveLength(3);
     expect(state.openRifts.every((rift) => rift.tier === 1 && rift.controller === 'neutral')).toBe(true);
-    expect(state.contest?.players.ai.troops).toHaveLength(2);
-    expect(state.contest?.players.ai.essence).toBe(2);
+    expect(state.contest?.players.playerTwo.troops).toHaveLength(2);
+    expect(state.contest?.players.playerTwo.essence).toBe(2);
     expect(state.contest?.opponentInfo).toBeNull();
   });
 
@@ -695,9 +695,9 @@ describe('campaign progression', () => {
     const opponentInfo = result.nextState.contest?.opponentInfo;
 
     expect(opponentInfo?.cycleNumber).toBe(1);
-    expect(opponentInfo?.ai.troops).toEqual(result.nextState.contest?.players.ai.troops);
-    expect(opponentInfo?.ai.raceUpgradeIds).toEqual(result.nextState.contest?.players.ai.raceUpgradeIds);
-    expect(opponentInfo?.ai.troopClassUpgradeIds).toEqual(result.nextState.contest?.players.ai.troopClassUpgradeIds);
+    expect(opponentInfo?.playerTwo.troops).toEqual(result.nextState.contest?.players.playerTwo.troops);
+    expect(opponentInfo?.playerTwo.raceUpgradeIds).toEqual(result.nextState.contest?.players.playerTwo.raceUpgradeIds);
+    expect(opponentInfo?.playerTwo.troopClassUpgradeIds).toEqual(result.nextState.contest?.players.playerTwo.troopClassUpgradeIds);
   });
 
   it('prevents Contest players from assigning troops to Rifts they already control', () => {
@@ -706,7 +706,7 @@ describe('campaign progression', () => {
     const troopId = opened.troops[0]!.id;
     const controlled: GameState = {
       ...opened,
-      openRifts: [{ ...opened.openRifts[0]!, controller: 'human', occupyingPlayerId: 'human', occupyingTroopIds: [troopId] }],
+      openRifts: [{ ...opened.openRifts[0]!, controller: 'playerOne', occupyingPlayerId: 'playerOne', occupyingTroopIds: [troopId] }],
       troops: [{ ...opened.troops[0]!, assignmentRiftId: riftId }, ...opened.troops.slice(1)],
     };
 
@@ -735,31 +735,32 @@ describe('campaign progression', () => {
           outcome: 'victory',
           victoryPoints: rift.victoryPoints,
           recoveryMap: { [humanTroopId]: 1 },
-          contest: { kind: 'guardian', attackerId: 'human', defenderId: 'neutral', winnerId: 'human' },
+          contest: { kind: 'guardian', attackerId: 'playerOne', defenderId: 'neutral', winnerId: 'playerOne' },
         },
       ],
       preparedState: opened,
     });
 
     expect(result.nextState.victoryPoints).toBe(rift.tier);
-    expect(result.nextState.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('human');
+    expect(result.nextState.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('playerOne');
     expect(result.nextState.troops.find((troop) => troop.id === humanTroopId)?.assignmentRiftId).toBe(rift.id);
   });
 
   it('keeps Contest holders through successful defense and failed attacks, and releases them after lost defense', () => {
     const opened = finishContestOpening(303);
     const heldTroopId = opened.troops[0]!.id;
-    const attackingTroopId = opened.contest!.players.ai.troops[0]!.id;
+    const attackingTroopId = opened.contest!.players.playerTwo.troops[0]!.id;
     const rift = opened.openRifts[0]!;
     const held: GameState = {
       ...opened,
-      openRifts: [{ ...rift, controller: 'human', occupyingPlayerId: 'human', occupyingTroopIds: [heldTroopId] }, ...opened.openRifts.slice(1)],
+      openRifts: [{ ...rift, controller: 'playerOne', occupyingPlayerId: 'playerOne', occupyingTroopIds: [heldTroopId] }, ...opened.openRifts.slice(1)],
       troops: [{ ...opened.troops[0]!, assignmentRiftId: rift.id }, ...opened.troops.slice(1)],
       contest: {
         players: {
-          ai: {
-            ...opened.contest!.players.ai,
-            troops: [{ ...opened.contest!.players.ai.troops[0]!, assignmentRiftId: rift.id }, ...opened.contest!.players.ai.troops.slice(1)],
+          ...opened.contest!.players,
+          playerTwo: {
+            ...opened.contest!.players.playerTwo,
+            troops: [{ ...opened.contest!.players.playerTwo.troops[0]!, assignmentRiftId: rift.id }, ...opened.contest!.players.playerTwo.troops.slice(1)],
           },
         },
         opponentInfo: null,
@@ -771,14 +772,14 @@ describe('campaign progression', () => {
       battleInput: { seed: 12, riftId: rift.id, tier: rift.tier, mutatorIds: rift.mutatorIds, playerCombatants: [], enemyCombatants: [] },
       victoryPoints: rift.victoryPoints,
       recoveryMap: { [heldTroopId]: 1, [attackingTroopId]: 1 },
-      contest: { kind: 'occupation' as const, attackerId: 'ai' as const, defenderId: 'human' as const, winnerId: 'human' as const },
+      contest: { kind: 'occupation' as const, attackerId: 'playerTwo' as const, defenderId: 'playerOne' as const, winnerId: 'playerOne' as const },
     };
 
     const defended = applyCycleOutcomes(held, {
       records: [{ ...baseRecord, replay: makeReplay('defended', rift.id, 'victory'), outcome: 'victory' }],
       preparedState: held,
     }).nextState;
-    expect(defended.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('human');
+    expect(defended.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('playerOne');
     expect(defended.troops.find((troop) => troop.id === heldTroopId)?.assignmentRiftId).toBe(rift.id);
 
     const lost = applyCycleOutcomes(held, {
@@ -786,24 +787,24 @@ describe('campaign progression', () => {
         ...baseRecord,
         replay: makeReplay('lost-defense', rift.id, 'defeat'),
         outcome: 'defeat',
-        contest: { ...baseRecord.contest, winnerId: 'ai' as const },
+        contest: { ...baseRecord.contest, winnerId: 'playerTwo' as const },
       }],
       preparedState: held,
     }).nextState;
-    expect(lost.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('ai');
+    expect(lost.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('playerTwo');
     expect(lost.troops.find((troop) => troop.id === heldTroopId)?.assignmentRiftId).toBeNull();
   });
 
   it('keeps two player-held Contest Rifts when the rival attacks both and loses', () => {
     const opened = finishContestOpening(308);
     const [firstHeldTroop, secondHeldTroop] = opened.troops;
-    const [firstAttacker, secondAttacker] = opened.contest!.players.ai.troops;
+    const [firstAttacker, secondAttacker] = opened.contest!.players.playerTwo.troops;
     const [firstRift, secondRift] = opened.openRifts;
     const held: GameState = {
       ...opened,
       openRifts: [
-        { ...firstRift!, controller: 'human', occupyingPlayerId: 'human', occupyingTroopIds: [firstHeldTroop!.id] },
-        { ...secondRift!, controller: 'human', occupyingPlayerId: 'human', occupyingTroopIds: [secondHeldTroop!.id] },
+        { ...firstRift!, controller: 'playerOne', occupyingPlayerId: 'playerOne', occupyingTroopIds: [firstHeldTroop!.id] },
+        { ...secondRift!, controller: 'playerOne', occupyingPlayerId: 'playerOne', occupyingTroopIds: [secondHeldTroop!.id] },
         ...opened.openRifts.slice(2),
       ],
       troops: [
@@ -812,8 +813,9 @@ describe('campaign progression', () => {
       ],
       contest: {
         players: {
-          ai: {
-            ...opened.contest!.players.ai,
+          ...opened.contest!.players,
+          playerTwo: {
+            ...opened.contest!.players.playerTwo,
             troops: [
               { ...firstAttacker!, assignmentRiftId: firstRift!.id },
               { ...secondAttacker!, assignmentRiftId: secondRift!.id },
@@ -832,7 +834,7 @@ describe('campaign progression', () => {
         outcome: 'victory',
         victoryPoints: firstRift!.victoryPoints,
         recoveryMap: { [firstHeldTroop!.id]: 1, [firstAttacker!.id]: 1 },
-        contest: { kind: 'occupation', attackerId: 'ai', defenderId: 'human', winnerId: 'human' },
+        contest: { kind: 'occupation', attackerId: 'playerTwo', defenderId: 'playerOne', winnerId: 'playerOne' },
       },
       {
         riftId: secondRift!.id,
@@ -842,7 +844,7 @@ describe('campaign progression', () => {
         outcome: 'victory',
         victoryPoints: secondRift!.victoryPoints,
         recoveryMap: { [secondHeldTroop!.id]: 1, [secondAttacker!.id]: 1 },
-        contest: { kind: 'occupation', attackerId: 'ai', defenderId: 'human', winnerId: 'human' },
+        contest: { kind: 'occupation', attackerId: 'playerTwo', defenderId: 'playerOne', winnerId: 'playerOne' },
       },
     ];
 
@@ -852,8 +854,8 @@ describe('campaign progression', () => {
       'victory',
       'victory',
     ]);
-    expect(result.openRifts.find((entry) => entry.id === firstRift!.id)?.controller).toBe('human');
-    expect(result.openRifts.find((entry) => entry.id === secondRift!.id)?.controller).toBe('human');
+    expect(result.openRifts.find((entry) => entry.id === firstRift!.id)?.controller).toBe('playerOne');
+    expect(result.openRifts.find((entry) => entry.id === secondRift!.id)?.controller).toBe('playerOne');
     expect(result.troops.find((troop) => troop.id === firstHeldTroop!.id)?.assignmentRiftId).toBe(firstRift!.id);
     expect(result.troops.find((troop) => troop.id === secondHeldTroop!.id)?.assignmentRiftId).toBe(secondRift!.id);
   });
@@ -862,7 +864,7 @@ describe('campaign progression', () => {
     const opened = finishContestOpening(309);
     const rift = opened.openRifts[0]!;
     const humanTroopId = opened.troops[0]!.id;
-    const aiTroopId = opened.contest!.players.ai.troops[0]!.id;
+    const aiTroopId = opened.contest!.players.playerTwo.troops[0]!.id;
     const baseInput = { seed: 12, riftId: rift.id, tier: rift.tier, mutatorIds: rift.mutatorIds, playerCombatants: [], enemyCombatants: [] };
 
     const playerNeutral = applyCycleOutcomes(assignTroopToRift(opened, humanTroopId, rift.id), {
@@ -874,14 +876,14 @@ describe('campaign progression', () => {
         outcome: 'victory',
         victoryPoints: rift.victoryPoints,
         recoveryMap: { [humanTroopId]: 1 },
-        contest: { kind: 'guardian', attackerId: 'human', defenderId: 'neutral', winnerId: 'human' },
+        contest: { kind: 'guardian', attackerId: 'playerOne', defenderId: 'neutral', winnerId: 'playerOne' },
       }],
       preparedState: assignTroopToRift(opened, humanTroopId, rift.id),
     }).nextState;
 
     const playerAttackRival = applyCycleOutcomes({
       ...opened,
-      openRifts: [{ ...rift, controller: 'ai', occupyingPlayerId: 'ai', occupyingTroopIds: [aiTroopId] }, ...opened.openRifts.slice(1)],
+      openRifts: [{ ...rift, controller: 'playerTwo', occupyingPlayerId: 'playerTwo', occupyingTroopIds: [aiTroopId] }, ...opened.openRifts.slice(1)],
       troops: [{ ...opened.troops[0]!, assignmentRiftId: rift.id }, ...opened.troops.slice(1)],
     }, {
       records: [{
@@ -892,24 +894,25 @@ describe('campaign progression', () => {
         outcome: 'victory',
         victoryPoints: rift.victoryPoints,
         recoveryMap: { [humanTroopId]: 1, [aiTroopId]: 1 },
-        contest: { kind: 'occupation', attackerId: 'human', defenderId: 'ai', winnerId: 'human' },
+        contest: { kind: 'occupation', attackerId: 'playerOne', defenderId: 'playerTwo', winnerId: 'playerOne' },
       }],
       preparedState: {
         ...opened,
-        openRifts: [{ ...rift, controller: 'ai', occupyingPlayerId: 'ai', occupyingTroopIds: [aiTroopId] }, ...opened.openRifts.slice(1)],
+        openRifts: [{ ...rift, controller: 'playerTwo', occupyingPlayerId: 'playerTwo', occupyingTroopIds: [aiTroopId] }, ...opened.openRifts.slice(1)],
         troops: [{ ...opened.troops[0]!, assignmentRiftId: rift.id }, ...opened.troops.slice(1)],
       },
     }).nextState;
 
     const rivalAttackPlayerBase: GameState = {
       ...opened,
-      openRifts: [{ ...rift, controller: 'human', occupyingPlayerId: 'human', occupyingTroopIds: [humanTroopId] }, ...opened.openRifts.slice(1)],
+      openRifts: [{ ...rift, controller: 'playerOne', occupyingPlayerId: 'playerOne', occupyingTroopIds: [humanTroopId] }, ...opened.openRifts.slice(1)],
       troops: [{ ...opened.troops[0]!, assignmentRiftId: rift.id }, ...opened.troops.slice(1)],
       contest: {
         players: {
-          ai: {
-            ...opened.contest!.players.ai,
-            troops: [{ ...opened.contest!.players.ai.troops[0]!, assignmentRiftId: rift.id }, ...opened.contest!.players.ai.troops.slice(1)],
+          ...opened.contest!.players,
+          playerTwo: {
+            ...opened.contest!.players.playerTwo,
+            troops: [{ ...opened.contest!.players.playerTwo.troops[0]!, assignmentRiftId: rift.id }, ...opened.contest!.players.playerTwo.troops.slice(1)],
           },
         },
         opponentInfo: null,
@@ -924,14 +927,14 @@ describe('campaign progression', () => {
         outcome: 'defeat',
         victoryPoints: rift.victoryPoints,
         recoveryMap: { [humanTroopId]: 1, [aiTroopId]: 1 },
-        contest: { kind: 'occupation', attackerId: 'ai', defenderId: 'human', winnerId: 'ai' },
+        contest: { kind: 'occupation', attackerId: 'playerTwo', defenderId: 'playerOne', winnerId: 'playerTwo' },
       }],
       preparedState: rivalAttackPlayerBase,
     }).nextState;
 
-    expect(playerNeutral.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('human');
-    expect(playerAttackRival.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('human');
-    expect(rivalAttackPlayer.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('ai');
+    expect(playerNeutral.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('playerOne');
+    expect(playerAttackRival.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('playerOne');
+    expect(rivalAttackPlayer.openRifts.find((entry) => entry.id === rift.id)?.controller).toBe('playerTwo');
   });
 
   it('locks a troop holding a Contest Rift against reassignment', () => {
@@ -940,7 +943,7 @@ describe('campaign progression', () => {
     const rift = opened.openRifts[0]!;
     const held: GameState = {
       ...opened,
-      openRifts: [{ ...rift, controller: 'human', occupyingPlayerId: 'human', occupyingTroopIds: [troopId] }, ...opened.openRifts.slice(1)],
+      openRifts: [{ ...rift, controller: 'playerOne', occupyingPlayerId: 'playerOne', occupyingTroopIds: [troopId] }, ...opened.openRifts.slice(1)],
       troops: [{ ...opened.troops[0]!, assignmentRiftId: rift.id }, ...opened.troops.slice(1)],
     };
 
@@ -1010,8 +1013,9 @@ describe('campaign progression', () => {
       essence: 0,
       contest: {
         players: {
-          ai: {
-            ...opened.contest!.players.ai,
+          ...opened.contest!.players,
+          playerTwo: {
+            ...opened.contest!.players.playerTwo,
             essence: 0,
             activeTroopOffer: null,
             activeUpgradeOffer: null,
@@ -1025,7 +1029,7 @@ describe('campaign progression', () => {
 
     const prepared = resolveAssignedRifts(state).preparedState!;
 
-    expect(prepared.contest?.players.ai.troops.some((troop) => troop.assignmentRiftId === 'easy-rift')).toBe(true);
+    expect(prepared.contest?.players.playerTwo.troops.some((troop) => troop.assignmentRiftId === 'easy-rift')).toBe(true);
   });
 
   it('packs Contest AI troops into the lowest-tier Rifts when no winning battles are found', () => {
@@ -1082,8 +1086,9 @@ describe('campaign progression', () => {
       cycleNumber: 8,
       contest: {
         players: {
-          ai: {
-            ...opened.contest!.players.ai,
+          ...opened.contest!.players,
+          playerTwo: {
+            ...opened.contest!.players.playerTwo,
             essence: 0,
             troops: aiTroops,
             unlockedRaceIds: ['human', 'elf', 'dwarf', 'goblin'],
@@ -1099,11 +1104,11 @@ describe('campaign progression', () => {
     };
 
     const prepared = resolveAssignedRifts(state).preparedState!;
-    const assignments = Object.fromEntries(prepared.contest!.players.ai.troops.map((troop) => [troop.id, troop.assignmentRiftId]));
+    const assignments = Object.fromEntries(prepared.contest!.players.playerTwo.troops.map((troop) => [troop.id, troop.assignmentRiftId]));
 
     expect(Object.values(assignments)).not.toContain('high-rift');
-    expect(prepared.contest!.players.ai.troops.filter((troop) => troop.assignmentRiftId === 'low-rift')).toHaveLength(3);
-    expect(prepared.contest!.players.ai.troops.filter((troop) => troop.assignmentRiftId === 'second-low-rift')).toHaveLength(2);
+    expect(prepared.contest!.players.playerTwo.troops.filter((troop) => troop.assignmentRiftId === 'low-rift')).toHaveLength(3);
+    expect(prepared.contest!.players.playerTwo.troops.filter((troop) => troop.assignmentRiftId === 'second-low-rift')).toHaveLength(2);
     expect(assignments['human/soldier']).toBe('low-rift');
     expect(assignments['human/wizard']).toBe('second-low-rift');
     expect(assignments['goblin/archer']).toBe('second-low-rift');
@@ -1112,7 +1117,7 @@ describe('campaign progression', () => {
   it('archives Contest battles, including AI guardian expeditions, and labels their encounter type', () => {
     const opened = finishContestOpening(306);
     const rift = opened.openRifts[0]!;
-    const aiTroopId = opened.contest!.players.ai.troops[0]!.id;
+    const aiTroopId = opened.contest!.players.playerTwo.troops[0]!.id;
     const baseInput = {
       seed: 12,
       riftId: rift.id,
@@ -1131,7 +1136,7 @@ describe('campaign progression', () => {
           outcome: 'victory',
           victoryPoints: rift.victoryPoints,
           recoveryMap: { [aiTroopId]: 1 },
-          contest: { kind: 'guardian', attackerId: 'ai', defenderId: 'neutral', winnerId: 'ai' },
+          contest: { kind: 'guardian', attackerId: 'playerTwo', defenderId: 'neutral', winnerId: 'playerTwo' },
         },
         {
           riftId: rift.id,
@@ -1141,7 +1146,7 @@ describe('campaign progression', () => {
           outcome: 'victory',
           victoryPoints: rift.victoryPoints,
           recoveryMap: { [opened.troops[0]!.id]: 1 },
-          contest: { kind: 'guardian', attackerId: 'human', defenderId: 'neutral', winnerId: 'human' },
+          contest: { kind: 'guardian', attackerId: 'playerOne', defenderId: 'neutral', winnerId: 'playerOne' },
         },
         {
           riftId: rift.id,
@@ -1151,7 +1156,7 @@ describe('campaign progression', () => {
           outcome: 'victory',
           victoryPoints: rift.victoryPoints,
           recoveryMap: { [opened.troops[0]!.id]: 1, [aiTroopId]: 1 },
-          contest: { kind: 'pvp', defenderId: 'neutral', winnerId: 'human' },
+          contest: { kind: 'pvp', defenderId: 'neutral', winnerId: 'playerOne' },
         },
       ],
       preparedState: opened,
@@ -1174,16 +1179,16 @@ describe('campaign progression', () => {
     state = assignTroopToRift(state, 'fae/wizard', 'contest-cycle-1-rift-3');
 
     const resolution = resolveAssignedRifts(state);
-    const aiRecord = resolution.records.find((record) => record.contest?.attackerId === 'ai');
+    const aiRecord = resolution.records.find((record) => record.contest?.attackerId === 'playerTwo');
     const result = applyCycleOutcomes(state, resolution);
 
-    expect(aiRecord?.riftId).toBe('contest-cycle-1-rift-1');
+    expect(aiRecord?.riftId).toBe('contest-cycle-1-rift-2');
     expect(aiRecord?.assignedTroopIds).toEqual(['dwarf/elementalist', 'orc/militia']);
     expect(aiRecord?.outcome).toBe('victory');
     expect(
       result.nextState.replayIndex.some(
         (entry) =>
-          entry.riftId === 'contest-cycle-1-rift-1' &&
+          entry.riftId === 'contest-cycle-1-rift-2' &&
           entry.encounterLabel === 'Rival vs Neutral Guardians' &&
           entry.outcome === 'victory' &&
           entry.summary.startsWith('VICTORY'),

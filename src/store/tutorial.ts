@@ -362,11 +362,12 @@ export function buildTutorialReplayFixture(): TutorialFixture {
   });
 
   const resolution = resolveAssignedRifts(game);
+  const assignedTroopIds = new Set(game.troops.map((troop) => troop.id));
   const tutorialRecord = resolution.records.find(
-    (record) => record.riftId === riftId && record.contest?.attackerId === 'human',
+    (record) => record.riftId === riftId && record.assignedTroopIds.some((troopId) => assignedTroopIds.has(troopId)),
   );
   if (!tutorialRecord) {
-    throw new Error('Tutorial replay fixture did not resolve the assigned human Rift.');
+    throw new Error('Tutorial replay fixture did not resolve the assigned local Rift.');
   }
   tutorialRecord.battleInput = { ...tutorialRecord.battleInput, seed: TUTORIAL_BATTLE_SEED };
   tutorialRecord.replay = resolveBattle(tutorialRecord.battleInput);

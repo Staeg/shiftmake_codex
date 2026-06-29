@@ -283,7 +283,7 @@ function normalizeRoomId(roomId: string | undefined): string {
 }
 
 function isContestPlayerId(value: unknown): value is ContestPlayerId {
-  return value === 'human' || value === 'ai';
+  return value === 'playerOne' || value === 'playerTwo';
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -419,8 +419,8 @@ function checkSocketHeartbeat(socket: WebSocket): boolean {
 
 function readiness(room: ContestRoom): Record<ContestPlayerId, boolean> {
   return {
-    human: !!room.submissions.human,
-    ai: !!room.submissions.ai,
+    playerOne: !!room.submissions.playerOne,
+    playerTwo: !!room.submissions.playerTwo,
   };
 }
 
@@ -438,13 +438,13 @@ function touchRoom(room: ContestRoom, now = Date.now()): void {
 }
 
 function hasConnectedClients(room: ContestRoom): boolean {
-  return Boolean(room.clients.human || room.clients.ai);
+  return Boolean(room.clients.playerOne || room.clients.playerTwo);
 }
 
 function connectedPlayers(room: ContestRoom): Record<ContestPlayerId, boolean> {
   return {
-    human: !!room.clients.human,
-    ai: !!room.clients.ai,
+    playerOne: !!room.clients.playerOne,
+    playerTwo: !!room.clients.playerTwo,
   };
 }
 
@@ -532,7 +532,7 @@ function createRoom(seed = Date.now() >>> 0, requestedRoomId?: string): ContestR
 }
 
 function attachClient(socket: WebSocket, room: ContestRoom, preferredPlayerId?: ContestPlayerId, playerName?: string): void {
-  const playerId = preferredPlayerId ?? (!room.clients.human ? 'human' : !room.clients.ai ? 'ai' : null);
+  const playerId = preferredPlayerId ?? (!room.clients.playerOne ? 'playerOne' : !room.clients.playerTwo ? 'playerTwo' : null);
   if (!playerId) {
     send(socket, { kind: 'room-error', message: 'Room already has two players.' });
     return;
@@ -546,7 +546,7 @@ function attachClient(socket: WebSocket, room: ContestRoom, preferredPlayerId?: 
   room.lastEmptyAt = null;
   touchRoom(room);
   socketRooms.set(socket, { roomId: room.id, playerId });
-  broadcast(room, playerId === 'human' ? `Room ${room.id} created. Share this code with ${room.playerNames.ai}.` : `${room.playerNames[playerId]} joined room ${room.id}.`);
+  broadcast(room, playerId === 'playerOne' ? `Room ${room.id} created. Share this code with ${room.playerNames.playerTwo}.` : `${room.playerNames[playerId]} joined room ${room.id}.`);
 }
 
 function reconnectClient(socket: WebSocket, room: ContestRoom, playerId: ContestPlayerId, token: string, playerName?: string): void {
@@ -565,17 +565,17 @@ function reconnectClient(socket: WebSocket, room: ContestRoom, playerId: Contest
 }
 
 function maybeAdvanceRoom(room: ContestRoom): void {
-  if (!room.submissions.human || !room.submissions.ai) {
+  if (!room.submissions.playerOne || !room.submissions.playerTwo) {
     broadcast(room, {
-      human: room.submissions.human ? 'Ready submitted. Waiting for the other player.' : null,
-      ai: room.submissions.ai ? 'Ready submitted. Waiting for the other player.' : null,
+      playerOne: room.submissions.playerOne ? 'Ready submitted. Waiting for the other player.' : null,
+      playerTwo: room.submissions.playerTwo ? 'Ready submitted. Waiting for the other player.' : null,
     });
     return;
   }
 
   const result = advanceContestMultiplayerRoom(room.game, {
-    human: room.submissions.human,
-    ai: room.submissions.ai,
+    playerOne: room.submissions.playerOne,
+    playerTwo: room.submissions.playerTwo,
   });
   room.game = result.state;
   room.submissions = {};
@@ -609,7 +609,7 @@ function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
       send(socket, { kind: 'room-error', message: `Room ${requestedRoomId} already exists. Choose a different room code or join it instead.` });
       return;
     }
-    attachClient(socket, createRoom(message.seed, message.roomId), 'human', message.playerName);
+    attachClient(socket, createRoom(message.seed, message.roomId), 'playerOne', message.playerName);
     return;
   }
 

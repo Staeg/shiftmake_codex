@@ -720,8 +720,9 @@ describe('ability mechanics', () => {
         'elf-elven-reflexes',
         'elf-silvershot-doctrine',
         'goblin-behavior',
+        'goblin-overwhelm-hex',
         'troll-mossblood',
-        'troll-roll-the-boulder',
+        'troll-gargantuan-zeal',
         'troll-rowdy-regrowth',
         'dwarf-diggy-hole',
         'dwarf-ale-and-hearty',
@@ -736,33 +737,46 @@ describe('ability mechanics', () => {
       troopClassUpgradeIds: [
         'soldier-shield-drill',
         'soldier-dreamwork',
+        'soldier-martyrs-zeal',
         'archer-crippling-shots',
         'archer-barrage',
+        'archer-hexing-shots',
         'avenger-witness',
         'avenger-sevenfold',
-        'beastmaster-bloodhounds',
+        'avenger-wages-of-virtue',
+        'beastmaster-throwing-axes',
+        'beastmaster-opening',
         'beastmaster-thrill-of-the-hunt',
         'champion-anointed-executioner',
         'champion-honorable-duel',
+        'champion-triumph',
         'druid-forest-friends',
         'druid-true-form',
         'druid-ents-visage',
         'elementalist-crackling-mitosis',
         'elementalist-living-circuit',
+        'elementalist-crack-exploits',
         'knight-dine-in-hell',
         'knight-sentinel-runes',
+        'knight-sunder',
         'militia-dogpile',
         'militia-rat-behavior',
+        'militia-crippling-hex',
         'necromancer-hemomancy',
         'necromancer-explosion-corpse',
+        'necromancer-saintbane',
         'priest-bolstering-light',
         'priest-mercy-before-dawn',
+        'priest-holy-constructs',
         'ranger-on-the-hunt',
         'ranger-shadows-embrace',
+        'ranger-hunters-zeal',
         'shaman-grave-vigor',
+        'shaman-final-hex',
         'shaman-war-drums',
         'wizard-storm-rods',
         'wizard-spell-echo',
+        'wizard-vulnerability-hex',
       ],
     };
 
@@ -790,23 +804,27 @@ describe('ability mechanics', () => {
     expect(humanChampion.abilities.map((ability) => ability.id)).toContain('executioner');
     expect(humanChampion.abilities.map((ability) => ability.id)).toContain('anointed');
     expect(humanChampion.abilities.map((ability) => ability.id)).toContain('honorable-duel');
+    expect(humanChampion.abilities.map((ability) => ability.id)).toContain('triumph');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('pinning-volley');
     expect(humanArcher.abilities.map((ability) => ability.id)).toContain('barrage');
+    expect(humanArcher.abilities.map((ability) => ability.id)).toContain('hexing-shots');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('shredding-arrows');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('long-shot-doctrine');
     expect(elfArcher.abilities.map((ability) => ability.id)).toContain('silver-distance');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('blood-oath');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('uses-7-corpse-summon-skeleton');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('last-witness');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('wages-of-virtue');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('stoneblood');
     expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('frenzy-ramp-1');
-    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('ramp-2');
-    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('crushing-sweep');
-    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('summon-wolf-2-blood');
-    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('packmasters-whistle');
+    expect(trollAvenger.abilities.map((ability) => ability.id)).toContain('gargantuan-zeal');
+    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('throwing-axes');
+    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('opening');
     expect(goblinBeastmaster.abilities.map((ability) => ability.id)).toContain('thrill-of-the-hunt');
-    expect(goblinBeastmaster.abilities.map((ability) => ability.id)).not.toContain('summon-wolf-2');
+    expect(goblinBeastmaster.attributes).toContain('ranged');
+    expect(goblinBeastmaster.attributes).not.toContain('melee');
+    expect(goblinBeastmaster.role).toBe('backline');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('forest-friends');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('shapeshift-bear-2');
     expect(elfDruid.abilities.map((ability) => ability.id)).toContain('thornhide');
@@ -815,13 +833,17 @@ describe('ability mechanics', () => {
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('charge-4-summon-elemental-mitosis');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('arc-conductor');
     expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('living-circuit');
+    expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('crack-exploits');
+    expect(elfElementalist.abilities.map((ability) => ability.id)).toContain('elemental-sunder-1');
     expect(elfElementalist.abilities.map((ability) => ability.id)).not.toContain('charge-4-summon-elemental');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('corpse-summon-skeleton-rising');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('early-riser');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('carrion-choir');
+    expect(trollNecromancer.abilities.map((ability) => ability.id)).toContain('saintbane');
     expect(trollNecromancer.abilities.map((ability) => ability.id)).not.toContain('corpse-summon-skeleton');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('bolstering-light');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('mercy-before-dawn');
+    expect(humanPriest.abilities.map((ability) => ability.id)).toContain('holy-constructs');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('united');
     expect(humanPriest.abilities.map((ability) => ability.id)).toContain('tubthumping');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('self-haste-2');
@@ -830,23 +852,30 @@ describe('ability mechanics', () => {
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('skirmishers-step');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('heartseeker');
     expect(elfRanger.abilities.map((ability) => ability.id)).toContain('scavengers-hunger-2');
+    expect(elfRanger.abilities.map((ability) => ability.id)).toContain('hunters-zeal');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('serve-once-more');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('static-charge');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('grave-vigor');
+    expect(trollShaman.abilities.map((ability) => ability.id)).toContain('final-hex');
     expect(trollShaman.abilities.map((ability) => ability.id)).toContain('war-drums');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('lightning-rods');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('summon-elemental-1');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('charge-4-random-enemy-r-strike-4');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('spell-echo');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('vulnerability-hex');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('goblin-farewell');
     expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('snatch-the-moment');
+    expect(goblinWizard.abilities.map((ability) => ability.id)).toContain('overwhelm-hex');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('brace');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('retaliate');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('sentinel-runes');
+    expect(humanKnight.abilities.map((ability) => ability.id)).toContain('sunder');
     expect(humanKnight.abilities.map((ability) => ability.id)).toContain('hold-the-standard');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('dogpile');
     expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('rabble-rush');
+    expect(humanMilitia.abilities.map((ability) => ability.id)).toContain('crippling-hex');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('diggy-hole');
+    expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('martyrs-zeal');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('ale-and-hearty');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stall-warts');
     expect(dwarfSoldier.stats.speed).toBe(13.6);

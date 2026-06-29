@@ -723,7 +723,7 @@ describe('gameStore progression flow', () => {
     expect(imported.centerMode).toBe('rifts');
     expect(imported.validationMessages).toEqual(['Example warning']);
     expect(imported.game.campaignSeed).toBe(decoded.payload.game.campaignSeed);
-    expect(storage.getItem('shiftmake:slot:2:replay:stale')).toBeNull();
+    expect(storage.getItem('shiftmake:slot:2:replay:stale')).not.toBeNull();
     expect(storage.getItem(`shiftmake:slot:2:replay:v3.19:${imported.game.replayIndex[0]?.replayId}`)).not.toBeNull();
     expect(storage.getItem('shiftmake:slot:1:save:v3')).not.toBeNull();
   });
@@ -765,11 +765,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'ABCD',
-      playerId: 'ai',
+      playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { human: false, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -783,22 +783,22 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'ABCD',
-      playerId: 'ai',
+      playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { human: true, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: true, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
 
     const afterOpponentReady = currentStoreState<{
       game: GameState;
-      multiplayer: { readiness: { human: boolean; ai: boolean }; message: string | null } | null;
+      multiplayer: { readiness: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null;
       systemMessage: string | null;
     }>();
     expect(afterOpponentReady.game.troops).toEqual(selectedTroops);
-    expect(afterOpponentReady.multiplayer?.readiness).toEqual({ human: true, ai: false });
+    expect(afterOpponentReady.multiplayer?.readiness).toEqual({ playerOne: true, playerTwo: false });
     expect(afterOpponentReady.multiplayer?.message).toBeNull();
     expect(afterOpponentReady.systemMessage).toBeNull();
   });
@@ -815,11 +815,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'WXYZ',
-      playerId: 'ai',
+      playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { human: false, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -830,11 +830,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'WXYZ',
-      playerId: 'ai',
+      playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { human: true, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: true, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -853,11 +853,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'TOKN',
-      playerId: 'human',
+      playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { human: false, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -875,12 +875,12 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'NAME',
-      playerId: 'human',
+      playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { human: false, ai: false },
-      connectedPlayers: { human: true, ai: false },
-      playerNames: { human: 'Host', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      connectedPlayers: { playerOne: true, playerTwo: false },
+      playerNames: { playerOne: 'Host', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -888,21 +888,21 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'NAME',
-      playerId: 'human',
+      playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { human: false, ai: false },
-      connectedPlayers: { human: true, ai: true },
-      playerNames: { human: 'Host', ai: 'Guest' },
+      readiness: { playerOne: false, playerTwo: false },
+      connectedPlayers: { playerOne: true, playerTwo: true },
+      playerNames: { playerOne: 'Host', playerTwo: 'Guest' },
       replayPayloads: {},
       message: 'Guest joined room NAME.',
     });
 
     expect(
-      currentStoreState<{ multiplayer: { connectedPlayers: { human: boolean; ai: boolean }; playerNames: { human: string; ai: string } } | null }>().multiplayer,
+      currentStoreState<{ multiplayer: { connectedPlayers: { playerOne: boolean; playerTwo: boolean }; playerNames: { playerOne: string; playerTwo: string } } | null }>().multiplayer,
     ).toMatchObject({
-      connectedPlayers: { human: true, ai: true },
-      playerNames: { human: 'Host', ai: 'Guest' },
+      connectedPlayers: { playerOne: true, playerTwo: true },
+      playerNames: { playerOne: 'Host', playerTwo: 'Guest' },
     });
   });
 
@@ -910,7 +910,7 @@ describe('gameStore progression flow', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     sessionStorage.setItem(
       'shiftmake:multiplayer:contest:identity:ws://test-room|RCNT',
-      JSON.stringify({ serverUrl: 'ws://test-room', roomId: 'RCNT', playerId: 'ai', playerToken: 'ai-token' }),
+      JSON.stringify({ serverUrl: 'ws://test-room', roomId: 'RCNT', playerId: 'playerTwo', playerToken: 'ai-token' }),
     );
 
     gameStore.connectMultiplayerContest('ws://test-room', 'RCNT', 'Player 2');
@@ -920,7 +920,7 @@ describe('gameStore progression flow', () => {
     expect(JSON.parse(socket.sent[0]!)).toEqual({
       kind: 'reconnect-room',
       roomId: 'RCNT',
-      playerId: 'ai',
+      playerId: 'playerTwo',
       token: 'ai-token',
       playerName: 'Player 2',
     });
@@ -945,11 +945,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'CANC',
-      playerId: 'human',
+      playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { human: false, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -958,8 +958,8 @@ describe('gameStore progression flow', () => {
     gameStore.cancelMultiplayerReady();
 
     expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ kind: 'unsubmit-ready' });
-    expect(currentStoreState<{ multiplayer: { readiness: { human: boolean; ai: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
-      readiness: { human: false, ai: false },
+    expect(currentStoreState<{ multiplayer: { readiness: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
+      readiness: { playerOne: false, playerTwo: false },
       message: 'Ready canceled.',
     });
   });
@@ -974,11 +974,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'EXIT',
-      playerId: 'human',
+      playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { human: false, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -1004,11 +1004,11 @@ describe('gameStore progression flow', () => {
     socket.receive({
       kind: 'room-snapshot',
       roomId: 'FAIL',
-      playerId: 'human',
+      playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { human: false, ai: false },
-      playerNames: { human: 'Player 1', ai: 'Player 2' },
+      readiness: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
@@ -1016,8 +1016,8 @@ describe('gameStore progression flow', () => {
     gameStore.submitMultiplayerReady();
     socket.receive({ kind: 'room-error', message: 'That multiplayer submission is not legal.' });
 
-    expect(currentStoreState<{ multiplayer: { readiness: { human: boolean; ai: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
-      readiness: { human: false, ai: false },
+    expect(currentStoreState<{ multiplayer: { readiness: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
+      readiness: { playerOne: false, playerTwo: false },
       message: 'That multiplayer submission is not legal.',
     });
   });
