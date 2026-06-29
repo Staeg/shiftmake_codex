@@ -1,7 +1,7 @@
 <script lang="ts">
   import { formatFixed } from '../engine/fixed';
   import { getSummonedUnitPreviews } from '../engine/unitCatalog';
-  import type { AbilityDefinition, BattleUnit, ExplainedStatKey, ReplayTroopProfile, StatBreakdown, StatBreakdownLine } from '../engine/types';
+  import type { AbilityDefinition, BattleUnit, ExplainedStatKey, RaceId, ReplayTroopProfile, StatBreakdown, StatBreakdownLine, UnitClassId } from '../engine/types';
   import { formatAbilityDescription, formatRoleExact, statIcon } from './inspectText';
   import GameIcon from './GameIcon.svelte';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
@@ -10,6 +10,7 @@
   export let profile: ReplayTroopProfile | null = null;
   export let engagedUnits: BattleUnit[] = [];
   export let getUnitPortraitUrl: ((unit: BattleUnit) => string) | null = null;
+  export let getRaceUnitPortraitUrl: ((raceId: RaceId, unitClassId: UnitClassId) => string) | null = null;
   export let x = 0;
   export let y = 0;
   export let locked = false;
@@ -34,6 +35,8 @@
         maxHp: unit?.maxHp ?? profile?.stats.health ?? 0,
         initiative: unit ? unit.initiative : null,
         role: unit?.role ?? profile?.role ?? 'frontline',
+        raceId: unit?.raceId ?? profile?.raceId ?? '',
+        unitClassId: unit?.unitClassId ?? profile?.unitClassId ?? '',
         unitClassTag: unit?.unitClassTag ?? profile?.unitClassTag ?? '',
         attributes: unit?.attributes ?? profile?.attributes ?? [],
         side: unit?.side ?? profile?.side ?? 'player',
@@ -94,6 +97,11 @@
     return getUnitPortraitUrl?.(unit) ?? '';
   }
 
+  $: displayPortraitUrl =
+    display && display.raceId && display.unitClassId
+      ? (unit ? resolveUnitPortrait(unit) : getRaceUnitPortraitUrl?.(display.raceId, display.unitClassId) ?? '')
+      : '';
+
   function summonRaceId(): string {
     return profile?.raceId ?? unit?.raceId ?? 'human';
   }
@@ -135,6 +143,15 @@
         <p>{display.side === 'player' ? 'Player Unit' : 'Enemy Unit'}</p>
         <strong>{display.troopLabel}</strong>
       </div>
+      {#if displayPortraitUrl}
+        <img
+          class="unit-portrait"
+          class:enemy={display.side === 'enemy'}
+          src={displayPortraitUrl}
+          alt=""
+          aria-hidden="true"
+        />
+      {/if}
     </header>
 
     <div class="rows">
@@ -326,6 +343,25 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: #9cb0bf;
+  }
+
+  header strong {
+    display: block;
+    padding-right: 0.2rem;
+    overflow-wrap: anywhere;
+  }
+
+  .unit-portrait {
+    flex: 0 0 auto;
+    width: 2.15rem;
+    height: 2.15rem;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
+  }
+
+  .unit-portrait.enemy {
+    transform: scaleX(-1);
   }
 
   .rows {

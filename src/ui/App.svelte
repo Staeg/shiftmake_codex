@@ -33,6 +33,7 @@
     BattleUnit,
     BattleOutcome,
     ContestPlayerState,
+    ContestPlayerId,
     ExplainedStatKey,
     RaceId,
     GameMode,
@@ -315,6 +316,7 @@
   let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
   let cycleLogArrivalTimer: ReturnType<typeof window.setTimeout> | null = null;
   let cycleLogArrivalActive = false;
+  let cycleLogArrivalReady = false;
   let lastDraftGameKey = '';
   let tutorialScenePrompt = false;
   let tutorialScenePromptMessage = 'Follow the tutorial!';
@@ -1417,7 +1419,7 @@
     return $gameStore.multiplayer.readiness[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'Submit Ready';
   }
 
-  function playerConnectionLabel(playerId: 'human' | 'ai'): string {
+  function playerConnectionLabel(playerId: ContestPlayerId): string {
     if (!$gameStore.multiplayer?.connectedPlayers[playerId]) {
       return 'Offline';
     }
@@ -1532,7 +1534,10 @@
 
   function isHoldingTroop(troopId: TroopId): boolean {
     return $gameStore.game.gameMode === 'contest' &&
-      $gameStore.game.openRifts.some((rift) => rift.controller === 'human' && (rift.occupyingTroopIds ?? []).includes(troopId));
+      $gameStore.game.openRifts.some(
+        (rift) =>
+          (rift.controller === 'playerOne' || rift.controller === 'human') && (rift.occupyingTroopIds ?? []).includes(troopId),
+      );
   }
 
   function isUpgradeAffectingTroop(troopId: TroopId): boolean {
@@ -2181,7 +2186,7 @@
   }
 
   function isHumanParticipant(participant: { kind: BattleParticipantKind; playerId?: string }): boolean {
-    return participant.playerId === 'human' || (participant.kind === 'player' && !participant.playerId);
+    return participant.playerId === 'playerOne' || participant.playerId === 'human' || (participant.kind === 'player' && !participant.playerId);
   }
 
   function participantHealthTone(participant: { kind: BattleParticipantKind; playerId?: string } | undefined, fallback: SideId): MiniReplayHealthTone {
@@ -2513,7 +2518,7 @@
     if (!$gameStore.multiplayer || !playerId) {
       return 'Rival';
     }
-    const opponentId = playerId === 'human' ? 'ai' : 'human';
+    const opponentId = playerId === 'playerOne' ? 'playerTwo' : 'playerOne';
     return $gameStore.multiplayer.playerNames[opponentId] ?? 'Rival';
   }
 
@@ -2521,10 +2526,10 @@
     if ($gameStore.game.gameMode !== 'contest') {
       return 'Guardians';
     }
-    if (rift.controller === 'human') {
+    if (rift.controller === 'playerOne' || rift.controller === 'human') {
       return 'Held By You';
     }
-    if (rift.controller === 'ai') {
+    if (rift.controller === 'playerTwo' || rift.controller === 'ai') {
       return `Held By ${getOpponentPlayerName()}`;
     }
     return 'Neutral Guardians';
@@ -2537,22 +2542,22 @@
     if (!rift.controller || rift.controller === 'neutral') {
       return rift.enemyArmy;
     }
-    if (rift.controller === 'human') {
+    if (rift.controller === 'playerOne' || rift.controller === 'human') {
       return [];
     }
-    const ai = $gameStore.game.contest?.players.ai;
-    if (!ai) {
+    const playerTwo = $gameStore.game.contest?.players.playerTwo;
+    if (!playerTwo) {
       return [];
     }
     const occupyingIds = new Set(rift.occupyingTroopIds ?? []);
-    return ai.troops
+    return playerTwo.troops
       .filter((troop) => occupyingIds.has(troop.id))
-      .map((troop) => resolveTroopCombatant(ai, troop, 'enemy', null, `ai-held-${troop.id}`));
+      .map((troop) => resolveTroopCombatant(playerTwo, troop, 'enemy', null, `player-two-held-${troop.id}`));
   }
 
   function isHumanBattleSide(record: CycleRecord, side: SideId): boolean {
     const participant = record.battleInput.sideParticipants?.[side];
-    return participant?.kind === 'player' || participant?.playerId === 'human';
+    return participant?.kind === 'player' || participant?.playerId === 'playerOne' || participant?.playerId === 'human';
   }
 
   function getBattleAnimationSide(
@@ -2606,7 +2611,7 @@
   }
 
   function isHumanAnimationSide(side: RiftBattleAnimationSide): boolean {
-    return side.playerId === 'human' || (side.kind === 'player' && !side.playerId);
+    return side.playerId === 'playerOne' || side.playerId === 'human' || (side.kind === 'player' && !side.playerId);
   }
 
   function healthToneForAnimationSide(side: RiftBattleAnimationSide): MiniReplayHealthTone {
@@ -2626,10 +2631,10 @@
     if (isHumanAnimationSide(phase.right)) {
       return { source: phase.rightSource, opponentOutcome: false };
     }
-    if (phase.left.playerId === 'ai' || phase.left.kind === 'opponent') {
+    if (phase.left.playerId === 'playerTwo' || phase.left.playerId === 'ai' || phase.left.kind === 'opponent') {
       return { source: phase.leftSource, opponentOutcome: true };
     }
-    if (phase.right.playerId === 'ai' || phase.right.kind === 'opponent') {
+    if (phase.right.playerId === 'playerTwo' || phase.right.playerId === 'ai' || phase.right.kind === 'opponent') {
       return { source: phase.rightSource, opponentOutcome: true };
     }
     return { source: phase.rightSource, opponentOutcome: true };
@@ -2719,7 +2724,12 @@
 
     const pvp = records.find((record) => record.contest?.kind === 'pvp') ?? null;
     if (pvp) {
-      const humanGuardian = records.find((record) => record.contest?.kind === 'guardian' && record.contest.attackerId === 'human') ?? null;
+      const humanGuardian =
+        records.find(
+          (record) =>
+            record.contest?.kind === 'guardian' &&
+            (record.contest.attackerId === 'playerOne' || record.contest.attackerId === 'human'),
+        ) ?? null;
       return {
         riftId: rift.id,
         phases: [
@@ -2807,6 +2817,7 @@
         window.clearTimeout(cycleLogArrivalTimer);
         cycleLogArrivalTimer = null;
       }
+      cycleLogArrivalReady = false;
       if (essenceDraftHighlightTimer) {
         window.clearTimeout(essenceDraftHighlightTimer);
         essenceDraftHighlightTimer = null;
@@ -2863,13 +2874,23 @@
       const logArrivalDuration =
         incomingCount > 0 ? BATTLE_LOG_ARRIVAL_FLIGHT_MS + Math.max(0, incomingCount - 1) * BATTLE_LOG_ARRIVAL_STAGGER_MS + 180 : 0;
       cycleLogArrivalActive = false;
+      cycleLogArrivalReady = false;
       cycleLogArrivalTimer = window.setTimeout(() => {
         cycleLogArrivalTimer = null;
         cycleLogArrivalActive = true;
+        cycleLogArrivalReady = false;
+        void tick().then(() => {
+          window.requestAnimationFrame(() => {
+            if ($gameStore.cycleAnimation && cycleLogArrivalActive) {
+              cycleLogArrivalReady = true;
+            }
+          });
+        });
       }, battleAnimationDuration);
       cycleAnimationFinishTimer = window.setTimeout(() => {
         cycleAnimationFinishTimer = null;
         cycleLogArrivalActive = false;
+        cycleLogArrivalReady = false;
         gameStore.finishCycleAnimation();
       }, battleAnimationDuration + logArrivalDuration);
     }
@@ -2883,6 +2904,7 @@
     }
     if (!$gameStore.cycleAnimation && cycleLogArrivalActive) {
       cycleLogArrivalActive = false;
+      cycleLogArrivalReady = false;
     }
   }
 
@@ -2996,13 +3018,13 @@
 
   $: discoveredRifts = $gameStore.game.openRifts.filter((rift) => rift.state === 'discovered');
   $: opponentInfo = $gameStore.game.gameMode === 'contest' ? $gameStore.game.contest?.opponentInfo ?? null : null;
-  $: opponentInfoAi = opponentInfo?.ai ?? null;
+  $: opponentInfoAi = opponentInfo?.playerTwo ?? null;
   $: opponentInfoRaceIds = opponentInfoAi
     ? RACE_IDS.filter((raceId) => opponentInfoAi.unlockedRaceIds.includes(raceId))
     : [];
   $: currentOpponentOccupyingTroopIds = new Set(
     $gameStore.game.openRifts
-      .filter((rift) => rift.occupyingPlayerId === 'ai')
+      .filter((rift) => rift.occupyingPlayerId === 'playerTwo')
       .flatMap((rift) => rift.occupyingTroopIds ?? []),
   );
   $: opponentMobileTroopCount = opponentInfoAi
@@ -3197,7 +3219,7 @@
   $: selectedArchiveEnemyUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'enemy');
   $: readyTroops = $gameStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
   $: selectedRiftAssignableTroops = selectedRift
-    ? selectedRift.controller === 'human'
+    ? selectedRift.controller === 'playerOne' || selectedRift.controller === 'human'
       ? []
       : $gameStore.game.troops.filter(
           (troop) => troop.recoveryCyclesRemaining === 0 && (troop.assignmentRiftId === null || troop.assignmentRiftId === selectedRift.id),
@@ -3673,8 +3695,8 @@
             </div>
             <div class="multiplayer-player-list">
               <span>Current Players</span>
-              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'human')}</strong>
-              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'playerOne')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
             </div>
           </div>
           <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer opening actions">
@@ -3930,8 +3952,8 @@
             </div>
             <div class="multiplayer-player-list">
               <span>Current Players</span>
-              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'human')}</strong>
-              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'playerOne')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
             </div>
           </div>
           <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer race unlock actions">
@@ -4165,8 +4187,8 @@
             </div>
             <div class="multiplayer-player-list">
               <span>Current Players</span>
-              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'human')}</strong>
-              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'human' ? 'ai' : 'human')}</strong>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'playerOne')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
             </div>
           </div>
           <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer troop unlock actions">
@@ -4280,7 +4302,7 @@
             on:blur={clearTopbarTooltip}
           >
             <span>Contest VP</span>
-            <strong>{$gameStore.game.victoryPoints} - {$gameStore.game.contest?.players.ai.victoryPoints ?? 0}</strong>
+            <strong>{$gameStore.game.victoryPoints} - {$gameStore.game.contest?.players.playerTwo.victoryPoints ?? 0}</strong>
           </button>
           {#if $gameStore.multiplayer}
             <div class="contest-score multiplayer-room-status ui-debug-target" data-ui-name="Multiplayer room status">
@@ -4698,8 +4720,8 @@
             <article
               class="rift-card ui-debug-target"
               class:contest-neutral={$gameStore.game.gameMode === 'contest' && (!rift.controller || rift.controller === 'neutral')}
-              class:contest-human-held={$gameStore.game.gameMode === 'contest' && rift.controller === 'human'}
-              class:contest-ai-held={$gameStore.game.gameMode === 'contest' && rift.controller === 'ai'}
+              class:contest-human-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerOne' || rift.controller === 'human')}
+              class:contest-ai-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerTwo' || rift.controller === 'ai')}
               class:archive-highlighted={selectedRiftId === rift.id}
               class:drop-target-unavailable={!!troopDrag && !multiplayerReadySubmitted && !$gameStore.cycleAnimation && !canAssignTroopToRift($gameStore.game, troopDrag.troopId, rift.id).ok}
               data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
@@ -5107,7 +5129,7 @@
 
                   <div class="troop-list race-troop-list opponent-troop-list">
                     {#each raceTroops as troop}
-                      {@const troopDef = resolveTroopCombatant(opponentInfoAi, troop, 'enemy', null, `known-ai:${troop.id}`)}
+                      {@const troopDef = resolveTroopCombatant(opponentInfoAi, troop, 'enemy', null, `known-player-two:${troop.id}`)}
                       {@const isMobileThreat = !currentOpponentOccupyingTroopIds.has(troop.id)}
                       {@const troopDetail = buildResolvedUnitDetail(
                         `opponent:${opponentInfo.cycleNumber}:${troop.id}`,
@@ -5494,7 +5516,7 @@
             <p>No archived battles yet.</p>
           {:else}
             <div class="archive-list">
-              {#if cycleLogArrivalActive}
+              {#if cycleLogArrivalActive && cycleLogArrivalReady}
                 {@const incomingVisuals = incomingBattleLogVisuals()}
                 {#each incomingVisuals as visual, index (visual.key)}
                   {@const incomingRiftVisual = visual.riftVisualSource ? getRiftVisual(visual.riftVisualSource) : null}
@@ -5940,6 +5962,7 @@
               profile={replayFocusProfile}
               engagedUnits={engagedUnits}
               getUnitPortraitUrl={getReplayUnitPortraitUrl}
+              getRaceUnitPortraitUrl={getRaceUnitPortrait}
               x={hoverInfo?.x ?? 0}
               y={hoverInfo?.y ?? 0}
               locked={!!lockedUnitId}
@@ -5960,6 +5983,7 @@
                 profile={hoveredReplayUnitProfile}
                 engagedUnits={hoveredReplayUnitEngagedUnits}
                 getUnitPortraitUrl={getReplayUnitPortraitUrl}
+                getRaceUnitPortraitUrl={getRaceUnitPortrait}
                 x={hoverInfo?.x ?? 0}
                 y={hoverInfo?.y ?? 0}
                 locked={false}

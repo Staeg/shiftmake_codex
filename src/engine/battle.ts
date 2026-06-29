@@ -1215,8 +1215,42 @@ function shouldDelayForDiggyHole(input: BattleInput, combatant: ResolvedCombatan
   return combatant.raceId === 'dwarf' && inputSideHasRaceUpgrade(input, combatant.side, 'dwarf-diggy-hole');
 }
 
+type InitialPlacementFailedSide = SideId | 'both' | 'unknown';
+
+interface InitialPlacementDiagnostics {
+  baseRadius: number;
+  finalRadius: number;
+  attempts: number;
+  playerUnitCount: number;
+  enemyUnitCount: number;
+  playerFailures: number;
+  enemyFailures: number;
+  lastFailedRadius: number;
+  lastFailedSide: InitialPlacementFailedSide;
+}
+
+function formatInitialPlacementFailure(diagnostics: InitialPlacementDiagnostics): string {
+  return [
+    `Failed to place initial battle units after ${diagnostics.attempts} radius attempts.`,
+    `baseRadius=${diagnostics.baseRadius}`,
+    `finalRadius=${diagnostics.finalRadius}`,
+    `playerUnits=${diagnostics.playerUnitCount}`,
+    `enemyUnits=${diagnostics.enemyUnitCount}`,
+    `playerFailures=${diagnostics.playerFailures}`,
+    `enemyFailures=${diagnostics.enemyFailures}`,
+    `lastFailedRadius=${diagnostics.lastFailedRadius}`,
+    `lastFailedSide=${diagnostics.lastFailedSide}`,
+  ].join(' ');
+}
+
 function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, InternalUnit>; mapRadius: number; mapHexes: HexCoord[]; pendingDiggyHoleCombatants: Record<SideId, ResolvedCombatantDefinition[]> } {
   let radius = BASE_MAP_RADIUS;
+  const baseRadius = radius;
+  const maxAttempts = 100;
+  let playerFailures = 0;
+  let enemyFailures = 0;
+  let lastFailedRadius = radius;
+  let lastFailedSide: InitialPlacementFailedSide = 'unknown';
   const playerExpanded = expandCombatants(input.playerCombatants);
   const enemyExpanded = expandCombatants(input.enemyCombatants);
   const pendingDiggyHoleCombatants = {
@@ -1225,7 +1259,7 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
   };
   const playerUnits = playerExpanded.filter((combatant) => !shouldDelayForDiggyHole(input, combatant));
   const enemyUnits = enemyExpanded.filter((combatant) => !shouldDelayForDiggyHole(input, combatant));
-  for (let attempts = 0; attempts <= 100; attempts += 1) {
+  for (let attempts = 0; attempts <= maxAttempts; attempts += 1) {
     const units = new Map<string, InternalUnit>();
     const mapHexes = new Set(mapHexesForRadius(radius).map(hexKey));
     const playerOk = placeUnitsForSide('player', playerUnits, units, mapHexes, rng);
@@ -1234,9 +1268,29 @@ function initializeUnits(input: BattleInput, rng: Rng): { units: Map<string, Int
       const finalized = finalizeInitialMap(units);
       return { units, mapRadius: finalized.mapRadius, mapHexes: finalized.mapHexes, pendingDiggyHoleCombatants };
     }
+
+    lastFailedRadius = radius;
+    if (!playerOk) {
+      playerFailures += 1;
+    }
+    if (playerOk && !enemyOk) {
+      enemyFailures += 1;
+    }
+    lastFailedSide = !playerOk ? 'player' : 'enemy';
     radius += 1;
   }
-  throw new Error('Failed to place initial battle units after expanding the explicit battlefield.');
+
+  throw new Error(formatInitialPlacementFailure({
+    baseRadius,
+    finalRadius: radius - 1,
+    attempts: maxAttempts + 1,
+    playerUnitCount: playerUnits.length,
+    enemyUnitCount: enemyUnits.length,
+    playerFailures,
+    enemyFailures,
+    lastFailedRadius,
+    lastFailedSide,
+  }));
 }
 
 function createAliveIndex(units: Map<string, InternalUnit>): Record<SideId, Set<string>> {

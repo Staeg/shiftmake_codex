@@ -74,6 +74,21 @@ describe('troop composition', () => {
     expect(championResolved.abilities.map((ability) => ability.id)).not.toContain('fade-into-shadow');
   });
 
+  it('uses the same detailed upgrade pass for resolved combatants and standalone stat breakdowns', () => {
+    const state = {
+      raceUpgradeIds: ['elf-elven-reflexes'],
+      troopClassUpgradeIds: ['archer-crippling-shots'],
+    };
+    const troop = createTroopInstance('elf', 'archer');
+    const resolved = resolveTroopCombatant(state, troop, 'player');
+    const breakdowns = getResolvedStatBreakdowns(state, troop, 'player');
+
+    expect(resolved.statBreakdowns).toEqual(breakdowns);
+    expect(resolved.statBreakdowns.range.finalValue).toBe(resolved.stats.range);
+    expect(resolved.statBreakdowns.damage.finalValue).toBe(resolved.stats.damage);
+    expect(resolved.abilities.map((ability) => ability.id)).toContain('pinning-volley');
+  });
+
   it('only applies enemy stat scaling at tier 4 and leaves tier 3 at base stats', () => {
     const humanSoldierBase = composeBaseTroopDefinition('human', 'soldier');
     const tier3Breakdowns = getResolvedStatBreakdowns(
