@@ -400,6 +400,15 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     effects: [summonEffect('wolf', 2)],
     shortText: 'Start of battle: summon 2 wolves on this unit or adjacent hexes.',
   }),
+  'summon-wolf-1': makeAbility({
+    id: 'summon-wolf-1',
+    label: 'Summon Wolf 1',
+    trigger: { timing: 'startOfBattle' },
+    duration: battleDuration(),
+    target: selfTarget(),
+    effects: [summonEffect('wolf', 1)],
+    shortText: 'Start of battle: summon 1 wolf on this unit or an adjacent hex.',
+  }),
   'charge-4-summon-elemental': makeAbility({
     id: 'charge-4-summon-elemental',
     label: 'Charge 4 Summon Elemental',
@@ -1055,7 +1064,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'soldier',
     attributes: ['melee'],
-    stats: { health: 100, damage: 10, speed: 10, move: 2, range: 0, armor: 2, size: 1, capacity: 2 },
+    stats: { health: 100, damage: 10, speed: 10, move: 3, range: 0, armor: 2, size: 2, capacity: 2 },
     quantity: 1,
     cost: 24,
     abilityIds: [],
@@ -1066,7 +1075,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'champion',
     attributes: ['melee'],
-    stats: { health: 130, damage: 20, speed: 17, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 130, damage: 20, speed: 17, move: 3, range: 0, armor: 0, size: 3, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ['valor-20'],
@@ -1077,7 +1086,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'avenger',
     attributes: ['melee'],
-    stats: { health: 200, damage: 6, speed: 10, move: 1, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 200, damage: 6, speed: 10, move: 2, range: 0, armor: 0, size: 3, capacity: 1 },
     quantity: 1,
     cost: 40,
     abilityIds: ['vengeance-3'],
@@ -1088,7 +1097,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'beastmaster',
     attributes: ['melee', 'summoner'],
-    stats: { health: 90, damage: 8, speed: 8, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 90, damage: 8, speed: 8, move: 3, range: 0, armor: 0, size: 3, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ['summon-wolf-2'],
@@ -1099,7 +1108,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'druid',
     attributes: ['caster'],
-    stats: { health: 25, damage: 11, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 11, speed: 8, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 30,
     abilityIds: ['shapeshift-bear'],
@@ -1110,7 +1119,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'elemental',
     attributes: ['melee', 'summoned'],
-    stats: { health: 60, damage: 13, speed: 7, move: 1, range: 0, armor: 5, size: 1, capacity: 3 },
+    stats: { health: 60, damage: 13, speed: 7, move: 2, range: 0, armor: 5, size: 2, capacity: 3 },
     quantity: 1,
     cost: 20,
     abilityIds: [],
@@ -1121,7 +1130,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'elementalist',
     attributes: ['caster', 'summoner'],
-    stats: { health: 25, damage: 10, speed: 9, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 10, speed: 9, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 30,
     abilityIds: ['charge-4-summon-elemental'],
@@ -1132,7 +1141,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'knight',
     attributes: ['melee'],
-    stats: { health: 200, damage: 16, speed: 7, move: 1, range: 0, armor: 10, size: 2, capacity: 5 },
+    stats: { health: 200, damage: 16, speed: 7, move: 2, range: 0, armor: 10, size: 3, capacity: 5 },
     quantity: 1,
     cost: 60,
     abilityIds: ['taunt'],
@@ -1143,7 +1152,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'pusher',
     unitClassTag: 'militia',
     attributes: ['melee', 'expendable'],
-    stats: { health: 40, damage: 8, speed: 11, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 40, damage: 8, speed: 11, move: 4, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 10,
     abilityIds: [],
@@ -1154,7 +1163,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'archer',
     attributes: ['ranged'],
-    stats: { health: 30, damage: 11, speed: 11, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 30, damage: 11, speed: 11, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: [],
@@ -1165,7 +1174,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'wizard',
     attributes: ['caster'],
-    stats: { health: 20, damage: 9, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 20, damage: 9, speed: 8, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ['blast-5'],
@@ -1176,7 +1185,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'priest',
     attributes: ['caster'],
-    stats: { health: 25, damage: 7, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 7, speed: 8, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ['mend-4'],
@@ -1187,7 +1196,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'ranger',
     attributes: ['ranged'],
-    stats: { health: 50, damage: 16, speed: 13, move: 3, range: 7, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 50, damage: 16, speed: 13, move: 4, range: 7, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 60,
     abilityIds: ['self-haste-2'],
@@ -1198,7 +1207,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'necromancer',
     attributes: ['caster', 'summoner'],
-    stats: { health: 40, damage: 16, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 40, damage: 16, speed: 8, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 40,
     abilityIds: ['corpse-summon-skeleton'],
@@ -1209,7 +1218,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'pusher',
     unitClassTag: 'skeleton',
     attributes: ['melee', 'summoned'],
-    stats: { health: 40, damage: 13, speed: 7, move: 2, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 40, damage: 13, speed: 7, move: 3, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 20,
     abilityIds: ['bonded', 'fading'],
@@ -1220,7 +1229,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'shaman',
     attributes: ['caster'],
-    stats: { health: 20, damage: 11, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 20, damage: 11, speed: 8, move: 3, range: 5, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ['enhance-1'],
@@ -1231,7 +1240,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'pusher',
     unitClassTag: 'wolf',
     attributes: ['melee', 'summoned'],
-    stats: { health: 70, damage: 6, speed: 12, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 70, damage: 6, speed: 12, move: 4, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 20,
     abilityIds: ['bonded', 'pack-1'],
@@ -1260,9 +1269,9 @@ export const RACES: Record<RaceId, RaceDefinition> = {
     addedAttributes: ['elf'],
     statAdjustments: {
       health: { multiplier: 0.9 },
-      damage: { multiplier: 1.2 },
+      damage: { multiplier: 1.1 },
       speed: { multiplier: 1.2 },
-      range: { flat: 1 },
+      move: { flat: 1 },
     },
     abilityIds: [],
   },
@@ -1303,7 +1312,8 @@ export const RACES: Record<RaceId, RaceDefinition> = {
     addedAttributes: ['dwarf'],
     statAdjustments: {
       health: { multiplier: 1.2 },
-      speed: { multiplier: 0.85 },
+      speed: { multiplier: 0.9 },
+      move: { flat: -1 },
       armor: { flat: 3 },
       capacity: { flat: 1 },
     },
@@ -1315,12 +1325,15 @@ export const RACES: Record<RaceId, RaceDefinition> = {
     singularLabel: 'Orc',
     addedAttributes: ['orc'],
     statAdjustments: {
-      damage: { multiplier: 1.25 },
+      health: { multiplier: 1.1 },
+      damage: { multiplier: 1.1 },
       speed: { multiplier: 1.1 },
+      range: { flat: -2 },
       armor: { flat: -1 },
+      size: { flat: 1 },
       capacity: { flat: -1 },
     },
-    abilityIds: [],
+    abilityIds: ['frenzy-ramp-1'],
   },
   fae: {
     id: 'fae',
@@ -1329,11 +1342,11 @@ export const RACES: Record<RaceId, RaceDefinition> = {
     addedAttributes: ['fae'],
     statAdjustments: {
       health: { multiplier: 0.8 },
-      speed: { multiplier: 1.15 },
-      range: { flat: 1 },
-      armor: { flat: -1 },
+      speed: { multiplier: 1.1 },
+      armor: { flat: -3 },
+      size: { flat: -1 },
     },
-    abilityIds: [],
+    abilityIds: ['summon-wolf-1'],
   },
 };
 
@@ -1354,8 +1367,8 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     description: 'Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.',
     effects: [{ kind: 'addAbility', abilityId: 'united' }, { kind: 'addAbility', abilityId: 'tubthumping' }],
   },
-  'elf-elven-reflexes': {
-    id: 'elf-elven-reflexes',
+  'elf-feline-grace': {
+    id: 'elf-feline-grace',
     raceId: 'elf',
     label: 'Feline Grace',
     tier: 1,
@@ -1933,6 +1946,18 @@ const LEGACY_TROOP_CLASS_UPGRADE_IDS: Record<string, string> = {
   'wizard-lightning-rods': 'wizard-storm-rods',
 };
 
+const LEGACY_RACE_UPGRADE_IDS: Record<string, string> = {
+  'elf-elven-reflexes': 'elf-feline-grace',
+};
+
+export function normalizeRaceUpgradeId(id: string): string {
+  return LEGACY_RACE_UPGRADE_IDS[id] ?? id;
+}
+
+export function isKnownRaceUpgradeId(value: unknown): value is string {
+  return typeof value === 'string' && (value in RACE_UPGRADES || value in LEGACY_RACE_UPGRADE_IDS);
+}
+
 function formatUnknownMutatorLabel(id: string): string {
   const normalized = id
     .trim()
@@ -1971,7 +1996,7 @@ export function getUnitClass(id: UnitClassId): UnitClassDefinition {
 }
 
 export function getRaceUpgrade(id: string): RaceUpgradeDefinition {
-  const upgrade = RACE_UPGRADES[id];
+  const upgrade = RACE_UPGRADES[id] ?? RACE_UPGRADES[LEGACY_RACE_UPGRADE_IDS[id] ?? ''];
   if (!upgrade) {
     throw new Error(`Unknown race upgrade ${id}`);
   }

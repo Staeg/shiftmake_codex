@@ -1126,12 +1126,12 @@ const RACE_UPGRADES = {
     description: "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.",
     effects: [{ kind: "addAbility", abilityId: "united" }, { kind: "addAbility", abilityId: "tubthumping" }]
   },
-  "elf-elven-reflexes": {
-    id: "elf-elven-reflexes",
+  "elf-feline-grace": {
+    id: "elf-feline-grace",
     raceId: "elf",
-    label: "Elven Reflexes",
+    label: "Feline Grace",
     tier: 1,
-    description: "All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.",
+    description: "All non-melee elven troops gain +2 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.",
     effects: [{ kind: "modifyStats", unitFilter: "nonMelee", statModifiers: { range: { flat: 1 } } }, { kind: "addAbility", abilityId: "fade-into-shadow" }]
   },
   "elven-forsaken": {

@@ -37,9 +37,9 @@ Race upgrades:
 
 - Added attributes: `elf`
 - Health: -10%
-- Damage: +20%
+- Damage: +10%
 - Speed: +20%
-- Range: +1 for non-melee units only
+- Move: +1
 - Cost modifier: none
 - Race abilities: none
 
@@ -88,7 +88,8 @@ Race upgrades:
 
 - Added attributes: `dwarf`
 - Health: +20%
-- Speed: -15%
+- Speed: -10%
+- Move: -1
 - Armor: +3
 - Capacity: +1
 - Cost modifier: none
@@ -103,12 +104,15 @@ Race upgrades:
 ## Orcs
 
 - Added attributes: `orc`
-- Damage: +25%
+- Health: +10%
+- Damage: +10%
 - Speed: +10%
+- Range: -2 for non-melee units only
 - Armor: -1
+- Size: +1
 - Capacity: -1, clamped to a minimum of 0
 - Cost modifier: none
-- Race abilities: none
+- Race abilities: `Frenzy: Ramp 1`
 
 Race upgrades:
 
@@ -120,11 +124,11 @@ Race upgrades:
 
 - Added attributes: `fae`
 - Health: -20%
-- Speed: +15%
-- Range: +1 for non-melee units only
-- Armor: -1
+- Speed: +10%
+- Armor: -3
+- Size: -1, clamped to a minimum of 1
 - Cost modifier: none
-- Race abilities: none
+- Race abilities: `Summon Wolf 1`
 
 Race upgrades:
 

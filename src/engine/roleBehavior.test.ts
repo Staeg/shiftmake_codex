@@ -206,10 +206,10 @@ describe('role behavior', () => {
   it('Pusher breaches enemy backline and stays committed', () => {
     const replay = resolveBattle(
       makeBattleInput(
-        [makeBattleCombatant('human/militia', 'player', { label: 'Player Pusher', role: 'pusher', stats: { ...getTroopDefinitionOrThrow('human/militia').stats, speed: 20 } })],
+        [makeBattleCombatant('human/militia', 'player', { label: 'Player Pusher', role: 'pusher', stats: { ...getTroopDefinitionOrThrow('human/militia').stats, health: 100, speed: 50, size: 1 } })],
         [
-          makeBattleCombatant('human/soldier', 'enemy', { label: 'Enemy Frontline' }),
-          makeBattleCombatant('elf/archer', 'enemy', { label: 'Enemy Backline' }),
+          makeBattleCombatant('human/soldier', 'enemy', { label: 'Enemy Frontline', stats: { ...getTroopDefinitionOrThrow('human/soldier').stats, speed: 1, move: 1, size: 1 } }),
+          makeBattleCombatant('elf/archer', 'enemy', { label: 'Enemy Backline', stats: { ...getTroopDefinitionOrThrow('elf/archer').stats, size: 1 } }),
         ],
         103,
       ),

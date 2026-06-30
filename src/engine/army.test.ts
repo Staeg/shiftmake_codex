@@ -43,6 +43,17 @@ describe('troop composition', () => {
     expect(elemental.troop.abilities.map((ability) => ability.id)).toContain('charge-4-uses-1-summon-elemental');
   });
 
+  it('stacks Fae Summon Wolf with Beastmaster Summon Wolf', () => {
+    const faeBeastmaster = composeBaseTroopDefinition('fae', 'beastmaster');
+    const wolfSummonCount = faeBeastmaster.abilities
+      .flatMap((ability) => ability.effects)
+      .filter((effect) => effect.kind === 'summon' && effect.unitClassId === 'wolf')
+      .reduce((total, effect) => total + effect.count, 0);
+
+    expect(faeBeastmaster.abilities.map((ability) => ability.id)).toEqual(['summon-wolf-2', 'summon-wolf-1']);
+    expect(wolfSummonCount).toBe(3);
+  });
+
   it('does not include Troll Soldiers in the Troll native troop pool', () => {
     expect(getRaceNativeTroopUnlockIds('troll')).not.toContain('troll/soldier');
     expect(isNativeTroopUnlockId('troll/soldier')).toBe(false);
@@ -54,21 +65,21 @@ describe('troop composition', () => {
   });
 
   it('still applies race range changes to non-melee units and non-melee-only upgrades', () => {
-    expect(composeBaseTroopDefinition('elf', 'archer').stats.range).toBe(6);
+    expect(composeBaseTroopDefinition('elf', 'archer').stats.range).toBe(5);
     expect(composeBaseTroopDefinition('goblin', 'wizard').stats.range).toBe(4);
 
     const soldier = createTroopInstance('elf', 'soldier');
     const archer = createTroopInstance('elf', 'archer');
-    const soldierResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, soldier, 'player');
-    const archerResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, archer, 'player');
+    const soldierResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-feline-grace'], troopClassUpgradeIds: [] }, soldier, 'player');
+    const archerResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-feline-grace'], troopClassUpgradeIds: [] }, archer, 'player');
 
     expect(soldierResolved.stats.range).toBe(0);
-    expect(archerResolved.stats.range).toBe(8);
+    expect(archerResolved.stats.range).toBe(7);
   });
 
   it('does not grant backline-only Feline Grace abilities to Elven Champions', () => {
     const champion = createTroopInstance('elf', 'champion');
-    const championResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] }, champion, 'player');
+    const championResolved = resolveTroopCombatant({ raceUpgradeIds: ['elf-feline-grace'], troopClassUpgradeIds: [] }, champion, 'player');
 
     expect(championResolved.stats.range).toBe(0);
     expect(championResolved.abilities.map((ability) => ability.id)).not.toContain('fade-into-shadow');
@@ -76,7 +87,7 @@ describe('troop composition', () => {
 
   it('uses the same detailed upgrade pass for resolved combatants and standalone stat breakdowns', () => {
     const state = {
-      raceUpgradeIds: ['elf-elven-reflexes'],
+      raceUpgradeIds: ['elf-feline-grace'],
       troopClassUpgradeIds: ['archer-crippling-shots'],
     };
     const troop = createTroopInstance('elf', 'archer');
@@ -92,14 +103,14 @@ describe('troop composition', () => {
   it('only applies enemy stat scaling at tier 4 and leaves tier 3 at base stats', () => {
     const humanSoldierBase = composeBaseTroopDefinition('human', 'soldier');
     const tier3Breakdowns = getResolvedStatBreakdowns(
-      { raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] },
+      { raceUpgradeIds: ['elf-feline-grace'], troopClassUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       3,
     );
     const tier3Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 3, 'enemy-1');
     const tier4Breakdowns = getResolvedStatBreakdowns(
-      { raceUpgradeIds: ['elf-elven-reflexes'], troopClassUpgradeIds: [] },
+      { raceUpgradeIds: ['elf-feline-grace'], troopClassUpgradeIds: [] },
       createTroopInstance('elf', 'archer'),
       'enemy',
       4,
@@ -107,7 +118,7 @@ describe('troop composition', () => {
     const tier4Enemy = resolveEnemyCombatant([], [], 'human', 'soldier', 4, 'enemy-2');
 
     expect(tier3Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves']);
-    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Feline Grace']);
+    expect(tier3Breakdowns.range.lines.map((line) => line.label)).toEqual(['Archer base', 'Feline Grace']);
     expect(tier4Breakdowns.damage.lines.map((line) => line.label)).toEqual(['Archer base', 'Elves', 'Enemy Rift Tier 4']);
 
     expect(tier3Enemy.stats.health).toBe(humanSoldierBase.stats.health);

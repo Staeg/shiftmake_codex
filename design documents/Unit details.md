@@ -33,7 +33,7 @@ Footprint sizes:
 ### Archer
 
 - Attributes: `ranged`
-- Stats: health 30, damage 11, speed 11, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 30, damage 11, speed 11, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: none
 - Cost: 20
@@ -45,7 +45,7 @@ Footprint sizes:
 ### Avenger
 
 - Attributes: `melee`
-- Stats: health 200, damage 6, speed 10, move 1, range 0, armor 0, size 2, capacity 1
+- Stats: health 200, damage 6, speed 10, move 2, range 0, armor 0, size 3, capacity 1
 - Role: frontline
 - Abilities: `Vengeance 3`
 - Cost: 40
@@ -57,7 +57,7 @@ Footprint sizes:
 ### Beastmaster
 
 - Attributes: `melee`, `summoner`
-- Stats: health 90, damage 8, speed 8, move 2, range 0, armor 0, size 2, capacity 1
+- Stats: health 90, damage 8, speed 8, move 3, range 0, armor 0, size 3, capacity 1
 - Role: frontline
 - Abilities: `Summon Wolf 2`
 - Cost: 60
@@ -69,7 +69,7 @@ Footprint sizes:
 ### Champion
 
 - Attributes: `melee`
-- Stats: health 130, damage 20, speed 17, move 2, range 0, armor 0, size 2, capacity 1
+- Stats: health 130, damage 20, speed 17, move 3, range 0, armor 0, size 3, capacity 1
 - Role: frontline
 - Abilities: `Valor 20`
 - Cost: 60
@@ -81,7 +81,7 @@ Footprint sizes:
 ### Druid
 
 - Attributes: `caster`
-- Stats: health 25, damage 11, speed 8, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 25, damage 11, speed 8, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Shapeshift - Bear`
 - Cost: 30
@@ -93,7 +93,7 @@ Footprint sizes:
 ### Elemental
 
 - Attributes: `melee`, `summoned`
-- Stats: health 60, damage 13, speed 7, move 1, range 0, armor 5, size 1, capacity 3
+- Stats: health 60, damage 13, speed 7, move 2, range 0, armor 5, size 2, capacity 3
 - Role: frontline
 - Abilities: none
 - Cost: 20
@@ -101,7 +101,7 @@ Footprint sizes:
 ### Elementalist
 
 - Attributes: `caster`, `summoner`
-- Stats: health 25, damage 10, speed 9, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 25, damage 10, speed 9, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Charge 4 Summon Elemental`
 - Cost: 30
@@ -113,7 +113,7 @@ Footprint sizes:
 ### Knight
 
 - Attributes: `melee`
-- Stats: health 200, damage 16, speed 7, move 1, range 0, armor 10, size 2, capacity 5
+- Stats: health 200, damage 16, speed 7, move 2, range 0, armor 10, size 3, capacity 5
 - Role: frontline
 - Abilities: `Taunt`
 - Cost: 60
@@ -125,7 +125,7 @@ Footprint sizes:
 ### Militia
 
 - Attributes: `melee`, `expendable`
-- Stats: health 40, damage 8, speed 11, move 3, range 0, armor 0, size 1, capacity 1
+- Stats: health 40, damage 8, speed 11, move 4, range 0, armor 0, size 2, capacity 1
 - Role: Pusher
 - Abilities: none
 - Cost: 10
@@ -137,7 +137,7 @@ Footprint sizes:
 ### Necromancer
 
 - Attributes: `caster`, `summoner`
-- Stats: health 40, damage 16, speed 8, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 40, damage 16, speed 8, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Corpse Summon Skeleton`
 - Cost: 40
@@ -149,7 +149,7 @@ Footprint sizes:
 ### Priest
 
 - Attributes: `caster`
-- Stats: health 25, damage 7, speed 8, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 25, damage 7, speed 8, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Mend 4`
 - Cost: 20
@@ -161,7 +161,7 @@ Footprint sizes:
 ### Ranger
 
 - Attributes: `ranged`
-- Stats: health 50, damage 16, speed 13, move 3, range 7, armor 0, size 1, capacity 0
+- Stats: health 50, damage 16, speed 13, move 4, range 7, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Self Haste 2`
 - Cost: 60
@@ -173,7 +173,7 @@ Footprint sizes:
 ### Shaman
 
 - Attributes: `caster`
-- Stats: health 20, damage 11, speed 8, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 20, damage 11, speed 8, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Enhance 1`
 - Cost: 20
@@ -185,7 +185,7 @@ Footprint sizes:
 ### Skeleton
 
 - Attributes: `melee`, `summoned`
-- Stats: health 40, damage 13, speed 7, move 2, range 0, armor 0, size 1, capacity 1
+- Stats: health 40, damage 13, speed 7, move 3, range 0, armor 0, size 2, capacity 1
 - Role: Pusher
 - Abilities: `Bonded`, `Fading`
 - Cost: 20
@@ -193,7 +193,7 @@ Footprint sizes:
 ### Soldier
 
 - Attributes: `melee`
-- Stats: health 100, damage 10, speed 10, move 2, range 0, armor 2, size 1, capacity 2
+- Stats: health 100, damage 10, speed 10, move 3, range 0, armor 2, size 2, capacity 2
 - Role: frontline
 - Abilities: none
 - Cost: 24
@@ -205,7 +205,7 @@ Footprint sizes:
 ### Wizard
 
 - Attributes: `caster`
-- Stats: health 20, damage 9, speed 8, move 2, range 5, armor 0, size 1, capacity 0
+- Stats: health 20, damage 9, speed 8, move 3, range 5, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Blast 5`
 - Cost: 20
@@ -217,7 +217,7 @@ Footprint sizes:
 ### Wolf
 
 - Attributes: `melee`, `summoned`
-- Stats: health 70, damage 6, speed 12, move 3, range 0, armor 0, size 1, capacity 1
+- Stats: health 70, damage 6, speed 12, move 4, range 0, armor 0, size 2, capacity 1
 - Role: Pusher
 - Abilities: `Bonded`, `Pack 1`
 - Cost: 20

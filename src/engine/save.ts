@@ -17,7 +17,7 @@ import type {
   TroopClassUnlockOffer,
   UpgradeDraftOffer,
 } from './types';
-import { ALL_TROOP_UNLOCK_IDS, RACE_UPGRADES, RACES, UNIT_CLASSES, isKnownTroopClassUpgradeId } from './unitCatalog';
+import { ALL_TROOP_UNLOCK_IDS, RACES, UNIT_CLASSES, isKnownRaceUpgradeId, isKnownTroopClassUpgradeId, normalizeRaceUpgradeId } from './unitCatalog';
 
 export function serializeGameState(state: GameState): string {
   return JSON.stringify(state);
@@ -67,10 +67,6 @@ function isKnownUnitClassId(value: unknown): value is string {
 
 function isKnownTroopUnlockId(value: unknown): value is string {
   return typeof value === 'string' && ALL_TROOP_UNLOCK_IDS.includes(value);
-}
-
-function isKnownRaceUpgradeId(value: unknown): value is string {
-  return typeof value === 'string' && value in RACE_UPGRADES;
 }
 
 function isKnownUpgradeId(value: unknown): value is string {
@@ -139,12 +135,13 @@ function filterKnownTroopUnlocks(values: unknown[], repairs: LoadGameRepairRepor
 }
 
 function filterKnownRaceUpgrades(values: unknown[], repairs: LoadGameRepairReport, category: keyof LoadGameRepairReport = 'missingUpgradeIds'): string[] {
-  return values.filter((value): value is string => {
+  return values.flatMap((value) => {
     const known = isKnownRaceUpgradeId(value);
     if (!known) {
       addRepair(repairs, category, value);
+      return [];
     }
-    return known;
+    return [normalizeRaceUpgradeId(value)];
   });
 }
 
@@ -159,12 +156,13 @@ function filterKnownTroopClassUpgrades(values: unknown[], repairs: LoadGameRepai
 }
 
 function filterKnownUpgrades(values: unknown[], repairs: LoadGameRepairReport, category: keyof LoadGameRepairReport = 'missingUpgradeIds'): string[] {
-  return values.filter((value): value is string => {
+  return values.flatMap((value) => {
     const known = isKnownUpgradeId(value);
     if (!known) {
       addRepair(repairs, category, value);
+      return [];
     }
-    return known;
+    return typeof value === 'string' && isKnownRaceUpgradeId(value) ? [normalizeRaceUpgradeId(value)] : [value as string];
   });
 }
 

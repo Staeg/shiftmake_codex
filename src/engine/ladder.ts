@@ -1,11 +1,12 @@
 import { resolveEnemyCombatant } from './army';
 import { generateCycleRifts } from './rift';
 import {
-  RACE_UPGRADES,
   RACES,
   MUTATORS,
   UNIT_CLASSES,
+  isKnownRaceUpgradeId,
   isKnownTroopClassUpgradeId,
+  normalizeRaceUpgradeId,
 } from './unitCatalog';
 import type {
   RaceId,
@@ -59,7 +60,7 @@ function validateGuardian(guardian: unknown, path: string): LadderCompatibilityI
 
   const raceUpgradeIds = Array.isArray(guardian.raceUpgradeIds) ? guardian.raceUpgradeIds : [];
   raceUpgradeIds.forEach((upgradeId, index) => {
-    if (typeof upgradeId !== 'string' || !(upgradeId in RACE_UPGRADES)) {
+    if (!isKnownRaceUpgradeId(upgradeId)) {
       issues.push(issue('unknown_race_upgrade', `${path}.raceUpgradeIds[${index}]`, 'Guardian race upgrade is not known.', typeof upgradeId === 'string' ? upgradeId : null));
     }
   });
@@ -126,7 +127,7 @@ export function ladderRiftSetToRiftInstances(draw: LadderDrawResult): RiftInstan
     mutatorIds: [...rift.mutatorIds],
     enemyArmy: rift.guardians.map((guardian, index) =>
       resolveEnemyCombatant(
-        guardian.raceUpgradeIds,
+        guardian.raceUpgradeIds.map(normalizeRaceUpgradeId),
         guardian.troopClassUpgradeIds,
         guardian.raceId,
         guardian.unitClassId,
@@ -134,7 +135,7 @@ export function ladderRiftSetToRiftInstances(draw: LadderDrawResult): RiftInstan
         `${rift.id}-guardian-${index + 1}`,
       ),
     ),
-    enemyRaceUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.raceUpgradeIds))],
+    enemyRaceUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.raceUpgradeIds.map(normalizeRaceUpgradeId)))],
     enemyTroopClassUpgradeIds: [...new Set(rift.guardians.flatMap((guardian) => guardian.troopClassUpgradeIds))],
     victoryPoints: rift.victoryPoints,
     state: 'discovered',

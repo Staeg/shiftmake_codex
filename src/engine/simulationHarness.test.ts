@@ -114,10 +114,10 @@ describe('simulationHarness builders', () => {
       health: 30,
       damage: 11,
       speed: 11,
-      move: 2,
+      move: 3,
       range: 5,
       armor: 0,
-      size: 1,
+      size: 2,
       capacity: 0,
     });
     expect(archer.attributes).toEqual(['ranged']);

@@ -371,19 +371,27 @@ export function buildRoleScenarioBattleInput(scenarioId: RoleScenarioId, seed: n
             combatantId: 'player-pusher',
             label: 'Benchmark Pusher',
             side: 'player',
-            stats: { speed: 20 },
+            stats: { health: 100, speed: 50, size: 1 },
             quantity: 1,
           }),
         ],
         [
-          createCatalogTroopCombatant('human/soldier', {
+          createUnitClassCombatant('soldier', {
             combatantId: 'enemy-screen',
+            raceId: 'human',
+            label: 'Human Soldier',
             side: 'enemy',
+            attributes: ['melee', 'human'],
+            stats: { health: 110, damage: 11, speed: 1, move: 1, armor: 3, size: 1, capacity: 3 },
             quantity: 1,
           }),
-          createCatalogTroopCombatant('elf/archer', {
+          createUnitClassCombatant('archer', {
             combatantId: 'enemy-backline',
+            raceId: 'elf',
+            label: 'Elven Archer',
             side: 'enemy',
+            attributes: ['ranged', 'elf'],
+            stats: { health: 27, damage: 12.1, speed: 13.2, move: 4, size: 1 },
             quantity: 1,
           }),
         ],

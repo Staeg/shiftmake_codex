@@ -53,7 +53,7 @@ function claimedAffectedTroopIds(upgradeId: string): string[] {
 const EXPECTED_AFFECTED_TROOPS_BY_UPGRADE: Record<string, string[]> = {
   'human-combined-arms': raceTroopIds('human'),
   'human-tubthumping': raceTroopIds('human'),
-  'elf-elven-reflexes': raceTroopIds('elf', ELVEN_BACKLINE_UPGRADE_UNIT_CLASSES),
+  'elf-feline-grace': raceTroopIds('elf', ELVEN_BACKLINE_UPGRADE_UNIT_CLASSES),
   'elven-forsaken': raceTroopIds('elf'),
   'elf-silvershot-doctrine': raceTroopIds('elf', ELVEN_BACKLINE_UPGRADE_UNIT_CLASSES),
   'goblin-behavior': raceTroopIds('goblin'),

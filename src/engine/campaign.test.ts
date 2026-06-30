@@ -252,8 +252,8 @@ describe('campaign progression', () => {
     expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'beastmaster'))).toBe(false);
     expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'archer'))).toBe(true);
     expect(upgradeAffectsTroop('elf-silvershot-doctrine', createTroopInstance('elf', 'druid'))).toBe(true);
-    expect(upgradeAffectsTroop('elf-elven-reflexes', createTroopInstance('elf', 'champion'))).toBe(false);
-    expect(upgradeAffectsTroop('elf-elven-reflexes', createTroopInstance('elf', 'ranger'))).toBe(true);
+    expect(upgradeAffectsTroop('elf-feline-grace', createTroopInstance('elf', 'champion'))).toBe(false);
+    expect(upgradeAffectsTroop('elf-feline-grace', createTroopInstance('elf', 'ranger'))).toBe(true);
   });
 
   it('does not offer upgrades that affect none of the controlled troops', () => {

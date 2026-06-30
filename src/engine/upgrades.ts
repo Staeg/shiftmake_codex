@@ -1,4 +1,4 @@
-import { applyStatModifier, composeBaseTroopDefinition, RACE_UPGRADES, getAbility, getRaceNativeTroopUnlockIds, TROOP_CLASS_UPGRADES } from './unitCatalog';
+import { applyStatModifier, composeBaseTroopDefinition, RACE_UPGRADES, getAbility, getRaceNativeTroopUnlockIds, normalizeRaceUpgradeId, TROOP_CLASS_UPGRADES } from './unitCatalog';
 import type { AbilityId, RaceId, GameState, TroopInstance, TroopUnlockId, UpgradeId } from './types';
 
 export function getAllUpgradeIds(): UpgradeId[] {
@@ -55,7 +55,7 @@ function canAbilityAffectTroop(abilityId: AbilityId, troop: TroopInstance): bool
 }
 
 function raceUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
-  const upgrade = RACE_UPGRADES[upgradeId];
+  const upgrade = RACE_UPGRADES[normalizeRaceUpgradeId(upgradeId)];
   if (!upgrade || upgrade.raceId !== troop.raceId) {
     return false;
   }
@@ -114,7 +114,7 @@ function troopClassUpgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstanc
 }
 
 export function upgradeAffectsTroop(upgradeId: UpgradeId, troop: TroopInstance): boolean {
-  if (upgradeId in RACE_UPGRADES) {
+  if (normalizeRaceUpgradeId(upgradeId) in RACE_UPGRADES) {
     return raceUpgradeAffectsTroop(upgradeId, troop);
   }
   return troopClassUpgradeAffectsTroop(upgradeId, troop);

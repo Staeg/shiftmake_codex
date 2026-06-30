@@ -180,7 +180,7 @@ export const ABILITY_VERIFICATION_SCENARIOS: AbilityVerificationScenario[] = [
     seed: 77,
     player: selection({ 'elf/druid': startCount('elf/druid') }),
     enemy: selection({ 'human/knight': startCount('human/knight', 2) }),
-    playerRaceUpgradeIds: ['elf-elven-reflexes'],
+    playerRaceUpgradeIds: ['elf-feline-grace'],
     playerTroopClassUpgradeIds: ['druid-true-form', 'druid-ents-visage'],
     enemyRaceUpgradeIds: [],
     enemyTroopClassUpgradeIds: [],

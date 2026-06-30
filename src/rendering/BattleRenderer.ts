@@ -227,6 +227,8 @@ export class BattleRenderer {
 
   private worldLayer = new Container();
 
+  private terrainLayer = new Container();
+
   private boardLayer = new Container();
 
   private footprintLayer = new Container();
@@ -315,7 +317,7 @@ export class BattleRenderer {
     this.tutorialUnitTargetLayer.className = 'battle-tutorial-unit-targets';
     this.tutorialUnitTargetLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.tutorialUnitTargetLayer);
-    this.worldLayer.addChild(this.boardLayer, this.footprintLayer, this.unitLayer, this.effectLayer);
+    this.worldLayer.addChild(this.terrainLayer, this.boardLayer, this.footprintLayer, this.unitLayer, this.effectLayer);
     this.applyHexInspectionVisibility();
     this.app.stage.addChild(this.worldLayer);
     this.app.stage.eventMode = 'static';
@@ -376,6 +378,10 @@ export class BattleRenderer {
     this.applyHexInspectionVisibility();
   }
 
+  setTerrainVisible(visible: boolean): void {
+    this.terrainLayer.visible = visible;
+  }
+
   destroy(): void {
     this.clearEffects();
     if (this.pendingViewportRefreshFrame !== null) {
@@ -398,7 +404,9 @@ export class BattleRenderer {
     this.troopProfileMap = new Map(replay.troopProfiles.map((p) => [`${p.side}:${p.troopLabel}`, p]));
     this.currentStep = -1;
     this.clearLayers();
-    this.drawBoard(this.mapHexesForReplay(replay));
+    const mapHexes = this.mapHexesForReplay(replay);
+    this.drawTerrain(mapHexes);
+    this.drawBoard(mapHexes);
     this.resetCameraToFit();
     this.mountUnitSprites(replay.initial.units);
     this.renderSnapshot(replay.initial.units);
@@ -504,6 +512,7 @@ export class BattleRenderer {
 
   private clearLayers(): void {
     this.clearEffects();
+    this.terrainLayer.removeChildren();
     this.boardLayer.removeChildren();
     this.footprintLayer.removeChildren();
     this.unitLayer.removeChildren();
@@ -561,6 +570,56 @@ export class BattleRenderer {
     }
     graphics.closePath();
     graphics.endFill();
+  }
+
+  private static terrainHash(q: number, r: number): number {
+    return Math.abs(q * 1013 + r * 607 + q * r * 31 + 17);
+  }
+
+  private drawTerrain(mapHexes: HexCoord[]): void {
+    const BASE_FILLS = [0x18201a, 0x1b1e1c, 0x181d1f, 0x1e1c18] as const;
+    const DETAIL_FILLS = [0x223022, 0x262826, 0x1e272c, 0x2a2720] as const;
+
+    const root = new Container();
+    mapHexes.forEach((coord) => {
+      const center = axialToPixel(coord);
+      const seed = BattleRenderer.terrainHash(coord.q, coord.r);
+      const typeIndex = seed % 4;
+      const base = BASE_FILLS[typeIndex]!;
+      const detail = DETAIL_FILLS[typeIndex]!;
+      const g = new Graphics();
+
+      g.lineStyle(0);
+      g.beginFill(base, 1);
+      for (let i = 0; i < 6; i += 1) {
+        const angle = (Math.PI / 180) * (60 * i - 30);
+        const x = center.x + HEX_SIZE * Math.cos(angle);
+        const y = center.y + HEX_SIZE * Math.sin(angle);
+        if (i === 0) {
+          g.moveTo(x, y);
+        } else {
+          g.lineTo(x, y);
+        }
+      }
+      g.closePath();
+      g.endFill();
+
+      const dotCount = 4 + (seed % 3);
+      for (let d = 0; d < dotCount; d += 1) {
+        const h = BattleRenderer.terrainHash(coord.q + d * 7, coord.r + d * 11);
+        const angle = (h % 360) * (Math.PI / 180);
+        const dist = ((h >> 4) % 80) / 100 * (HEX_SIZE * 0.56);
+        const dotR = 0.8 + (h % 3) * 0.45;
+        const alpha = 0.28 + (h % 35) / 100;
+        g.beginFill(detail, alpha);
+        g.drawCircle(center.x + Math.cos(angle) * dist, center.y + Math.sin(angle) * dist, dotR);
+        g.endFill();
+      }
+
+      root.addChild(g);
+    });
+
+    this.terrainLayer.addChild(root);
   }
 
   private drawBoard(mapHexes: HexCoord[]): void {

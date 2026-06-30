@@ -6,10 +6,10 @@
   "reviewChecklistPath": "assets/icons/review-checklist.md",
   "finalAssetRoot": "assets/icons/final",
   "counts": {
-    "total": 136,
-    "abilities": 82,
+    "total": 168,
+    "abilities": 98,
     "raceUpgrades": 21,
-    "troopClassUpgrades": 26,
+    "troopClassUpgrades": 42,
     "riftMutators": 7
   },
   "items": [
@@ -29,7 +29,7 @@
         "speed"
       ],
       "relatedUpgradeContexts": [
-        "Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat. Direct upgrade effects: speed +40%."
+        "Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat. Direct upgrade effects: speed +60%."
       ],
       "sourceAbilityIds": [
         "ale-and-hearty"
@@ -53,10 +53,11 @@
         "initiative",
         "healing",
         "summon",
-        "corpse"
+        "corpse",
+        "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn."
+        "Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn."
       ],
       "sourceAbilityIds": [
         "alternate-fuel-10"
@@ -94,7 +95,7 @@
       "name": "Arc Conductor",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: when an allied elemental dies, blast its hex for 8.",
+      "mechanic": "Passive: when an allied elemental dies, blast all enemies within 2 hexes of its occupied hexes for 8.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -107,12 +108,37 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns."
+        "Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns."
       ],
       "sourceAbilityIds": [
         "arc-conductor"
       ],
       "outputPath": "assets/icons/final/ability/arc-conductor.png"
+    },
+    {
+      "id": "barrage",
+      "slug": "barrage",
+      "kind": "ability",
+      "name": "Barrage",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: while not engaged, ranged attacks hit every enemy in range, but deal 40% less damage.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "ranged",
+        "melee"
+      ],
+      "relatedUpgradeContexts": [
+        "Barrage (Archer, tier 3): Archers shoot all enemies within their attack range when they aren't engaged in melee, but their attacks deal 40% less damage."
+      ],
+      "sourceAbilityIds": [
+        "barrage"
+      ],
+      "outputPath": "assets/icons/final/ability/barrage.png"
     },
     {
       "id": "berserk",
@@ -147,7 +173,7 @@
       "name": "Blast 5",
       "owner": null,
       "tier": null,
-      "mechanic": "On attack: all enemies on the attacked hex take 5 damage.",
+      "mechanic": "On attack: all enemies within 2 hexes of the target's occupied hexes take 5 damage.",
       "trigger": "onAttack",
       "target": null,
       "effects": [
@@ -197,7 +223,7 @@
       "name": "Bolstering Light",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: heals that bring a target to full HP give +1 speed and +1 damage; other heals give 40 initiative.",
+      "mechanic": "Passive: Priest heals that bring a target to full HP give the target and Priest +1 speed and +1 damage; other Priest heals give both 40 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -209,7 +235,7 @@
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative."
+        "Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative."
       ],
       "sourceAbilityIds": [
         "bolstering-light"
@@ -394,7 +420,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns."
+        "Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns."
       ],
       "sourceAbilityIds": [
         "charge-4-summon-elemental-mitosis"
@@ -462,7 +488,7 @@
       "name": "Corpse Summon Skeleton",
       "owner": null,
       "tier": null,
-      "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal touching allies.",
+      "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies touching them.",
       "trigger": "onFallen; near fallen all unit",
       "target": null,
       "effects": [
@@ -474,10 +500,11 @@
         "initiative",
         "healing",
         "summon",
-        "corpse"
+        "corpse",
+        "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn."
+        "Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn."
       ],
       "sourceAbilityIds": [
         "corpse-summon-skeleton-rising"
@@ -485,29 +512,58 @@
       "outputPath": "assets/icons/final/ability/corpse-summon-skeleton-rising.png"
     },
     {
-      "id": "crushing-sweep",
-      "slug": "crushing-sweep",
+      "id": "crack-exploits",
+      "slug": "crack-exploits",
       "kind": "ability",
-      "name": "Crushing Sweep",
+      "name": "Crack Exploits",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: melee kills deal splash damage equal to 5 times this unit size to enemies touching the fallen unit.",
+      "mechanic": "Passive: when an enemy loses armor, each allied Elementalist makes a normal attack against them ignoring range.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
-        "melee"
+        "armor",
+        "summon",
+        "ranged",
+        "debuff",
+        "synergy",
+        "defense"
       ],
       "relatedUpgradeContexts": [
-        "Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size."
+        "Crack Exploits (Elementalist, tier 3): Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack. Direct upgrade effects: damage -5."
       ],
       "sourceAbilityIds": [
-        "crushing-sweep"
+        "crack-exploits"
       ],
-      "outputPath": "assets/icons/final/ability/crushing-sweep.png"
+      "outputPath": "assets/icons/final/ability/crack-exploits.png"
+    },
+    {
+      "id": "crippling-hex",
+      "slug": "crippling-hex",
+      "kind": "ability",
+      "name": "Crippling Hex",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: enemies who kill this Militia gain Hex. Hex reduces enemy speed.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "speed",
+        "debuff"
+      ],
+      "relatedUpgradeContexts": [
+        "Crippling Hex (Militia, tier 3): Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex."
+      ],
+      "sourceAbilityIds": [
+        "crippling-hex"
+      ],
+      "outputPath": "assets/icons/final/ability/crippling-hex.png"
     },
     {
       "id": "diggy-hole",
@@ -516,16 +572,17 @@
       "name": "Diggy Hole",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board.",
+      "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
+        "initiative",
         "movement"
       ],
       "relatedUpgradeContexts": [
-        "Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board."
+        "Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative."
       ],
       "sourceAbilityIds": [
         "diggy-hole"
@@ -557,6 +614,31 @@
       "outputPath": "assets/icons/final/ability/dogpile.png"
     },
     {
+      "id": "dreamwork",
+      "slug": "dreamwork",
+      "kind": "ability",
+      "name": "Dreamwork",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: once per beat, attack an adjacent enemy when that enemy is hit by another ally's normal attack.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "initiative",
+        "corpse"
+      ],
+      "relatedUpgradeContexts": [
+        "Dreamwork (Soldier, tier 3): Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat."
+      ],
+      "sourceAbilityIds": [
+        "dreamwork"
+      ],
+      "outputPath": "assets/icons/final/ability/dreamwork.png"
+    },
+    {
       "id": "early-riser",
       "slug": "early-riser",
       "kind": "ability",
@@ -585,6 +667,35 @@
         "early-riser"
       ],
       "outputPath": "assets/icons/final/ability/early-riser.png"
+    },
+    {
+      "id": "elemental-sunder-1",
+      "slug": "elemental-sunder-1",
+      "kind": "ability",
+      "name": "Elemental Sunder",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: allied elementals remove 1 armor on attack.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "armor",
+        "summon",
+        "ranged",
+        "debuff",
+        "synergy",
+        "defense"
+      ],
+      "relatedUpgradeContexts": [
+        "Crack Exploits (Elementalist, tier 3): Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack. Direct upgrade effects: damage -5."
+      ],
+      "sourceAbilityIds": [
+        "elemental-sunder-1"
+      ],
+      "outputPath": "assets/icons/final/ability/elemental-sunder-1.png"
     },
     {
       "id": "enhance-1",
@@ -651,12 +762,13 @@
       "effects": [],
       "gameplayTags": [
         "base-ability",
+        "healing",
         "ranged",
         "melee",
         "movement"
       ],
       "relatedUpgradeContexts": [
-        "Elven Reflexes (Elves, tier 1): All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free. Direct upgrade effects: nonMelee range +1."
+        "Feline Grace (Elves, tier 1): All non-melee elven troops gain +2 range. The first time each battle an engaged elven backline unit retreats 1 hex for free. Direct upgrade effects: nonMelee range +2."
       ],
       "sourceAbilityIds": [
         "fade-into-shadow"
@@ -683,6 +795,29 @@
         "fading"
       ],
       "outputPath": "assets/icons/final/ability/fading.png"
+    },
+    {
+      "id": "final-hex",
+      "slug": "final-hex",
+      "kind": "ability",
+      "name": "Final Hex",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: attacks apply Hexed. Attacking an enemy with 5 Hexed stacks kills it.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage"
+      ],
+      "relatedUpgradeContexts": [
+        "Final Hex (Shaman, tier 3): Shamans apply 1 stack of Hexed to enemies they attack. When attacking an enemy with 5 stacks of Hexed, Shamans kill that enemy."
+      ],
+      "sourceAbilityIds": [
+        "final-hex"
+      ],
+      "outputPath": "assets/icons/final/ability/final-hex.png"
     },
     {
       "id": "first-blood",
@@ -741,7 +876,7 @@
       "name": "Forsaken 80",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and speed.",
+      "mechanic": "Start of battle: if this is the only troop on its side, gain 80% health, damage, and speed.",
       "trigger": "startOfBattle; condition forsaken",
       "target": "self",
       "effects": [
@@ -753,11 +888,10 @@
         "base-ability",
         "damage",
         "speed",
-        "healing",
-        "synergy"
+        "healing"
       ],
       "relatedUpgradeContexts": [
-        "Elven Forsaken (Elves, tier 3): Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed."
+        "Forsaken (Elves, tier 3): Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed."
       ],
       "sourceAbilityIds": [
         "forsaken-80"
@@ -786,12 +920,36 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Mossblood (Trolls, tier 2): The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle."
+        "Mossblood (Trolls, tier 2): After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle."
       ],
       "sourceAbilityIds": [
         "frenzy-ramp-1"
       ],
       "outputPath": "assets/icons/final/ability/frenzy-ramp-1.png"
+    },
+    {
+      "id": "gargantuan-zeal",
+      "slug": "gargantuan-zeal",
+      "kind": "ability",
+      "name": "Gargantuan Zeal",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on size.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "synergy"
+      ],
+      "relatedUpgradeContexts": [
+        "Gargantuan Zeal (Trolls, tier 1): When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have."
+      ],
+      "sourceAbilityIds": [
+        "gargantuan-zeal"
+      ],
+      "outputPath": "assets/icons/final/ability/gargantuan-zeal.png"
     },
     {
       "id": "glamour",
@@ -839,7 +997,7 @@
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative."
+        "Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative."
       ],
       "sourceAbilityIds": [
         "goblin-farewell"
@@ -898,13 +1056,37 @@
       "outputPath": "assets/icons/final/ability/heartseeker.png"
     },
     {
+      "id": "hexing-shots",
+      "slug": "hexing-shots",
+      "kind": "ability",
+      "name": "Hexing Shots",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: Archer attacks deal +1 damage per Hex stack on the target.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [
+        "Hexing Shots (Archer, tier 3): Archer attacks deal +1 damage per Hex stack on the target."
+      ],
+      "sourceAbilityIds": [
+        "hexing-shots"
+      ],
+      "outputPath": "assets/icons/final/ability/hexing-shots.png"
+    },
+    {
       "id": "hold-the-standard",
       "slug": "hold-the-standard",
       "kind": "ability",
       "name": "Hold the Standard",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.",
+      "mechanic": "Passive: whenever a non-Fading ally dies, heal each Human unit for 15.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -914,12 +1096,112 @@
         "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15."
+        "Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies, each Human unit heals 15."
       ],
       "sourceAbilityIds": [
         "hold-the-standard"
       ],
       "outputPath": "assets/icons/final/ability/hold-the-standard.png"
+    },
+    {
+      "id": "holy-constructs",
+      "slug": "holy-constructs",
+      "kind": "ability",
+      "name": "Holy Constructs",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: while a Priest is present, the first time each non-Fading ally is healed, summon an Elemental adjacent to them. Elementals heal adjacent allies on death.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "healing",
+        "summon",
+        "corpse"
+      ],
+      "relatedUpgradeContexts": [
+        "Holy Constructs (Priest, tier 3): While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death."
+      ],
+      "sourceAbilityIds": [
+        "holy-constructs"
+      ],
+      "outputPath": "assets/icons/final/ability/holy-constructs.png"
+    },
+    {
+      "id": "honorable-duel",
+      "slug": "honorable-duel",
+      "kind": "ability",
+      "name": "Honorable Duel",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: this Champion cannot be targeted by normal attacks from enemies it is not engaged with.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "melee"
+      ],
+      "relatedUpgradeContexts": [
+        "Honorable Duel (Champion, tier 3): Champions cannot be targeted with normal attacks by enemies they aren't engaged with."
+      ],
+      "sourceAbilityIds": [
+        "honorable-duel"
+      ],
+      "outputPath": "assets/icons/final/ability/honorable-duel.png"
+    },
+    {
+      "id": "horde-4",
+      "slug": "horde-4",
+      "kind": "ability",
+      "name": "Horde 4",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Start of turn: gain +4 damage per other touching friendly unit until end of turn.",
+      "trigger": "startOfTurn",
+      "target": "self",
+      "effects": [
+        "ramp 4"
+      ],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "initiative",
+        "synergy"
+      ],
+      "relatedUpgradeContexts": [
+        "Horde (Goblins, tier 2): Start of turn: each goblin unit gains +4 damage per other friendly unit touching it until end of turn."
+      ],
+      "sourceAbilityIds": [
+        "horde-4"
+      ],
+      "outputPath": "assets/icons/final/ability/horde-4.png"
+    },
+    {
+      "id": "hunters-zeal",
+      "slug": "hunters-zeal",
+      "kind": "ability",
+      "name": "Hunter's Zeal",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants initiative at end of turn.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "initiative",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [
+        "Hunter's Zeal (Ranger, tier 3): On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns."
+      ],
+      "sourceAbilityIds": [
+        "hunters-zeal"
+      ],
+      "outputPath": "assets/icons/final/ability/hunters-zeal.png"
     },
     {
       "id": "last-witness",
@@ -928,7 +1210,7 @@
       "name": "Last Witness",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: when a touching ally dies, strike the killer twice if still in contact.",
+      "mechanic": "Passive: when a touching ally dies, strike their killer twice if still in contact.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -953,7 +1235,7 @@
       "name": "Lightning Rods",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: Blast deals +1 damage per elemental on the target hex.",
+      "mechanic": "Passive: Blast deals +1 damage per allied elemental on the battlefield.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -961,10 +1243,11 @@
         "base-ability",
         "damage",
         "summon",
-        "ranged"
+        "ranged",
+        "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle."
+        "Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle."
       ],
       "sourceAbilityIds": [
         "lightning-rods"
@@ -1024,29 +1307,29 @@
       "outputPath": "assets/icons/final/ability/long-shot-doctrine.png"
     },
     {
-      "id": "loot-frenzy",
-      "slug": "loot-frenzy",
+      "id": "martyrs-zeal",
+      "slug": "martyrs-zeal",
       "kind": "ability",
-      "name": "Loot Frenzy",
+      "name": "Martyr's Zeal",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
+      "mechanic": "Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "damage",
         "initiative",
-        "healing"
+        "healing",
+        "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Loot Frenzy (Goblins, tier 3): When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative."
+        "Martyr's Zeal (Soldier, tier 3): When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns."
       ],
       "sourceAbilityIds": [
-        "loot-frenzy"
+        "martyrs-zeal"
       ],
-      "outputPath": "assets/icons/final/ability/loot-frenzy.png"
+      "outputPath": "assets/icons/final/ability/martyrs-zeal.png"
     },
     {
       "id": "mend-4",
@@ -1080,7 +1363,7 @@
       "name": "Mercy Before Dawn",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP.",
+      "mechanic": "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest heals repeat on allies in range below 10% HP.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1093,12 +1376,60 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Mercy Before Dawn (Priest, tier 3): The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP."
+        "Mercy Before Dawn (Priest, tier 3): The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health."
       ],
       "sourceAbilityIds": [
         "mercy-before-dawn"
       ],
       "outputPath": "assets/icons/final/ability/mercy-before-dawn.png"
+    },
+    {
+      "id": "opening",
+      "slug": "opening",
+      "kind": "ability",
+      "name": "Opening",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: when this unit hits an enemy, allies touching the target also attack that enemy.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage"
+      ],
+      "relatedUpgradeContexts": [
+        "Opening (Beastmaster, tier 3): When a Beastmaster hits an enemy, all allies adjacent to the target also attack that enemy."
+      ],
+      "sourceAbilityIds": [
+        "opening"
+      ],
+      "outputPath": "assets/icons/final/ability/opening.png"
+    },
+    {
+      "id": "overwhelm-hex",
+      "slug": "overwhelm-hex",
+      "kind": "ability",
+      "name": "Overwhelm Hex",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: when a Goblin is present, one random unit from each enemy troop gains Hex at battle start. Hex drains health at end of turn.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "initiative",
+        "healing",
+        "debuff"
+      ],
+      "relatedUpgradeContexts": [
+        "Overwhelm Hex (Goblins, tier 1): When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn."
+      ],
+      "sourceAbilityIds": [
+        "overwhelm-hex"
+      ],
+      "outputPath": "assets/icons/final/ability/overwhelm-hex.png"
     },
     {
       "id": "pack-1",
@@ -1108,7 +1439,7 @@
       "owner": null,
       "tier": null,
       "mechanic": "Start of turn: gain +1 damage per other touching friendly unit until end of turn.",
-      "trigger": "startOfTurn; scales per other friendly unit on hex",
+      "trigger": "startOfTurn",
       "target": "self",
       "effects": [
         "ramp 1"
@@ -1119,42 +1450,11 @@
         "initiative",
         "synergy"
       ],
-      "relatedUpgradeContexts": [
-        "Goblin Pack (Goblins, tier 2): Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn."
-      ],
+      "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
         "pack-1"
       ],
       "outputPath": "assets/icons/final/ability/pack-1.png"
-    },
-    {
-      "id": "packmasters-whistle",
-      "slug": "packmasters-whistle",
-      "kind": "ability",
-      "name": "Packmaster's Whistle",
-      "owner": null,
-      "tier": null,
-      "mechanic": "End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.",
-      "trigger": "passive",
-      "target": null,
-      "effects": [],
-      "gameplayTags": [
-        "base-ability",
-        "damage",
-        "initiative",
-        "healing",
-        "summon",
-        "melee",
-        "synergy",
-        "defense"
-      ],
-      "relatedUpgradeContexts": [
-        "Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10."
-      ],
-      "sourceAbilityIds": [
-        "packmasters-whistle"
-      ],
-      "outputPath": "assets/icons/final/ability/packmasters-whistle.png"
     },
     {
       "id": "pinning-volley",
@@ -1193,8 +1493,8 @@
       "name": "Power of Friendship",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop class in this battle.",
-      "trigger": "startOfBattle; scales per other friendly troop class",
+      "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop on this side.",
+      "trigger": "startOfBattle",
       "target": "self",
       "effects": [
         "bolster 20%",
@@ -1209,7 +1509,7 @@
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Human Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle."
+        "Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side."
       ],
       "sourceAbilityIds": [
         "combined-arms-20"
@@ -1220,54 +1520,26 @@
       "id": "rabble-rush",
       "slug": "rabble-rush",
       "kind": "ability",
-      "name": "Rabble Rush",
+      "name": "R-selected",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of turn: gain +1 initiative per other touching Militia.",
-      "trigger": "startOfTurn; scales per other touching friendly unit",
+      "mechanic": "Start of turn: gain +10 initiative per other touching Militia. Overworld: Militia troops may enter the same Rift together.",
+      "trigger": "startOfTurn",
       "target": "self",
       "effects": [
-        "initiative +1"
+        "initiative +10"
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative",
-        "synergy"
+        "initiative"
       ],
       "relatedUpgradeContexts": [
-        "Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them."
+        "R-selected (Militia, tier 3): Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together."
       ],
       "sourceAbilityIds": [
         "rabble-rush"
       ],
       "outputPath": "assets/icons/final/ability/rabble-rush.png"
-    },
-    {
-      "id": "ramp-1",
-      "slug": "ramp-1",
-      "kind": "ability",
-      "name": "Ramp 1",
-      "owner": null,
-      "tier": null,
-      "mechanic": "End of turn: gain +1 damage for the battle.",
-      "trigger": "endOfTurn",
-      "target": "self",
-      "effects": [
-        "ramp 1"
-      ],
-      "gameplayTags": [
-        "base-ability",
-        "damage",
-        "initiative",
-        "melee"
-      ],
-      "relatedUpgradeContexts": [
-        "Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size."
-      ],
-      "sourceAbilityIds": [
-        "ramp-1"
-      ],
-      "outputPath": "assets/icons/final/ability/ramp-1.png"
     },
     {
       "id": "regen-5",
@@ -1327,22 +1599,49 @@
       "name": "Rowdy Regrowth",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: whenever this unit is healed, gain 20 initiative.",
+      "mechanic": "Passive: whenever this unit is healed, gain 20 initiative and +1 damage.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
+        "damage",
         "initiative",
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Rowdy Regrowth (Trolls, tier 2): Whenever a Troll is healed, it gains 20 initiative."
+        "Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 initiative and +1 damage."
       ],
       "sourceAbilityIds": [
         "rowdy-regrowth"
       ],
       "outputPath": "assets/icons/final/ability/rowdy-regrowth.png"
+    },
+    {
+      "id": "saintbane",
+      "slug": "saintbane",
+      "kind": "ability",
+      "name": "Saintbane",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: when an enemy heals or gains stats, raise adjacent corpses as Skeletons.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "healing",
+        "summon",
+        "corpse",
+        "synergy"
+      ],
+      "relatedUpgradeContexts": [
+        "Saintbane (Necromancer, tier 3): Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them."
+      ],
+      "sourceAbilityIds": [
+        "saintbane"
+      ],
+      "outputPath": "assets/icons/final/ability/saintbane.png"
     },
     {
       "id": "scavengers-hunger-2",
@@ -1370,30 +1669,6 @@
         "scavengers-hunger-2"
       ],
       "outputPath": "assets/icons/final/ability/scavengers-hunger-2.png"
-    },
-    {
-      "id": "scurry",
-      "slug": "scurry",
-      "kind": "ability",
-      "name": "Scurry",
-      "owner": null,
-      "tier": null,
-      "mechanic": "Passive: this unit is quick and expendable; current battle legality uses footprints.",
-      "trigger": "passive",
-      "target": null,
-      "effects": [],
-      "gameplayTags": [
-        "base-ability",
-        "initiative",
-        "synergy"
-      ],
-      "relatedUpgradeContexts": [
-        "Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them."
-      ],
-      "sourceAbilityIds": [
-        "scurry"
-      ],
-      "outputPath": "assets/icons/final/ability/scurry.png"
     },
     {
       "id": "seeing-red",
@@ -1456,18 +1731,20 @@
       "name": "Sentinel Runes",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: the first time an enemy moves off this unit's hex, summon 2 elementals on its new hex; if unused, trigger on death instead.",
+      "mechanic": "Passive: the first time an enemy moves out of contact with this unit, summon 2 elementals at its new position; if unused, trigger on death instead.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
+        "damage",
         "summon",
         "corpse",
+        "melee",
         "movement"
       ],
       "relatedUpgradeContexts": [
-        "Sentinel Runes (Knight, tier 3): The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies."
+        "Sentinel Runes (Knight, tier 3): The first time an enemy moves out of contact with a Knight, summon 2 elementals at that unit's new position; they immediately engage and attack that unit. If unused, this also triggers on death against the killer."
       ],
       "sourceAbilityIds": [
         "sentinel-runes"
@@ -1682,7 +1959,7 @@
       "name": "Snatch the Moment",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: on kill, enemies touching the fallen unit lose 20 initiative.",
+      "mechanic": "Passive: on kill, all enemies lose 10 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1694,7 +1971,7 @@
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative."
+        "Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative."
       ],
       "sourceAbilityIds": [
         "snatch-the-moment"
@@ -1708,7 +1985,7 @@
       "name": "Spell Echo",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: Blast chains to adjacent hexes that have not been hit in this chain.",
+      "mechanic": "Passive: each Blast echoes from every enemy hit by that Blast or its echoes, but each enemy can be hit only once per Blast chain.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -1718,7 +1995,7 @@
         "ranged"
       ],
       "relatedUpgradeContexts": [
-        "Spell Echo (Wizard, tier 2): Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain."
+        "Spell Echo (Wizard, tier 2): Each time this Wizard's Blast hits enemies, repeat that Blast from every enemy hit by that Blast or its echoes, but no enemy can be hit more than once per Blast chain."
       ],
       "sourceAbilityIds": [
         "spell-echo"
@@ -1797,7 +2074,7 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Mossblood (Trolls, tier 2): The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle."
+        "Mossblood (Trolls, tier 2): After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle."
       ],
       "sourceAbilityIds": [
         "stoneblood"
@@ -1811,21 +2088,22 @@
       "name": "Storm",
       "owner": null,
       "tier": null,
-      "mechanic": "Every 4 turns: a random enemy within this unit range is struck 4 extra times.",
+      "mechanic": "Every 4 turns: a random enemy within this unit range is struck 2 extra times.",
       "trigger": "endOfTurn; charge every 4 turns",
       "target": "random; enemy; radius from selfRange",
       "effects": [
-        "4 extra strikes"
+        "2 extra strikes"
       ],
       "gameplayTags": [
         "base-ability",
         "damage",
         "initiative",
         "summon",
-        "ranged"
+        "ranged",
+        "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle."
+        "Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle."
       ],
       "sourceAbilityIds": [
         "charge-4-random-enemy-r-strike-4"
@@ -1849,15 +2127,39 @@
         "base-ability",
         "damage",
         "summon",
-        "ranged"
+        "ranged",
+        "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle."
+        "Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle."
       ],
       "sourceAbilityIds": [
         "summon-elemental-1"
       ],
       "outputPath": "assets/icons/final/ability/summon-elemental-1.png"
+    },
+    {
+      "id": "summon-wolf-1",
+      "slug": "summon-wolf-1",
+      "kind": "ability",
+      "name": "Summon Wolf 1",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Start of battle: summon 1 wolf on this unit or an adjacent hex.",
+      "trigger": "startOfBattle",
+      "target": "self",
+      "effects": [
+        "summon 1 wolf"
+      ],
+      "gameplayTags": [
+        "base-ability",
+        "summon"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "summon-wolf-1"
+      ],
+      "outputPath": "assets/icons/final/ability/summon-wolf-1.png"
     },
     {
       "id": "summon-wolf-2",
@@ -1883,35 +2185,31 @@
       "outputPath": "assets/icons/final/ability/summon-wolf-2.png"
     },
     {
-      "id": "summon-wolf-2-blood",
-      "slug": "summon-wolf-2-blood",
+      "id": "sunder",
+      "slug": "sunder",
       "kind": "ability",
-      "name": "Summon Wolf 2",
+      "name": "Sunder",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: summon 2 wolves on this unit or adjacent hexes. Those wolves summon 1 more wolf on each kill, and new wolves inherit that effect.",
-      "trigger": "startOfBattle",
-      "target": "self",
+      "mechanic": "On attack: remove 20 armor from the target.",
+      "trigger": "onAttack",
+      "target": "default",
       "effects": [
-        "summon 2 wolfs"
+        "armor -20"
       ],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
-        "healing",
-        "summon",
-        "melee",
-        "synergy",
+        "armor",
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10."
+        "Sunder (Knight, tier 3): Knights remove 20 armor on attack."
       ],
       "sourceAbilityIds": [
-        "summon-wolf-2-blood"
+        "sunder"
       ],
-      "outputPath": "assets/icons/final/ability/summon-wolf-2-blood.png"
+      "outputPath": "assets/icons/final/ability/sunder.png"
     },
     {
       "id": "taunt",
@@ -1971,23 +2269,73 @@
       "name": "Thrill of the Hunt",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle.",
+      "mechanic": "Passive: when this side's wolf kills, summon 1 Wolf and all allied units gain +1 damage for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
-        "summon"
+        "summon",
+        "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Thrill of the Hunt (Beastmaster, tier 3): End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle."
+        "Thrill of the Hunt (Beastmaster, tier 3): Wolves summon 1 Wolf on each kill. Whenever any wolf gets a kill, all allies gain +1 damage for the battle."
       ],
       "sourceAbilityIds": [
         "thrill-of-the-hunt"
       ],
       "outputPath": "assets/icons/final/ability/thrill-of-the-hunt.png"
+    },
+    {
+      "id": "throwing-axes",
+      "slug": "throwing-axes",
+      "kind": "ability",
+      "name": "Throwing Axes",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: attacks deal extra damage equal to 10% of the target's current health before damage.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "healing",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [
+        "Throwing Axes (Beastmaster, tier 3): Beastmasters gain 4 range. Their attacks deal additional damage equal to 10% of the enemy's current health. Direct upgrade effects: add ranged attribute, range +4."
+      ],
+      "sourceAbilityIds": [
+        "throwing-axes"
+      ],
+      "outputPath": "assets/icons/final/ability/throwing-axes.png"
+    },
+    {
+      "id": "triumph",
+      "slug": "triumph",
+      "kind": "ability",
+      "name": "Triumphant Zeal",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% speed, and +10% max health.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "speed",
+        "healing"
+      ],
+      "relatedUpgradeContexts": [
+        "Triumphant Zeal (Champion, tier 3): On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have."
+      ],
+      "sourceAbilityIds": [
+        "triumph"
+      ],
+      "outputPath": "assets/icons/final/ability/triumph.png"
     },
     {
       "id": "tubthumping",
@@ -2082,7 +2430,8 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "healing"
+        "healing",
+        "corpse"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -2117,19 +2466,69 @@
       "outputPath": "assets/icons/final/ability/vengeance-3.png"
     },
     {
+      "id": "vulnerability-hex",
+      "slug": "vulnerability-hex",
+      "kind": "ability",
+      "name": "Vulnerability Hex",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: if a Wizard is present, enemies damaged by Blast can gain Hex. Hex makes enemies take more Blast damage.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [
+        "Vulnerability Hex (Wizard, tier 3): If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have."
+      ],
+      "sourceAbilityIds": [
+        "vulnerability-hex"
+      ],
+      "outputPath": "assets/icons/final/ability/vulnerability-hex.png"
+    },
+    {
+      "id": "wages-of-virtue",
+      "slug": "wages-of-virtue",
+      "kind": "ability",
+      "name": "Wages of Virtue",
+      "owner": null,
+      "tier": null,
+      "mechanic": "Passive: redirect incoming attack damage to a touching ally if possible. When a touching ally is healed, this unit is also healed.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "base-ability",
+        "damage",
+        "healing",
+        "defense"
+      ],
+      "relatedUpgradeContexts": [
+        "Wages of Virtue (Avenger, tier 3): Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed."
+      ],
+      "sourceAbilityIds": [
+        "wages-of-virtue"
+      ],
+      "outputPath": "assets/icons/final/ability/wages-of-virtue.png"
+    },
+    {
       "id": "war-drums",
       "slug": "war-drums",
       "kind": "ability",
       "name": "War Drums",
       "owner": null,
       "tier": null,
-      "mechanic": "End of turn: enhance all allies on a chosen allied hex instead of one target.",
+      "mechanic": "End of turn: pick a random allied non-caster in range; enhance it and all allies touching it.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "initiative",
+        "ranged",
         "synergy"
       ],
       "relatedUpgradeContexts": [
@@ -2171,13 +2570,14 @@
       "name": "Diggy Hole",
       "owner": "Dwarves",
       "tier": 1,
-      "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.",
+      "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "race-upgrade",
         "dwarves",
+        "initiative",
         "movement"
       ],
       "relatedUpgradeContexts": [],
@@ -2193,11 +2593,11 @@
       "name": "Ale and Hearty",
       "owner": "Dwarves",
       "tier": 2,
-      "mechanic": "Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.",
+      "mechanic": "Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.",
       "trigger": "passive",
       "target": null,
       "effects": [
-        "speed +40%"
+        "speed +60%"
       ],
       "gameplayTags": [
         "race-upgrade",
@@ -2236,17 +2636,17 @@
       "outputPath": "assets/icons/final/race_upgrade/dwarf-stall-warts.png"
     },
     {
-      "id": "elf-elven-reflexes",
-      "slug": "elf-elven-reflexes",
+      "id": "elf-feline-grace",
+      "slug": "elf-feline-grace",
       "kind": "race_upgrade",
-      "name": "Elven Reflexes",
+      "name": "Feline Grace",
       "owner": "Elves",
       "tier": 1,
-      "mechanic": "All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.",
+      "mechanic": "All non-melee elven troops gain +2 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.",
       "trigger": "passive",
       "target": null,
       "effects": [
-        "nonMelee range +1"
+        "nonMelee range +2"
       ],
       "gameplayTags": [
         "race-upgrade",
@@ -2259,7 +2659,7 @@
       "sourceAbilityIds": [
         "fade-into-shadow"
       ],
-      "outputPath": "assets/icons/final/race_upgrade/elf-elven-reflexes.png"
+      "outputPath": "assets/icons/final/race_upgrade/elf-feline-grace.png"
     },
     {
       "id": "elf-silvershot-doctrine",
@@ -2291,10 +2691,10 @@
       "id": "elven-forsaken",
       "slug": "elven-forsaken",
       "kind": "race_upgrade",
-      "name": "Elven Forsaken",
+      "name": "Forsaken",
       "owner": "Elves",
       "tier": 3,
-      "mechanic": "Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.",
+      "mechanic": "Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.",
       "trigger": "startOfBattle; condition forsaken",
       "target": "self",
       "effects": [
@@ -2307,8 +2707,7 @@
         "elves",
         "damage",
         "speed",
-        "healing",
-        "synergy"
+        "healing"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -2391,10 +2790,10 @@
       "id": "goblin-behavior",
       "slug": "goblin-behavior",
       "kind": "race_upgrade",
-      "name": "Goblin Behavior",
+      "name": "Gallowsworn",
       "owner": "Goblins",
       "tier": 1,
-      "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.",
+      "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.",
       "trigger": "onDeath",
       "target": "random; enemy; radius 0",
       "effects": [
@@ -2416,17 +2815,41 @@
       "outputPath": "assets/icons/final/race_upgrade/goblin-behavior.png"
     },
     {
+      "id": "goblin-overwhelm-hex",
+      "slug": "goblin-overwhelm-hex",
+      "kind": "race_upgrade",
+      "name": "Overwhelm Hex",
+      "owner": "Goblins",
+      "tier": 1,
+      "mechanic": "When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "race-upgrade",
+        "goblins",
+        "initiative",
+        "healing",
+        "debuff"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "overwhelm-hex"
+      ],
+      "outputPath": "assets/icons/final/race_upgrade/goblin-overwhelm-hex.png"
+    },
+    {
       "id": "goblin-pack",
       "slug": "goblin-pack",
       "kind": "race_upgrade",
-      "name": "Goblin Pack",
+      "name": "Horde",
       "owner": "Goblins",
       "tier": 2,
-      "mechanic": "Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.",
-      "trigger": "startOfTurn; scales per other friendly unit on hex",
+      "mechanic": "Start of turn: each goblin unit gains +4 damage per other friendly unit touching it until end of turn.",
+      "trigger": "startOfTurn",
       "target": "self",
       "effects": [
-        "ramp 1"
+        "ramp 4"
       ],
       "gameplayTags": [
         "race-upgrade",
@@ -2437,33 +2860,9 @@
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
-        "pack-1"
+        "horde-4"
       ],
       "outputPath": "assets/icons/final/race_upgrade/goblin-pack.png"
-    },
-    {
-      "id": "goblin-loot-frenzy",
-      "slug": "goblin-loot-frenzy",
-      "kind": "race_upgrade",
-      "name": "Loot Frenzy",
-      "owner": "Goblins",
-      "tier": 3,
-      "mechanic": "When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
-      "trigger": "passive",
-      "target": null,
-      "effects": [],
-      "gameplayTags": [
-        "race-upgrade",
-        "goblins",
-        "damage",
-        "initiative",
-        "healing"
-      ],
-      "relatedUpgradeContexts": [],
-      "sourceAbilityIds": [
-        "loot-frenzy"
-      ],
-      "outputPath": "assets/icons/final/race_upgrade/goblin-loot-frenzy.png"
     },
     {
       "id": "human-tubthumping",
@@ -2492,37 +2891,14 @@
       "outputPath": "assets/icons/final/race_upgrade/human-tubthumping.png"
     },
     {
-      "id": "human-hold-the-standard",
-      "slug": "human-hold-the-standard",
-      "kind": "race_upgrade",
-      "name": "Hold the Standard",
-      "owner": "Humans",
-      "tier": 2,
-      "mechanic": "Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.",
-      "trigger": "passive",
-      "target": null,
-      "effects": [],
-      "gameplayTags": [
-        "race-upgrade",
-        "humans",
-        "healing",
-        "corpse"
-      ],
-      "relatedUpgradeContexts": [],
-      "sourceAbilityIds": [
-        "hold-the-standard"
-      ],
-      "outputPath": "assets/icons/final/race_upgrade/human-hold-the-standard.png"
-    },
-    {
       "id": "human-combined-arms",
       "slug": "human-combined-arms",
       "kind": "race_upgrade",
-      "name": "Human Combined Arms",
+      "name": "Combined Arms",
       "owner": "Humans",
       "tier": 2,
-      "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.",
-      "trigger": "startOfBattle; scales per other friendly troop class",
+      "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.",
+      "trigger": "startOfBattle",
       "target": "self",
       "effects": [
         "bolster 20%",
@@ -2542,6 +2918,29 @@
         "combined-arms-20"
       ],
       "outputPath": "assets/icons/final/race_upgrade/human-combined-arms.png"
+    },
+    {
+      "id": "human-hold-the-standard",
+      "slug": "human-hold-the-standard",
+      "kind": "race_upgrade",
+      "name": "Hold the Standard",
+      "owner": "Humans",
+      "tier": 2,
+      "mechanic": "Whenever a non-Fading ally dies, each Human unit heals 15.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "race-upgrade",
+        "humans",
+        "healing",
+        "corpse"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "hold-the-standard"
+      ],
+      "outputPath": "assets/icons/final/race_upgrade/human-hold-the-standard.png"
     },
     {
       "id": "orc-seeing-red",
@@ -2621,31 +3020,27 @@
       "outputPath": "assets/icons/final/race_upgrade/orc-berserk.png"
     },
     {
-      "id": "troll-roll-the-boulder",
-      "slug": "troll-roll-the-boulder",
+      "id": "troll-gargantuan-zeal",
+      "slug": "troll-gargantuan-zeal",
       "kind": "race_upgrade",
-      "name": "Roll the Boulder",
+      "name": "Gargantuan Zeal",
       "owner": "Trolls",
       "tier": 1,
-      "mechanic": "End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.",
-      "trigger": "endOfTurn",
-      "target": "self",
-      "effects": [
-        "ramp 1"
-      ],
+      "mechanic": "When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
       "gameplayTags": [
         "race-upgrade",
         "trolls",
         "damage",
-        "initiative",
-        "melee"
+        "synergy"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
-        "ramp-1",
-        "crushing-sweep"
+        "gargantuan-zeal"
       ],
-      "outputPath": "assets/icons/final/race_upgrade/troll-roll-the-boulder.png"
+      "outputPath": "assets/icons/final/race_upgrade/troll-gargantuan-zeal.png"
     },
     {
       "id": "troll-mossblood",
@@ -2654,7 +3049,7 @@
       "name": "Mossblood",
       "owner": "Trolls",
       "tier": 2,
-      "mechanic": "The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.",
+      "mechanic": "After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2681,13 +3076,14 @@
       "name": "Rowdy Regrowth",
       "owner": "Trolls",
       "tier": 2,
-      "mechanic": "Whenever a Troll is healed, it gains 20 initiative.",
+      "mechanic": "Whenever a Troll regains health, it gains 20 initiative and +1 damage.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "race-upgrade",
         "trolls",
+        "damage",
         "initiative",
         "healing"
       ],
@@ -2839,6 +3235,30 @@
       "outputPath": "assets/icons/final/rift_mutator/quakes.png"
     },
     {
+      "id": "archer-barrage",
+      "slug": "archer-barrage",
+      "kind": "troop_class_upgrade",
+      "name": "Barrage",
+      "owner": "Archer",
+      "tier": 3,
+      "mechanic": "Archers shoot all enemies within their attack range when they aren't engaged in melee, but their attacks deal 40% less damage.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "archer",
+        "damage",
+        "ranged",
+        "melee"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "barrage"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/archer-barrage.png"
+    },
+    {
       "id": "archer-crippling-shots",
       "slug": "archer-crippling-shots",
       "kind": "troop_class_upgrade",
@@ -2869,6 +3289,29 @@
       "outputPath": "assets/icons/final/troop_class_upgrade/archer-crippling-shots.png"
     },
     {
+      "id": "archer-hexing-shots",
+      "slug": "archer-hexing-shots",
+      "kind": "troop_class_upgrade",
+      "name": "Hexing Shots",
+      "owner": "Archer",
+      "tier": 3,
+      "mechanic": "Archer attacks deal +1 damage per Hex stack on the target.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "archer",
+        "damage",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "hexing-shots"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/archer-hexing-shots.png"
+    },
+    {
       "id": "avenger-sevenfold",
       "slug": "avenger-sevenfold",
       "kind": "troop_class_upgrade",
@@ -2892,6 +3335,30 @@
         "uses-7-corpse-summon-skeleton"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/avenger-sevenfold.png"
+    },
+    {
+      "id": "avenger-wages-of-virtue",
+      "slug": "avenger-wages-of-virtue",
+      "kind": "troop_class_upgrade",
+      "name": "Wages of Virtue",
+      "owner": "Avenger",
+      "tier": 3,
+      "mechanic": "Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "avenger",
+        "damage",
+        "healing",
+        "defense"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "wages-of-virtue"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/avenger-wages-of-virtue.png"
     },
     {
       "id": "avenger-witness",
@@ -2920,35 +3387,26 @@
       "outputPath": "assets/icons/final/troop_class_upgrade/avenger-witness.png"
     },
     {
-      "id": "beastmaster-bloodhounds",
-      "slug": "beastmaster-bloodhounds",
+      "id": "beastmaster-opening",
+      "slug": "beastmaster-opening",
       "kind": "troop_class_upgrade",
-      "name": "Bloodhounds",
+      "name": "Opening",
       "owner": "Beastmaster",
       "tier": 3,
-      "mechanic": "Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.",
-      "trigger": "startOfBattle",
-      "target": "self",
-      "effects": [
-        "summon 2 wolfs"
-      ],
+      "mechanic": "When a Beastmaster hits an enemy, all allies adjacent to the target also attack that enemy.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
       "gameplayTags": [
         "troop-class-upgrade",
         "beastmaster",
-        "damage",
-        "initiative",
-        "healing",
-        "summon",
-        "melee",
-        "synergy",
-        "defense"
+        "damage"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
-        "summon-wolf-2-blood",
-        "packmasters-whistle"
+        "opening"
       ],
-      "outputPath": "assets/icons/final/troop_class_upgrade/beastmaster-bloodhounds.png"
+      "outputPath": "assets/icons/final/troop_class_upgrade/beastmaster-opening.png"
     },
     {
       "id": "beastmaster-thrill-of-the-hunt",
@@ -2957,7 +3415,7 @@
       "name": "Thrill of the Hunt",
       "owner": "Beastmaster",
       "tier": 3,
-      "mechanic": "End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.",
+      "mechanic": "Wolves summon 1 Wolf on each kill. Whenever any wolf gets a kill, all allies gain +1 damage for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2965,14 +3423,41 @@
         "troop-class-upgrade",
         "beastmaster",
         "damage",
-        "initiative",
-        "summon"
+        "summon",
+        "synergy"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
         "thrill-of-the-hunt"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/beastmaster-thrill-of-the-hunt.png"
+    },
+    {
+      "id": "beastmaster-throwing-axes",
+      "slug": "beastmaster-throwing-axes",
+      "kind": "troop_class_upgrade",
+      "name": "Throwing Axes",
+      "owner": "Beastmaster",
+      "tier": 3,
+      "mechanic": "Beastmasters gain 4 range. Their attacks deal additional damage equal to 10% of the enemy's current health.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [
+        "add ranged attribute",
+        "range +4"
+      ],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "beastmaster",
+        "damage",
+        "healing",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "throwing-axes"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/beastmaster-throwing-axes.png"
     },
     {
       "id": "champion-anointed-executioner",
@@ -2997,6 +3482,52 @@
         "anointed"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/champion-anointed-executioner.png"
+    },
+    {
+      "id": "champion-honorable-duel",
+      "slug": "champion-honorable-duel",
+      "kind": "troop_class_upgrade",
+      "name": "Honorable Duel",
+      "owner": "Champion",
+      "tier": 3,
+      "mechanic": "Champions cannot be targeted with normal attacks by enemies they aren't engaged with.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "champion",
+        "melee"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "honorable-duel"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/champion-honorable-duel.png"
+    },
+    {
+      "id": "champion-triumph",
+      "slug": "champion-triumph",
+      "kind": "troop_class_upgrade",
+      "name": "Triumphant Zeal",
+      "owner": "Champion",
+      "tier": 3,
+      "mechanic": "On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "champion",
+        "damage",
+        "speed",
+        "healing"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "triumph"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/champion-triumph.png"
     },
     {
       "id": "druid-true-form",
@@ -3082,13 +3613,44 @@
       "outputPath": "assets/icons/final/troop_class_upgrade/druid-forest-friends.png"
     },
     {
+      "id": "elementalist-crack-exploits",
+      "slug": "elementalist-crack-exploits",
+      "kind": "troop_class_upgrade",
+      "name": "Crack Exploits",
+      "owner": "Elementalist",
+      "tier": 3,
+      "mechanic": "Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [
+        "damage -5"
+      ],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "elementalist",
+        "damage",
+        "armor",
+        "summon",
+        "ranged",
+        "debuff",
+        "synergy",
+        "defense"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "crack-exploits",
+        "elemental-sunder-1"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/elementalist-crack-exploits.png"
+    },
+    {
       "id": "elementalist-crackling-mitosis",
       "slug": "elementalist-crackling-mitosis",
       "kind": "troop_class_upgrade",
       "name": "Crackling Mitosis",
       "owner": "Elementalist",
       "tier": 3,
-      "mechanic": "When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
+      "mechanic": "When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3167,15 +3729,17 @@
       "name": "Sentinel Runes",
       "owner": "Knight",
       "tier": 3,
-      "mechanic": "The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies.",
+      "mechanic": "The first time an enemy moves out of contact with a Knight, summon 2 elementals at that unit's new position; they immediately engage and attack that unit. If unused, this also triggers on death against the killer.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "troop-class-upgrade",
         "knight",
+        "damage",
         "summon",
         "corpse",
+        "melee",
         "movement"
       ],
       "relatedUpgradeContexts": [],
@@ -3183,6 +3747,56 @@
         "sentinel-runes"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/knight-sentinel-runes.png"
+    },
+    {
+      "id": "knight-sunder",
+      "slug": "knight-sunder",
+      "kind": "troop_class_upgrade",
+      "name": "Sunder",
+      "owner": "Knight",
+      "tier": 3,
+      "mechanic": "Knights remove 20 armor on attack.",
+      "trigger": "onAttack",
+      "target": "default",
+      "effects": [
+        "armor -20"
+      ],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "knight",
+        "damage",
+        "armor",
+        "defense"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "sunder"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/knight-sunder.png"
+    },
+    {
+      "id": "militia-crippling-hex",
+      "slug": "militia-crippling-hex",
+      "kind": "troop_class_upgrade",
+      "name": "Crippling Hex",
+      "owner": "Militia",
+      "tier": 3,
+      "mechanic": "Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "militia",
+        "damage",
+        "speed",
+        "debuff"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "crippling-hex"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/militia-crippling-hex.png"
     },
     {
       "id": "militia-dogpile",
@@ -3211,25 +3825,23 @@
       "id": "militia-rat-behavior",
       "slug": "militia-rat-behavior",
       "kind": "troop_class_upgrade",
-      "name": "Rat Behavior",
+      "name": "R-selected",
       "owner": "Militia",
       "tier": 3,
-      "mechanic": "Start of turn: Militia gain +1 initiative for each other Militia touching them.",
-      "trigger": "startOfTurn; scales per other touching friendly unit",
+      "mechanic": "Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.",
+      "trigger": "startOfTurn",
       "target": "self",
       "effects": [
-        "initiative +1"
+        "initiative +10"
       ],
       "gameplayTags": [
         "troop-class-upgrade",
         "militia",
-        "initiative",
-        "synergy"
+        "initiative"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
-        "rabble-rush",
-        "scurry"
+        "rabble-rush"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/militia-rat-behavior.png"
     },
@@ -3270,7 +3882,7 @@
       "name": "Hemomancy",
       "owner": "Necromancer",
       "tier": 3,
-      "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.",
+      "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3281,7 +3893,8 @@
         "initiative",
         "healing",
         "summon",
-        "corpse"
+        "corpse",
+        "synergy"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -3291,13 +3904,38 @@
       "outputPath": "assets/icons/final/troop_class_upgrade/necromancer-hemomancy.png"
     },
     {
+      "id": "necromancer-saintbane",
+      "slug": "necromancer-saintbane",
+      "kind": "troop_class_upgrade",
+      "name": "Saintbane",
+      "owner": "Necromancer",
+      "tier": 3,
+      "mechanic": "Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "necromancer",
+        "healing",
+        "summon",
+        "corpse",
+        "synergy"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "saintbane"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/necromancer-saintbane.png"
+    },
+    {
       "id": "priest-bolstering-light",
       "slug": "priest-bolstering-light",
       "kind": "troop_class_upgrade",
       "name": "Bolstering Light",
       "owner": "Priest",
       "tier": 3,
-      "mechanic": "When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.",
+      "mechanic": "When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3316,13 +3954,37 @@
       "outputPath": "assets/icons/final/troop_class_upgrade/priest-bolstering-light.png"
     },
     {
+      "id": "priest-holy-constructs",
+      "slug": "priest-holy-constructs",
+      "kind": "troop_class_upgrade",
+      "name": "Holy Constructs",
+      "owner": "Priest",
+      "tier": 3,
+      "mechanic": "While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "priest",
+        "healing",
+        "summon",
+        "corpse"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "holy-constructs"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/priest-holy-constructs.png"
+    },
+    {
       "id": "priest-mercy-before-dawn",
       "slug": "priest-mercy-before-dawn",
       "kind": "troop_class_upgrade",
       "name": "Mercy Before Dawn",
       "owner": "Priest",
       "tier": 3,
-      "mechanic": "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.",
+      "mechanic": "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3340,6 +4002,30 @@
         "mercy-before-dawn"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/priest-mercy-before-dawn.png"
+    },
+    {
+      "id": "ranger-hunters-zeal",
+      "slug": "ranger-hunters-zeal",
+      "kind": "troop_class_upgrade",
+      "name": "Hunter's Zeal",
+      "owner": "Ranger",
+      "tier": 3,
+      "mechanic": "On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "ranger",
+        "damage",
+        "initiative",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "hunters-zeal"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/ranger-hunters-zeal.png"
     },
     {
       "id": "ranger-on-the-hunt",
@@ -3412,6 +4098,7 @@
         "troop-class-upgrade",
         "shaman",
         "initiative",
+        "ranged",
         "synergy"
       ],
       "relatedUpgradeContexts": [],
@@ -3419,6 +4106,28 @@
         "war-drums"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/shaman-war-drums.png"
+    },
+    {
+      "id": "shaman-final-hex",
+      "slug": "shaman-final-hex",
+      "kind": "troop_class_upgrade",
+      "name": "Final Hex",
+      "owner": "Shaman",
+      "tier": 3,
+      "mechanic": "Shamans apply 1 stack of Hexed to enemies they attack. When attacking an enemy with 5 stacks of Hexed, Shamans kill that enemy.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "shaman",
+        "damage"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "final-hex"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/shaman-final-hex.png"
     },
     {
       "id": "shaman-grave-vigor",
@@ -3448,6 +4157,54 @@
         "grave-vigor"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/shaman-grave-vigor.png"
+    },
+    {
+      "id": "soldier-dreamwork",
+      "slug": "soldier-dreamwork",
+      "kind": "troop_class_upgrade",
+      "name": "Dreamwork",
+      "owner": "Soldier",
+      "tier": 3,
+      "mechanic": "Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "soldier",
+        "damage",
+        "initiative",
+        "corpse"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "dreamwork"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/soldier-dreamwork.png"
+    },
+    {
+      "id": "soldier-martyrs-zeal",
+      "slug": "soldier-martyrs-zeal",
+      "kind": "troop_class_upgrade",
+      "name": "Martyr's Zeal",
+      "owner": "Soldier",
+      "tier": 3,
+      "mechanic": "When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "soldier",
+        "initiative",
+        "healing",
+        "corpse"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "martyrs-zeal"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/soldier-martyrs-zeal.png"
     },
     {
       "id": "soldier-shield-drill",
@@ -3484,7 +4241,7 @@
       "name": "Spell Echo",
       "owner": "Wizard",
       "tier": 2,
-      "mechanic": "Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain.",
+      "mechanic": "Each time this Wizard's Blast hits enemies, repeat that Blast from every enemy hit by that Blast or its echoes, but no enemy can be hit more than once per Blast chain.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3507,11 +4264,11 @@
       "name": "Storm Rods",
       "owner": "Wizard",
       "tier": 3,
-      "mechanic": "Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.",
+      "mechanic": "Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle.",
       "trigger": "endOfTurn; charge every 4 turns",
       "target": "random; enemy; radius from selfRange",
       "effects": [
-        "4 extra strikes"
+        "2 extra strikes"
       ],
       "gameplayTags": [
         "troop-class-upgrade",
@@ -3519,7 +4276,8 @@
         "damage",
         "initiative",
         "summon",
-        "ranged"
+        "ranged",
+        "synergy"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -3528,6 +4286,29 @@
         "summon-elemental-1"
       ],
       "outputPath": "assets/icons/final/troop_class_upgrade/wizard-storm-rods.png"
+    },
+    {
+      "id": "wizard-vulnerability-hex",
+      "slug": "wizard-vulnerability-hex",
+      "kind": "troop_class_upgrade",
+      "name": "Vulnerability Hex",
+      "owner": "Wizard",
+      "tier": 3,
+      "mechanic": "If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.",
+      "trigger": "passive",
+      "target": null,
+      "effects": [],
+      "gameplayTags": [
+        "troop-class-upgrade",
+        "wizard",
+        "damage",
+        "ranged"
+      ],
+      "relatedUpgradeContexts": [],
+      "sourceAbilityIds": [
+        "vulnerability-hex"
+      ],
+      "outputPath": "assets/icons/final/troop_class_upgrade/wizard-vulnerability-hex.png"
     }
   ]
 }

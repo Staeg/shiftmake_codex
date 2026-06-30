@@ -511,6 +511,13 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `target: self`
 - Effect: summon 2 wolves
 
+### Summon Wolf 1
+
+- `startOfBattle`
+- battle
+- `target: self`
+- Effect: summon 1 wolf
+
 ### Taunt
 
 - `endOfTurn`

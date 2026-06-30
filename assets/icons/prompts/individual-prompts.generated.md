@@ -10,7 +10,7 @@ Create the next Shiftmake icon in the same style.
 Name: Ale and Hearty
 Category: Ability
 Mechanic: Passive: one random unit from each troop has speed set to 1 at the start of combat.
-Upgrade context: Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat. Direct upgrade effects: speed +40%.
+Upgrade context: Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat. Direct upgrade effects: speed +60%.
 Visual tags: speed
 
 Requirements:
@@ -36,8 +36,8 @@ Create the next Shiftmake icon in the same style.
 Name: Alternate Fuel
 Category: Ability
 Mechanic: Passive: corpse-consuming abilities may spend 10 HP instead of requiring or consuming a corpse, if that would not kill this unit.
-Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.
-Visual tags: damage, initiative, healing, summon, corpse
+Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
+Visual tags: damage, initiative, healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -87,9 +87,35 @@ Create the next Shiftmake icon in the same style.
 
 Name: Arc Conductor
 Category: Ability
-Mechanic: Passive: when an allied elemental dies, blast its hex for 8.
-Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
+Mechanic: Passive: when an allied elemental dies, blast all enemies within 2 hexes of its occupied hexes for 8.
+Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
 Visual tags: damage, summon, corpse, ranged, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Barrage
+
+Save approved image as: `assets/icons/final/ability/barrage.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Barrage
+Category: Ability
+Mechanic: Passive: while not engaged, ranged attacks hit every enemy in range, but deal 40% less damage.
+Upgrade context: Barrage (Archer, tier 3): Archers shoot all enemies within their attack range when they aren't engaged in melee, but their attacks deal 40% less damage.
+Visual tags: damage, ranged, melee
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -139,7 +165,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Blast 5
 Category: Ability
-Mechanic: On attack: all enemies on the attacked hex take 5 damage.
+Mechanic: On attack: all enemies within 2 hexes of the target's occupied hexes take 5 damage.
 Trigger: onAttack
 Mechanical effects: blast 5 damage
 Visual tags: damage, ranged
@@ -195,8 +221,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Bolstering Light
 Category: Ability
-Mechanic: Passive: heals that bring a target to full HP give +1 speed and +1 damage; other heals give 40 initiative.
-Upgrade context: Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.
+Mechanic: Passive: Priest heals that bring a target to full HP give the target and Priest +1 speed and +1 damage; other Priest heals give both 40 initiative.
+Upgrade context: Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.
 Visual tags: damage, speed, initiative, healing
 
 Requirements:
@@ -379,7 +405,7 @@ Create the next Shiftmake icon in the same style.
 Name: Charge 4 Summon Elemental
 Category: Ability
 Mechanic: Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Each summoned elemental can do the same once.
-Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
+Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
 Trigger: endOfTurn; charge every 4 turns
 Target: self
 Mechanical effects: summon 1 elemental
@@ -463,11 +489,11 @@ Create the next Shiftmake icon in the same style.
 
 Name: Corpse Summon Skeleton
 Category: Ability
-Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal touching allies.
-Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.
+Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies touching them.
+Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
 Trigger: onFallen; near fallen all unit
 Mechanical effects: summon 1 skeleton
-Visual tags: damage, initiative, healing, summon, corpse
+Visual tags: damage, initiative, healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -482,18 +508,44 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Crushing Sweep
+## Crack Exploits
 
-Save approved image as: `assets/icons/final/ability/crushing-sweep.png`
+Save approved image as: `assets/icons/final/ability/crack-exploits.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Crushing Sweep
+Name: Crack Exploits
 Category: Ability
-Mechanic: Passive: melee kills deal splash damage equal to 5 times this unit size to enemies touching the fallen unit.
-Upgrade context: Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
-Visual tags: damage, initiative, melee
+Mechanic: Passive: when an enemy loses armor, each allied Elementalist makes a normal attack against them ignoring range.
+Upgrade context: Crack Exploits (Elementalist, tier 3): Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack. Direct upgrade effects: damage -5.
+Visual tags: damage, armor, summon, ranged, debuff, synergy, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Crippling Hex
+
+Save approved image as: `assets/icons/final/ability/crippling-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Crippling Hex
+Category: Ability
+Mechanic: Passive: enemies who kill this Militia gain Hex. Hex reduces enemy speed.
+Upgrade context: Crippling Hex (Militia, tier 3): Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.
+Visual tags: damage, speed, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -517,9 +569,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Diggy Hole
 Category: Ability
-Mechanic: Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board.
-Upgrade context: Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.
-Visual tags: movement
+Mechanic: Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 initiative.
+Upgrade context: Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.
+Visual tags: initiative, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -560,6 +612,32 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
+## Dreamwork
+
+Save approved image as: `assets/icons/final/ability/dreamwork.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Dreamwork
+Category: Ability
+Mechanic: Passive: once per beat, attack an adjacent enemy when that enemy is hit by another ally's normal attack.
+Upgrade context: Dreamwork (Soldier, tier 3): Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat.
+Visual tags: damage, initiative, corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
 ## Early Riser
 
 Save approved image as: `assets/icons/final/ability/early-riser.png`
@@ -572,6 +650,32 @@ Category: Ability
 Mechanic: Passive: skeletons this unit summons spawn with +100 initiative.
 Upgrade context: Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
 Visual tags: damage, armor, initiative, summon, corpse, debuff, movement, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Elemental Sunder
+
+Save approved image as: `assets/icons/final/ability/elemental-sunder-1.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Elemental Sunder
+Category: Ability
+Mechanic: Passive: allied elementals remove 1 armor on attack.
+Upgrade context: Crack Exploits (Elementalist, tier 3): Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack. Direct upgrade effects: damage -5.
+Visual tags: damage, armor, summon, ranged, debuff, synergy, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -650,8 +754,8 @@ Create the next Shiftmake icon in the same style.
 Name: Fade Into Shadow
 Category: Ability
 Mechanic: Passive: the first time this backline unit is engaged, it retreats 1 hex for free.
-Upgrade context: Elven Reflexes (Elves, tier 1): All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free. Direct upgrade effects: nonMelee range +1.
-Visual tags: ranged, melee, movement
+Upgrade context: Feline Grace (Elves, tier 1): All non-melee elven troops gain +2 range. The first time each battle an engaged elven backline unit retreats 1 hex for free. Direct upgrade effects: nonMelee range +2.
+Visual tags: healing, ranged, melee, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -677,6 +781,32 @@ Name: Fading
 Category: Ability
 Mechanic: Passive: does not leave a corpse on death.
 Visual tags: corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Final Hex
+
+Save approved image as: `assets/icons/final/ability/final-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Final Hex
+Category: Ability
+Mechanic: Passive: attacks apply Hexed. Attacking an enemy with 5 Hexed stacks kills it.
+Upgrade context: Final Hex (Shaman, tier 3): Shamans apply 1 stack of Hexed to enemies they attack. When attacking an enemy with 5 stacks of Hexed, Shamans kill that enemy.
+Visual tags: damage
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -752,12 +882,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Forsaken 80
 Category: Ability
-Mechanic: Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and speed.
-Upgrade context: Elven Forsaken (Elves, tier 3): Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.
+Mechanic: Start of battle: if this is the only troop on its side, gain 80% health, damage, and speed.
+Upgrade context: Forsaken (Elves, tier 3): Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.
 Trigger: startOfBattle; condition forsaken
 Target: self
 Mechanical effects: bolster 80%, haste 80%, ramp 80%
-Visual tags: damage, speed, healing, synergy
+Visual tags: damage, speed, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -782,11 +912,37 @@ Create the next Shiftmake icon in the same style.
 Name: Frenzy: Ramp 1
 Category: Ability
 Mechanic: After taking damage: gain +1 damage for the battle.
-Upgrade context: Mossblood (Trolls, tier 2): The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.
+Upgrade context: Mossblood (Trolls, tier 2): After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
 Trigger: onDamaged
 Target: self
 Mechanical effects: ramp 1
 Visual tags: damage, healing, corpse, debuff, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Gargantuan Zeal
+
+Save approved image as: `assets/icons/final/ability/gargantuan-zeal.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Gargantuan Zeal
+Category: Ability
+Mechanic: Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on size.
+Upgrade context: Gargantuan Zeal (Trolls, tier 1): When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.
+Visual tags: damage, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -837,7 +993,7 @@ Create the next Shiftmake icon in the same style.
 Name: Goblin Farewell
 Category: Ability
 Mechanic: On death: strike a random touching enemy one extra time.
-Upgrade context: Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
+Upgrade context: Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.
 Trigger: onDeath
 Target: random; enemy; radius 0
 Mechanical effects: 1 extra strike
@@ -908,6 +1064,32 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
+## Hexing Shots
+
+Save approved image as: `assets/icons/final/ability/hexing-shots.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Hexing Shots
+Category: Ability
+Mechanic: Passive: Archer attacks deal +1 damage per Hex stack on the target.
+Upgrade context: Hexing Shots (Archer, tier 3): Archer attacks deal +1 damage per Hex stack on the target.
+Visual tags: damage, ranged
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
 ## Hold the Standard
 
 Save approved image as: `assets/icons/final/ability/hold-the-standard.png`
@@ -917,9 +1099,116 @@ Create the next Shiftmake icon in the same style.
 
 Name: Hold the Standard
 Category: Ability
-Mechanic: Passive: whenever a non-Fading ally dies touching a Human unit, heal that Human unit for 15.
-Upgrade context: Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.
+Mechanic: Passive: whenever a non-Fading ally dies, heal each Human unit for 15.
+Upgrade context: Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies, each Human unit heals 15.
 Visual tags: healing, corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Holy Constructs
+
+Save approved image as: `assets/icons/final/ability/holy-constructs.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Holy Constructs
+Category: Ability
+Mechanic: Passive: while a Priest is present, the first time each non-Fading ally is healed, summon an Elemental adjacent to them. Elementals heal adjacent allies on death.
+Upgrade context: Holy Constructs (Priest, tier 3): While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.
+Visual tags: healing, summon, corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Honorable Duel
+
+Save approved image as: `assets/icons/final/ability/honorable-duel.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Honorable Duel
+Category: Ability
+Mechanic: Passive: this Champion cannot be targeted by normal attacks from enemies it is not engaged with.
+Upgrade context: Honorable Duel (Champion, tier 3): Champions cannot be targeted with normal attacks by enemies they aren't engaged with.
+Visual tags: melee
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Horde 4
+
+Save approved image as: `assets/icons/final/ability/horde-4.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Horde 4
+Category: Ability
+Mechanic: Start of turn: gain +4 damage per other touching friendly unit until end of turn.
+Upgrade context: Horde (Goblins, tier 2): Start of turn: each goblin unit gains +4 damage per other friendly unit touching it until end of turn.
+Trigger: startOfTurn
+Target: self
+Mechanical effects: ramp 4
+Visual tags: damage, initiative, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Hunter's Zeal
+
+Save approved image as: `assets/icons/final/ability/hunters-zeal.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Hunter's Zeal
+Category: Ability
+Mechanic: Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants initiative at end of turn.
+Upgrade context: Hunter's Zeal (Ranger, tier 3): On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.
+Visual tags: damage, initiative, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -943,7 +1232,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Last Witness
 Category: Ability
-Mechanic: Passive: when a touching ally dies, strike the killer twice if still in contact.
+Mechanic: Passive: when a touching ally dies, strike their killer twice if still in contact.
 Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
 Visual tags: damage, initiative, corpse
 
@@ -969,9 +1258,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Lightning Rods
 Category: Ability
-Mechanic: Passive: Blast deals +1 damage per elemental on the target hex.
-Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.
-Visual tags: damage, summon, ranged
+Mechanic: Passive: Blast deals +1 damage per allied elemental on the battlefield.
+Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle.
+Visual tags: damage, summon, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1038,18 +1327,18 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Loot Frenzy
+## Martyr's Zeal
 
-Save approved image as: `assets/icons/final/ability/loot-frenzy.png`
+Save approved image as: `assets/icons/final/ability/martyrs-zeal.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Loot Frenzy
+Name: Martyr's Zeal
 Category: Ability
-Mechanic: Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative.
-Upgrade context: Loot Frenzy (Goblins, tier 3): When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.
-Visual tags: damage, initiative, healing
+Mechanic: Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.
+Upgrade context: Martyr's Zeal (Soldier, tier 3): When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.
+Visual tags: initiative, healing, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1101,9 +1390,61 @@ Create the next Shiftmake icon in the same style.
 
 Name: Mercy Before Dawn
 Category: Ability
-Mechanic: Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP.
-Upgrade context: Mercy Before Dawn (Priest, tier 3): The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.
+Mechanic: Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest heals repeat on allies in range below 10% HP.
+Upgrade context: Mercy Before Dawn (Priest, tier 3): The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.
 Visual tags: healing, corpse, ranged, synergy, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Opening
+
+Save approved image as: `assets/icons/final/ability/opening.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Opening
+Category: Ability
+Mechanic: Passive: when this unit hits an enemy, allies touching the target also attack that enemy.
+Upgrade context: Opening (Beastmaster, tier 3): When a Beastmaster hits an enemy, all allies adjacent to the target also attack that enemy.
+Visual tags: damage
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Overwhelm Hex
+
+Save approved image as: `assets/icons/final/ability/overwhelm-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Overwhelm Hex
+Category: Ability
+Mechanic: Passive: when a Goblin is present, one random unit from each enemy troop gains Hex at battle start. Hex drains health at end of turn.
+Upgrade context: Overwhelm Hex (Goblins, tier 1): When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn.
+Visual tags: initiative, healing, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1128,37 +1469,10 @@ Create the next Shiftmake icon in the same style.
 Name: Pack 1
 Category: Ability
 Mechanic: Start of turn: gain +1 damage per other touching friendly unit until end of turn.
-Upgrade context: Goblin Pack (Goblins, tier 2): Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.
-Trigger: startOfTurn; scales per other friendly unit on hex
+Trigger: startOfTurn
 Target: self
 Mechanical effects: ramp 1
 Visual tags: damage, initiative, synergy
-
-Requirements:
-- Output exactly one square icon image, not a contact sheet and not a rectangular card.
-- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
-- Design for 32x32 first. Use only a few chunky shapes.
-- Light pixel-art inspired fantasy strategy-game symbol.
-- Centered subject with a bold silhouette and simple composition.
-- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
-- No ornate frame, no character portrait, no full scene, no banner.
-
-Negative prompt:
-text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
-```
-
-## Packmaster's Whistle
-
-Save approved image as: `assets/icons/final/ability/packmasters-whistle.png`
-
-```text
-Create the next Shiftmake icon in the same style.
-
-Name: Packmaster's Whistle
-Category: Ability
-Mechanic: End of turn: if engaged, a touching wolf redirects an engaged enemy and heals 10.
-Upgrade context: Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
-Visual tags: damage, initiative, healing, summon, melee, synergy, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1211,9 +1525,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Power of Friendship
 Category: Ability
-Mechanic: Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop class in this battle.
-Upgrade context: Human Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.
-Trigger: startOfBattle; scales per other friendly troop class
+Mechanic: Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop on this side.
+Upgrade context: Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.
+Trigger: startOfBattle
 Target: self
 Mechanical effects: bolster 20%, haste 20%, ramp 20%
 Visual tags: damage, speed, healing, synergy
@@ -1231,50 +1545,21 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Rabble Rush
+## R-selected
 
 Save approved image as: `assets/icons/final/ability/rabble-rush.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Rabble Rush
+Name: R-selected
 Category: Ability
-Mechanic: Start of turn: gain +1 initiative per other touching Militia.
-Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them.
-Trigger: startOfTurn; scales per other touching friendly unit
+Mechanic: Start of turn: gain +10 initiative per other touching Militia. Overworld: Militia troops may enter the same Rift together.
+Upgrade context: R-selected (Militia, tier 3): Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.
+Trigger: startOfTurn
 Target: self
-Mechanical effects: initiative +1
-Visual tags: initiative, synergy
-
-Requirements:
-- Output exactly one square icon image, not a contact sheet and not a rectangular card.
-- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
-- Design for 32x32 first. Use only a few chunky shapes.
-- Light pixel-art inspired fantasy strategy-game symbol.
-- Centered subject with a bold silhouette and simple composition.
-- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
-- No ornate frame, no character portrait, no full scene, no banner.
-
-Negative prompt:
-text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
-```
-
-## Ramp 1
-
-Save approved image as: `assets/icons/final/ability/ramp-1.png`
-
-```text
-Create the next Shiftmake icon in the same style.
-
-Name: Ramp 1
-Category: Ability
-Mechanic: End of turn: gain +1 damage for the battle.
-Upgrade context: Roll the Boulder (Trolls, tier 1): End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
-Trigger: endOfTurn
-Target: self
-Mechanical effects: ramp 1
-Visual tags: damage, initiative, melee
+Mechanical effects: initiative +10
+Visual tags: initiative
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1352,9 +1637,35 @@ Create the next Shiftmake icon in the same style.
 
 Name: Rowdy Regrowth
 Category: Ability
-Mechanic: Passive: whenever this unit is healed, gain 20 initiative.
-Upgrade context: Rowdy Regrowth (Trolls, tier 2): Whenever a Troll is healed, it gains 20 initiative.
-Visual tags: initiative, healing
+Mechanic: Passive: whenever this unit is healed, gain 20 initiative and +1 damage.
+Upgrade context: Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 initiative and +1 damage.
+Visual tags: damage, initiative, healing
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Saintbane
+
+Save approved image as: `assets/icons/final/ability/saintbane.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Saintbane
+Category: Ability
+Mechanic: Passive: when an enemy heals or gains stats, raise adjacent corpses as Skeletons.
+Upgrade context: Saintbane (Necromancer, tier 3): Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.
+Visual tags: healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1381,32 +1692,6 @@ Category: Ability
 Mechanic: Passive: the first 2 times this unit kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
 Upgrade context: On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
 Visual tags: damage, initiative, summon, corpse, ranged
-
-Requirements:
-- Output exactly one square icon image, not a contact sheet and not a rectangular card.
-- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
-- Design for 32x32 first. Use only a few chunky shapes.
-- Light pixel-art inspired fantasy strategy-game symbol.
-- Centered subject with a bold silhouette and simple composition.
-- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
-- No ornate frame, no character portrait, no full scene, no banner.
-
-Negative prompt:
-text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
-```
-
-## Scurry
-
-Save approved image as: `assets/icons/final/ability/scurry.png`
-
-```text
-Create the next Shiftmake icon in the same style.
-
-Name: Scurry
-Category: Ability
-Mechanic: Passive: this unit is quick and expendable; current battle legality uses footprints.
-Upgrade context: Rat Behavior (Militia, tier 3): Start of turn: Militia gain +1 initiative for each other Militia touching them.
-Visual tags: initiative, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1487,9 +1772,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Sentinel Runes
 Category: Ability
-Mechanic: Passive: the first time an enemy moves off this unit's hex, summon 2 elementals on its new hex; if unused, trigger on death instead.
-Upgrade context: Sentinel Runes (Knight, tier 3): The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies.
-Visual tags: summon, corpse, movement
+Mechanic: Passive: the first time an enemy moves out of contact with this unit, summon 2 elementals at its new position; if unused, trigger on death instead.
+Upgrade context: Sentinel Runes (Knight, tier 3): The first time an enemy moves out of contact with a Knight, summon 2 elementals at that unit's new position; they immediately engage and attack that unit. If unused, this also triggers on death against the killer.
+Visual tags: damage, summon, corpse, melee, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1706,8 +1991,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Snatch the Moment
 Category: Ability
-Mechanic: Passive: on kill, enemies touching the fallen unit lose 20 initiative.
-Upgrade context: Goblin Behavior (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
+Mechanic: Passive: on kill, all enemies lose 10 initiative.
+Upgrade context: Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.
 Visual tags: damage, initiative, corpse, debuff
 
 Requirements:
@@ -1732,8 +2017,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Spell Echo
 Category: Ability
-Mechanic: Passive: Blast chains to adjacent hexes that have not been hit in this chain.
-Upgrade context: Spell Echo (Wizard, tier 2): Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain.
+Mechanic: Passive: each Blast echoes from every enemy hit by that Blast or its echoes, but each enemy can be hit only once per Blast chain.
+Upgrade context: Spell Echo (Wizard, tier 2): Each time this Wizard's Blast hits enemies, repeat that Blast from every enemy hit by that Blast or its echoes, but no enemy can be hit more than once per Blast chain.
 Visual tags: damage, ranged
 
 Requirements:
@@ -1811,7 +2096,7 @@ Create the next Shiftmake icon in the same style.
 Name: Stoneblood
 Category: Ability
 Mechanic: Passive: the first time this unit would die, it survives at 25 HP and loses Regen.
-Upgrade context: Mossblood (Trolls, tier 2): The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.
+Upgrade context: Mossblood (Trolls, tier 2): After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
 Visual tags: damage, healing, corpse, debuff, defense
 
 Requirements:
@@ -1836,12 +2121,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Storm
 Category: Ability
-Mechanic: Every 4 turns: a random enemy within this unit range is struck 4 extra times.
-Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.
+Mechanic: Every 4 turns: a random enemy within this unit range is struck 2 extra times.
+Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle.
 Trigger: endOfTurn; charge every 4 turns
 Target: random; enemy; radius from selfRange
-Mechanical effects: 4 extra strikes
-Visual tags: damage, initiative, summon, ranged
+Mechanical effects: 2 extra strikes
+Visual tags: damage, initiative, summon, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1866,11 +2151,39 @@ Create the next Shiftmake icon in the same style.
 Name: Summon Elemental 1
 Category: Ability
 Mechanic: Start of battle: summon 1 elemental on this unit or an adjacent hex.
-Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.
+Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle.
 Trigger: startOfBattle
 Target: self
 Mechanical effects: summon 1 elemental
-Visual tags: damage, summon, ranged
+Visual tags: damage, summon, ranged, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Summon Wolf 1
+
+Save approved image as: `assets/icons/final/ability/summon-wolf-1.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Summon Wolf 1
+Category: Ability
+Mechanic: Start of battle: summon 1 wolf on this unit or an adjacent hex.
+Trigger: startOfBattle
+Target: self
+Mechanical effects: summon 1 wolf
+Visual tags: summon
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1913,21 +2226,21 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Summon Wolf 2
+## Sunder
 
-Save approved image as: `assets/icons/final/ability/summon-wolf-2-blood.png`
+Save approved image as: `assets/icons/final/ability/sunder.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Summon Wolf 2
+Name: Sunder
 Category: Ability
-Mechanic: Start of battle: summon 2 wolves on this unit or adjacent hexes. Those wolves summon 1 more wolf on each kill, and new wolves inherit that effect.
-Upgrade context: Bloodhounds (Beastmaster, tier 3): Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
-Trigger: startOfBattle
-Target: self
-Mechanical effects: summon 2 wolfs
-Visual tags: damage, initiative, healing, summon, melee, synergy, defense
+Mechanic: On attack: remove 20 armor from the target.
+Upgrade context: Sunder (Knight, tier 3): Knights remove 20 armor on attack.
+Trigger: onAttack
+Target: default
+Mechanical effects: armor -20
+Visual tags: damage, armor, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2005,9 +2318,61 @@ Create the next Shiftmake icon in the same style.
 
 Name: Thrill of the Hunt
 Category: Ability
-Mechanic: Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle.
-Upgrade context: Thrill of the Hunt (Beastmaster, tier 3): End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.
-Visual tags: damage, initiative, summon
+Mechanic: Passive: when this side's wolf kills, summon 1 Wolf and all allied units gain +1 damage for the battle.
+Upgrade context: Thrill of the Hunt (Beastmaster, tier 3): Wolves summon 1 Wolf on each kill. Whenever any wolf gets a kill, all allies gain +1 damage for the battle.
+Visual tags: damage, summon, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Throwing Axes
+
+Save approved image as: `assets/icons/final/ability/throwing-axes.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Throwing Axes
+Category: Ability
+Mechanic: Passive: attacks deal extra damage equal to 10% of the target's current health before damage.
+Upgrade context: Throwing Axes (Beastmaster, tier 3): Beastmasters gain 4 range. Their attacks deal additional damage equal to 10% of the enemy's current health. Direct upgrade effects: add ranged attribute, range +4.
+Visual tags: damage, healing, ranged
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Triumphant Zeal
+
+Save approved image as: `assets/icons/final/ability/triumph.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Triumphant Zeal
+Category: Ability
+Mechanic: Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% speed, and +10% max health.
+Upgrade context: Triumphant Zeal (Champion, tier 3): On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.
+Visual tags: damage, speed, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2115,7 +2480,7 @@ Mechanic: On kill: heal allies touching the fallen unit for 20.
 Trigger: onKill
 Target: aoe; ally; radius 0
 Mechanical effects: heal 20
-Visual tags: damage, healing
+Visual tags: damage, healing, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2158,6 +2523,58 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
+## Vulnerability Hex
+
+Save approved image as: `assets/icons/final/ability/vulnerability-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Vulnerability Hex
+Category: Ability
+Mechanic: Passive: if a Wizard is present, enemies damaged by Blast can gain Hex. Hex makes enemies take more Blast damage.
+Upgrade context: Vulnerability Hex (Wizard, tier 3): If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.
+Visual tags: damage, ranged
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Wages of Virtue
+
+Save approved image as: `assets/icons/final/ability/wages-of-virtue.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Wages of Virtue
+Category: Ability
+Mechanic: Passive: redirect incoming attack damage to a touching ally if possible. When a touching ally is healed, this unit is also healed.
+Upgrade context: Wages of Virtue (Avenger, tier 3): Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.
+Visual tags: damage, healing, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
 ## War Drums
 
 Save approved image as: `assets/icons/final/ability/war-drums.png`
@@ -2167,9 +2584,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: War Drums
 Category: Ability
-Mechanic: End of turn: enhance all allies on a chosen allied hex instead of one target.
+Mechanic: End of turn: pick a random allied non-caster in range; enhance it and all allies touching it.
 Upgrade context: War Drums (Shaman, tier 2): Enhance 1 affects all allies on the chosen ally hex instead of one random ally.
-Visual tags: initiative, synergy
+Visual tags: initiative, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2221,8 +2638,8 @@ Name: Diggy Hole
 Category: Race upgrade
 Owner: Dwarves
 Tier: 1
-Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board.
-Visual tags: dwarves, movement
+Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.
+Visual tags: dwarves, initiative, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2248,8 +2665,8 @@ Name: Ale and Hearty
 Category: Race upgrade
 Owner: Dwarves
 Tier: 2
-Mechanic: Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.
-Mechanical effects: speed +40%
+Mechanic: Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.
+Mechanical effects: speed +60%
 Visual tags: dwarves, speed
 
 Requirements:
@@ -2292,19 +2709,19 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Elven Reflexes
+## Feline Grace
 
-Save approved image as: `assets/icons/final/race_upgrade/elf-elven-reflexes.png`
+Save approved image as: `assets/icons/final/race_upgrade/elf-feline-grace.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Elven Reflexes
+Name: Feline Grace
 Category: Race upgrade
 Owner: Elves
 Tier: 1
-Mechanic: All non-melee elven troops gain +1 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.
-Mechanical effects: nonMelee range +1
+Mechanic: All non-melee elven troops gain +2 range. The first time each battle an engaged elven backline unit retreats 1 hex for free.
+Mechanical effects: nonMelee range +2
 Visual tags: elves, ranged, melee, movement
 
 Requirements:
@@ -2347,22 +2764,22 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Elven Forsaken
+## Forsaken
 
 Save approved image as: `assets/icons/final/race_upgrade/elven-forsaken.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Elven Forsaken
+Name: Forsaken
 Category: Race upgrade
 Owner: Elves
 Tier: 3
-Mechanic: Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.
+Mechanic: Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.
 Trigger: startOfBattle; condition forsaken
 Target: self
 Mechanical effects: bolster 80%, haste 80%, ramp 80%
-Visual tags: elves, damage, speed, healing, synergy
+Visual tags: elves, damage, speed, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2458,18 +2875,18 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Goblin Behavior
+## Gallowsworn
 
 Save approved image as: `assets/icons/final/race_upgrade/goblin-behavior.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Goblin Behavior
+Name: Gallowsworn
 Category: Race upgrade
 Owner: Goblins
 Tier: 1
-Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.
+Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.
 Trigger: onDeath
 Target: random; enemy; radius 0
 Mechanical effects: 1 extra strike
@@ -2488,22 +2905,19 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Goblin Pack
+## Overwhelm Hex
 
-Save approved image as: `assets/icons/final/race_upgrade/goblin-pack.png`
+Save approved image as: `assets/icons/final/race_upgrade/goblin-overwhelm-hex.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Goblin Pack
+Name: Overwhelm Hex
 Category: Race upgrade
 Owner: Goblins
-Tier: 2
-Mechanic: Start of turn: each goblin unit gains +1 damage per other friendly unit touching it until end of turn.
-Trigger: startOfTurn; scales per other friendly unit on hex
-Target: self
-Mechanical effects: ramp 1
-Visual tags: goblins, damage, initiative, synergy
+Tier: 1
+Mechanic: When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn.
+Visual tags: goblins, initiative, healing, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2518,19 +2932,22 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Loot Frenzy
+## Horde
 
-Save approved image as: `assets/icons/final/race_upgrade/goblin-loot-frenzy.png`
+Save approved image as: `assets/icons/final/race_upgrade/goblin-pack.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Loot Frenzy
+Name: Horde
 Category: Race upgrade
 Owner: Goblins
-Tier: 3
-Mechanic: When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.
-Visual tags: goblins, damage, initiative, healing
+Tier: 2
+Mechanic: Start of turn: each goblin unit gains +4 damage per other friendly unit touching it until end of turn.
+Trigger: startOfTurn
+Target: self
+Mechanical effects: ramp 4
+Visual tags: goblins, damage, initiative, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2572,19 +2989,22 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Hold the Standard
+## Combined Arms
 
-Save approved image as: `assets/icons/final/race_upgrade/human-hold-the-standard.png`
+Save approved image as: `assets/icons/final/race_upgrade/human-combined-arms.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Hold the Standard
+Name: Combined Arms
 Category: Race upgrade
 Owner: Humans
 Tier: 2
-Mechanic: Whenever a non-Fading ally dies touching a Human unit, that Human unit heals 15.
-Visual tags: humans, healing, corpse
+Mechanic: Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.
+Trigger: startOfBattle
+Target: self
+Mechanical effects: bolster 20%, haste 20%, ramp 20%
+Visual tags: humans, damage, speed, healing, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2599,22 +3019,19 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Human Combined Arms
+## Hold the Standard
 
-Save approved image as: `assets/icons/final/race_upgrade/human-combined-arms.png`
+Save approved image as: `assets/icons/final/race_upgrade/human-hold-the-standard.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Human Combined Arms
+Name: Hold the Standard
 Category: Race upgrade
 Owner: Humans
 Tier: 2
-Mechanic: Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.
-Trigger: startOfBattle; scales per other friendly troop class
-Target: self
-Mechanical effects: bolster 20%, haste 20%, ramp 20%
-Visual tags: humans, damage, speed, healing, synergy
+Mechanic: Whenever a non-Fading ally dies, each Human unit heals 15.
+Visual tags: humans, healing, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2713,22 +3130,19 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Roll the Boulder
+## Gargantuan Zeal
 
-Save approved image as: `assets/icons/final/race_upgrade/troll-roll-the-boulder.png`
+Save approved image as: `assets/icons/final/race_upgrade/troll-gargantuan-zeal.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Roll the Boulder
+Name: Gargantuan Zeal
 Category: Race upgrade
 Owner: Trolls
 Tier: 1
-Mechanic: End of turn: each troll unit gains +1 damage for the rest of the battle. When a troll kills an enemy in melee, enemies touching the fallen unit take damage equal to 5 times that troll's size.
-Trigger: endOfTurn
-Target: self
-Mechanical effects: ramp 1
-Visual tags: trolls, damage, initiative, melee
+Mechanic: When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.
+Visual tags: trolls, damage, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2754,7 +3168,7 @@ Name: Mossblood
 Category: Race upgrade
 Owner: Trolls
 Tier: 2
-Mechanic: The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle. After taking damage, each troll unit gains +1 damage for the rest of the battle.
+Mechanic: After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
 Visual tags: trolls, damage, healing, corpse, debuff, defense
 
 Requirements:
@@ -2781,8 +3195,8 @@ Name: Rowdy Regrowth
 Category: Race upgrade
 Owner: Trolls
 Tier: 2
-Mechanic: Whenever a Troll is healed, it gains 20 initiative.
-Visual tags: trolls, initiative, healing
+Mechanic: Whenever a Troll regains health, it gains 20 initiative and +1 damage.
+Visual tags: trolls, damage, initiative, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2993,6 +3407,33 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
+## Barrage
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/archer-barrage.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Barrage
+Category: Troop-class upgrade
+Owner: Archer
+Tier: 3
+Mechanic: Archers shoot all enemies within their attack range when they aren't engaged in melee, but their attacks deal 40% less damage.
+Visual tags: archer, damage, ranged, melee
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
 ## Crippling Shots
 
 Save approved image as: `assets/icons/final/troop_class_upgrade/archer-crippling-shots.png`
@@ -3023,6 +3464,33 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
+## Hexing Shots
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/archer-hexing-shots.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Hexing Shots
+Category: Troop-class upgrade
+Owner: Archer
+Tier: 3
+Mechanic: Archer attacks deal +1 damage per Hex stack on the target.
+Visual tags: archer, damage, ranged
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
 ## Sevenfold
 
 Save approved image as: `assets/icons/final/troop_class_upgrade/avenger-sevenfold.png`
@@ -3038,6 +3506,33 @@ Mechanic: Whenever a nearby unit leaves a corpse, each Avenger may consume it to
 Trigger: onFallen; max 7 uses; near fallen all unit
 Mechanical effects: summon 1 skeleton
 Visual tags: avenger, summon, corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Wages of Virtue
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/avenger-wages-of-virtue.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Wages of Virtue
+Category: Troop-class upgrade
+Owner: Avenger
+Tier: 3
+Mechanic: Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.
+Visual tags: avenger, damage, healing, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3082,22 +3577,19 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Bloodhounds
+## Opening
 
-Save approved image as: `assets/icons/final/troop_class_upgrade/beastmaster-bloodhounds.png`
+Save approved image as: `assets/icons/final/troop_class_upgrade/beastmaster-opening.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Bloodhounds
+Name: Opening
 Category: Troop-class upgrade
 Owner: Beastmaster
 Tier: 3
-Mechanic: Wolves summoned by Beastmasters also summon 1 wolf on each kill, and every new wolf inherits that effect. End of turn: if the Beastmaster is engaged, one allied wolf touching it redirects the engaged unit and is healed for 10.
-Trigger: startOfBattle
-Target: self
-Mechanical effects: summon 2 wolfs
-Visual tags: beastmaster, damage, initiative, healing, summon, melee, synergy, defense
+Mechanic: When a Beastmaster hits an enemy, all allies adjacent to the target also attack that enemy.
+Visual tags: beastmaster, damage
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3123,8 +3615,36 @@ Name: Thrill of the Hunt
 Category: Troop-class upgrade
 Owner: Beastmaster
 Tier: 3
-Mechanic: End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.
-Visual tags: beastmaster, damage, initiative, summon
+Mechanic: Wolves summon 1 Wolf on each kill. Whenever any wolf gets a kill, all allies gain +1 damage for the battle.
+Visual tags: beastmaster, damage, summon, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Throwing Axes
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/beastmaster-throwing-axes.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Throwing Axes
+Category: Troop-class upgrade
+Owner: Beastmaster
+Tier: 3
+Mechanic: Beastmasters gain 4 range. Their attacks deal additional damage equal to 10% of the enemy's current health.
+Mechanical effects: add ranged attribute, range +4
+Visual tags: beastmaster, damage, healing, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3152,6 +3672,60 @@ Owner: Champion
 Tier: 3
 Mechanic: Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.
 Visual tags: champion, damage, healing
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Honorable Duel
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/champion-honorable-duel.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Honorable Duel
+Category: Troop-class upgrade
+Owner: Champion
+Tier: 3
+Mechanic: Champions cannot be targeted with normal attacks by enemies they aren't engaged with.
+Visual tags: champion, melee
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Triumphant Zeal
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/champion-triumph.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Triumphant Zeal
+Category: Troop-class upgrade
+Owner: Champion
+Tier: 3
+Mechanic: On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.
+Visual tags: champion, damage, speed, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3250,6 +3824,34 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
+## Crack Exploits
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/elementalist-crack-exploits.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Crack Exploits
+Category: Troop-class upgrade
+Owner: Elementalist
+Tier: 3
+Mechanic: Elementalists lose 5 damage. Whenever an enemy loses armor, each Elementalist makes a normal attack against them ignoring range. Allied elementals remove 1 armor on attack.
+Mechanical effects: damage -5
+Visual tags: elementalist, damage, armor, summon, ranged, debuff, synergy, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
 ## Crackling Mitosis
 
 Save approved image as: `assets/icons/final/troop_class_upgrade/elementalist-crackling-mitosis.png`
@@ -3261,7 +3863,7 @@ Name: Crackling Mitosis
 Category: Troop-class upgrade
 Owner: Elementalist
 Tier: 3
-Mechanic: When an allied elemental dies, blast its hex for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
+Mechanic: When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
 Visual tags: elementalist, damage, summon, corpse, ranged, synergy
 
 Requirements:
@@ -3342,8 +3944,65 @@ Name: Sentinel Runes
 Category: Troop-class upgrade
 Owner: Knight
 Tier: 3
-Mechanic: The first time an enemy moves off a Knight's hex, summon 2 elementals on that unit's new hex. If unused, this also triggers when the Knight dies.
-Visual tags: knight, summon, corpse, movement
+Mechanic: The first time an enemy moves out of contact with a Knight, summon 2 elementals at that unit's new position; they immediately engage and attack that unit. If unused, this also triggers on death against the killer.
+Visual tags: knight, damage, summon, corpse, melee, movement
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Sunder
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/knight-sunder.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Sunder
+Category: Troop-class upgrade
+Owner: Knight
+Tier: 3
+Mechanic: Knights remove 20 armor on attack.
+Trigger: onAttack
+Target: default
+Mechanical effects: armor -20
+Visual tags: knight, damage, armor, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Crippling Hex
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/militia-crippling-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Crippling Hex
+Category: Troop-class upgrade
+Owner: Militia
+Tier: 3
+Mechanic: Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.
+Visual tags: militia, damage, speed, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3385,22 +4044,22 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Rat Behavior
+## R-selected
 
 Save approved image as: `assets/icons/final/troop_class_upgrade/militia-rat-behavior.png`
 
 ```text
 Create the next Shiftmake icon in the same style.
 
-Name: Rat Behavior
+Name: R-selected
 Category: Troop-class upgrade
 Owner: Militia
 Tier: 3
-Mechanic: Start of turn: Militia gain +1 initiative for each other Militia touching them.
-Trigger: startOfTurn; scales per other touching friendly unit
+Mechanic: Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.
+Trigger: startOfTurn
 Target: self
-Mechanical effects: initiative +1
-Visual tags: militia, initiative, synergy
+Mechanical effects: initiative +10
+Visual tags: militia, initiative
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3453,8 +4112,35 @@ Name: Hemomancy
 Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
-Mechanic: Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Skeletons summoned by Necromancers heal allies on their own hex for 7 at the end of each turn.
-Visual tags: necromancer, damage, initiative, healing, summon, corpse
+Mechanic: Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
+Visual tags: necromancer, damage, initiative, healing, summon, corpse, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Saintbane
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/necromancer-saintbane.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Saintbane
+Category: Troop-class upgrade
+Owner: Necromancer
+Tier: 3
+Mechanic: Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.
+Visual tags: necromancer, healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3480,8 +4166,35 @@ Name: Bolstering Light
 Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
-Mechanic: When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.
+Mechanic: When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.
 Visual tags: priest, damage, speed, initiative, healing
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Holy Constructs
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/priest-holy-constructs.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Holy Constructs
+Category: Troop-class upgrade
+Owner: Priest
+Tier: 3
+Mechanic: While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.
+Visual tags: priest, healing, summon, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3507,8 +4220,35 @@ Name: Mercy Before Dawn
 Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
-Mechanic: The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP.
+Mechanic: The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.
 Visual tags: priest, healing, corpse, ranged, synergy, defense
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Hunter's Zeal
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/ranger-hunters-zeal.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Hunter's Zeal
+Category: Troop-class upgrade
+Owner: Ranger
+Tier: 3
+Mechanic: On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.
+Visual tags: ranger, damage, initiative, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3592,7 +4332,34 @@ Category: Troop-class upgrade
 Owner: Shaman
 Tier: 2
 Mechanic: Enhance 1 affects all allies on the chosen ally hex instead of one random ally.
-Visual tags: shaman, initiative, synergy
+Visual tags: shaman, initiative, ranged, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Final Hex
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/shaman-final-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Final Hex
+Category: Troop-class upgrade
+Owner: Shaman
+Tier: 3
+Mechanic: Shamans apply 1 stack of Hexed to enemies they attack. When attacking an enemy with 5 stacks of Hexed, Shamans kill that enemy.
+Visual tags: shaman, damage
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3623,6 +4390,60 @@ Trigger: onEffectApplied; after beneficial effect
 Target: default
 Mechanical effects: grant fading, grant death-summon-skeleton
 Visual tags: shaman, damage, summon, corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Dreamwork
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/soldier-dreamwork.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Dreamwork
+Category: Troop-class upgrade
+Owner: Soldier
+Tier: 3
+Mechanic: Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat.
+Visual tags: soldier, damage, initiative, corpse
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Martyr's Zeal
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/soldier-martyrs-zeal.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Martyr's Zeal
+Category: Troop-class upgrade
+Owner: Soldier
+Tier: 3
+Mechanic: When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.
+Visual tags: soldier, initiative, healing, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3676,7 +4497,7 @@ Name: Spell Echo
 Category: Troop-class upgrade
 Owner: Wizard
 Tier: 2
-Mechanic: Each time this Wizard's Blast deals damage with Blast, repeat that Blast on an adjacent hex that hasn't been hit by any Blast in this chain.
+Mechanic: Each time this Wizard's Blast hits enemies, repeat that Blast from every enemy hit by that Blast or its echoes, but no enemy can be hit more than once per Blast chain.
 Visual tags: wizard, damage, ranged
 
 Requirements:
@@ -3703,11 +4524,38 @@ Name: Storm Rods
 Category: Troop-class upgrade
 Owner: Wizard
 Tier: 3
-Mechanic: Every 4 turns, each Wizard makes 4 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per elemental on the target hex, and Wizards summon 1 elemental at the start of battle.
+Mechanic: Every 4 turns, each Wizard makes 2 extra strikes against a random enemy within its range. Wizard Blasts deal +1 damage per allied elemental on the battlefield, and Wizards summon 1 elemental at the start of battle.
 Trigger: endOfTurn; charge every 4 turns
 Target: random; enemy; radius from selfRange
-Mechanical effects: 4 extra strikes
-Visual tags: wizard, damage, initiative, summon, ranged
+Mechanical effects: 2 extra strikes
+Visual tags: wizard, damage, initiative, summon, ranged, synergy
+
+Requirements:
+- Output exactly one square icon image, not a contact sheet and not a rectangular card.
+- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
+- Design for 32x32 first. Use only a few chunky shapes.
+- Light pixel-art inspired fantasy strategy-game symbol.
+- Centered subject with a bold silhouette and simple composition.
+- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
+- No ornate frame, no character portrait, no full scene, no banner.
+
+Negative prompt:
+text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
+```
+
+## Vulnerability Hex
+
+Save approved image as: `assets/icons/final/troop_class_upgrade/wizard-vulnerability-hex.png`
+
+```text
+Create the next Shiftmake icon in the same style.
+
+Name: Vulnerability Hex
+Category: Troop-class upgrade
+Owner: Wizard
+Tier: 3
+Mechanic: If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.
+Visual tags: wizard, damage, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.

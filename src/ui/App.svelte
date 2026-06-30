@@ -1074,6 +1074,7 @@
 
     renderer.setPlaybackTiming($gameStore.autoPlay, $gameStore.speedMs);
     renderer.setHexInspectionVisible(!replayEventLogCollapsed);
+    renderer.setTerrainVisible(replayEventLogCollapsed);
 
     if (renderedReplayId !== $gameStore.loadedReplay.id) {
       renderer.setReplay($gameStore.loadedReplay);
@@ -2848,7 +2849,9 @@
   }
 
   $: if (renderer) {
-    renderer.setHexInspectionVisible($gameStore.screen === 'replay' && !!$gameStore.loadedReplay && !replayEventLogCollapsed);
+    const inReplay = $gameStore.screen === 'replay' && !!$gameStore.loadedReplay;
+    renderer.setHexInspectionVisible(inReplay && !replayEventLogCollapsed);
+    renderer.setTerrainVisible(inReplay && replayEventLogCollapsed);
   }
 
   $: if ($gameStore.screen === 'replay' && $gameStore.loadedReplay && $gameStore.autoPlay) {

@@ -1,9 +1,9 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { resolveAbilityTargetRadius, resolveDebugBattle, resolveBattle } from './battle';
 import { createTroopInstance, resolveTroopCombatant } from './army';
 import { composeTroopDefinition, resolveAbilityDefinition, TROOP_CATALOG, getAbility, getTroopDefinitionOrThrow } from './unitCatalog';
 import { getArmySelectionCost, getTroopSelectionCost } from './unitCatalog';
-import { footprintDistance, hexDistance, visualVerticalLineKey } from './hex';
+import { footprintDistance, footprintForSize, hexDistance, visualVerticalLineKey } from './hex';
 import type { AbilityDefinition, BattleInput, ResolvedCombatantDefinition } from './types';
 
 describe('troop composition', () => {
@@ -17,10 +17,10 @@ describe('troop composition', () => {
       health: 110,
       damage: 11,
       speed: 11,
-      move: 2,
+      move: 3,
       range: 0,
       armor: 3,
-      size: 1,
+      size: 2,
       capacity: 3,
     });
     expect(troop.quantity).toBe(5);
@@ -34,10 +34,10 @@ describe('troop composition', () => {
       health: 169,
       damage: 24,
       speed: 13.6,
-      move: 2,
+      move: 3,
       range: 0,
       armor: 0,
-      size: 3,
+      size: 4,
       capacity: 2,
     });
     expect(troop.abilities.map((ability) => ability.label)).toEqual(['Valor 20', 'Regen 5']);
@@ -55,10 +55,10 @@ describe('troop composition', () => {
       health: 220,
       damage: 17.6,
       speed: 7.7,
-      move: 1,
+      move: 2,
       range: 0,
       armor: 11,
-      size: 2,
+      size: 3,
       capacity: 6,
     });
     expect(troop.abilities.map((ability) => ability.label)).toEqual(['Taunt']);
@@ -69,11 +69,11 @@ describe('troop composition', () => {
   it('adds new race roster units with their abilities', () => {
     expect(composeTroopDefinition('troll', 'avenger').abilities.map((ability) => ability.label)).toEqual(['Vengeance 3', 'Regen 5']);
     expect(composeTroopDefinition('dwarf', 'avenger').attributes).toEqual(['melee', 'dwarf']);
-    expect(composeTroopDefinition('dwarf', 'avenger').stats).toMatchObject({ health: 240, damage: 6, speed: 8.5, armor: 3, size: 2, capacity: 2 });
+    expect(composeTroopDefinition('dwarf', 'avenger').stats).toMatchObject({ health: 240, damage: 6, speed: 9, move: 1, armor: 3, size: 3, capacity: 2 });
     expect(composeTroopDefinition('orc', 'soldier').attributes).toEqual(['melee', 'orc']);
-    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 100, damage: 12.5, speed: 11, armor: 1, size: 1, capacity: 1 });
+    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 110, damage: 11, speed: 11, move: 3, armor: 1, size: 3, capacity: 1 });
     expect(composeTroopDefinition('fae', 'wizard').attributes).toEqual(['caster', 'fae']);
-    expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, speed: 9.2, move: 2, range: 6, armor: -1 });
+    expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, speed: 8.8, move: 3, range: 5, armor: -3, size: 1 });
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
     expect(composeTroopDefinition('goblin', 'shaman').abilities.map((ability) => ability.label)).toEqual(['Enhance 1']);
     expect(composeTroopDefinition('elf', 'elementalist').abilities.map((ability) => ability.label)).toEqual(['Charge 4 Summon Elemental']);
@@ -403,7 +403,7 @@ describe('resolveDebugBattle', () => {
     const laterUnit = replay.steps.find((step) => step.snapshot.units.some((unit) => unit.id === initialUnit.id))?.snapshot.units.find((unit) => unit.id === initialUnit.id);
 
     expect(replay.mapHexes.length).toBeGreaterThan(0);
-    expect(initialUnit.occupiedHexes).toHaveLength(initialUnit.stats.size);
+    expect(initialUnit.occupiedHexes).toHaveLength(footprintForSize(initialUnit.position, initialUnit.stats.size, initialUnit.footprintOrientation).length);
     expect(initialUnit.occupiedHexes[0]).toEqual(initialUnit.position);
     expect(initialUnit.footprintOrientation === 'north' || initialUnit.footprintOrientation === 'south').toBe(true);
 
@@ -545,13 +545,13 @@ describe('resolveDebugBattle', () => {
       attributes: ['melee', 'summoned'],
       stats: {
         health: 70,
-        damage: 6,
-        speed: 12,
-        move: 3,
-        range: 0,
-        armor: 0,
-        size: 1,
-        capacity: 1,
+          damage: 6,
+          speed: 12,
+          move: 4,
+          range: 0,
+          armor: 0,
+          size: 2,
+          capacity: 1,
       },
     });
     expect(wolfProfile?.abilities.map((ability) => ability.id)).toEqual(['bonded', 'pack-1']);
@@ -717,7 +717,7 @@ describe('ability mechanics', () => {
       raceUpgradeIds: [
         'human-tubthumping',
         'human-hold-the-standard',
-        'elf-elven-reflexes',
+        'elf-feline-grace',
         'elf-silvershot-doctrine',
         'goblin-behavior',
         'goblin-overwhelm-hex',
@@ -878,7 +878,7 @@ describe('ability mechanics', () => {
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('martyrs-zeal');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('ale-and-hearty');
     expect(dwarfSoldier.abilities.map((ability) => ability.id)).toContain('stall-warts');
-    expect(dwarfSoldier.stats.speed).toBe(13.6);
+    expect(dwarfSoldier.stats.speed).toBe(14.4);
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('seeing-red');
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('first-blood');
     expect(orcSoldier.abilities.map((ability) => ability.id)).toContain('berserk');
@@ -928,7 +928,7 @@ describe('ability mechanics', () => {
 
     expect(aleStep).toBeTruthy();
     const dwarfSpeeds = aleStep?.snapshot.units.filter((unit) => unit.raceId === 'dwarf').map((unit) => unit.stats.speed).sort((a, b) => a - b);
-    expect(dwarfSpeeds).toEqual([1, 13.6, 13.6]);
+    expect(dwarfSpeeds).toEqual([1, 14.4, 14.4]);
   });
 
   it('stall warts grants Dwarves armor and reduces speed after normal attacks hit them', () => {
@@ -951,7 +951,7 @@ describe('ability mechanics', () => {
     expect(armorStep?.message).toContain('gains +1 armor');
     expect(armorStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.armor).toBe(6);
     expect(speedStep?.message).toContain('loses 1 speed');
-    expect(speedStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.speed).toBe(7.5);
+    expect(speedStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.speed).toBe(8);
   });
 
   it('seeing red costs armor and grants initiative when Orcs kill', () => {
@@ -980,9 +980,9 @@ describe('ability mechanics', () => {
       'player',
     );
     orc.quantity = 1;
-    orc.stats = { ...orc.stats, damage: 5, speed: 100 };
+    orc.stats = { ...orc.stats, damage: 5, speed: 100, move: 3, size: 1 };
     const enemy = makeBattleCombatant('human/soldier', 'enemy');
-    enemy.stats = { ...enemy.stats, damage: 0, speed: 1, health: 100 };
+    enemy.stats = { ...enemy.stats, damage: 0, speed: 1, health: 100, size: 1 };
 
     const input = makeBattleInput([orc], [enemy], 66);
     input.playerRaceUpgradeIds = ['orc-first-blood'];
@@ -1385,7 +1385,9 @@ describe('ability mechanics', () => {
 
     expect(changelingStep).toBeDefined();
     expect(changedUnit?.side).toBe('player');
-    expect(changedUnit?.occupiedHexes).toHaveLength(changedUnit?.stats.size ?? 0);
+    if (changedUnit) {
+      expect(changedUnit.occupiedHexes).toHaveLength(footprintForSize(changedUnit.position, changedUnit.stats.size, changedUnit.footprintOrientation).length);
+    }
     changelingStep?.snapshot.units.forEach((unit) => {
       unit.engagedWithIds.forEach((engagedId) => {
         const engaged = changelingStep.snapshot.units.find((candidate) => candidate.id === engagedId);

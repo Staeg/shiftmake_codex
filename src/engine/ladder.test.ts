@@ -55,6 +55,23 @@ describe('Ladder Rift-set payloads', () => {
     );
   });
 
+  it('accepts and normalizes legacy race upgrade ids in Guardian snapshots', () => {
+    const payload = generateBaselineLadderPayload(1234, 1);
+    payload.rifts[0]!.guardians[0]!.raceUpgradeIds = ['elf-elven-reflexes'];
+
+    expect(validateLadderRiftSetPayload(payload, 1)).toEqual([]);
+
+    const rifts = ladderRiftSetToRiftInstances({
+      id: 'set-legacy-upgrade',
+      cycleNumber: 1,
+      generation: 1,
+      sourceSetId: null,
+      payload,
+    });
+
+    expect(rifts[0]!.enemyRaceUpgradeIds).toEqual(['elf-feline-grace']);
+  });
+
   it('stores victorious player troops and upgrade snapshots when harvesting conquered Rifts', () => {
     const opening = startNewGame(1234, 'ladder');
     const starters = getOpeningRaceStarterTroopUnlockIds(opening);
