@@ -3761,7 +3761,7 @@
                   {/if}
                 </div>
               {:else if activeDetail.description}
-                <p><strong>{activeDetail.role}</strong>: {formatRoleExact(activeDetail.role)} {activeDetail.description}</p>
+                <p>{activeDetail.description}</p>
                 {#if activeDetail.stats && activeDetail.stats.length > 0}
                   <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
                 {/if}
