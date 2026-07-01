@@ -294,11 +294,16 @@
   let hoveredUpgradeOfferId: UpgradeId | null = null;
   let assignmentConflict: { troopId?: TroopId; conflictTroopId?: TroopId; riftId?: string; message: string } | null = null;
   let archivePage = 0;
+  let viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth;
   let viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
   let essenceDraftHighlighted = false;
   let essenceDraftHighlightTimer: ReturnType<typeof window.setTimeout> | null = null;
   let troopAssignmentHighlighted = false;
   let troopAssignmentHighlightTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let cycleActionHovered = false;
+  let cycleResolvePending = false;
+  let cycleResolvePendingCycle: number | null = null;
+  let assignmentHintArrow: { x1: number; y1: number; cx1: number; cy1: number; cx2: number; cy2: number; x2: number; y2: number } | null = null;
   let lastInspectContextKey = '';
   let rendererDiagnostics: BattleReportDiagnostic[] = [];
   let showUiDebugNames = false;
@@ -1134,7 +1139,9 @@
   }
 
   function handleResize(): void {
+    viewportWidth = window.innerWidth;
     viewportHeight = window.innerHeight;
+    updateAssignmentHintArrow(assignmentHintPair);
     renderer?.refreshViewport();
   }
 
@@ -1418,19 +1425,99 @@
 
   async function handleEndCycle(): Promise<void> {
     if (mustSpendEssenceBeforeCycleEnd) {
-      focusEssenceDraft();
       return;
     }
     if (mustAssignTroopsBeforeCycleEnd) {
-      focusTroopAssignments();
       return;
     }
     if ($gameStore.centerMode !== 'rifts') {
       gameStore.setCenterMode('rifts');
       await tick();
     }
+    cycleResolvePending = true;
+    cycleResolvePendingCycle = $gameStore.game.cycleNumber;
+    await tick();
     gameStore.endCycle($gameStore.tutorialProgress?.step === 'end-cycle' || $gameStore.cycleEndConfirmationPending);
+    if (!$gameStore.cycleAnimation && cycleResolvePendingCycle === $gameStore.game.cycleNumber) {
+      cycleResolvePending = false;
+      cycleResolvePendingCycle = null;
+    }
     signalTutorial('end-cycle');
+  }
+
+  function handleCycleActionEnter(): void {
+    cycleActionHovered = true;
+  }
+
+  function handleCycleActionLeave(): void {
+    cycleActionHovered = false;
+    assignmentHintArrow = null;
+  }
+
+  function getCycleActionTooltip(): string | null {
+    if (mustSpendEssenceBeforeCycleEnd) {
+      return $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer
+        ? 'Finish the active Essence draft before ending the cycle.'
+        : 'Spend your available Essence before ending the cycle.';
+    }
+    if (mustAssignTroopsBeforeCycleEnd) {
+      return 'Assign each ready troop to a valid Rift before ending the cycle.';
+    }
+    return null;
+  }
+
+  function hashAssignmentHintSeed(seed: string): number {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+    }
+    return hash;
+  }
+
+  function getAssignmentHintPair(): { troopId: TroopId; riftId: string } | null {
+    const candidates = readyTroops
+      .map((troop) => ({
+        troop,
+        rifts: discoveredRifts.filter((rift) => canAssignTroopToRift($gameStore.game, troop.id, rift.id).ok),
+      }))
+      .filter((candidate) => candidate.rifts.length > 0);
+    if (candidates.length === 0) {
+      return null;
+    }
+    const pick = hashAssignmentHintSeed(`${$gameStore.game.campaignSeed}:${$gameStore.game.cycleNumber}`) % candidates.length;
+    const candidate = candidates[pick];
+    const nearestRift = candidate.rifts[candidate.rifts.length - 1];
+    return { troopId: candidate.troop.id, riftId: nearestRift.id };
+  }
+
+  function updateAssignmentHintArrow(pair: { troopId: TroopId; riftId: string } | null): void {
+    if (!pair || !cycleActionHovered || !mustAssignTroopsBeforeCycleEnd) {
+      assignmentHintArrow = null;
+      return;
+    }
+    const troopEl = document.querySelector<HTMLElement>(`[data-assignment-hint-troop="${pair.troopId}"]`);
+    const riftEl = document.querySelector<HTMLElement>(`[data-assignment-hint-rift="${pair.riftId}"]`);
+    if (!troopEl || !riftEl) {
+      assignmentHintArrow = null;
+      return;
+    }
+    const troopRect = troopEl.getBoundingClientRect();
+    const riftRect = riftEl.getBoundingClientRect();
+    const x1 = troopRect.left + troopRect.width * 0.5;
+    const y1 = troopRect.top + troopRect.height * 0.18;
+    const x2 = riftRect.left + riftRect.width * 0.5;
+    const y2 = riftRect.bottom - riftRect.height * 0.18;
+    const curveLift = Math.max(90, Math.abs(y1 - y2) * 0.42);
+    assignmentHintArrow = {
+      x1,
+      y1,
+      cx1: x1,
+      cy1: y1 - curveLift,
+      cx2: x2,
+      cy2: y2 + curveLift * 0.25,
+      x2,
+      y2,
+    };
   }
 
   function canEditMultiplayerPlan(): boolean {
@@ -3115,22 +3202,37 @@
     (($gameStore.game.essence > 0 && essenceDraftCost !== null) || $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
   $: assignmentBlockingIssues = validateAssignments($gameStore.game).issues.filter((issue) => issue.kind !== 'holding_only_no_new_attack');
   $: mustAssignTroopsBeforeCycleEnd = $gameStore.game.phase === 'planning' && !mustSpendEssenceBeforeCycleEnd && assignmentBlockingIssues.length > 0;
-  $: primaryCycleActionLabel = $gameStore.cycleAnimation
-    ? 'Battles Resolving'
-    : mustSpendEssenceBeforeCycleEnd
-      ? 'Open Draft'
-      : mustAssignTroopsBeforeCycleEnd
-        ? 'Review Rifts'
-        : $gameStore.multiplayer
-          ? multiplayerCycleEndLabel()
-          : $gameStore.cycleEndConfirmationPending
-            ? 'Confirm End Cycle'
-            : 'End Cycle';
+  $: cycleActionBlocked = mustSpendEssenceBeforeCycleEnd || mustAssignTroopsBeforeCycleEnd;
+  $: cycleHoverEssenceAttention = cycleActionHovered && mustSpendEssenceBeforeCycleEnd;
+  $: cycleHoverAssignmentAttention = cycleActionHovered && mustAssignTroopsBeforeCycleEnd;
+  $: cycleActionTooltip = getCycleActionTooltip();
+  $: primaryCycleActionLabel =
+    cycleResolvePending || $gameStore.cycleAnimation
+      ? 'Resolving...'
+      : $gameStore.multiplayer
+        ? multiplayerCycleEndLabel()
+        : 'End Cycle';
+  $: assignmentHintPair = cycleHoverAssignmentAttention ? getAssignmentHintPair() : null;
+  $: if (assignmentHintPair && cycleHoverAssignmentAttention) {
+    tick().then(() => updateAssignmentHintArrow(assignmentHintPair));
+  } else {
+    assignmentHintArrow = null;
+  }
+  $: if (
+    cycleResolvePending &&
+    cycleResolvePendingCycle !== null &&
+    !$gameStore.cycleAnimation &&
+    ($gameStore.game.cycleNumber !== cycleResolvePendingCycle || $gameStore.game.phase !== 'planning')
+  ) {
+    cycleResolvePending = false;
+    cycleResolvePendingCycle = null;
+  }
   $: riftsNeedAttention =
     $gameStore.game.phase === 'planning' &&
     $gameStore.centerMode !== 'rifts' &&
     discoveredRifts.length > 0 &&
-    !mustSpendEssenceBeforeCycleEnd;
+    !mustSpendEssenceBeforeCycleEnd &&
+    (!mustAssignTroopsBeforeCycleEnd || cycleActionHovered);
   $: finalCycle = $gameStore.game.gameMode === 'contest' ? CONTEST_FINAL_CYCLE : $gameStore.game.gameMode === 'ladder' ? LADDER_FINAL_CYCLE : CAMPAIGN_FINAL_CYCLE;
   $: cycleProgressLabel = $gameStore.game.cycleNumber > finalCycle ? `Postgame cycle ${$gameStore.game.cycleNumber}` : `Cycle ${$gameStore.game.cycleNumber} / ${finalCycle}`;
   $: archiveEntriesPerPage = Math.max(4, Math.min(12, Math.floor((viewportHeight - 350) / 52)));
@@ -3146,13 +3248,6 @@
     starterTroopUnlockId: getOpeningRaceStarterTroopUnlockIds($gameStore.game)[raceId],
     options: getRaceNativeTroopUnlockIds(raceId),
   }));
-  $: selectedOpeningRaceSummaries = starterGroups
-    .filter((group) => selectedOpeningRaceIds.has(group.raceId))
-    .map((group) => ({
-      raceId: group.raceId,
-      label: group.label,
-      starterTroopUnlockId: group.starterTroopUnlockId,
-    }));
 
   function isOpeningTroopSelected(troopUnlockId: TroopUnlockId): boolean {
     return selectedOpeningTroopUnlockIds.has(troopUnlockId);
@@ -3553,7 +3648,6 @@
     <section class="menu-panel main-menu-shell ui-debug-target" data-ui-name="Main menu panel">
       <div class="menu-topline ui-debug-target" data-ui-name="Main menu header">
         <div class="menu-copy ui-debug-target" data-ui-name="Main menu intro">
-          <p class="eyebrow">Shiftmake</p>
           <h1>{mainMenuView === 'home' ? 'Shiftmake' : mainMenuView === 'singleplayer' ? 'Singleplayer' : mainMenuView === 'tutorial' ? 'Tutorial' : mainMenuView === 'multiplayer' ? 'Multiplayer' : mainMenuView === 'debug' ? 'Debug' : 'Settings'}</h1>
         </div>
       </div>
@@ -3938,26 +4032,6 @@
         </div>
       </div>
       <div class="opening-actions actions-grid">
-        <div class="opening-selected-races ui-debug-target" data-ui-name="Selected opening races" aria-label="Selected races">
-          {#each [0, 1] as slotIndex}
-            {@const selectedRace = selectedOpeningRaceSummaries[slotIndex]}
-            {#if selectedRace}
-              {@const [, selectedUnitClassId] = parseTroopUnlockId(selectedRace.starterTroopUnlockId)}
-              <button
-                type="button"
-                class="opening-selected-race"
-                aria-label={`Selected ${selectedRace.label} ${getUnitClass(selectedUnitClassId).label}`}
-                title={`Selected ${selectedRace.label}`}
-                disabled
-              >
-                <img src={getRacePortrait(selectedRace.raceId)} alt="" aria-hidden="true" />
-                <img src={getRaceUnitPortrait(selectedRace.raceId, selectedUnitClassId)} alt="" aria-hidden="true" />
-              </button>
-            {:else}
-              <div class="opening-selected-race opening-selected-placeholder" aria-label={`Opening race slot ${slotIndex + 1} empty`}></div>
-            {/if}
-          {/each}
-        </div>
         <button
           type="button"
           class="primary large ui-debug-target"
@@ -4606,7 +4680,6 @@
           </div>
 
           <div class="assignment-panel">
-            <p class="assignment-label">Available Troops</p>
             {#if selectedRiftAssignableTroops.length === 0}
               <p class="assignment-empty">No idle troops are ready for this Rift.</p>
             {:else}
@@ -4755,9 +4828,11 @@
               class:contest-human-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerOne' || rift.controller === 'human')}
               class:contest-ai-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerTwo' || rift.controller === 'ai')}
               class:archive-highlighted={selectedRiftId === rift.id}
+              class:assignment-hint-rift={assignmentHintPair?.riftId === rift.id}
               class:drop-target-unavailable={!!troopDrag && !multiplayerCycleEnded && !$gameStore.cycleAnimation && !canAssignTroopToRift($gameStore.game, troopDrag.troopId, rift.id).ok}
               data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
               data-rift-id={rift.id}
+              data-assignment-hint-rift={rift.id}
               data-tutorial-target="rift-card"
               class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
               class:drop-target-blocked={multiplayerCycleEnded || !!getRiftDropValidationMessage(rift.id)}
@@ -5204,12 +5279,12 @@
 
     <section class="right-column ui-debug-target" data-ui-name="Right sidebar">
       {#if false && $gameStore.centerMode === 'troops'}
-        <div class="panel essence-draft-panel" class:soft-highlight={essenceDraftHighlighted}>
+        <div class="panel essence-draft-panel" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention}>
           {#if !essenceDraftActive}
             <p class="draft-helper-copy">Spend two Essence to reveal troop and upgrade packs together, then claim one option from each.</p>
 
             <div class="actions-grid">
-              <button class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted} disabled={essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost} on:click={() => gameStore.revealEssenceDraft()}>
+              <button class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention} disabled={essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost} on:click={() => gameStore.revealEssenceDraft()}>
                 <span>{essenceDraftButtonLabel}</span>
                 {#if essenceDraftCost}
                   <span class="essence-cost"><i class="resource-icon essence"></i><strong>{essenceDraftCost}</strong></span>
@@ -5651,13 +5726,13 @@
 
     <footer class="action-rail" class:empty-action-rail={$gameStore.centerMode === 'contest' && !$gameStore.systemMessage && $gameStore.game.phase !== 'planning'}>
         {#if $gameStore.game.phase === 'planning' && ($gameStore.centerMode === 'troops' || $gameStore.centerMode === 'rifts') && (mustSpendEssenceBeforeCycleEnd || confirmedTroopOfferUnlockId || confirmedUpgradeOfferId)}
-          <div class="panel essence-draft-panel footer-essence-draft-panel ui-debug-target" data-ui-name="Bottom essence draft panel" class:soft-highlight={essenceDraftHighlighted}>
+          <div class="panel essence-draft-panel footer-essence-draft-panel ui-debug-target" data-ui-name="Bottom essence draft panel" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention}>
             {#if !essenceDraftActive && !confirmedTroopOfferUnlockId && !confirmedUpgradeOfferId}
               <p class="draft-helper-copy">
                 Preparing the mandatory draft...
               </p>
               <div class="actions-grid">
-                <button type="button" class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted} on:click={revealEssenceDraft}>
+                <button type="button" class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention} on:click={revealEssenceDraft}>
                   <span>{essenceDraftButtonLabel}</span>
                   {#if essenceDraftCost}
                     <span class="essence-cost"><i class="resource-icon essence"></i><strong>{essenceDraftCost}</strong></span>
@@ -5795,10 +5870,6 @@
             on:dragover={allowNativeTroopDrop}
             on:drop={(event) => finishNativeTroopDrop(event, { kind: 'ready' })}
           >
-            <div class="ready-troops-header">
-              <h2>Available Troops</h2>
-            </div>
-
             {#if readyTroops.length === 0}
               <p class="assignment-empty">No idle troops are ready right now.</p>
             {:else}
@@ -5828,9 +5899,11 @@
                       class:selected={selectedTroopId === troop.id || detailIsHighlighted(troopDetail.detailKey)}
                       class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
                       class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
-                      class:assignment-attention={troopAssignmentHighlighted}
+                      class:assignment-attention={troopAssignmentHighlighted || cycleHoverAssignmentAttention}
+                      class:assignment-hint-troop={assignmentHintPair?.troopId === troop.id}
                       class:conflict-pulse={assignmentConflict?.troopId === troop.id || assignmentConflict?.conflictTroopId === troop.id}
                       class:readonly-plan={multiplayerCycleEnded}
+                      data-assignment-hint-troop={troop.id}
                     aria-label={canEditMultiplayerPlan() ? `Drag ${troopDef.label} to a Rift` : `Inspect ${troopDef.label}`}
                     on:pointerdown={(event) => {
                       if (canEditMultiplayerPlan()) {
@@ -5862,7 +5935,7 @@
                   >
                     <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
                       {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-tile-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
+                        <img class="unit-tile-art available-bob-unit" style={`--bob-index:${copy}`} src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                       {/each}
                     </span>
                   </button>
@@ -5872,17 +5945,43 @@
           </div>
         {/if}
         {#if $gameStore.game.phase === 'planning'}
-          <button
-            class="primary large end-cycle-button ui-debug-target"
-            data-ui-name={mustSpendEssenceBeforeCycleEnd ? 'Spend essence button' : mustAssignTroopsBeforeCycleEnd ? 'Assign troops button' : 'End cycle button'}
-            data-tutorial-target="end-cycle-button"
-            on:click={handleEndCycle}
-            disabled={multiplayerCycleEnded || !!$gameStore.cycleAnimation}
+          <div
+            class="end-cycle-action"
+            class:blocking={cycleActionBlocked}
+            role="presentation"
+            on:mouseenter={handleCycleActionEnter}
+            on:focusin={handleCycleActionEnter}
+            on:mouseleave={handleCycleActionLeave}
+            on:focusout={handleCycleActionLeave}
           >
-            {primaryCycleActionLabel}
-          </button>
+            <button
+              class="primary large end-cycle-button ui-debug-target"
+              class:blocking={cycleActionBlocked}
+              data-ui-name="End cycle button"
+              data-tutorial-target="end-cycle-button"
+              aria-disabled={cycleActionBlocked}
+              on:click={handleEndCycle}
+              disabled={multiplayerCycleEnded || !!$gameStore.cycleAnimation || cycleResolvePending}
+            >
+              {primaryCycleActionLabel}
+            </button>
+            {#if cycleActionTooltip && cycleActionHovered}
+              <div class="end-cycle-tooltip" role="tooltip">{cycleActionTooltip}</div>
+            {/if}
+          </div>
         {/if}
     </footer>
+
+    {#if assignmentHintArrow}
+      <svg class="assignment-hint-arrow" viewBox={`0 0 ${viewportWidth} ${viewportHeight}`} aria-hidden="true">
+        <defs>
+          <marker id="assignment-hint-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z"></path>
+          </marker>
+        </defs>
+        <path d={`M ${assignmentHintArrow.x1} ${assignmentHintArrow.y1} C ${assignmentHintArrow.cx1} ${assignmentHintArrow.cy1}, ${assignmentHintArrow.cx2} ${assignmentHintArrow.cy2}, ${assignmentHintArrow.x2} ${assignmentHintArrow.y2}`} />
+      </svg>
+    {/if}
 
     {#if troopDrag?.active}
       <div class="troop-drag-ghost" style={`left:${troopDrag.x}px; top:${troopDrag.y}px;`} aria-hidden="true">
@@ -6810,70 +6909,6 @@
     padding-top: 0.15rem;
   }
 
-  .opening-selected-races {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    min-height: 2rem;
-  }
-
-  .opening-selected-race {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.42rem;
-    padding: 0.3rem 0.55rem;
-    min-width: 9rem;
-    min-height: 2.55rem;
-    border: 1px solid rgba(237, 197, 111, 0.42);
-    border-radius: var(--ui-panel-radius-tight);
-    background:
-      linear-gradient(145deg, rgba(44, 31, 15, 0.78), rgba(17, 22, 30, 0.86)),
-      radial-gradient(circle at top left, rgba(212, 173, 115, 0.16), transparent 44%);
-    color: #f3dfac;
-    font-size: 0.82rem;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  button.opening-selected-race:disabled {
-    cursor: default;
-    opacity: 1;
-  }
-
-  .opening-selected-placeholder {
-    justify-content: center;
-    border-style: dashed;
-    opacity: 0.74;
-    background:
-      linear-gradient(135deg, rgba(237, 197, 111, 0.1), transparent 48%),
-      rgba(16, 24, 34, 0.54);
-  }
-
-  .opening-selected-placeholder::before {
-    content: "";
-    width: 2rem;
-    height: 1.35rem;
-    border: 1px dashed rgba(237, 197, 111, 0.46);
-    border-radius: var(--ui-panel-radius-tight);
-  }
-
-  button.opening-selected-race:hover,
-  button.opening-selected-race:focus-visible {
-    border-color: rgba(255, 222, 154, 0.74);
-    background:
-      linear-gradient(145deg, rgba(61, 40, 16, 0.86), rgba(20, 26, 35, 0.94)),
-      radial-gradient(circle at top left, rgba(236, 196, 123, 0.2), transparent 44%);
-  }
-
-  .opening-selected-race img {
-    width: 1.35rem;
-    height: 1.35rem;
-    flex: 0 0 auto;
-    object-fit: contain;
-    image-rendering: pixelated;
-  }
-
   .opening-confirm-troop-button {
     display: inline-grid;
     grid-template-columns: 2rem minmax(0, auto) 2rem;
@@ -7567,6 +7602,14 @@
     box-shadow:
       0 0 0 2px rgba(244, 205, 118, 0.2),
       0 0 28px rgba(244, 205, 118, 0.26),
+      var(--ui-shadow-panel);
+  }
+
+  .rift-card.assignment-hint-rift {
+    border-color: rgba(150, 220, 184, 0.8);
+    box-shadow:
+      0 0 0 2px rgba(150, 220, 184, 0.18),
+      0 0 26px rgba(76, 190, 135, 0.28),
       var(--ui-shadow-panel);
   }
 
@@ -9332,7 +9375,8 @@
     gap: 0;
   }
 
-  .action-rail > button:only-child {
+  .action-rail > button:only-child,
+  .action-rail > .end-cycle-action:only-child {
     grid-column: 3;
   }
 
@@ -9343,12 +9387,50 @@
     justify-items: end;
   }
 
-  .end-cycle-button {
+  .end-cycle-action {
     grid-column: 3;
     grid-row: 2;
     justify-self: end;
     align-self: end;
+    position: relative;
     z-index: 1;
+  }
+
+  .end-cycle-button {
+    width: 100%;
+  }
+
+  .end-cycle-button.blocking {
+    border-color: rgba(126, 157, 181, 0.2);
+    background: linear-gradient(135deg, rgba(62, 69, 76, 0.86), rgba(32, 38, 45, 0.92));
+    color: #b6c2cc;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .end-cycle-action.blocking:hover .end-cycle-button,
+  .end-cycle-action.blocking:focus-within .end-cycle-button {
+    border-color: rgba(213, 178, 116, 0.52);
+    box-shadow:
+      0 0 0 2px rgba(213, 178, 116, 0.14),
+      0 0 18px rgba(213, 178, 116, 0.18);
+  }
+
+  .end-cycle-tooltip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.45rem);
+    z-index: 24;
+    width: min(18rem, calc(100vw - 2rem));
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(213, 178, 116, 0.38);
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(9, 13, 19, 0.97);
+    color: #f2ebd6;
+    box-shadow: var(--ui-shadow-panel);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    pointer-events: none;
   }
 
   .large {
@@ -10062,6 +10144,58 @@
       0 0 0 2px rgba(211, 176, 255, 0.2),
       0 0 28px rgba(155, 95, 220, 0.34),
       var(--ui-shadow-panel);
+  }
+
+  .ready-troop-tile.assignment-hint-troop {
+    border-color: rgba(150, 220, 184, 0.86);
+    box-shadow:
+      0 0 0 2px rgba(150, 220, 184, 0.24),
+      0 0 24px rgba(76, 190, 135, 0.36),
+      var(--ui-shadow-panel);
+  }
+
+  .ready-troop-tile .available-bob-unit {
+    animation: available-unit-bob calc(1450ms + (var(--bob-index) * 47ms)) ease-in-out infinite;
+    animation-delay: calc(var(--bob-index) * -83ms);
+  }
+
+  @keyframes available-unit-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  .assignment-hint-arrow {
+    position: fixed;
+    inset: 0;
+    z-index: 18;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .assignment-hint-arrow > path {
+    fill: none;
+    stroke: rgba(150, 220, 184, 0.92);
+    stroke-width: 4;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 8px rgba(76, 190, 135, 0.7));
+    marker-end: url(#assignment-hint-arrowhead);
+    stroke-dasharray: 14 10;
+    animation: assignment-arrow-flow 900ms linear infinite;
+  }
+
+  .assignment-hint-arrow marker path {
+    fill: rgba(150, 220, 184, 0.96);
+  }
+
+  @keyframes assignment-arrow-flow {
+    to {
+      stroke-dashoffset: -24;
+    }
   }
 
   @keyframes assignment-attention-pulse {
