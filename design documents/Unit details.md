@@ -52,7 +52,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Sevenfold` (tier 2): consume nearby corpses to summon skeletons, up to 7 times
   - `Witness` (tier 3): when a nearby ally falls, set readiness to 100; when an ally dies touching the Avenger, strike the killer once if it is still there
-  - `Wages of Virtue` (tier 3): redirect incoming damage to a random touching ally if possible; when a touching ally is healed, the Avenger is healed too
+  - `Wages of Virtue` (tier 3): redirect incoming normal attacks to a random touching ally if possible; when a touching ally regains health, the Avenger regains the same amount
 
 ### Beastmaster
 
@@ -74,7 +74,7 @@ Footprint sizes:
 - Abilities: `Valor 20`
 - Cost: 60
 - Troop upgrades:
-  - `Anointed Executioner` (tier 3): target the lowest-HP legal enemy; healing and positive stat gains affecting the Champion are doubled
+  - `Anointed Executioner` (tier 3): target the lowest-HP legal enemy; health restoration and positive stat gains affecting the Champion are doubled
   - `Honorable Duel` (tier 3): Champions cannot be targeted by normal attacks from enemies they are not engaged with
   - `Triumphant Zeal` (tier 3): on kill, the Champion and touching allies gain a stack of Zeal; allies gain +10% damage, +10% rate, and +10% max health per Zeal stack
 
@@ -86,9 +86,9 @@ Footprint sizes:
 - Abilities: `Shapeshift - Bear`
 - Cost: 30
 - Troop upgrades:
-  - `Forest Friends` (tier 3): end of turn, heal self and all units Bonded to that specific Druid for 20; each shapeshift summons 2 wolves
+  - `Forest Friends` (tier 3): end of turn, restore 20 health to self and all units Bonded to that specific Druid; each shapeshift summons 2 wolves
   - `True Form` (tier 2): shapeshift can trigger a second time
-  - `Ent's Visage` (tier 3): after shapeshifting, normal attackers take 6 damage when they hit the Druid; each shapeshift empowers the Druid so its melee hits apply an additional battle-long `-2 rate`
+  - `Ent's Visage` (tier 3): after shapeshifting, normal attackers lose 6 health when they hit the Druid; each shapeshift empowers the Druid so its melee hits apply an additional battle-long `-2 rate`
 
 ### Elemental
 
@@ -106,7 +106,7 @@ Footprint sizes:
 - Abilities: `Charge 4 Summon Elemental`
 - Cost: 30
 - Troop upgrades:
-  - `Crackling Mitosis` (tier 3): when an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8; each summoned elemental can repeat the elemental summon once
+  - `Crackling Mitosis` (tier 3): when an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health; each summoned elemental can repeat the elemental summon once
   - `Living Circuit` (tier 3): end of turn, the Elementalist gains 15 readiness once if any allied elemental is in range, and all allied elementals in range gain 15 readiness
   - `Crack Exploits` (tier 3): Elementalists lose 5 damage; when an enemy loses armor, each allied Elementalist attacks it ignoring range; allied elementals remove 1 armor on attack
 
@@ -142,9 +142,9 @@ Footprint sizes:
 - Abilities: `Corpse Summon Skeleton`
 - Cost: 40
 - Troop upgrades:
-  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; allied summoned Skeletons heal allies touching them for 7 each turn
+  - `Hemomancy` (tier 3): may spend 10 HP instead of consuming a corpse; allied summoned Skeletons restore 7 health to allies touching them each turn
   - `Explosion Corpse` (tier 3): summoned skeletons spawn with 100 readiness; consuming a corpse makes enemies adjacent to that corpse lose 1 armor and 1 damage for the battle
-  - `Saintbane` (tier 3): whenever an enemy heals or gains stats, raise all corpses adjacent to them as allied Skeletons
+  - `Saintbane` (tier 3): whenever an enemy regains health or gains stats, raise all corpses adjacent to them as allied Skeletons
 
 ### Priest
 
@@ -154,9 +154,9 @@ Footprint sizes:
 - Abilities: `Mend 4`
 - Cost: 20
 - Troop upgrades:
-  - `Bolstering Light` (tier 3): when a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle; otherwise, that target and the Priest gain 40 readiness
-  - `Mercy Before Dawn` (tier 3): the first time each battle an ally in range would die, it survives at 1 HP; whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health
-  - `Holy Constructs` (tier 3): while a Priest is present, the first time each non-`Fading` ally is actually healed, summon an Elemental adjacent to them; allied Elementals heal adjacent allies for 20 on death
+  - `Bolstering Light` (tier 3): when Priest health restoration brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle; otherwise, that target and the Priest gain 40 readiness
+  - `Mercy Before Dawn` (tier 3): the first time each battle an ally in range would die, it survives at 1 HP; whenever a Priest restores health to an ally, that healing repeats on all allies in range under 10% health
+  - `Holy Constructs` (tier 3): while a Priest is present, the first time each non-`Fading` ally actually regains health, summon an Elemental adjacent to them; allied Elementals restore 20 health to adjacent allies on death
 
 ### Ranger
 
@@ -198,9 +198,9 @@ Footprint sizes:
 - Abilities: none
 - Cost: 24
 - Troop upgrades:
-  - `Shield Drill` (tier 3): Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers
+  - `Shield Drill` (tier 3): Soldiers have -4 armor, but each ranged attack can make a Soldier lose at most 1 health after all modifiers
   - `Dreamwork` (tier 3): once per beat, Soldiers attack an adjacent enemy when that enemy is hit by another ally's normal attack
-  - `Martyr's Zeal` (tier 3): when a Soldier dies, all allies gain a stack of Zeal; at end of turn, allies heal 5 health per Zeal stack
+  - `Martyr's Zeal` (tier 3): when a Soldier dies, all allies gain a stack of Zeal; at end of turn, allies restore 5 health per Zeal stack
 
 ### Wizard
 
@@ -212,7 +212,7 @@ Footprint sizes:
 - Troop upgrades:
   - `Storm Rods` (tier 3): every 4 turns, make 2 extra strikes against a random enemy in range; `Blast` deals +1 damage per allied elemental anywhere on the battlefield, and Wizards summon 1 elemental at battle start
   - `Spell Echo` (tier 2): each `Blast` echoes from every enemy hit by that `Blast` or its echoes, but each enemy can be hit only once per `Blast` chain
-  - `Vulnerability Hex` (tier 3): if a Wizard is present, enemies damaged by `Blast` have a 20% chance to gain a stack of Hex; each Hex stack makes that enemy take an additional 100% damage from `Blast`
+  - `Vulnerability Hex` (tier 3): if a Wizard is present, enemies hit by `Blast` have a 20% chance to gain a stack of Hex; each Hex stack makes that enemy lose 100% more health from `Blast`
 
 ### Wolf
 
@@ -228,7 +228,7 @@ Footprint sizes:
 
 - `Tubthumping` (tier 1): multiple Human troops may enter the same Rift; harmful damage or rate reductions become `+1` instead
 - `Combined Arms` (tier 2): gain +20% health, damage, and rate for each other friendly troop on its side
-- `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies, each Human unit heals 15
+- `Hold the Standard` (tier 2): whenever a non-`Fading` ally dies, each Human unit restores 15 health
 
 ### Elves
 
@@ -244,8 +244,8 @@ Footprint sizes:
 
 ### Trolls
 
-- `Gargantuan Zeal` (tier 1): when a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start; allies gain damage equal to `5 x size` per Zeal stack
-- `Mossblood` (tier 2): after taking damage, gain +1 damage for the battle; the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`
+- `Gargantuan Zeal` (tier 1): when a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start; allies gain damage based on their bulk per Zeal stack
+- `Mossblood` (tier 2): after losing health, gain +1 damage for the battle; the first lethal hit leaves the Troll alive at 25 HP and removes `Regen 5`
 - `Rowdy Regrowth` (tier 2): whenever a Troll regains health, it gains 20 readiness and +1 damage
 
 ### Dwarves
@@ -258,13 +258,13 @@ Footprint sizes:
 
 - `Seeing Red` (tier 1): whenever an Orc kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness
 - `First Blood` (tier 2): Orc units make an immediate normal attack when they engage, before the normal engagement attack
-- `Berserk` (tier 3): when an Orc would die from damage, it becomes immune to damage, has its readiness set to 0, and dies at the end of its next turn
+- `Berserk` (tier 3): when an Orc would die from health loss, it stops losing health, has its readiness set to 0, and dies at the end of its next turn
 
 ### Fae
 
 - `Glamour` (tier 2): once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range; triggered attack effects resolve as though the Fae made the attack
 - `Changeling` (tier 3): if a Fae troop was brought to battle, after beat 12 one random enemy unit from each enemy troop changes sides
-- `Whimsy` (tier 3): whenever a Fae unit takes damage, it relocates to a random hex
+- `Whimsy` (tier 3): whenever a Fae unit loses health, it relocates to a random hex
 
 ## Notes
 

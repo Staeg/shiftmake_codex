@@ -4,6 +4,7 @@
   import type { AbilityDefinition, BattleUnit, ExplainedStatKey, RaceId, ReplayTroopProfile, StatBreakdown, StatBreakdownLine, UnitClassId } from '../engine/types';
   import { formatAbilityDescription, statIcon } from './inspectText';
   import GameIcon from './GameIcon.svelte';
+  import InlineStatText from './InlineStatText.svelte';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
 
   export let unit: BattleUnit | null = null;
@@ -211,7 +212,7 @@
     {#if hoveredAbilityText}
       <div class="inspect-tooltip">
         <strong>{hoveredAbilityText.label}</strong>
-        <p>{hoveredAbilityText.description}</p>
+        <p><InlineStatText text={hoveredAbilityText.description} /></p>
       </div>
     {/if}
 

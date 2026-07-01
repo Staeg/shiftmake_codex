@@ -31,7 +31,7 @@ Race upgrades:
 
 - Tier 1: `Tubthumping` - all human troops gain `United`; harmful damage or rate reductions become `+1` instead
 - Tier 2: `Combined Arms` - all human troops gain `Combined Arms 20`
-- Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies, each Human unit heals 15
+- Tier 2: `Hold the Standard` - whenever a non-`Fading` ally dies, each Human unit restores 15 health
 
 ## Elves
 
@@ -80,7 +80,7 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Gargantuan Zeal` - when a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start; allies gain damage equal to `5 x size` per Zeal stack
+- Tier 1: `Gargantuan Zeal` - when a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start; allies gain damage based on their bulk per Zeal stack
 - Tier 2: `Mossblood` - all troll troops gain `Frenzy: Ramp 1`; each troll survives the first lethal hit at 25 HP and loses Regen for that battle
 - Tier 2: `Rowdy Regrowth` - whenever a Troll regains health, it gains 20 readiness and +1 damage
 
@@ -118,7 +118,7 @@ Race upgrades:
 
 - Tier 1: `Seeing Red` - whenever an Orc kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness
 - Tier 2: `First Blood` - Orc units make an immediate normal attack when they engage, before the normal engagement attack
-- Tier 3: `Berserk` - when an Orc would die from damage, it becomes immune to damage, has its readiness set to 0, and dies at the end of its next turn
+- Tier 3: `Berserk` - when an Orc would die from health loss, it stops losing health, has its readiness set to 0, and dies at the end of its next turn
 
 ## Fae
 
@@ -134,4 +134,4 @@ Race upgrades:
 
 - Tier 2: `Glamour` - once per battle per Fae unit, redirect an incoming normal attack to a random enemy in range; triggered attack effects resolve as though the Fae made the attack
 - Tier 3: `Changeling` - if a Fae troop was brought to battle, after beat 12 one random enemy unit from each enemy troop changes sides
-- Tier 3: `Whimsy` - whenever a Fae unit takes damage, it relocates to a random hex
+- Tier 3: `Whimsy` - whenever a Fae unit loses health, it relocates to a random hex

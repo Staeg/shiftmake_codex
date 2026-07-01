@@ -149,10 +149,10 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'onAttack' },
     duration: instantDuration(),
     effects: [{ kind: 'blast', amount: 5 }],
-    shortText: "On attack: all enemies within 2 hexes of the target's occupied hexes take 5 damage.",
+    shortText: "On attack: all enemies within 2 hexes of the target's occupied hexes lose 5 health.",
   }),
-  'regen-5': makeSelfStatAbility('regen-5', 'Regen 5', 'endOfTurn', [statEffect('heal', 5, 'flat')], 'End of turn: heal self for 5.', instantDuration()),
-  'regen-60': makeSelfStatAbility('regen-60', 'Regen 60', 'endOfTurn', [statEffect('heal', 60, 'flat')], 'End of turn: heal self for 60.', instantDuration()),
+  'regen-5': makeSelfStatAbility('regen-5', 'Regen 5', 'endOfTurn', [statEffect('heal', 5, 'flat')], 'End of turn: restore 5 health to self.', instantDuration()),
+  'regen-60': makeSelfStatAbility('regen-60', 'Regen 60', 'endOfTurn', [statEffect('heal', 60, 'flat')], 'End of turn: restore 60 health to self.', instantDuration()),
   'valor-20': makeAbility({
     id: 'valor-20',
     label: 'Valor 20',
@@ -160,7 +160,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('ally', 0),
     effects: [statEffect('heal', 20, 'flat')],
-    shortText: 'On kill: heal allies touching the fallen unit for 20.',
+    shortText: 'On kill: restore 20 health to allies touching the fallen unit.',
   }),
   united: makeAbility({
     id: 'united',
@@ -241,7 +241,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: the first time this unit would die from damage, it becomes immune to damage and dies at the end of its next turn.',
+    shortText: 'Passive: the first time this unit would die from health loss, it stops losing health and dies at the end of its next turn.',
   }),
   glamour: makeAbility({
     id: 'glamour',
@@ -265,7 +265,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: after taking damage, relocate to a random legal hex.',
+    shortText: 'Passive: after losing health, relocate to a random legal hex.',
   }),
   'pack-1': makeSelfStatAbility(
     'pack-1',
@@ -292,7 +292,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('ally', 'selfRange'),
     effects: [statEffect('heal', 4, 'flat')],
-    shortText: "End of turn: heal allies within this unit's range for 4.",
+    shortText: "End of turn: restore 4 health to allies within this unit's range.",
   }),
   'haste-1': makeAbility({
     id: 'haste-1',
@@ -314,7 +314,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
   }),
   'ramp-1': makeSelfStatAbility('ramp-1', 'Ramp 1', 'endOfTurn', [statEffect('ramp', 1, 'flat')], 'End of turn: gain +1 damage for the battle.'),
   'ramp-2': makeSelfStatAbility('ramp-2', 'Ramp 2', 'endOfTurn', [statEffect('ramp', 2, 'flat')], 'End of turn: gain +2 damage for the battle.'),
-  'frenzy-ramp-1': makeSelfStatAbility('frenzy-ramp-1', 'Frenzy: Ramp 1', 'onDamaged', [statEffect('ramp', 1, 'flat')], 'After taking damage: gain +1 damage for the battle.'),
+  'frenzy-ramp-1': makeSelfStatAbility('frenzy-ramp-1', 'Frenzy: Ramp 1', 'onDamaged', [statEffect('ramp', 1, 'flat')], 'After losing health: gain +1 damage for the battle.'),
   'shredding-arrows': makeAbility({
     id: 'shredding-arrows',
     label: 'Shredding Arrows',
@@ -450,7 +450,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'onFallen', fallen: { allegiance: 'all', radius: 0, radiusSource: 'selfRange' } },
     duration: battleDuration(),
     effects: [summonEffect('skeleton', 1, true, ['heal-ally-0-7'])],
-    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies touching them.',
+    shortText: 'When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons restore 7 health to allies touching them.',
   }),
   'uses-7-corpse-summon-skeleton': makeAbility({
     id: 'uses-7-corpse-summon-skeleton',
@@ -467,7 +467,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: instantDuration(),
     target: aoeTarget('ally', 0),
     effects: [statEffect('heal', 7, 'flat')],
-    shortText: 'End of turn: heal touching allies for 7.',
+    shortText: 'End of turn: restore 7 health to touching allies.',
   }),
   'death-summon-skeleton': makeAbility({
     id: 'death-summon-skeleton',
@@ -485,7 +485,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     duration: battleDuration(),
     target: { mode: 'default' },
     effects: [statEffect('haste', 1, 'flat'), statEffect('ramp', 1, 'flat')],
-    shortText: 'When this unit heals a target, that same target also gains +1 rate and +1 damage for the battle.',
+    shortText: 'When this unit restores health to a target, that same target also gains +1 rate and +1 damage for the battle.',
   }),
   'serve-once-more': makeAbility({
     id: 'serve-once-more',
@@ -568,7 +568,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: ranged attacks can deal at most 1 damage to this unit after all modifiers.',
+    shortText: 'Passive: ranged attacks can make this unit lose at most 1 health after all modifiers.',
   }),
   'pinning-volley': makeAbility({
     id: 'pinning-volley',
@@ -617,7 +617,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: after shapeshifting, normal attackers take 6 damage when they hit this unit.',
+    shortText: 'Passive: after shapeshifting, normal attackers lose 6 health when they hit this unit.',
   }),
   'arc-conductor': makeAbility({
     id: 'arc-conductor',
@@ -625,7 +625,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: when an allied elemental dies, blast all enemies within 2 hexes of its occupied hexes for 8.",
+    shortText: "Passive: when an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health.",
   }),
   'arc-conductor-blast-8': makeAbility({
     id: 'arc-conductor-blast-8',
@@ -633,7 +633,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [{ kind: 'blast', amount: 8 }],
-    shortText: "Triggered by Arc Conductor: when an allied elemental dies, blast all enemies within 2 hexes of its occupied hexes for 8.",
+    shortText: "Triggered by Arc Conductor: when an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health.",
   }),
   'rabble-rush': makeAbility({
     id: 'rabble-rush',
@@ -667,7 +667,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest heals repeat on allies in range below 10% HP.",
+    shortText: "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest health restoration repeats on allies in range below 10% HP.",
   }),
   'bolstering-light': makeAbility({
     id: 'bolstering-light',
@@ -675,7 +675,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: Priest heals that bring a target to full HP give the target and Priest +1 rate and +1 damage; other Priest heals give both 40 readiness.',
+    shortText: 'Passive: Priest health restoration that brings a target to full HP gives the target and Priest +1 rate and +1 damage; other Priest health restoration gives both 40 readiness.',
   }),
   'skirmishers-step': makeAbility({
     id: 'skirmishers-step',
@@ -755,7 +755,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: melee kills deal splash damage equal to 10 times this unit size to enemies touching the fallen unit.',
+    shortText: 'Passive: melee kills make enemies touching the fallen unit lose health based on this unit\'s bulk.',
   }),
   'last-witness': makeAbility({
     id: 'last-witness',
@@ -787,7 +787,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: when this unit heals an ally to full HP, that ally gains 40 readiness.',
+    shortText: 'Passive: when this unit restores an ally to full HP, that ally gains 40 readiness.',
   }),
   'static-charge': makeAbility({
     id: 'static-charge',
@@ -835,7 +835,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: whenever a non-Fading ally dies, heal each Human unit for 15.',
+    shortText: 'Passive: whenever a non-Fading ally dies, restore 15 health to each Human unit.',
   }),
   'loot-frenzy': makeAbility({
     id: 'loot-frenzy',
@@ -843,7 +843,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: on kill, allies touching the fallen unit heal 10 and gain 30 readiness.',
+    shortText: 'Passive: on kill, allies touching the fallen unit restore 10 health and gain 30 readiness.',
   }),
   'rowdy-regrowth': makeAbility({
     id: 'rowdy-regrowth',
@@ -851,7 +851,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: whenever this unit is healed, gain 20 readiness and +1 damage.',
+    shortText: 'Passive: whenever this unit regains health, gain 20 readiness and +1 damage.',
   }),
   'gargantuan-zeal': makeAbility({
     id: 'gargantuan-zeal',
@@ -859,7 +859,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on size.',
+    shortText: 'Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on the unit\'s bulk.',
   }),
   'overwhelm-hex': makeAbility({
     id: 'overwhelm-hex',
@@ -883,7 +883,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: end of turn, heal self and all units Bonded to this unit for 20; whenever this unit shapeshifts, summon 2 wolves.',
+    shortText: 'Passive: end of turn, restore 20 health to self and all units Bonded to this unit; whenever this unit shapeshifts, summon 2 wolves.',
   }),
   'scavengers-hunger': makeAbility({
     id: 'scavengers-hunger',
@@ -932,7 +932,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: healing and positive stat gains affecting this unit are doubled.',
+    shortText: 'Passive: health restoration and positive stat gains affecting this unit are doubled.',
   }),
   'wages-of-virtue': makeAbility({
     id: 'wages-of-virtue',
@@ -940,7 +940,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: redirect incoming attack damage to a touching ally if possible. When a touching ally is healed, this unit is also healed.',
+    shortText: 'Passive: redirect incoming normal attacks to a touching ally if possible. When a touching ally regains health, this unit regains the same amount.',
   }),
   'throwing-axes': makeAbility({
     id: 'throwing-axes',
@@ -980,7 +980,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.',
+    shortText: 'Passive: when this Soldier dies, all allies gain Zeal. Zeal restores health at end of turn.',
   }),
   'crippling-hex': makeAbility({
     id: 'crippling-hex',
@@ -996,7 +996,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: if a Wizard is present, enemies damaged by Blast can gain Hex. Hex makes enemies take more Blast damage.',
+    shortText: 'Passive: if a Wizard is present, enemies hit by Blast can gain Hex. Hex makes enemies lose more health from Blast.',
   }),
   'crack-exploits': makeAbility({
     id: 'crack-exploits',
@@ -1029,7 +1029,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: when an enemy heals or gains stats, raise adjacent corpses as Skeletons.',
+    shortText: 'Passive: when an enemy regains health or gains stats, raise adjacent corpses as Skeletons.',
   }),
   'holy-constructs': makeAbility({
     id: 'holy-constructs',
@@ -1037,7 +1037,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: while a Priest is present, the first time each non-Fading ally is healed, summon an Elemental adjacent to them. Elementals heal adjacent allies on death.',
+    shortText: 'Passive: while a Priest is present, the first time each non-Fading ally regains health, summon an Elemental adjacent to them. Elementals restore 20 health to adjacent allies on death.',
   }),
   'final-hex': makeAbility({
     id: 'final-hex',
@@ -1420,7 +1420,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'troll',
     label: 'Gargantuan Zeal',
     tier: 1,
-    description: 'When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.',
+    description: 'When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage based on their bulk for each stack of Zeal they have.',
     effects: [{ kind: 'addAbility', abilityId: 'gargantuan-zeal' }],
   },
   'troll-mossblood': {
@@ -1428,7 +1428,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'troll',
     label: 'Mossblood',
     tier: 2,
-    description: 'After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.',
+    description: 'After losing health, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.',
     effects: [{ kind: 'addAbility', abilityId: 'stoneblood' }, { kind: 'addAbility', abilityId: 'frenzy-ramp-1' }],
   },
   'troll-rowdy-regrowth': {
@@ -1444,7 +1444,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'human',
     label: 'Hold the Standard',
     tier: 2,
-    description: 'Whenever a non-Fading ally dies, each Human unit heals 15.',
+    description: 'Whenever a non-Fading ally dies, each Human unit restores 15 health.',
     effects: [{ kind: 'addAbility', abilityId: 'hold-the-standard' }],
   },
   'dwarf-diggy-hole': {
@@ -1495,7 +1495,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'orc',
     label: 'Berserk',
     tier: 3,
-    description: 'When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.',
+    description: 'When an Orc unit would die from health loss, its readiness is set to 0, it stops losing health, and it dies at the end of its next turn.',
     effects: [{ kind: 'addAbility', abilityId: 'berserk' }],
   },
   'fae-glamour': {
@@ -1519,7 +1519,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'fae',
     label: 'Whimsy',
     tier: 3,
-    description: 'Whenever a Fae unit takes damage, it is relocated to a random hex.',
+    description: 'Whenever a Fae unit loses health, it is relocated to a random hex.',
     effects: [{ kind: 'addAbility', abilityId: 'whimsy' }],
   },
 };
@@ -1530,7 +1530,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'soldier',
     label: 'Shield Drill',
     tier: 3,
-    description: 'Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers.',
+    description: 'Soldiers have -4 armor, but each ranged attack can make a Soldier lose at most 1 health after all modifiers.',
     effects: [{ kind: 'modifyStats', statModifiers: { armor: { flat: -4 } } }, { kind: 'addAbility', abilityId: 'shield-drill' }],
   },
   'soldier-dreamwork': {
@@ -1546,7 +1546,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'soldier',
     label: "Martyr's Zeal",
     tier: 3,
-    description: 'When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.',
+    description: 'When a Soldier dies, all allies gain a stack of Zeal. Allies restore 5 health for each stack of Zeal they have at the end of their turns.',
     effects: [{ kind: 'addAbility', abilityId: 'martyrs-zeal' }],
   },
   'archer-crippling-shots': {
@@ -1594,7 +1594,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'avenger',
     label: 'Wages of Virtue',
     tier: 3,
-    description: 'Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.',
+    description: 'Avengers redirect incoming normal attacks to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger regains health, that Avenger regains the same amount.',
     effects: [{ kind: 'addAbility', abilityId: 'wages-of-virtue' }],
   },
   'beastmaster-throwing-axes': {
@@ -1632,7 +1632,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'champion',
     label: 'Anointed Executioner',
     tier: 3,
-    description: 'Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.',
+    description: 'Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion regains health or gains positive stats, it gains twice as much.',
     effects: [{ kind: 'addAbility', abilityId: 'executioner' }, { kind: 'addAbility', abilityId: 'anointed' }],
   },
   'champion-honorable-duel': {
@@ -1680,7 +1680,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'druid',
     label: 'Forest Friends',
     tier: 3,
-    description: 'End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.',
+    description: 'End of turn: each Druid restores 20 health to itself and all units Bonded to that specific Druid. Whenever a Druid shapeshifts, it summons 2 wolves.',
     effects: [{ kind: 'addAbility', abilityId: 'forest-friends' }],
   },
   'druid-true-form': {
@@ -1696,7 +1696,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'druid',
     label: "Ent's Visage",
     tier: 3,
-    description: 'After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.',
+    description: 'After shapeshifting, attackers lose 6 health whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.',
     effects: [{ kind: 'addAbility', abilityId: 'thornhide' }, { kind: 'addAbility', abilityId: 'bramble-snare' }],
   },
   'elementalist-crackling-mitosis': {
@@ -1704,7 +1704,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'elementalist',
     label: 'Crackling Mitosis',
     tier: 3,
-    description: "When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
+    description: "When an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
     effects: [{ kind: 'addAbility', abilityId: 'arc-conductor' }, { kind: 'replaceAbility', removeAbilityId: 'charge-4-summon-elemental', addAbilityId: 'charge-4-summon-elemental-mitosis' }],
   },
   'elementalist-living-circuit': {
@@ -1752,7 +1752,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'necromancer',
     label: 'Hemomancy',
     tier: 3,
-    description: 'Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.',
+    description: 'Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons restore 7 health to allies on their own hex at the end of each turn.',
     effects: [{ kind: 'addAbility', abilityId: 'alternate-fuel-10' }, { kind: 'replaceAbility', removeAbilityId: 'corpse-summon-skeleton', addAbilityId: 'corpse-summon-skeleton-rising' }],
   },
   'necromancer-explosion-corpse': {
@@ -1768,7 +1768,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'necromancer',
     label: 'Saintbane',
     tier: 3,
-    description: 'Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.',
+    description: 'Whenever an enemy gains stats or regains health, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.',
     effects: [{ kind: 'addAbility', abilityId: 'saintbane' }],
   },
   'priest-bolstering-light': {
@@ -1776,7 +1776,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'priest',
     label: 'Bolstering Light',
     tier: 3,
-    description: 'When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.',
+    description: 'When Priest health restoration brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.',
     effects: [{ kind: 'addAbility', abilityId: 'bolstering-light' }],
   },
   'priest-mercy-before-dawn': {
@@ -1784,7 +1784,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'priest',
     label: 'Mercy Before Dawn',
     tier: 3,
-    description: "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.",
+    description: "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest restores health to an ally, that healing repeats on all allies in range under 10% health.",
     effects: [{ kind: 'addAbility', abilityId: 'mercy-before-dawn' }],
   },
   'priest-holy-constructs': {
@@ -1792,7 +1792,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'priest',
     label: 'Holy Constructs',
     tier: 3,
-    description: 'While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.',
+    description: 'While a Priest is present in a battle: the first time each non-Fading ally regains health, an Elemental is summoned adjacent to them. Elementals now restore 20 health to adjacent allies on death.',
     effects: [{ kind: 'addAbility', abilityId: 'holy-constructs' }],
   },
   'ranger-on-the-hunt': {
@@ -1864,7 +1864,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'wizard',
     label: 'Vulnerability Hex',
     tier: 3,
-    description: 'If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.',
+    description: 'If a Wizard is present in a battle, enemies hit by Blast have a 20% chance of gaining a stack of Hex. Each enemy loses 100% more health from Blast for each stack of Hex they have.',
     effects: [{ kind: 'addAbility', abilityId: 'vulnerability-hex' }],
   },
 };
@@ -1885,7 +1885,7 @@ export const MUTATORS: Record<string, MutatorDefinition> = {
   'heavy-air': {
     id: 'heavy-air',
     label: 'Heavy Air',
-    description: 'Ranged attack damage is reduced by 50%.',
+    description: 'Ranged attacks deal 50% less damage.',
     rangedDamageMultiplier: 0.5,
   },
   corrosion: {

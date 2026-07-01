@@ -63,6 +63,7 @@
   import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
   import EventLog from './EventLog.svelte';
   import GameIcon from './GameIcon.svelte';
+  import InlineStatText from './InlineStatText.svelte';
   import { formatAbilityDescription, statIcon } from './inspectText';
   import ReplayStepExplanation from './ReplayStepExplanation.svelte';
   import { buildReplayStepExplanationView } from './replayStepExplanation';
@@ -250,7 +251,8 @@
   let pinnedDetails: DetailCard[] = [];
   let hoveredAbilityTooltip: AbilityTooltipState | null = null;
   let pinnedAbilityTooltip: AbilityTooltipState | null = null;
-  let activeAbilityTooltip: AbilityTooltipState | null = null;
+  let highlightedDetailKeys = new Set<string>();
+  let validAbilityOwnerKeys = new Set<string>();
   let replayAbilityTooltip: ReplayAbilityTooltipState | null = null;
   let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
@@ -831,6 +833,9 @@
   }
 
   function previewDetail(detail: DetailCard): void {
+    if (detail.kind === 'unit' && pinnedDetails.filter((entry) => entry.kind === 'unit').length >= 2) {
+      return;
+    }
     hoveredDetail = detail;
     if (detail.kind === 'mutator') {
       signalTutorial('mutator-hover');
@@ -866,21 +871,34 @@
     hoveredAbilityTooltip = null;
   }
 
-  function buildAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): AbilityTooltipState {
+  function buildAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): AbilityTooltipState {
     return {
       label: ability.label,
       description: 'shortText' in ability ? formatAbilityDescription(ability) : ability.description,
-      ownerDetailKey: currentAbilityOwnerKey,
+      ownerDetailKey,
     };
   }
 
-  function togglePinnedAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
-    const tooltip = buildAbilityTooltip(ability);
+  function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): void {
+    hoveredAbilityTooltip = buildAbilityTooltip(ability, ownerDetailKey);
+  }
+
+  function togglePinnedAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): void {
+    const tooltip = buildAbilityTooltip(ability, ownerDetailKey);
     pinnedAbilityTooltip =
       pinnedAbilityTooltip?.ownerDetailKey === tooltip.ownerDetailKey && pinnedAbilityTooltip.label === tooltip.label
         ? null
         : tooltip;
     hoveredAbilityTooltip = null;
+  }
+
+  function activeAbilityTooltipFor(ownerDetailKey: string | null): AbilityTooltipState | null {
+    const tooltip = pinnedAbilityTooltip ?? hoveredAbilityTooltip;
+    return tooltip?.ownerDetailKey === ownerDetailKey ? tooltip : null;
+  }
+
+  function detailIsHighlighted(detailKey: string): boolean {
+    return highlightedDetailKeys.has(detailKey);
   }
 
   function restoreOpeningRaceDetail(event: MouseEvent, raceDetail: DetailCard): void {
@@ -1893,10 +1911,6 @@
     if (replayId) {
       selectedReplayId = replayId;
     }
-  }
-
-  function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }): void {
-    hoveredAbilityTooltip = buildAbilityTooltip(ability);
   }
 
   function selectTroopOfferUnlock(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
@@ -3063,23 +3077,31 @@
       resetZoneState();
     }
   }
-  $: activeDetail = hoveredDetail ?? pinnedDetails[0] ?? null;
+  $: activeDetail = pinnedDetails[0] ?? hoveredDetail ?? null;
   $: secondaryUnitDetail =
     pinnedDetails[1]?.kind === 'unit'
       ? pinnedDetails[1]
       : pinnedDetails[0]?.kind === 'unit' && hoveredDetail?.kind === 'unit' && hoveredDetail.detailKey !== pinnedDetails[0].detailKey
         ? hoveredDetail
         : null;
+  $: highlightedDetailKeys = new Set([
+    ...pinnedDetails.map((detail) => detail.detailKey),
+    ...(hoveredDetail ? [hoveredDetail.detailKey] : []),
+  ]);
   $: currentAbilityOwnerKey =
     activeDetail?.kind === 'unit'
       ? activeDetail.detailKey
       : selectedTroop && selectedTroopDefinition
         ? `selected-troop:${selectedTroop.id}`
         : null;
-  $: if (pinnedAbilityTooltip && pinnedAbilityTooltip.ownerDetailKey !== currentAbilityOwnerKey) {
+  $: validAbilityOwnerKeys = new Set([
+    ...pinnedDetails.filter((detail) => detail.kind === 'unit').map((detail) => detail.detailKey),
+    ...(hoveredDetail?.kind === 'unit' ? [hoveredDetail.detailKey] : []),
+    ...(selectedTroop && selectedTroopDefinition ? [`selected-troop:${selectedTroop.id}`] : []),
+  ]);
+  $: if (pinnedAbilityTooltip && (!pinnedAbilityTooltip.ownerDetailKey || !validAbilityOwnerKeys.has(pinnedAbilityTooltip.ownerDetailKey))) {
     pinnedAbilityTooltip = null;
   }
-  $: activeAbilityTooltip = pinnedAbilityTooltip ?? hoveredAbilityTooltip;
   $: if (renderer && $gameStore.screen === 'replay') {
     activeDetail;
     pinnedReplayExplanationIndex;
@@ -3766,15 +3788,15 @@
                       {/each}
                     {/if}
                   </div>
-                  {#if activeAbilityTooltip}
+                  {#if activeAbilityTooltipFor(activeDetail.detailKey)}
                     <div class="ability-hover-tooltip">
-                      <strong>{activeAbilityTooltip.label}</strong>
-                      <p>{activeAbilityTooltip.description}</p>
+                      <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
+                      <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
                     </div>
                   {/if}
                 </div>
               {:else if activeDetail.description}
-                <p>{activeDetail.description}</p>
+                <p><InlineStatText text={activeDetail.description} /></p>
                 {#if activeDetail.stats && activeDetail.stats.length > 0}
                   <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
                 {/if}
@@ -3833,7 +3855,7 @@
                     type="button"
                     class="sprite-inspect-button ui-debug-target"
                     data-ui-name={`Inspect race ${group.label}`}
-                    class:selected={activeDetail?.detailKey === raceDetail.detailKey}
+                    class:selected={detailIsHighlighted(raceDetail.detailKey)}
                     aria-label={`Inspect ${group.label} race modifiers`}
                     on:mouseenter={() => previewDetail(raceDetail)}
                     on:focus={() => previewDetail(raceDetail)}
@@ -3851,7 +3873,7 @@
                 <button
                   type="button"
                   class="draft-troop-icon opening-starter-tile ui-debug-target"
-                  class:selected={pinnedDetails.some((detail) => detail.detailKey === starterTroopDetail.detailKey)}
+                  class:selected={detailIsHighlighted(starterTroopDetail.detailKey)}
                   class:incompatible={starterIncompatible}
                   data-ui-name={`Opening included troop ${starterTroopDef.label}`}
                   aria-label={`Inspect ${starterTroopDef.label}`}
@@ -3892,7 +3914,7 @@
                       <button
                         type="button"
                         class="draft-troop-icon troop-preview opening-future-tile ui-debug-target"
-                        class:selected={pinnedDetails.some((detail) => detail.detailKey === troopDetail.detailKey)}
+                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
                         data-ui-name={`Opening future troop ${troopDef.label}`}
                         aria-label={`Inspect future unlock ${troopDef.label}`}
                         on:mouseenter={() => previewDetail(troopDetail)}
@@ -4026,16 +4048,16 @@
                       {/each}
                     {/if}
                   </div>
-                  {#if activeAbilityTooltip}
+                  {#if activeAbilityTooltipFor(activeDetail.detailKey)}
                     <div class="ability-hover-tooltip">
-                      <strong>{activeAbilityTooltip.label}</strong>
-                      <p>{activeAbilityTooltip.description}</p>
+                      <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
+                      <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
                     </div>
                   {/if}
                 </div>
               {:else}
                 {#if activeDetail.description}
-                  <p>{activeDetail.description}</p>
+                  <p><InlineStatText text={activeDetail.description} /></p>
                 {/if}
                 {#if activeDetail.stats && activeDetail.stats.length > 0}
                   <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
@@ -4072,7 +4094,7 @@
                   <button
                     type="button"
                     class="sprite-inspect-button"
-                    class:selected={activeDetail?.detailKey === raceDetail.detailKey}
+                    class:selected={detailIsHighlighted(raceDetail.detailKey)}
                     aria-label={`Inspect ${race.label} race modifiers`}
                     on:mouseenter={() => previewDetail(raceDetail)}
                     on:focus={() => previewDetail(raceDetail)}
@@ -4098,7 +4120,7 @@
                     <button
                       type="button"
                       class="draft-troop-icon troop-preview included-troop-preview"
-                      class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                      class:selected={detailIsHighlighted(troopDetail.detailKey)}
                       aria-label={`Inspect included troop ${troopDetail.label}`}
                       on:mouseenter={() => previewDetail(troopDetail)}
                       on:focus={() => previewDetail(troopDetail)}
@@ -4124,7 +4146,7 @@
                     <button
                       type="button"
                       class="list-button upgrade-grant"
-                      class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
                       on:mouseenter={() => previewDetail(upgradeDetail)}
                       on:focus={() => previewDetail(upgradeDetail)}
                       on:mouseleave={clearDetail}
@@ -4155,7 +4177,7 @@
                         type="button"
                         class="draft-troop-icon troop-preview"
                         class:future={!isNativeTroopUnlockId(troopUnlockId)}
-                        class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
                         aria-label={`Inspect ${troopDetail.label}`}
                         title={getUnitClass(rosterUnitClassId).label}
                         on:mouseenter={() => previewDetail(troopDetail)}
@@ -4269,7 +4291,7 @@
               <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
             </div>
           {:else}
-            <p>{activeDetail.description}</p>
+            <p><InlineStatText text={activeDetail.description} /></p>
           {/if}
         </aside>
       {/if}
@@ -4442,16 +4464,16 @@
                     {/each}
                   {/if}
                 </div>
-                {#if activeAbilityTooltip}
+                {#if activeAbilityTooltipFor(activeDetail.detailKey)}
                   <div class="ability-hover-tooltip">
-                    <strong>{activeAbilityTooltip.label}</strong>
-                    <p>{activeAbilityTooltip.description}</p>
+                    <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
+                    <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
                   </div>
                 {/if}
               </div>
             {:else}
               {#if activeDetail.description}
-                <p>{activeDetail.description}</p>
+                <p><InlineStatText text={activeDetail.description} /></p>
               {/if}
               {#if activeDetail.stats && activeDetail.stats.length > 0}
                 <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
@@ -4476,12 +4498,26 @@
                     <span class="mutator-chip empty">None</span>
                   {:else}
                     {#each secondaryUnitDetail.abilities as ability}
-                      <span class="mutator-chip ability-chip readonly-plan">
+                      <button
+                        type="button"
+                        class="mutator-chip ability-chip"
+                        on:mouseenter={() => showAbilityTooltip(ability, secondaryUnitDetail.detailKey)}
+                        on:focus={() => showAbilityTooltip(ability, secondaryUnitDetail.detailKey)}
+                        on:mouseleave={clearAbilityTooltip}
+                        on:blur={clearAbilityTooltip}
+                        on:click={() => togglePinnedAbilityTooltip(ability, secondaryUnitDetail.detailKey)}
+                      >
                         <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                      </span>
+                      </button>
                     {/each}
                   {/if}
                 </div>
+                {#if activeAbilityTooltipFor(secondaryUnitDetail.detailKey)}
+                  <div class="ability-hover-tooltip">
+                    <strong>{activeAbilityTooltipFor(secondaryUnitDetail.detailKey)?.label}</strong>
+                    <p><InlineStatText text={activeAbilityTooltipFor(secondaryUnitDetail.detailKey)?.description ?? ''} /></p>
+                  </div>
+                {/if}
               </div>
             </div>
           {/if}
@@ -4553,7 +4589,7 @@
               )}
               <button
                 class="unit-tile enemy-tile"
-                class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
+                class:selected={detailIsHighlighted(enemyDetail.detailKey)}
                 on:mouseenter={() => previewDetail(enemyDetail)}
                 on:focus={() => previewDetail(enemyDetail)}
                 on:mouseleave={clearDetail}
@@ -4591,7 +4627,7 @@
                   <button
                     class="unit-tile draggable-troop-tile"
                     class:assigned={troop.assignmentRiftId === selectedRift.id}
-                    class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                    class:selected={detailIsHighlighted(troopDetail.detailKey)}
                     aria-label={`Drag ${troopDef.label} to assign or move it`}
                     on:pointerdown={(event) =>
                       startTroopDrag(
@@ -4661,11 +4697,11 @@
                   ))}
                   <button
                     class="mutator-chip ability-chip"
-                    on:mouseenter={() => showAbilityTooltip(ability)}
-                    on:focus={() => showAbilityTooltip(ability)}
+                    on:mouseenter={() => showAbilityTooltip(ability, `selected-troop:${selectedTroop.id}`)}
+                    on:focus={() => showAbilityTooltip(ability, `selected-troop:${selectedTroop.id}`)}
                     on:mouseleave={clearAbilityTooltip}
                     on:blur={clearAbilityTooltip}
-                    on:click={() => togglePinnedAbilityTooltip(ability)}
+                    on:click={() => togglePinnedAbilityTooltip(ability, `selected-troop:${selectedTroop.id}`)}
                   >
                     <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
                   </button>
@@ -4686,10 +4722,10 @@
                 {/each}
               {/if}
             </div>
-            {#if activeAbilityTooltip}
+            {#if activeAbilityTooltipFor(`selected-troop:${selectedTroop.id}`)}
               <div class="ability-hover-tooltip">
-                <strong>{activeAbilityTooltip.label}</strong>
-                <p>{activeAbilityTooltip.description}</p>
+                <strong>{activeAbilityTooltipFor(`selected-troop:${selectedTroop.id}`)?.label}</strong>
+                <p><InlineStatText text={activeAbilityTooltipFor(`selected-troop:${selectedTroop.id}`)?.description ?? ''} /></p>
               </div>
             {/if}
           </div>
@@ -4800,7 +4836,7 @@
                           class="unit-tile enemy-tile ui-debug-target"
                           data-ui-name={`Enemy troop ${enemy.label} on ${formatRiftDisplayId(rift.id)}`}
                           data-tutorial-target="rift-enemy"
-                          class:selected={activeDetail?.detailKey === enemyDetail.detailKey}
+                          class:selected={detailIsHighlighted(enemyDetail.detailKey)}
                           on:mouseenter={() => previewDetail(enemyDetail)}
                           on:focus={() => previewDetail(enemyDetail)}
                           on:mouseleave={clearDetail}
@@ -4869,7 +4905,7 @@
                       class="unit-tile assigned-summary-tile draggable-troop-tile ui-debug-target"
                       data-ui-name={`${group.participant?.label ?? 'Assigned'} troop ${combatant.label} on ${formatRiftDisplayId(rift.id)}`}
                       class:enemy-tile={group.participant?.kind === 'opponent' || group.participant?.kind === 'neutral'}
-                      class:selected={(troopId !== null && selectedTroopId === troopId) || activeDetail?.detailKey === assignedDetail.detailKey}
+                      class:selected={(troopId !== null && selectedTroopId === troopId) || detailIsHighlighted(assignedDetail.detailKey)}
                       class:dragging-source={troopId !== null && troopDrag?.troopId === troopId && troopDrag.active}
                       class:upgrade-affected={troopId !== null && isUpgradeAffectingTroop(troopId)}
                       class:holding={troopId !== null && isHoldingTroop(troopId)}
@@ -4936,7 +4972,7 @@
                 <button
                   class="title-button race-name-button ui-debug-target"
                   data-ui-name={`Race header ${race.label}`}
-                  class:selected={activeDetail?.detailKey === raceDetail.detailKey || selectedRaceId === raceId}
+                  class:selected={detailIsHighlighted(raceDetail.detailKey) || selectedRaceId === raceId}
                   on:mouseenter={() => previewDetail(raceDetail)}
                   on:focus={() => previewDetail(raceDetail)}
                   on:mouseleave={clearDetail}
@@ -4954,7 +4990,7 @@
                       <button
                         class="list-button ui-debug-target"
                         data-ui-name={`Race upgrade ${getUpgradeDetails(upgradeId).label}`}
-                        class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                        class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
                         on:mouseenter={() => previewDetail(upgradeDetail)}
                         on:focus={() => previewDetail(upgradeDetail)}
                         on:mouseleave={clearDetail}
@@ -4989,7 +5025,7 @@
                   <button
                     class="troop-chip ui-debug-target"
                     data-ui-name={`Troop chip ${troopDef.label}`}
-                    class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
+                    class:selected={selectedTroopId === troop.id || detailIsHighlighted(troopDetail.detailKey)}
                     aria-label={`Inspect troop ${troopDef.label}`}
                     on:click={() => handleRosterTroopClick(troop.id, troopDetail)}
                     on:mouseenter={() => previewDetail(troopDetail)}
@@ -5006,7 +5042,7 @@
                 {/each}
               </div>
 
-              {#if (selectedRaceId === raceId || activeDetail?.detailKey === raceDetail.detailKey) && getAvailableRaceTroopUnlockIds(raceId).length > 0}
+              {#if (selectedRaceId === raceId || detailIsHighlighted(raceDetail.detailKey)) && getAvailableRaceTroopUnlockIds(raceId).length > 0}
                 <div class="available-troop-block">
                   <span class="assignment-label">Available Troop Classes</span>
                   <div class="troop-list race-troop-list">
@@ -5026,7 +5062,7 @@
                       <button
                         class="troop-chip available-troop-chip ui-debug-target"
                         data-ui-name={`Available troop class ${troopDef.label}`}
-                        class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
                         aria-label={`Inspect available troop ${troopDef.label}`}
                         on:mouseenter={() => previewDetail(troopDetail)}
                         on:focus={() => previewDetail(troopDetail)}
@@ -5064,7 +5100,7 @@
                     {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
                     <button
                       class="list-button opponent-upgrade-chip"
-                      class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
                       on:mouseenter={() => previewDetail(upgradeDetail)}
                       on:focus={() => previewDetail(upgradeDetail)}
                       on:mouseleave={clearDetail}
@@ -5089,7 +5125,7 @@
                     <button
                       class="title-button race-name-button ui-debug-target"
                       data-ui-name={`Opponent race header ${race.label}`}
-                      class:selected={activeDetail?.detailKey === raceDetail.detailKey}
+                      class:selected={detailIsHighlighted(raceDetail.detailKey)}
                       on:mouseenter={() => previewDetail(raceDetail)}
                       on:focus={() => previewDetail(raceDetail)}
                       on:mouseleave={clearDetail}
@@ -5109,7 +5145,7 @@
                           <button
                             class="list-button ui-debug-target"
                             data-ui-name={`Opponent race upgrade ${getUpgradeDetails(upgradeId).label}`}
-                            class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                            class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
                             on:mouseenter={() => previewDetail(upgradeDetail)}
                             on:focus={() => previewDetail(upgradeDetail)}
                             on:mouseleave={clearDetail}
@@ -5142,7 +5178,7 @@
                         class="troop-chip opponent-troop-chip ui-debug-target"
                         class:opponent-threat={isMobileThreat}
                         data-ui-name={`Opponent troop ${troopDef.label}`}
-                        class:selected={activeDetail?.detailKey === troopDetail.detailKey}
+                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
                         aria-label={`Inspect opponent troop ${troopDef.label}`}
                         on:mouseenter={() => previewDetail(troopDetail)}
                         on:focus={() => previewDetail(troopDetail)}
@@ -5304,15 +5340,15 @@
                   {/each}
                 {/if}
               </div>
-              {#if activeAbilityTooltip}
+              {#if activeAbilityTooltipFor(activeDetail.detailKey)}
                 <div class="ability-hover-tooltip">
-                  <strong>{activeAbilityTooltip.label}</strong>
-                  <p>{activeAbilityTooltip.description}</p>
+                  <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
+                  <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
                 </div>
               {/if}
             </div>
           {:else}
-            <p>{activeDetail.description}</p>
+            <p><InlineStatText text={activeDetail.description} /></p>
           {/if}
         </div>
       {/if}
@@ -5381,7 +5417,7 @@
                 {#each selectedReplayEntry.mutatorIds as mutatorId}
                   <button
                     class="mutator-chip"
-                    class:selected={activeDetail?.detailKey === buildMutatorDetail(mutatorId).detailKey}
+                    class:selected={detailIsHighlighted(buildMutatorDetail(mutatorId).detailKey)}
                     on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
                     on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
                     on:mouseleave={clearDetail}
@@ -5405,7 +5441,7 @@
                   <button
                     class="unit-tile assigned-summary-tile archive-performance-tile ui-debug-target"
                     data-ui-name={`Archive player force ${combatant.label}`}
-                    class:selected={activeDetail?.detailKey === combatantDetail.detailKey}
+                    class:selected={detailIsHighlighted(combatantDetail.detailKey)}
                     class:has-archive-performance={!!performance}
                     style={archivePerformanceStyle(performance)}
                     on:mouseenter={() => previewDetail(combatantDetail)}
@@ -5430,7 +5466,7 @@
                     {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
                     <button
                       class="list-button archive-upgrade-chip"
-                      class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
                       on:mouseenter={() => previewDetail(upgradeDetail)}
                       on:focus={() => previewDetail(upgradeDetail)}
                       on:mouseleave={clearDetail}
@@ -5453,7 +5489,7 @@
                   <button
                     class="unit-tile enemy-tile archive-performance-tile ui-debug-target"
                     data-ui-name={`Archive enemy force ${combatant.label}`}
-                    class:selected={activeDetail?.detailKey === combatantDetail.detailKey}
+                    class:selected={detailIsHighlighted(combatantDetail.detailKey)}
                     class:has-archive-performance={!!performance}
                     style={archivePerformanceStyle(performance)}
                     on:mouseenter={() => previewDetail(combatantDetail)}
@@ -5478,7 +5514,7 @@
                     {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
                     <button
                       class="list-button archive-upgrade-chip"
-                      class:selected={activeDetail?.detailKey === upgradeDetail.detailKey}
+                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
                       on:mouseenter={() => previewDetail(upgradeDetail)}
                       on:focus={() => previewDetail(upgradeDetail)}
                       on:mouseleave={clearDetail}
@@ -5789,7 +5825,7 @@
                       class="unit-tile ready-troop-tile draggable-troop-tile ui-debug-target"
                       data-ui-name={`Available troop ${troopDef.label}`}
                       data-tutorial-target="ready-troop"
-                      class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
+                      class:selected={selectedTroopId === troop.id || detailIsHighlighted(troopDetail.detailKey)}
                       class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
                       class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
                       class:assignment-attention={troopAssignmentHighlighted}
@@ -5920,7 +5956,7 @@
           <div class="detail-panel replay-detail-panel">
             <p class="eyebrow">{getDetailInspectLabel(activeDetail)}</p>
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
-            <p>{activeDetail.description}</p>
+            <p><InlineStatText text={activeDetail.description} /></p>
           </div>
         {:else if replayExplanationView}
           <div class="detail-panel replay-detail-panel replay-explanation-panel">
@@ -6067,7 +6103,7 @@
             {#if replayAbilityTooltip}
               <div class={`replay-ability-tooltip ${replayAbilityTooltip.side}`} role="tooltip">
                 <strong>{replayAbilityTooltip.label}</strong>
-                <span>{replayAbilityTooltip.description}</span>
+                <span><InlineStatText text={replayAbilityTooltip.description} /></span>
               </div>
             {/if}
           </div>
@@ -7325,6 +7361,26 @@
     border-radius: 999px;
     font-size: 1rem;
     line-height: 1;
+    background: rgba(38, 38, 52, 0.94);
+    border: 1px solid rgba(190, 184, 205, 0.72);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .archive-back-button span {
+    display: block;
+    width: 0.66rem;
+    height: 0.66rem;
+    overflow: hidden;
+    color: transparent;
+    border-left: 2px solid #f4f0ff;
+    border-bottom: 2px solid #f4f0ff;
+    transform: translateX(0.1rem) rotate(45deg);
+  }
+
+  .archive-back-button:not(:disabled):active,
+  .menu-back-button:not(:disabled):active {
+    transform: none;
+    filter: brightness(0.92);
   }
 
   .archive-side-label.archive-player,
@@ -9387,14 +9443,21 @@
     padding: 0;
     font-size: 0;
     border-radius: 999px;
+    background: rgba(38, 38, 52, 0.94);
+    border: 1px solid rgba(190, 184, 205, 0.72);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    transform: none;
   }
 
   .menu-back-button::before {
-    content: '<';
+    content: '';
     display: block;
-    font-size: 1.2rem;
-    line-height: 1;
-    transform: translateY(-0.02em);
+    width: 0.66rem;
+    height: 0.66rem;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateX(0.1rem) rotate(45deg);
+    transform-origin: center;
   }
 
 

@@ -55,7 +55,7 @@ Implemented mutators:
 - `Heavy Air`: ranged attacks deal 50% damage
 - `Corrosion`: all units start with 0 armor and cannot have positive armor during that battle
 - `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor position if its full footprint fits
-- `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to taking damage
+- `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to losing health
 
 ## Enemy generation
 

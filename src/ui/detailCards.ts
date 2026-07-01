@@ -20,7 +20,7 @@ import type {
   UnitClassId,
   UpgradeId,
 } from '../engine/types';
-import { displayIcon, formatAbilityDescription, replaceStatWordsWithIcons, statIcon } from './inspectText';
+import { displayIcon, formatAbilityDescription, statIcon } from './inspectText';
 
 export type StatEntry = {
   key: string;
@@ -107,7 +107,7 @@ export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; descri
     const race = getRace(upgrade.raceId);
     return {
       label: upgrade.label,
-      description: replaceStatWordsWithIcons(upgrade.description),
+      description: upgrade.description,
       bucket: `${race.label} race upgrade`,
       inspectLabel: `${race.singularLabel} Upgrade`,
     };
@@ -117,7 +117,7 @@ export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; descri
   const unitClass = getUnitClass(upgrade.unitClassId);
   return {
     label: upgrade.label,
-    description: replaceStatWordsWithIcons(upgrade.description),
+    description: upgrade.description,
     bucket: `${unitClass.label} troop upgrade`,
     inspectLabel: `${unitClass.label} Upgrade`,
   };
@@ -268,7 +268,7 @@ export function buildMutatorDetail(mutatorId: string): DetailCard {
     detailKey: `mutator:${mutatorId}`,
     kind: 'mutator',
     label: mutator.label,
-    description: replaceStatWordsWithIcons(mutator.description),
+    description: mutator.description,
     iconKind: 'mutator',
     iconId: mutatorId,
   };

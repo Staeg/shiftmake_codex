@@ -84,7 +84,7 @@ Current mutator-specific battle rules include:
 - `Haze`: all units lose 5 rate
 - `Corrosion`: all units start at 0 armor and cannot have positive armor during that battle
 - `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor if its full footprint fits
-- `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to taking damage
+- `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to losing health
 
 If a target reaches `0` HP:
 

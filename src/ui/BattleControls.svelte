@@ -34,9 +34,6 @@
     <button data-tutorial-target="replay-reset" aria-label="Reset replay" title="Reset replay" on:click={onJumpStart} disabled={currentStep < 0}>↻</button>
     <button data-tutorial-target="replay-previous-step" aria-label="Previous step" title="Previous step" on:click={onStepBack} disabled={currentStep < 0}>←</button>
     <button data-tutorial-target="replay-next-step" aria-label="Next step" title="Next step" on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>→</button>
-  </div>
-
-  <div class="meta">
     <div class="step-readout">
       <span>Step</span>
       <strong>{Math.max(0, currentStep + 1)}/{replayLength}</strong>
@@ -55,20 +52,19 @@
   .panel {
     background: linear-gradient(145deg, rgba(20, 24, 32, 0.95), rgba(11, 13, 18, 0.95));
     border: 1px solid #2f3b49;
-    border-radius: 14px;
-    padding: 0.6rem 0.7rem;
-    display: grid;
-    gap: 0.55rem;
+    border-radius: 8px;
+    padding: 0.32rem;
+    display: block;
   }
 
   .replay-control-panel {
-    width: min(20rem, calc(100vw - 2rem));
+    width: auto;
   }
 
   .controls {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.22rem;
   }
 
   button,
@@ -76,10 +72,10 @@
     background: #1c2631;
     border: 1px solid #324353;
     color: #f4f9ff;
-    border-radius: 8px;
-    min-height: 2.1rem;
-    min-width: 2.1rem;
-    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    min-height: 1.62rem;
+    min-width: 1.62rem;
+    padding: 0.18rem 0.32rem;
     font: inherit;
     font-size: 0.74rem;
   }
@@ -88,7 +84,7 @@
     cursor: pointer;
     display: grid;
     place-items: center;
-    font-size: 1rem;
+    font-size: 0.82rem;
     line-height: 1;
   }
 
@@ -107,29 +103,23 @@
     cursor: not-allowed;
   }
 
-  .meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: #bfc6ce;
-    gap: 0.55rem;
-    flex-wrap: wrap;
-  }
-
   .step-readout {
     display: grid;
-    gap: 0.1rem;
+    gap: 0;
+    min-width: 3.6rem;
+    padding-inline: 0.18rem;
+    color: #bfc6ce;
   }
 
   .step-readout span {
-    font-size: 0.66rem;
+    font-size: 0.54rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #9cb0bf;
   }
 
   .step-readout strong {
-    font-size: 0.86rem;
+    font-size: 0.68rem;
     color: #f4f9ff;
   }
 
@@ -139,9 +129,8 @@
     gap: 0.3rem;
   }
 
-  @media (max-width: 860px) {
-    .controls {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  select {
+    min-width: 3.1rem;
+    font-size: 0.68rem;
   }
 </style>

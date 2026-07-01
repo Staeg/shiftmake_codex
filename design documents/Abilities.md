@@ -87,7 +87,7 @@ Filters match against a unit's combined primary `unitClassTag` plus `attributes`
 
 ### Blast
 
-- deals flat damage to all enemies within 2 hexes of the target's occupied hexes
+- makes all enemies within 2 hexes of the target's occupied hexes lose flat health
 
 ### Bolster
 
@@ -101,7 +101,7 @@ Filters match against a unit's combined primary `unitClassTag` plus `attributes`
 
 - restores HP immediately
 - Mercy Before Dawn uses the heal pipeline when it preserves a dying ally, so heal synergies and healing reductions apply to that save
-- Mercy Before Dawn also repeats Priest heals on allies in range below 10% health
+- Mercy Before Dawn also repeats Priest health restoration on allies in range below 10% health
 
 ### Ramp
 
@@ -192,13 +192,13 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `endOfTurn`
 - instant
 - `target: aoe ally 0`
-- Effect: heal touching allies for 7
+- Effect: restore 7 health to touching allies
 
 ### Blast 5
 
 - `onAttack`
 - instant
-- Effect: all enemies within 2 hexes of the target's occupied hexes take 5 damage
+- Effect: all enemies within 2 hexes of the target's occupied hexes lose 5 health
 
 ### Bonded
 
@@ -240,7 +240,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Bolstering Light
 
 - `passive`
-- Effect: if a Priest heal brings the target to full HP, the target and the Priest gain +1 rate and +1 damage for the battle; otherwise, the target and the Priest gain 40 readiness
+- Effect: if Priest health restoration brings the target to full HP, the target and the Priest gain +1 rate and +1 damage for the battle; otherwise, the target and the Priest gain 40 readiness
 
 ### Corpse Summon Skeleton
 
@@ -306,7 +306,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `endOfTurn`
 - instant
 - `target: aoe ally R`
-- Effect: heal allies within this unit's range for 4
+- Effect: restore 4 health to allies within this unit's range
 
 ### Grave Vigor
 
@@ -361,19 +361,19 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `endOfTurn`
 - instant
 - `target: self`
-- Effect: heal self for 5
+- Effect: restore 5 health to self
 
 ### Regen 60
 
 - `endOfTurn`
 - instant
 - `target: self`
-- Effect: heal self for 60
+- Effect: restore 60 health to self
 
 ### Forest Friends
 
 - `passive`
-- Effect: end of turn, heal self and all units Bonded to this specific unit for 20; whenever this unit shapeshifts, summon 2 wolves
+- Effect: end of turn, restore 20 health to self and all units Bonded to this specific unit; whenever this unit shapeshifts, summon 2 wolves
 
 ### Retaliate
 
@@ -427,8 +427,8 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Wages of Virtue
 
 - passive
-- Avengers redirect incoming normal attack damage to a random touching ally if possible; redirect chains track visited units so they cannot loop forever
-- When a touching ally is actually healed, the Avenger receives the same amount of healing without causing a recursive heal loop
+- Avengers redirect incoming normal attacks to a random touching ally if possible; redirect chains track visited units so they cannot loop forever
+- When a touching ally actually regains health, the Avenger receives the same amount without causing a recursive heal loop
 
 ### Throwing Axes
 
@@ -456,7 +456,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 
 - passive
 - When a Soldier dies, all allies gain 1 stack of Zeal
-- At end of turn, allies heal 5 health per Zeal stack
+- At end of turn, allies restore 5 health per Zeal stack
 
 ### Crippling Hex
 
@@ -467,14 +467,14 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Vulnerability Hex
 
 - passive
-- If a Wizard is present, enemies damaged by Blast have a 20% chance to gain 1 stack of Hex
-- Enemies take an additional 100% Blast damage per Hex stack
+- If a Wizard is present, enemies hit by Blast have a 20% chance to gain 1 stack of Hex
+- Enemies lose 100% more health from Blast per Hex stack
 
 ### Gargantuan Zeal
 
 - passive
 - When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at battle start
-- Allies gain damage equal to `5 x size` per Zeal stack
+- Allies gain damage based on their bulk per Zeal stack
 
 ### Overwhelm Hex
 
@@ -491,13 +491,13 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Saintbane
 
 - passive
-- When an enemy actually heals or gains positive stats, adjacent corpses are raised as allied Skeletons
+- When an enemy actually regains health or gains positive stats, adjacent corpses are raised as allied Skeletons
 
 ### Holy Constructs
 
 - passive
-- While an allied Priest is present, the first actual heal on each non-`Fading` ally summons an Elemental adjacent to that ally
-- Allied Elementals heal touching allies for 20 when they die
+- While an allied Priest is present, the first actual health restoration on each non-`Fading` ally summons an Elemental adjacent to that ally
+- Allied Elementals restore 20 health to touching allies when they die
 
 ### Final Hex
 
@@ -545,7 +545,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `onKill`
 - instant
 - `target: aoe ally 0`
-- Effect: heal touching allies for 20
+- Effect: restore 20 health to touching allies
 
 ### Vengeance 1
 

@@ -1,6 +1,10 @@
 import type { AbilityDefinition, AbilityEffectDefinition, AbilityTargetDefinition, AbilityTiming, ExplainedStatKey, RoleId } from '../engine/types';
 import { getUnitClass } from '../engine/unitCatalog';
 
+export type StatTextPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'stat'; key: ExplainedStatKey; label: string; description: string; icon: string };
+
 export const STAT_ICONS: Record<ExplainedStatKey, string> = {
   move: '🥾',
   health: '❤️',
@@ -21,8 +25,77 @@ export function displayIcon(key: ExplainedStatKey | 'quantity'): string {
   return key === 'quantity' ? QUANTITY_ICON : statIcon(key);
 }
 
+export const STAT_LABELS: Record<ExplainedStatKey, string> = {
+  move: 'Move',
+  health: 'Health',
+  damage: 'Damage',
+  rate: 'Rate',
+  range: 'Range',
+  armor: 'Armor',
+  capacity: 'Capacity',
+  size: 'Size',
+};
+
+export const STAT_DESCRIPTIONS: Record<ExplainedStatKey, string> = {
+  move: 'How many hexes this unit can travel during ordinary movement and special repositioning.',
+  health: 'How much punishment each unit can take before falling.',
+  damage: 'How much harm each attack deals before armor and other effects.',
+  rate: 'How quickly the unit gains readiness and takes turns.',
+  range: 'How many hexes away the unit can attack from.',
+  armor: 'Flat damage reduction applied when the unit is hit.',
+  capacity: 'How many enemies this unit can hold in melee engagement.',
+  size: 'How much space each unit occupies on the battlefield.',
+};
+
+const STAT_WORDS: Record<string, ExplainedStatKey> = {
+  hp: 'health',
+  health: 'health',
+  damage: 'damage',
+  rate: 'rate',
+  move: 'move',
+  range: 'range',
+  armor: 'armor',
+};
+
+export function statLabel(key: ExplainedStatKey): string {
+  return STAT_LABELS[key];
+}
+
+export function statDescription(key: ExplainedStatKey): string {
+  return STAT_DESCRIPTIONS[key];
+}
+
+export function tokenizeStatText(text: string): StatTextPart[] {
+  const parts: StatTextPart[] = [];
+  const pattern = /\b(HP|health|damage|rate|move|range|armor)\b/gi;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ kind: 'text', text: text.slice(lastIndex, match.index) });
+    }
+
+    const raw = match[1] ?? '';
+    const key = STAT_WORDS[raw.toLowerCase()];
+    if (key) {
+      parts.push({ kind: 'stat', key, label: statLabel(key), description: statDescription(key), icon: statIcon(key) });
+    } else {
+      parts.push({ kind: 'text', text: raw });
+    }
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ kind: 'text', text: text.slice(lastIndex) });
+  }
+
+  return parts;
+}
+
 export function replaceStatWordsWithIcons(text: string): string {
   return text
+    .replace(/\bHP\b/g, STAT_ICONS.health)
     .replace(/\bhealth\b/gi, STAT_ICONS.health)
     .replace(/\bdamage\b/gi, STAT_ICONS.damage)
     .replace(/\brate\b/gi, STAT_ICONS.rate)
@@ -94,7 +167,7 @@ function effectLabel(effect: AbilityEffectDefinition): string {
   if (effect.kind === 'roleset') return `become ${effect.role}`;
   if (effect.kind === 'readinessSet') return `set readiness to ${effect.value}`;
   if (effect.kind === 'grantAbility') return `grant ${effect.abilityId}`;
-  if (effect.kind === 'blast') return `${effect.amount} blast damage`;
+  if (effect.kind === 'blast') return `lose ${effect.amount} ${statIcon('health')}`;
   if (effect.kind === 'strike') return `${effect.amount} extra strikes`;
   if (effect.kind === 'summon') {
     const article = /^[aeiou]/i.test(effect.unitClassId) ? 'an' : 'a';
@@ -126,7 +199,7 @@ export function formatAbilityDescription(ability: AbilityDefinition): string {
       const unitClass = getUnitClass(effect.unitClassId);
       return `Summoned ${unitClass.label}: troop with ${unitClass.quantity} bodies, ${unitClass.stats.health} health, ${unitClass.stats.damage} damage, ${unitClass.stats.rate} rate.`;
     });
-  return replaceStatWordsWithIcons([ability.shortText, ...summonDescriptions].join(' '));
+  return [ability.shortText, ...summonDescriptions].join(' ');
 }
 
 export function formatRoleExact(role: RoleId): string {
