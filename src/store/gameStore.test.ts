@@ -318,7 +318,7 @@ describe('gameStore progression flow', () => {
                 role: 'frontline',
                 unitClassTag: 'soldier',
                 attributes: [],
-                stats: { health: 1, damage: 1, speed: 1, armor: 0, range: 0, capacity: 1, size: 1 },
+                stats: { health: 1, damage: 1, rate: 1, armor: 0, range: 0, capacity: 1, size: 1 },
                 abilities: [],
                 quantity: 1,
                 cost: 1,
@@ -755,7 +755,7 @@ describe('gameStore progression flow', () => {
     expect(decoded.payload.uiContext.screen).toBe('main_menu');
   });
 
-  it('preserves unsubmitted multiplayer edits when the other player submits readiness', () => {
+  it('preserves unsubmitted multiplayer edits when the other player ends the cycle', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     const room = startNewGame(123, 'contest');
 
@@ -768,7 +768,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
@@ -786,7 +786,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { playerOne: true, playerTwo: false },
+      cycleEnded: { playerOne: true, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
@@ -794,16 +794,16 @@ describe('gameStore progression flow', () => {
 
     const afterOpponentReady = currentStoreState<{
       game: GameState;
-      multiplayer: { readiness: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null;
+      multiplayer: { cycleEnded: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null;
       systemMessage: string | null;
     }>();
     expect(afterOpponentReady.game.troops).toEqual(selectedTroops);
-    expect(afterOpponentReady.multiplayer?.readiness).toEqual({ playerOne: true, playerTwo: false });
+    expect(afterOpponentReady.multiplayer?.cycleEnded).toEqual({ playerOne: true, playerTwo: false });
     expect(afterOpponentReady.multiplayer?.message).toBeNull();
     expect(afterOpponentReady.systemMessage).toBeNull();
   });
 
-  it('preserves unsubmitted multiplayer troop assignments when the other player submits readiness', () => {
+  it('preserves unsubmitted multiplayer troop assignments when the other player ends the cycle', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     const opening = startNewGame(456, 'contest');
     const [firstTroopUnlockId, secondTroopUnlockId] = getOpeningPair(opening);
@@ -818,7 +818,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
@@ -833,7 +833,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerTwo',
       playerToken: 'ai-token',
       game: room,
-      readiness: { playerOne: true, playerTwo: false },
+      cycleEnded: { playerOne: true, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
@@ -856,7 +856,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
@@ -878,7 +878,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       connectedPlayers: { playerOne: true, playerTwo: false },
       playerNames: { playerOne: 'Host', playerTwo: 'Player 2' },
       replayPayloads: {},
@@ -891,7 +891,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       connectedPlayers: { playerOne: true, playerTwo: true },
       playerNames: { playerOne: 'Host', playerTwo: 'Guest' },
       replayPayloads: {},
@@ -935,7 +935,7 @@ describe('gameStore progression flow', () => {
     expect(readLastMultiplayerPlayerName()).toBe('Local Hero');
   });
 
-  it('cancels ready by sending unsubmit-ready and restoring editable state', () => {
+  it('cancels cycle end by sending cancel-cycle-ended and restoring editable state', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     const room = startNewGame(246, 'contest');
 
@@ -948,19 +948,19 @@ describe('gameStore progression flow', () => {
       playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
 
-    gameStore.submitMultiplayerReady();
-    gameStore.cancelMultiplayerReady();
+    gameStore.submitMultiplayerCycleEnd();
+    gameStore.cancelMultiplayerCycleEnd();
 
-    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ kind: 'unsubmit-ready' });
-    expect(currentStoreState<{ multiplayer: { readiness: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
-      readiness: { playerOne: false, playerTwo: false },
-      message: 'Ready canceled.',
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ kind: 'cancel-cycle-ended' });
+    expect(currentStoreState<{ multiplayer: { cycleEnded: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
+      cycleEnded: { playerOne: false, playerTwo: false },
+      message: 'Cycle end canceled.',
     });
   });
 
@@ -977,7 +977,7 @@ describe('gameStore progression flow', () => {
       playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
@@ -1007,17 +1007,17 @@ describe('gameStore progression flow', () => {
       playerId: 'playerOne',
       playerToken: 'human-token',
       game: room,
-      readiness: { playerOne: false, playerTwo: false },
+      cycleEnded: { playerOne: false, playerTwo: false },
       playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
       replayPayloads: {},
       message: null,
     });
 
-    gameStore.submitMultiplayerReady();
+    gameStore.submitMultiplayerCycleEnd();
     socket.receive({ kind: 'room-error', message: 'That multiplayer submission is not legal.' });
 
-    expect(currentStoreState<{ multiplayer: { readiness: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
-      readiness: { playerOne: false, playerTwo: false },
+    expect(currentStoreState<{ multiplayer: { cycleEnded: { playerOne: boolean; playerTwo: boolean }; message: string | null } | null }>().multiplayer).toMatchObject({
+      cycleEnded: { playerOne: false, playerTwo: false },
       message: 'That multiplayer submission is not legal.',
     });
   });

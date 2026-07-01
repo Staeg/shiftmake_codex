@@ -131,12 +131,12 @@ describe('role behavior', () => {
   it('frontline fallback spreads across equally good lanes instead of collapsing into one route', () => {
     const fastFrontline = {
       ...getTroopDefinitionOrThrow('human/soldier').stats,
-      speed: 20,
+      rate: 20,
       size: 10,
     };
     const slowBackline = {
       ...getTroopDefinitionOrThrow('elf/archer').stats,
-      speed: 1,
+      rate: 1,
     };
     const replay = Array.from({ length: 200 }, (_, offset) => 106 + offset)
       .map((seed) =>
@@ -173,14 +173,14 @@ describe('role behavior', () => {
   it('frontline can spend Move to push through smaller engaged enemies', () => {
     const frontlineStats = {
       ...getTroopDefinitionOrThrow('troll/champion').stats,
-      speed: 40,
+      rate: 40,
       damage: 5,
       move: 3,
       capacity: 8,
     };
     const smallEnemyStats = {
       ...getTroopDefinitionOrThrow('human/militia').stats,
-      speed: 1,
+      rate: 1,
       damage: 0,
       health: 160,
     };
@@ -206,9 +206,9 @@ describe('role behavior', () => {
   it('Pusher breaches enemy backline and stays committed', () => {
     const replay = resolveBattle(
       makeBattleInput(
-        [makeBattleCombatant('human/militia', 'player', { label: 'Player Pusher', role: 'pusher', stats: { ...getTroopDefinitionOrThrow('human/militia').stats, health: 100, speed: 50, size: 1 } })],
+        [makeBattleCombatant('human/militia', 'player', { label: 'Player Pusher', role: 'pusher', stats: { ...getTroopDefinitionOrThrow('human/militia').stats, health: 100, rate: 50, size: 1 } })],
         [
-          makeBattleCombatant('human/soldier', 'enemy', { label: 'Enemy Frontline', stats: { ...getTroopDefinitionOrThrow('human/soldier').stats, speed: 1, move: 1, size: 1 } }),
+          makeBattleCombatant('human/soldier', 'enemy', { label: 'Enemy Frontline', stats: { ...getTroopDefinitionOrThrow('human/soldier').stats, rate: 1, move: 1, size: 1 } }),
           makeBattleCombatant('elf/archer', 'enemy', { label: 'Enemy Backline', stats: { ...getTroopDefinitionOrThrow('elf/archer').stats, size: 1 } }),
         ],
         103,
@@ -230,25 +230,25 @@ describe('role behavior', () => {
   it('Pusher can break through a smaller enemy held by another ally', () => {
     const pusherStats = {
       ...getTroopDefinitionOrThrow('troll/champion').stats,
-      speed: 35,
+      rate: 35,
       damage: 8,
       move: 3,
     };
     const holderStats = {
       ...getTroopDefinitionOrThrow('human/soldier').stats,
-      speed: 50,
+      rate: 50,
       damage: 0,
       health: 250,
     };
     const smallEnemyStats = {
       ...getTroopDefinitionOrThrow('human/militia').stats,
-      speed: 1,
+      rate: 1,
       damage: 0,
       health: 180,
     };
     const backlineStats = {
       ...getTroopDefinitionOrThrow('elf/archer').stats,
-      speed: 1,
+      rate: 1,
       damage: 0,
       health: 180,
     };
@@ -325,12 +325,12 @@ describe('role behavior', () => {
     const archerStats = {
       ...getTroopDefinitionOrThrow('elf/archer').stats,
       range: 1,
-      speed: 20,
+      rate: 20,
     };
     const enemyStats = {
       ...getTroopDefinitionOrThrow('human/soldier').stats,
       damage: 0,
-      speed: 1,
+      rate: 1,
     };
     const advanceTargets = new Set(
       Array.from({ length: 160 }, (_, offset) => 900 + offset)

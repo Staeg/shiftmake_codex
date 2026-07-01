@@ -15,10 +15,10 @@ function makeUnit(id: string, side: 'player' | 'enemy', troopLabel: string, aliv
     unitClassTag: 'soldier',
     attributes: [],
     position: { q: 0, r: 0 },
-    stats: { health: 10, damage: 3, speed: 1, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 10, damage: 3, rate: 1, range: 0, armor: 0, size: 1, capacity: 1 },
     hp: alive ? 10 : 0,
     maxHp: 10,
-    initiative: 0,
+    readiness: 0,
     alive,
     engagedWithIds: [],
   };

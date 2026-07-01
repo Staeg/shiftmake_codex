@@ -50,22 +50,22 @@
       placement: 'replay-top',
       targets: ['button[data-ui-name^="Health overview"]', '[data-tutorial-target="battlefield-unit"]'],
     },
-    speed: {
+    rate: {
       title: 'Stats',
       body: [
         'Each Troop Class has a baseline for each stat, and its Race modifies most of them.',
-        'Speed is one example. Hover it to inspect the breakdown and what the stat does.',
+        'Rate is one example. Hover it to inspect the breakdown and what the stat does.',
       ],
-      task: "Hover the focused Unit's Speed.",
+      task: "Hover the focused Unit's Rate.",
       placement: 'replay-top',
-      targets: ['button[aria-label="Speed details"]'],
+      targets: ['button[aria-label="Rate details"]'],
     },
-    initiative: {
-      title: 'Initiative',
-      body: ['Each Unit starts battle with a small random amount of initiative. Then a usually invisible mechanism called Beats occur, adding the speed of each Unit to its Initiative, until any Unit has 100 or more. Then all Units with 100 or more Initiative take a turn in random order. Then Beats resume.'],
-      task: "Hover a Unit's Initiative bolt.",
+    readiness: {
+      title: 'Readiness',
+      body: ['Each Unit starts battle with a small random amount of readiness. Then a usually invisible mechanism called Beats occur, adding the rate of each Unit to its Readiness, until any Unit has 100 or more. Then all Units with 100 or more Readiness take a turn in random order. Then Beats resume.'],
+      task: "Hover a Unit's Readiness bolt.",
       placement: 'replay-top',
-      targets: ['.replay-initiative-row'],
+      targets: ['.replay-readiness-row'],
     },
     play: {
       title: 'Playback',
@@ -91,7 +91,7 @@
     },
     'unit-actions': {
       title: 'Unit Actions',
-      body: ['While having selected a Unit, you can see the next and previous time its Initiative had reached 100 and it took a turn.'],
+      body: ['While having selected a Unit, you can see the next and previous time its Readiness had reached 100 and it took a turn.'],
       task: "Select a Unit, then use Unit's Next Action and Unit's Previous Action.",
       placement: 'replay-low',
       targets: [
@@ -115,7 +115,7 @@
       body: ['Finish the battle at any pace. 4x automatic playback is recommended.'],
       task: 'Reach the final replay step.',
       placement: 'replay-low',
-      targets: ['[data-tutorial-target="replay-play"]', '[data-tutorial-target="replay-speed"]'],
+      targets: ['[data-tutorial-target="replay-play"]', '[data-tutorial-target="replay-rate"]'],
     },
     'game-start': {
       title: 'Game Start',
@@ -199,14 +199,14 @@
       body: [
         'A single Rift cannot take more than one Troop of the same Class or one Troop of the same Race.',
       ],
-      task: 'Drag any ready Troop to any Rift.',
+      task: 'Drag any available Troop to any Rift.',
       placement: 'overworld-left',
       targets: ['[data-tutorial-target="ready-troop"]', '[data-tutorial-target="rift-card"]'],
     },
     'end-cycle': {
       title: 'End Cycle',
       body: [
-        'Every ready Troop must be assigned to a Rift before the Cycle can end.',
+        'Every available Troop must be assigned to a Rift before the Cycle can end.',
         'In Contest, held Rifts award Victory Points each Cycle equal to their Tier. All of these are Tier 1 Rifts.',
       ],
       task: 'Click End Cycle when ready.',
@@ -309,8 +309,8 @@
       if (selector.includes('replay-play')) {
         return hasSignal('play');
       }
-      if (selector.includes('replay-speed')) {
-        return hasSignal('speed-hover');
+      if (selector.includes('replay-rate')) {
+        return hasSignal('rate-hover');
       }
     }
 

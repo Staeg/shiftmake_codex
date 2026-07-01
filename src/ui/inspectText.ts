@@ -5,7 +5,7 @@ export const STAT_ICONS: Record<ExplainedStatKey, string> = {
   move: '🥾',
   health: '❤️',
   damage: '⚔️',
-  speed: '⚡',
+  rate: '⚡',
   range: '🏹',
   armor: '🛡️',
   capacity: '🧲',
@@ -25,7 +25,7 @@ export function replaceStatWordsWithIcons(text: string): string {
   return text
     .replace(/\bhealth\b/gi, STAT_ICONS.health)
     .replace(/\bdamage\b/gi, STAT_ICONS.damage)
-    .replace(/\bspeed\b/gi, STAT_ICONS.speed)
+    .replace(/\brate\b/gi, STAT_ICONS.rate)
     .replace(/\bmove\b/gi, STAT_ICONS.move)
     .replace(/\brange\b/gi, STAT_ICONS.range)
     .replace(/\barmor\b/gi, STAT_ICONS.armor)
@@ -86,13 +86,13 @@ function targetLabel(target?: AbilityTargetDefinition): string {
 
 function effectLabel(effect: AbilityEffectDefinition): string {
   if (effect.kind === 'bolster') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon('health')}`;
-  if (effect.kind === 'haste') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon('speed')}`;
+  if (effect.kind === 'haste') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon('rate')}`;
   if (effect.kind === 'ramp') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon('damage')}`;
   if (effect.kind === 'heal') return `heal ${effect.amount} ${statIcon('health')}`;
   if (effect.kind === 'statDelta') return `${effect.amount > 0 ? '+' : ''}${effect.amount} ${statIcon(effect.stat)}`;
   if (effect.kind === 'rangeset') return `set ${statIcon('range')} to ${effect.value}`;
   if (effect.kind === 'roleset') return `become ${effect.role}`;
-  if (effect.kind === 'initiativeSet') return `set initiative to ${effect.value}`;
+  if (effect.kind === 'readinessSet') return `set readiness to ${effect.value}`;
   if (effect.kind === 'grantAbility') return `grant ${effect.abilityId}`;
   if (effect.kind === 'blast') return `${effect.amount} blast damage`;
   if (effect.kind === 'strike') return `${effect.amount} extra strikes`;
@@ -124,9 +124,9 @@ export function formatAbilityDescription(ability: AbilityDefinition): string {
     .filter((effect): effect is Extract<AbilityEffectDefinition, { kind: 'summon' }> => effect.kind === 'summon')
     .map((effect) => {
       const unitClass = getUnitClass(effect.unitClassId);
-      return `Summoned ${unitClass.label}: ${unitClass.role} troop with ${unitClass.quantity} bodies, ${unitClass.stats.health} health, ${unitClass.stats.damage} damage, ${unitClass.stats.speed} speed.`;
+      return `Summoned ${unitClass.label}: troop with ${unitClass.quantity} bodies, ${unitClass.stats.health} health, ${unitClass.stats.damage} damage, ${unitClass.stats.rate} rate.`;
     });
-  return [ability.shortText, ...summonDescriptions].join(' ');
+  return replaceStatWordsWithIcons([ability.shortText, ...summonDescriptions].join(' '));
 }
 
 export function formatRoleExact(role: RoleId): string {

@@ -27,7 +27,7 @@
     currentStep: number;
     selectedEvent: number | null;
     autoPlay: boolean;
-    speedMs: number;
+    rateMs: number;
   };
 
   const scenarioGroups = Array.from(
@@ -60,7 +60,7 @@
     currentStep: -1,
     selectedEvent: null,
     autoPlay: false,
-    speedMs: 125,
+    rateMs: 125,
   };
 
   function currentSnapshot(replay: BattleReplay, currentStep: number): BattleUnit[] {
@@ -93,7 +93,7 @@
       return;
     }
 
-    renderer.setPlaybackTiming(state.autoPlay, state.speedMs);
+    renderer.setPlaybackTiming(state.autoPlay, state.rateMs);
 
     if (renderedReplayId !== state.replay.id) {
       renderedReplayId = state.replay.id;
@@ -163,7 +163,7 @@
             return;
           }
           debugBattleStore.stepForward();
-        }, state.speedMs);
+        }, state.rateMs);
       }
     });
 
@@ -298,12 +298,12 @@
       replayLength={replay?.steps.length ?? 0}
       currentStep={state.currentStep}
       autoPlay={state.autoPlay}
-      speedMs={state.speedMs}
+      rateMs={state.rateMs}
       onJumpStart={() => runManualReplayAction(() => debugBattleStore.jumpTo(-1))}
       onStepBack={() => runManualReplayAction(() => debugBattleStore.stepBackward())}
       onStepForward={() => runManualReplayAction(() => debugBattleStore.stepForward())}
       onToggleAuto={() => debugBattleStore.setAutoPlay(!state.autoPlay)}
-      onSetSpeed={(speedMs) => debugBattleStore.setSpeedMs(speedMs)}
+      onSetRate={(rateMs) => debugBattleStore.setRateMs(rateMs)}
     />
 
     <section class="panel snapshot-panel">
@@ -316,7 +316,7 @@
           {#each replaySnapshot.filter((unit) => unit.alive) as unit}
             <div class="unit-card">
               <strong>{unit.troopLabel}</strong>
-              <small>{unit.side} · HP {unit.hp} · Init {unit.initiative}</small>
+              <small>{unit.side} · HP {unit.hp} · Readiness {unit.readiness}</small>
             </div>
           {/each}
         </div>

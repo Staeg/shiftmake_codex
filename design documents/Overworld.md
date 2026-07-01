@@ -60,8 +60,8 @@ The campaign phases inside the overworld are:
 
 - Inspect Rift enemies, mutators, VP reward, and fit directly from the board without selecting the Rift card itself.
 - Select a troop to inspect stats and assign it to a Rift.
-- Assign or unassign ready troops.
-- End the cycle to resolve all assigned Rift battles after every ready troop is assigned.
+- Assign or unassign available troops.
+- End the cycle to resolve all assigned Rift battles after every available troop is assigned.
 
 ### Archive and postgame
 

@@ -113,7 +113,7 @@ describe('simulationHarness builders', () => {
     expect(archer.stats).toEqual({
       health: 30,
       damage: 11,
-      speed: 11,
+      rate: 11,
       move: 3,
       range: 5,
       armor: 0,

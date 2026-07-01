@@ -18,7 +18,7 @@
   const HEX_SIZE = 18;
   const UNIT_SIZE = 18;
   const MAP_PADDING = 12;
-  const BATTLE_SPEED_MULTIPLIER = 64;
+  const BATTLE_RATE_MULTIPLIER = 64;
 
   export let replay: BattleReplay;
   export let leftSource: SideId = 'enemy';
@@ -73,7 +73,7 @@
   });
 
   function tickReplay(now: number): void {
-    const timeline = buildBattlePresentationTimeline(replay, BASE_STEP_MS / BATTLE_SPEED_MULTIPLIER);
+    const timeline = buildBattlePresentationTimeline(replay, BASE_STEP_MS / BATTLE_RATE_MULTIPLIER);
     const elapsed = now - startTime;
     const cue = timeline.cues.find((entry) => elapsed >= entry.startMs && elapsed <= entry.startMs + entry.durationMs);
     const previousStepIndex = stepIndex;

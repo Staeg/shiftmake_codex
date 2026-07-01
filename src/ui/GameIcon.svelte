@@ -17,12 +17,12 @@
 </script>
 
 {#if url}
-  <img class:raster-icon={isRasterIcon} class="game-icon" src={url} alt="" aria-hidden="true" title={label} />
+  <img class:raster-icon={isRasterIcon} class="game-icon" src={url} alt="" aria-hidden="true" data-icon-label={label || undefined} />
 {:else if fallbackIcon}
   <span
     class={`game-icon fallback-ability-icon ${fallbackIcon.shape} ${fallbackIcon.tone}`}
     aria-hidden="true"
-    title={label}
+    data-icon-label={label || undefined}
   ></span>
 {/if}
 

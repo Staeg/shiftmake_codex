@@ -20,7 +20,7 @@ import type {
   UnitClassId,
   UpgradeId,
 } from '../engine/types';
-import { displayIcon, formatAbilityDescription, statIcon } from './inspectText';
+import { displayIcon, formatAbilityDescription, replaceStatWordsWithIcons, statIcon } from './inspectText';
 
 export type StatEntry = {
   key: string;
@@ -67,7 +67,7 @@ export type DetailCard =
       }>;
     };
 
-const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'];
+const EXPLAINED_STAT_ORDER: ExplainedStatKey[] = ['health', 'damage', 'rate', 'move', 'armor', 'range', 'capacity', 'size'];
 
 export function parseTroopUnlockId(troopUnlockId: string): [RaceId, UnitClassId] {
   return troopUnlockId.split('/') as [RaceId, UnitClassId];
@@ -107,7 +107,7 @@ export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; descri
     const race = getRace(upgrade.raceId);
     return {
       label: upgrade.label,
-      description: upgrade.description,
+      description: replaceStatWordsWithIcons(upgrade.description),
       bucket: `${race.label} race upgrade`,
       inspectLabel: `${race.singularLabel} Upgrade`,
     };
@@ -117,7 +117,7 @@ export function getUpgradeDetails(upgradeId: UpgradeId): { label: string; descri
   const unitClass = getUnitClass(upgrade.unitClassId);
   return {
     label: upgrade.label,
-    description: upgrade.description,
+    description: replaceStatWordsWithIcons(upgrade.description),
     bucket: `${unitClass.label} troop upgrade`,
     inspectLabel: `${unitClass.label} Upgrade`,
   };
@@ -127,7 +127,7 @@ export function getStatLabel(key: ExplainedStatKey): string {
   return {
     health: 'Health',
     damage: 'Damage',
-    speed: 'Speed',
+    rate: 'Rate',
     move: 'Move',
     range: 'Range',
     armor: 'Armor',
@@ -140,7 +140,7 @@ export function getStatDescription(key: ExplainedStatKey): string {
   return {
     health: 'How much punishment each unit can take before falling.',
     damage: 'How much harm each attack deals before armor and other effects.',
-    speed: 'How quickly the unit gains initiative and takes turns.',
+    rate: 'How quickly the unit gains readiness and takes turns.',
     move: 'How many hexes this unit can travel during ordinary movement and special repositioning.',
     range: 'How many hexes away the unit can attack from.',
     armor: 'Flat damage reduction applied when the unit is hit.',
@@ -167,12 +167,12 @@ export function formatStatModifier(value: { flat?: number; multiplier?: number }
 }
 
 export function buildStatEntries(
-  stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number },
+  stats: { health: number; damage: number; rate: number; move: number; armor: number; range: number; capacity: number; size?: number },
   breakdowns?: Partial<Record<ExplainedStatKey | 'quantity', StatBreakdown>>,
   includeSize = false,
   quantity?: number,
 ): StatEntry[] {
-  const keys = includeSize ? EXPLAINED_STAT_ORDER : EXPLAINED_STAT_ORDER.filter((stat) => stat !== 'size');
+  const keys = EXPLAINED_STAT_ORDER.filter((stat) => stat !== 'size' && stat !== 'capacity');
   const entries = keys.map((key) => ({
     key,
     label: displayIcon(key),
@@ -244,7 +244,7 @@ export function buildRaceDetail(raceId: RaceId): DetailCard {
     const ability = getAbility(abilityId);
     return `${ability.label}: ${formatAbilityDescription(ability)}`;
   });
-  const stats = EXPLAINED_STAT_ORDER.map((key) => ({
+  const stats = EXPLAINED_STAT_ORDER.filter((key) => key !== 'size' && key !== 'capacity').map((key) => ({
     key,
     label: displayIcon(key),
     name: getStatLabel(key),
@@ -268,7 +268,7 @@ export function buildMutatorDetail(mutatorId: string): DetailCard {
     detailKey: `mutator:${mutatorId}`,
     kind: 'mutator',
     label: mutator.label,
-    description: mutator.description,
+    description: replaceStatWordsWithIcons(mutator.description),
     iconKind: 'mutator',
     iconId: mutatorId,
   };
@@ -301,7 +301,7 @@ type BuildResolvedUnitDetailOptions = {
   label: string;
   raceId: RaceId;
   unitClassId: UnitClassId;
-  stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number };
+  stats: { health: number; damage: number; rate: number; move: number; armor: number; range: number; capacity: number; size?: number };
   quantity: number;
   description: string;
   abilities: AbilityDefinition[];
@@ -323,7 +323,7 @@ export function buildResolvedUnitDetail(options: BuildResolvedUnitDetailOptions)
         : lowerDescription.includes('assigned') || /^rift-assigned:/.test(options.detailKey)
           ? 'Assigned Troop'
           : lowerDescription.includes('ready') || /^ready:/.test(options.detailKey)
-            ? 'Ready Troop'
+            ? 'Available Troop'
             : 'Troop Inspector',
     label: options.label,
     description: safeDescription,

@@ -267,11 +267,11 @@ Important properties:
 
 Each beat:
 
-1. All alive units gain initiative equal to speed plus mutator bonus.
+1. All alive units gain readiness equal to rate plus mutator bonus.
 2. A `beat` replay step is recorded.
 3. Beat-timed mutators then resolve, such as `Quakes` displacement and direct `Decay` HP loss.
-4. Units with initiative `>= 100` act in shuffled order.
-5. Each acting unit spends `100` initiative.
+4. Units with readiness `>= 100` act in shuffled order.
+5. Each acting unit spends `100` readiness.
 
 Each acting unit:
 
@@ -381,7 +381,7 @@ The battle engine uses this for side-wide rules that must keep working for futur
 
 Assignment rule: no more than one troop of a given race can enter the same Rift unless that race has `United`, and no more than one troop of a given troop class can enter the same Rift.
 
-Important current rule: every ready troop that is not already occupying a Contest Rift must be assigned before ending the cycle. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer readiness can be submitted.
+Important current rule: every available troop that is not already occupying a Contest Rift must be assigned before ending the cycle. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer cycle end can be submitted.
 
 ### Recovery
 
@@ -399,7 +399,7 @@ Base recovery is now:
 - assigns 1 mutator per Rift from a cycle-level shuffled bag that spreads mutators as evenly as possible across the 4 visible Rifts
 - gives Tier 1-3 Rifts `tier + 1` unique enemy combatant groups, then keeps Tier 4 at 4 groups
 - derives enemy troop quantity exactly the same way as player troops
-- applies `+20%` health, damage, and speed only at Tier 4
+- applies `+20%` health, damage, and rate only at Tier 4
 - awards `victoryPoints = tier`
 - does not use enemy budgets, resource rewards, upgrade rewards, or blueprints
 

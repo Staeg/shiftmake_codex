@@ -30,7 +30,7 @@ Shiftmake is a browser-based, singleplayer turn-based strategy game with light p
 - Damage: sharp angles, sparks, red or hot accents.
 - Armor and defense: shields, stone, plates, blue-steel or gray accents.
 - Healing: warm light, green or gold accents.
-- Speed and initiative: wind streaks, clock-like arcs, lightning, cyan or yellow accents.
+- Rate and readiness: wind streaks, clock-like arcs, lightning, cyan or yellow accents.
 - Summons: emerging silhouettes, portal glow, spectral doubles.
 - Corpses and death triggers: bones, fading silhouettes, dark violet or sickly green accents.
 - Range and precision: arrows, crosshair shapes, long sight lines.

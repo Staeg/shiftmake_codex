@@ -1,5 +1,5 @@
 import { fixed, fixedClamp, fixedMax, fixedMul, fixedSum } from "./fixed";
-const STAT_KEYS = ["health", "damage", "speed", "move", "range", "armor", "size", "capacity"];
+const STAT_KEYS = ["health", "damage", "rate", "move", "range", "armor", "size", "capacity"];
 const TROOP_UNIT_BUDGET = 120;
 function makeAbility(definition) {
   return definition;
@@ -37,14 +37,14 @@ function redirectEffect() {
 function redirectEffectAllowEngaged() {
   return { kind: "redirect", allowAlreadyEngaged: true };
 }
-function summonEffect(unitClassId, count, consumeFallenUnitCorpse = false, grantedAbilityIds = [], initialInitiative) {
-  return { kind: "summon", unitClassId, count, consumeFallenUnitCorpse, grantedAbilityIds, initialInitiative, disposition: "neutral" };
+function summonEffect(unitClassId, count, consumeFallenUnitCorpse = false, grantedAbilityIds = [], initialReadiness) {
+  return { kind: "summon", unitClassId, count, consumeFallenUnitCorpse, grantedAbilityIds, initialReadiness, disposition: "neutral" };
 }
-function initiativeSetEffect(value) {
-  return { kind: "initiativeSet", value, disposition: "harmful" };
+function readinessSetEffect(value) {
+  return { kind: "readinessSet", value, disposition: "harmful" };
 }
-function initiativeDeltaEffect(amount) {
-  return { kind: "initiativeDelta", amount, disposition: amount >= 0 ? "beneficial" : "harmful" };
+function readinessDeltaEffect(amount) {
+  return { kind: "readinessDelta", amount, disposition: amount >= 0 ? "beneficial" : "harmful" };
 }
 function grantAbilityEffect(abilityId, disposition = "neutral") {
   return { kind: "grantAbility", abilityId, disposition };
@@ -96,14 +96,14 @@ const ABILITIES = {
     "combined-arms-20",
     "Power of Friendship",
     20,
-    "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop class in this battle.",
+    "Start of battle: gain +20% health, +20% damage, and +20% rate for each other friendly troop class in this battle.",
     { repeatPerDistinctFriendlyTroopClass: true }
   ),
   "forsaken-80": makeTripleStatAbility(
     "forsaken-80",
     "Forsaken 80",
     80,
-    "Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and speed.",
+    "Start of battle: if no other friendly troop classes are present, gain 80% health, damage, and rate.",
     { condition: "forsaken" }
   ),
   "goblin-farewell": makeAbility({
@@ -129,7 +129,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: one random unit from each troop has speed set to 1 at the start of combat."
+    shortText: "Passive: one random unit from each troop has rate set to 1 at the start of combat."
   }),
   "stall-warts": makeAbility({
     id: "stall-warts",
@@ -137,7 +137,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: after being hit by normal attacks, gain +1 armor and lose 1 speed for the battle."
+    shortText: "Passive: after being hit by normal attacks, gain +1 armor and lose 1 rate for the battle."
   }),
   "seeing-red": makeAbility({
     id: "seeing-red",
@@ -145,8 +145,8 @@ const ABILITIES = {
     trigger: { timing: "onKill" },
     duration: battleDuration(),
     target: selfTarget(),
-    effects: [statDeltaEffect("armor", -1, "flat"), initiativeDeltaEffect(75)],
-    shortText: "On kill: lose 1 armor for the battle and gain 75 initiative."
+    effects: [statDeltaEffect("armor", -1, "flat"), readinessDeltaEffect(75)],
+    shortText: "On kill: lose 1 armor for the battle and gain 75 readiness."
   }),
   "first-blood": makeAbility({
     id: "first-blood",
@@ -213,7 +213,7 @@ const ABILITIES = {
     duration: battleDuration(),
     target: randomTarget("ally", "selfRange"),
     effects: [statEffect("haste", 1, "flat")],
-    shortText: "End of turn: a random allied unit within this unit's range gains +1 speed for the battle."
+    shortText: "End of turn: a random allied unit within this unit's range gains +1 rate for the battle."
   }),
   "self-haste-2": makeAbility({
     id: "self-haste-2",
@@ -222,7 +222,7 @@ const ABILITIES = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [statEffect("haste", 2, "flat")],
-    shortText: "End of turn: gain +2 speed for the battle."
+    shortText: "End of turn: gain +2 rate for the battle."
   }),
   "ramp-1": makeSelfStatAbility("ramp-1", "Ramp 1", "endOfTurn", [statEffect("ramp", 1, "flat")], "End of turn: gain +1 damage for the battle."),
   "frenzy-ramp-1": makeSelfStatAbility("frenzy-ramp-1", "Frenzy: Ramp 1", "onDamaged", [statEffect("ramp", 1, "flat")], "After taking damage: gain +1 damage for the battle."),
@@ -251,7 +251,7 @@ const ABILITIES = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [statEffect("haste", 1, "flat"), statEffect("ramp", 1, "flat")],
-    shortText: "When a touching ally dies, gain +1 speed and +1 damage for the battle."
+    shortText: "When a touching ally dies, gain +1 rate and +1 damage for the battle."
   }),
   "vengeance-3": makeAbility({
     id: "vengeance-3",
@@ -260,7 +260,7 @@ const ABILITIES = {
     duration: battleDuration(),
     target: selfTarget(),
     effects: [statEffect("haste", 3, "flat"), statEffect("ramp", 3, "flat")],
-    shortText: "When a touching ally dies, gain +3 speed and +3 damage for the battle."
+    shortText: "When a touching ally dies, gain +3 rate and +3 damage for the battle."
   }),
   "enhance-1": makeAbility({
     id: "enhance-1",
@@ -269,7 +269,7 @@ const ABILITIES = {
     duration: battleDuration(),
     target: randomTarget("ally", "selfRange", { notClasses: ["caster"] }),
     effects: [statEffect("haste", 1, "flat"), statEffect("ramp", 1, "flat")],
-    shortText: "End of turn: a random allied non-caster within this unit's range gains +1 speed and +1 damage for the battle."
+    shortText: "End of turn: a random allied non-caster within this unit's range gains +1 rate and +1 damage for the battle."
   }),
   "shapeshift-bear": makeAbility({
     id: "shapeshift-bear",
@@ -284,7 +284,7 @@ const ABILITIES = {
       { kind: "rangeset", value: 0 },
       roleset("frontline")
     ],
-    shortText: "After 5 turns, once: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit."
+    shortText: "After 5 turns, once: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit."
   }),
   bonded: makeAbility({
     id: "bonded",
@@ -405,7 +405,7 @@ const ABILITIES = {
     duration: battleDuration(),
     target: { mode: "default" },
     effects: [statEffect("haste", 1, "flat"), statEffect("ramp", 1, "flat")],
-    shortText: "When this unit heals a target, that same target also gains +1 speed and +1 damage for the battle."
+    shortText: "When this unit heals a target, that same target also gains +1 rate and +1 damage for the battle."
   }),
   "serve-once-more": makeAbility({
     id: "serve-once-more",
@@ -446,8 +446,8 @@ const ABILITIES = {
     trigger: { timing: "onAttack" },
     duration: instantDuration(),
     target: { mode: "default" },
-    effects: [initiativeSetEffect(0)],
-    shortText: "On attack: set the target initiative to 0."
+    effects: [readinessSetEffect(0)],
+    shortText: "On attack: set the target readiness to 0."
   }),
   "charge-4-random-enemy-r-strike-4": makeAbility({
     id: "charge-4-random-enemy-r-strike-4",
@@ -472,8 +472,8 @@ const ABILITIES = {
     trigger: { timing: "onAttack" },
     duration: battleDuration(),
     target: { mode: "default" },
-    effects: [statDeltaEffect("speed", -1, "flat")],
-    shortText: "On attack: reduce the target speed by 1 for the battle."
+    effects: [statDeltaEffect("rate", -1, "flat")],
+    shortText: "On attack: reduce the target rate by 1 for the battle."
   }),
   "blood-oath": makeAbility({
     id: "blood-oath",
@@ -481,8 +481,8 @@ const ABILITIES = {
     trigger: { timing: "onFallen", fallen: { allegiance: "ally", radius: 0 } },
     duration: instantDuration(),
     target: selfTarget(),
-    effects: [initiativeSetEffect(100)],
-    shortText: "When a touching ally dies: set initiative to 100."
+    effects: [readinessSetEffect(100)],
+    shortText: "When a touching ally dies: set readiness to 100."
   }),
   "packmasters-whistle": makeAbility({
     id: "packmasters-whistle",
@@ -505,7 +505,7 @@ const ABILITIES = {
       { kind: "rangeset", value: 0 },
       roleset("frontline")
     ],
-    shortText: "After every 5 turns, twice: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit."
+    shortText: "After every 5 turns, twice: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit."
   }),
   "thornhide": makeAbility({
     id: "thornhide",
@@ -537,8 +537,8 @@ const ABILITIES = {
     trigger: { timing: "startOfTurn", repeatPerTouchingFriendlyUnit: true },
     duration: instantDuration(),
     target: selfTarget(),
-    effects: [initiativeDeltaEffect(1)],
-    shortText: "Start of turn: gain +1 initiative per other touching Militia."
+    effects: [readinessDeltaEffect(1)],
+    shortText: "Start of turn: gain +1 readiness per other touching Militia."
   }),
   "early-riser": makeAbility({
     id: "early-riser",
@@ -546,7 +546,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: skeletons this unit summons spawn with +100 initiative."
+    shortText: "Passive: skeletons this unit summons spawn with +100 readiness."
   }),
   "carrion-choir": makeAbility({
     id: "carrion-choir",
@@ -570,7 +570,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: heals that bring a target to full HP give +1 speed and +1 damage; other heals give 40 initiative."
+    shortText: "Passive: heals that bring a target to full HP give +1 rate and +1 damage; other heals give 40 readiness."
   }),
   "skirmishers-step": makeAbility({
     id: "skirmishers-step",
@@ -610,7 +610,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: effects that would reduce this unit damage or speed instead increase it by 1."
+    shortText: "Passive: effects that would reduce this unit damage or rate instead increase it by 1."
   }),
   "fade-into-shadow": makeAbility({
     id: "fade-into-shadow",
@@ -626,7 +626,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: ranged and caster attacks gain +1 damage and +2 initiative per hex of distance."
+    shortText: "Passive: ranged and caster attacks gain +1 damage and +2 readiness per hex of distance."
   }),
   "snatch-the-moment": makeAbility({
     id: "snatch-the-moment",
@@ -634,7 +634,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: on kill, enemies touching the fallen unit lose 20 initiative."
+    shortText: "Passive: on kill, enemies touching the fallen unit lose 20 readiness."
   }),
   "stoneblood": makeAbility({
     id: "stoneblood",
@@ -682,7 +682,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: when this unit heals an ally to full HP, that ally gains 40 initiative."
+    shortText: "Passive: when this unit heals an ally to full HP, that ally gains 40 readiness."
   }),
   "static-charge": makeAbility({
     id: "static-charge",
@@ -706,7 +706,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: ranged and caster attacks made from max range make the target lose 30 initiative."
+    shortText: "Passive: ranged and caster attacks made from max range make the target lose 30 readiness."
   }),
   "bramble-snare": makeAbility({
     id: "bramble-snare",
@@ -714,7 +714,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: each shapeshift empowers this unit so its melee attacks reduce target speed by 2 for the battle."
+    shortText: "Passive: each shapeshift empowers this unit so its melee attacks reduce target rate by 2 for the battle."
   }),
   "living-circuit": makeAbility({
     id: "living-circuit",
@@ -722,7 +722,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: end of turn, gain 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative."
+    shortText: "Passive: end of turn, gain 15 readiness once if any allied elemental is in range, and all allied elementals in range gain 15 readiness."
   }),
   "hold-the-standard": makeAbility({
     id: "hold-the-standard",
@@ -738,7 +738,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: on kill, allies touching the fallen unit heal 10 and gain 30 initiative."
+    shortText: "Passive: on kill, allies touching the fallen unit heal 10 and gain 30 readiness."
   }),
   "rowdy-regrowth": makeAbility({
     id: "rowdy-regrowth",
@@ -746,7 +746,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: whenever this unit is healed, gain 20 initiative."
+    shortText: "Passive: whenever this unit is healed, gain 20 readiness."
   }),
   "wild-call": makeAbility({
     id: "wild-call",
@@ -819,7 +819,7 @@ const ABILITIES = {
     trigger: { timing: "passive" },
     duration: instantDuration(),
     effects: [],
-    shortText: "Passive: end of turn, touching wolves gain 10 initiative; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle."
+    shortText: "Passive: end of turn, touching wolves gain 10 readiness; when a wolf kills, allies touching the fallen unit gain +2 damage for the battle."
   })
 };
 const UNIT_CLASSES = {
@@ -829,7 +829,7 @@ const UNIT_CLASSES = {
     role: "frontline",
     unitClassTag: "soldier",
     attributes: ["melee"],
-    stats: { health: 100, damage: 10, speed: 10, move: 2, range: 0, armor: 2, size: 1, capacity: 2 },
+    stats: { health: 100, damage: 10, rate: 10, move: 2, range: 0, armor: 2, size: 1, capacity: 2 },
     quantity: 1,
     cost: 24,
     abilityIds: []
@@ -840,7 +840,7 @@ const UNIT_CLASSES = {
     role: "frontline",
     unitClassTag: "champion",
     attributes: ["melee"],
-    stats: { health: 130, damage: 20, speed: 17, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 130, damage: 20, rate: 17, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ["valor-20"]
@@ -851,7 +851,7 @@ const UNIT_CLASSES = {
     role: "frontline",
     unitClassTag: "avenger",
     attributes: ["melee"],
-    stats: { health: 200, damage: 6, speed: 10, move: 1, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 200, damage: 6, rate: 10, move: 1, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 40,
     abilityIds: ["vengeance-3"]
@@ -862,7 +862,7 @@ const UNIT_CLASSES = {
     role: "frontline",
     unitClassTag: "beastmaster",
     attributes: ["melee", "summoner"],
-    stats: { health: 90, damage: 8, speed: 8, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
+    stats: { health: 90, damage: 8, rate: 8, move: 2, range: 0, armor: 0, size: 2, capacity: 1 },
     quantity: 1,
     cost: 60,
     abilityIds: ["summon-wolf-2"]
@@ -873,7 +873,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "druid",
     attributes: ["caster"],
-    stats: { health: 25, damage: 11, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 11, rate: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 30,
     abilityIds: ["shapeshift-bear"]
@@ -884,7 +884,7 @@ const UNIT_CLASSES = {
     role: "frontline",
     unitClassTag: "elemental",
     attributes: ["melee", "summoned"],
-    stats: { health: 60, damage: 13, speed: 7, move: 1, range: 0, armor: 5, size: 1, capacity: 3 },
+    stats: { health: 60, damage: 13, rate: 7, move: 1, range: 0, armor: 5, size: 1, capacity: 3 },
     quantity: 1,
     cost: 20,
     abilityIds: []
@@ -895,7 +895,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "elementalist",
     attributes: ["caster", "summoner"],
-    stats: { health: 25, damage: 10, speed: 9, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 10, rate: 9, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 30,
     abilityIds: ["charge-4-summon-elemental"]
@@ -906,7 +906,7 @@ const UNIT_CLASSES = {
     role: "frontline",
     unitClassTag: "knight",
     attributes: ["melee"],
-    stats: { health: 200, damage: 16, speed: 7, move: 1, range: 0, armor: 10, size: 2, capacity: 5 },
+    stats: { health: 200, damage: 16, rate: 7, move: 1, range: 0, armor: 10, size: 2, capacity: 5 },
     quantity: 1,
     cost: 60,
     abilityIds: ["taunt"]
@@ -917,7 +917,7 @@ const UNIT_CLASSES = {
     role: "pusher",
     unitClassTag: "militia",
     attributes: ["melee", "expendable"],
-    stats: { health: 40, damage: 8, speed: 11, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 40, damage: 8, rate: 11, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 1,
     cost: 10,
     abilityIds: []
@@ -928,7 +928,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "archer",
     attributes: ["ranged"],
-    stats: { health: 30, damage: 11, speed: 11, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 30, damage: 11, rate: 11, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: []
@@ -939,7 +939,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "wizard",
     attributes: ["caster"],
-    stats: { health: 20, damage: 9, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 20, damage: 9, rate: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ["blast-5"]
@@ -950,7 +950,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "priest",
     attributes: ["caster"],
-    stats: { health: 25, damage: 7, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 25, damage: 7, rate: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ["mend-4"]
@@ -961,7 +961,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "ranger",
     attributes: ["ranged"],
-    stats: { health: 50, damage: 16, speed: 13, move: 3, range: 7, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 50, damage: 16, rate: 13, move: 3, range: 7, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 60,
     abilityIds: ["self-haste-2"]
@@ -972,7 +972,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "necromancer",
     attributes: ["caster", "summoner"],
-    stats: { health: 40, damage: 16, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 40, damage: 16, rate: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 40,
     abilityIds: ["corpse-summon-skeleton"]
@@ -983,7 +983,7 @@ const UNIT_CLASSES = {
     role: "pusher",
     unitClassTag: "skeleton",
     attributes: ["melee", "summoned"],
-    stats: { health: 40, damage: 13, speed: 7, move: 2, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 40, damage: 13, rate: 7, move: 2, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 1,
     cost: 20,
     abilityIds: ["bonded", "fading"]
@@ -994,7 +994,7 @@ const UNIT_CLASSES = {
     role: "backline",
     unitClassTag: "shaman",
     attributes: ["caster"],
-    stats: { health: 20, damage: 11, speed: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
+    stats: { health: 20, damage: 11, rate: 8, move: 2, range: 5, armor: 0, size: 1, capacity: 0 },
     quantity: 1,
     cost: 20,
     abilityIds: ["enhance-1"]
@@ -1005,7 +1005,7 @@ const UNIT_CLASSES = {
     role: "pusher",
     unitClassTag: "wolf",
     attributes: ["melee", "summoned"],
-    stats: { health: 70, damage: 6, speed: 12, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
+    stats: { health: 70, damage: 6, rate: 12, move: 3, range: 0, armor: 0, size: 1, capacity: 1 },
     quantity: 1,
     cost: 20,
     abilityIds: ["bonded", "pack-1"]
@@ -1020,7 +1020,7 @@ const RACES = {
     statAdjustments: {
       health: { multiplier: 1.1 },
       damage: { multiplier: 1.1 },
-      speed: { multiplier: 1.1 },
+      rate: { multiplier: 1.1 },
       armor: { flat: 1 },
       capacity: { flat: 1 }
     },
@@ -1034,7 +1034,7 @@ const RACES = {
     statAdjustments: {
       health: { multiplier: 0.9 },
       damage: { multiplier: 1.2 },
-      speed: { multiplier: 1.2 },
+      rate: { multiplier: 1.2 },
       range: { flat: 1 }
     },
     abilityIds: []
@@ -1063,7 +1063,7 @@ const RACES = {
     statAdjustments: {
       health: { multiplier: 1.3 },
       damage: { multiplier: 1.2 },
-      speed: { multiplier: 0.8 },
+      rate: { multiplier: 0.8 },
       size: { flat: 1 },
       capacity: { flat: 1 }
     },
@@ -1076,7 +1076,7 @@ const RACES = {
     addedAttributes: ["dwarf"],
     statAdjustments: {
       health: { multiplier: 1.2 },
-      speed: { multiplier: 0.85 },
+      rate: { multiplier: 0.85 },
       armor: { flat: 3 },
       capacity: { flat: 1 }
     },
@@ -1089,7 +1089,7 @@ const RACES = {
     addedAttributes: ["orc"],
     statAdjustments: {
       damage: { multiplier: 1.25 },
-      speed: { multiplier: 1.1 },
+      rate: { multiplier: 1.1 },
       armor: { flat: -1 },
       capacity: { flat: -1 }
     },
@@ -1102,7 +1102,7 @@ const RACES = {
     addedAttributes: ["fae"],
     statAdjustments: {
       health: { multiplier: 0.8 },
-      speed: { multiplier: 1.15 },
+      rate: { multiplier: 1.15 },
       range: { flat: 1 },
       armor: { flat: -1 }
     },
@@ -1115,7 +1115,7 @@ const RACE_UPGRADES = {
     raceId: "human",
     label: "Human Combined Arms",
     tier: 2,
-    description: "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop class in that battle.",
+    description: "Start of battle: each human unit gains +20% health, +20% damage, and +20% rate for each other friendly troop class in that battle.",
     effects: [{ kind: "addAbility", abilityId: "combined-arms-20" }]
   },
   "human-tubthumping": {
@@ -1123,7 +1123,7 @@ const RACE_UPGRADES = {
     raceId: "human",
     label: "Tubthumping",
     tier: 1,
-    description: "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.",
+    description: "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1.",
     effects: [{ kind: "addAbility", abilityId: "united" }, { kind: "addAbility", abilityId: "tubthumping" }]
   },
   "elf-feline-grace": {
@@ -1139,7 +1139,7 @@ const RACE_UPGRADES = {
     raceId: "elf",
     label: "Elven Forsaken",
     tier: 3,
-    description: "Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% speed.",
+    description: "Start of battle: if an elven unit is fighting without any other friendly troop classes, it gains +80% health, +80% damage, and +80% rate.",
     effects: [{ kind: "addAbility", abilityId: "forsaken-80" }]
   },
   "elf-silvershot-doctrine": {
@@ -1147,7 +1147,7 @@ const RACE_UPGRADES = {
     raceId: "elf",
     label: "Silvershot Doctrine",
     tier: 2,
-    description: "Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.",
+    description: "Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness.",
     effects: [{ kind: "addAbility", abilityId: "silver-distance" }, { kind: "addAbility", abilityId: "long-shot-doctrine" }]
   },
   "goblin-behavior": {
@@ -1155,7 +1155,7 @@ const RACE_UPGRADES = {
     raceId: "goblin",
     label: "Goblin Behavior",
     tier: 1,
-    description: "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 initiative.",
+    description: "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies touching the fallen unit lose 20 readiness.",
     effects: [{ kind: "addAbility", abilityId: "goblin-farewell" }, { kind: "addAbility", abilityId: "snatch-the-moment" }]
   },
   "goblin-pack": {
@@ -1171,7 +1171,7 @@ const RACE_UPGRADES = {
     raceId: "goblin",
     label: "Loot Frenzy",
     tier: 3,
-    description: "When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 initiative.",
+    description: "When a Goblin gets a kill, allies touching the fallen unit heal 10 and gain 30 readiness.",
     effects: [{ kind: "addAbility", abilityId: "loot-frenzy" }]
   },
   "troll-roll-the-boulder": {
@@ -1195,7 +1195,7 @@ const RACE_UPGRADES = {
     raceId: "troll",
     label: "Rowdy Regrowth",
     tier: 2,
-    description: "Whenever a Troll is healed, it gains 20 initiative.",
+    description: "Whenever a Troll is healed, it gains 20 readiness.",
     effects: [{ kind: "addAbility", abilityId: "rowdy-regrowth" }]
   },
   "human-hold-the-standard": {
@@ -1219,9 +1219,9 @@ const RACE_UPGRADES = {
     raceId: "dwarf",
     label: "Ale and Hearty",
     tier: 2,
-    description: "Dwarven troops gain +40% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.",
+    description: "Dwarven troops gain +40% rate. One random unit from each Dwarven troop has its rate set to 1 at the start of combat.",
     effects: [
-      { kind: "modifyStats", statModifiers: { speed: { multiplier: 1.4 } } },
+      { kind: "modifyStats", statModifiers: { rate: { multiplier: 1.4 } } },
       { kind: "addAbility", abilityId: "ale-and-hearty" }
     ]
   },
@@ -1230,7 +1230,7 @@ const RACE_UPGRADES = {
     raceId: "dwarf",
     label: "Stall Warts",
     tier: 3,
-    description: "Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.",
+    description: "Dwarven troops gain +1 armor and lose 1 rate for the rest of the battle after they are hit by normal attacks.",
     effects: [{ kind: "addAbility", abilityId: "stall-warts" }]
   },
   "orc-seeing-red": {
@@ -1238,7 +1238,7 @@ const RACE_UPGRADES = {
     raceId: "orc",
     label: "Seeing Red",
     tier: 1,
-    description: "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.",
+    description: "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness.",
     effects: [{ kind: "addAbility", abilityId: "seeing-red" }]
   },
   "orc-first-blood": {
@@ -1254,7 +1254,7 @@ const RACE_UPGRADES = {
     raceId: "orc",
     label: "Berserk",
     tier: 3,
-    description: "When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.",
+    description: "When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.",
     effects: [{ kind: "addAbility", abilityId: "berserk" }]
   },
   "fae-glamour": {
@@ -1296,7 +1296,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "archer",
     label: "Crippling Shots",
     tier: 3,
-    description: "On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.",
+    description: "On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle.",
     effects: [{ kind: "addAbility", abilityId: "shredding-arrows" }, { kind: "addAbility", abilityId: "pinning-volley" }]
   },
   "avenger-sevenfold": {
@@ -1312,7 +1312,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "avenger",
     label: "Witness",
     tier: 3,
-    description: "When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.",
+    description: "When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact.",
     effects: [{ kind: "addAbility", abilityId: "blood-oath" }, { kind: "addAbility", abilityId: "last-witness" }]
   },
   "beastmaster-bloodhounds": {
@@ -1328,7 +1328,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "beastmaster",
     label: "Thrill of the Hunt",
     tier: 3,
-    description: "End of turn: wolves touching this Beastmaster gain 10 initiative. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.",
+    description: "End of turn: wolves touching this Beastmaster gain 10 readiness. Whenever any wolf gets a kill, allies touching the fallen unit gain +2 damage for the battle.",
     effects: [{ kind: "addAbility", abilityId: "thrill-of-the-hunt" }]
   },
   "champion-anointed-executioner": {
@@ -1376,7 +1376,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "druid",
     label: "Ent's Visage",
     tier: 3,
-    description: "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.",
+    description: "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.",
     effects: [{ kind: "addAbility", abilityId: "thornhide" }, { kind: "addAbility", abilityId: "bramble-snare" }]
   },
   "elementalist-crackling-mitosis": {
@@ -1392,7 +1392,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "elementalist",
     label: "Living Circuit",
     tier: 3,
-    description: "End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.",
+    description: "End of turn: if any allied elemental is in range, this Elementalist gains 15 readiness once and all allied elementals in range gain 15 readiness.",
     effects: [{ kind: "addAbility", abilityId: "living-circuit" }]
   },
   "militia-rat-behavior": {
@@ -1400,7 +1400,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "militia",
     label: "Rat Behavior",
     tier: 3,
-    description: "Start of turn: Militia gain +1 initiative for each other Militia touching them.",
+    description: "Start of turn: Militia gain +1 readiness for each other Militia touching them.",
     effects: [{ kind: "addAbility", abilityId: "rabble-rush" }]
   },
   "militia-dogpile": {
@@ -1424,7 +1424,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "necromancer",
     label: "Explosion Corpse",
     tier: 3,
-    description: "Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
+    description: "Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
     effects: [{ kind: "addAbility", abilityId: "early-riser" }, { kind: "addAbility", abilityId: "carrion-choir" }]
   },
   "priest-bolstering-light": {
@@ -1432,7 +1432,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "priest",
     label: "Bolstering Light",
     tier: 3,
-    description: "When a Priest heal brings its target to full HP, that target gains +1 speed and +1 damage for the battle. Otherwise, that target gains 40 initiative.",
+    description: "When a Priest heal brings its target to full HP, that target gains +1 rate and +1 damage for the battle. Otherwise, that target gains 40 readiness.",
     effects: [{ kind: "addAbility", abilityId: "bolstering-light" }]
   },
   "priest-mercy-before-dawn": {
@@ -1448,7 +1448,7 @@ const TROOP_CLASS_UPGRADES = {
     unitClassId: "ranger",
     label: "On the Hunt",
     tier: 3,
-    description: "On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
+    description: "On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
     effects: [{ kind: "addAbility", abilityId: "concussive-shots" }, { kind: "addAbility", abilityId: "scavengers-hunger-2" }]
   },
   "ranger-shadows-embrace": {
@@ -1496,14 +1496,14 @@ const MUTATORS = {
   momentum: {
     id: "momentum",
     label: "Momentum",
-    description: "All units gain +10 initiative every beat.",
-    initiativeBonusPerBeat: 10
+    description: "All units gain +10 readiness every beat.",
+    readinessBonusPerBeat: 10
   },
   haze: {
     id: "haze",
     label: "Haze",
-    description: "All units lose 5 initiative every beat.",
-    initiativeBonusPerBeat: -5
+    description: "All units lose 5 readiness every beat.",
+    readinessBonusPerBeat: -5
   },
   "heavy-air": {
     id: "heavy-air",
@@ -1632,7 +1632,7 @@ function canReceiveRangeAdjustment(attributes) {
 }
 function clampStat(key, value) {
   if (key === "damage") return fixedMax(value, 0);
-  if (key === "speed") return fixedClamp(value, 1, 100);
+  if (key === "rate") return fixedClamp(value, 1, 100);
   if (key === "move") return fixedMax(value, 0);
   if (key === "range") return fixedMax(value, 0);
   if (key === "size") return fixedMax(value, 1);
@@ -1656,7 +1656,7 @@ function composeBaseTroopDefinition(raceId, unitClassId) {
       result[key] = clampStat(key, applyAdjustment(unitClass.stats[key], race.statAdjustments[key]));
       return result;
     },
-    { health: 0, damage: 0, speed: 0, move: 0, range: 0, armor: 0, size: 0, capacity: 0 }
+    { health: 0, damage: 0, rate: 0, move: 0, range: 0, armor: 0, size: 0, capacity: 0 }
   );
   const cost = fixedMax(applyAdjustment(unitClass.cost, race.statAdjustments.cost), 1);
   const abilities = [...unitClass.abilityIds, ...race.abilityIds].map(getAbility);
@@ -1705,7 +1705,7 @@ function getSummonedUnitPreviews(ability, summonerRaceId) {
       unitClassId: effect.unitClassId,
       count: effect.count,
       consumesCorpse: effect.consumeFallenUnitCorpse === true,
-      initialInitiative: effect.initialInitiative,
+      initialReadiness: effect.initialReadiness,
       grantedAbilityIds: effect.grantedAbilityIds ? [...effect.grantedAbilityIds] : [],
       troop: {
         ...troop,

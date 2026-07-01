@@ -56,7 +56,7 @@ This plan itemizes changes and fixes raised in `Shiftmake playthrough transcript
 4. Distinguish inspect-only selections from actionable selections.
    - Make `Races and Troops`, `Stag/Rival Info`  look like subordinate tabs or like drawers/info boards. Make `Main Menu` look like three horizontal lines indicating a menu.
 
-5. Rework the ready troops panel.
+5. Rework the available troops panel.
    - The current overlay/panel can collide with unlock draft content.
    - Remove the panel framing and leavie only draggable troop icons in a stable area.
    - Enlarge the draggable troop icons by around 50% for visual clarity.
@@ -105,4 +105,3 @@ This plan itemizes changes and fixes raised in `Shiftmake playthrough transcript
 2. Run `npm run test`.
 3. Run `npm run build`.
 4. Manually play a two-player multiplayer room through opening, cycle 1 resolution, cycle 3 race unlock, and one post-unlock planning cycle from both Player 1 and Player 2 browsers.
-

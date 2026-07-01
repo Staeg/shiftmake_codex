@@ -63,7 +63,7 @@
   import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
   import EventLog from './EventLog.svelte';
   import GameIcon from './GameIcon.svelte';
-  import { formatAbilityDescription, formatRoleExact, statIcon } from './inspectText';
+  import { formatAbilityDescription, statIcon } from './inspectText';
   import ReplayStepExplanation from './ReplayStepExplanation.svelte';
   import { buildReplayStepExplanationView } from './replayStepExplanation';
   import { getRiftVisual } from './riftVisuals';
@@ -196,8 +196,8 @@
     unit: BattleUnit;
     hpPercent: string;
     hpLabel: string;
-    initiativePercent: string;
-    initiativeReady: boolean;
+    readinessPercent: string;
+    readinessReady: boolean;
     portraitUrl: string;
   };
 
@@ -247,14 +247,14 @@
   let selectedRaceId: RaceId | null = null;
   let selectedReplayId: string | null = null;
   let hoveredDetail: DetailCard | null = null;
-  let pinnedDetail: DetailCard | null = null;
+  let pinnedDetails: DetailCard[] = [];
   let hoveredAbilityTooltip: AbilityTooltipState | null = null;
   let pinnedAbilityTooltip: AbilityTooltipState | null = null;
   let activeAbilityTooltip: AbilityTooltipState | null = null;
   let replayAbilityTooltip: ReplayAbilityTooltipState | null = null;
   let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
-  let initiativeTooltip: { label: string; description: string; x: number; y: number } | null = null;
+  let readinessTooltip: { label: string; description: string; x: number; y: number } | null = null;
   let battleHost: HTMLDivElement | null = null;
   let renderer: BattleRendererType | null = null;
   let rendererInitPromise: Promise<void> | null = null;
@@ -265,10 +265,10 @@
   let replayStepNavigationKind: ReplayStepNavigationKind = 'manual-step';
   let autoTimelineFrame: number | null = null;
   let autoTimelineReplayId: string | null = null;
-  let autoTimelineSpeedMs = 0;
+  let autoTimelineRateMs = 0;
   let autoTimelineStartedAt = 0;
   let autoTimelineCueIndex = 0;
-  let replayTimelineCache: { replayId: string; speedMs: number; timeline: BattlePresentationTimeline } | null = null;
+  let replayTimelineCache: { replayId: string; rateMs: number; timeline: BattlePresentationTimeline } | null = null;
   let hoverInfo: UnitPointerInfo | null = null;
   let lockedUnitId: string | null = null;
   let hoveredReplayProfileKey: string | null = null;
@@ -310,7 +310,7 @@
   let multiplayerPlayerName = 'Geopphrey';
   let multiplayerCopyMessage: string | null = null;
   let multiplayerCopyMessageTimer: ReturnType<typeof window.setTimeout> | null = null;
-  let multiplayerReadySubmitted = false;
+  let multiplayerCycleEnded = false;
   let multiplayerStatus: string | null = null;
   let mainMenuView: MainMenuView = 'home';
   let newGameSlot: SaveSlotSummary | null = null;
@@ -786,19 +786,19 @@
     topbarTooltip = null;
   }
 
-  function showInitiativeTooltip(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
+  function showReadinessTooltip(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    initiativeTooltip = {
-      label: `${unit.troopLabel} Initiative`,
-      description: `${formatFixed(unit.initiative)} / 100. Units act when initiative reaches 100; Beats add Speed until someone is ready.`,
+    readinessTooltip = {
+      label: `${unit.troopLabel} Readiness`,
+      description: `${formatFixed(unit.readiness)} / 100. Units act when readiness reaches 100; Beats add Rate until someone is ready.`,
       x: rect.left + rect.width / 2,
       y: rect.top,
     };
-    signalTutorial('initiative-hover');
+    signalTutorial('readiness-hover');
   }
 
-  function clearInitiativeTooltip(): void {
-    initiativeTooltip = null;
+  function clearReadinessTooltip(): void {
+    readinessTooltip = null;
   }
 
   function buildRiftTierDetail(rift: RiftInstance): DetailCard {
@@ -810,7 +810,7 @@
     label: string,
     raceId: RaceId,
     unitClassId: UnitClassId,
-    stats: { health: number; damage: number; speed: number; move: number; armor: number; range: number; capacity: number; size?: number },
+    stats: { health: number; damage: number; rate: number; move: number; armor: number; range: number; capacity: number; size?: number },
     quantity: number,
     description: string,
     abilities: AbilityDefinition[],
@@ -841,8 +841,14 @@
   }
 
   function togglePinnedDetail(detail: DetailCard): void {
-    const wasPinned = pinnedDetail?.detailKey === detail.detailKey;
-    pinnedDetail = pinnedDetail?.detailKey === detail.detailKey ? null : detail;
+    const existingIndex = pinnedDetails.findIndex((entry) => entry.detailKey === detail.detailKey);
+    if (existingIndex >= 0) {
+      pinnedDetails = pinnedDetails.filter((_, index) => index !== existingIndex);
+    } else if (pinnedDetails.length === 0) {
+      pinnedDetails = [detail];
+    } else {
+      pinnedDetails = [pinnedDetails[0]!, detail];
+    }
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
@@ -880,7 +886,7 @@
   function restoreOpeningRaceDetail(event: MouseEvent, raceDetail: DetailCard): void {
     const card = (event.currentTarget as HTMLElement).closest('.opening-race-card');
     const nextTarget = event.relatedTarget;
-    if (!pinnedDetail && card && nextTarget instanceof Node && card.contains(nextTarget)) {
+    if (pinnedDetails.length === 0 && card && nextTarget instanceof Node && card.contains(nextTarget)) {
       hoveredDetail = raceDetail;
       hoveredAbilityTooltip = null;
       return;
@@ -890,7 +896,7 @@
 
   function resetOverworldInspect(): void {
     hoveredDetail = null;
-    pinnedDetail = null;
+    pinnedDetails = [];
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
     selectedTroopOfferUnlockId = null;
@@ -930,22 +936,22 @@
       autoTimelineFrame = null;
     }
     autoTimelineReplayId = null;
-    autoTimelineSpeedMs = 0;
+    autoTimelineRateMs = 0;
   }
 
-  function getReplayTimeline(replay: BattleReplay, speedMs: number): BattlePresentationTimeline {
-    if (replayTimelineCache?.replayId === replay.id && replayTimelineCache.speedMs === speedMs) {
+  function getReplayTimeline(replay: BattleReplay, rateMs: number): BattlePresentationTimeline {
+    if (replayTimelineCache?.replayId === replay.id && replayTimelineCache.rateMs === rateMs) {
       return replayTimelineCache.timeline;
     }
-    const timeline = buildBattlePresentationTimeline(replay, speedMs);
-    replayTimelineCache = { replayId: replay.id, speedMs, timeline };
+    const timeline = buildBattlePresentationTimeline(replay, rateMs);
+    replayTimelineCache = { replayId: replay.id, rateMs, timeline };
     return timeline;
   }
 
   function startAutoTimeline(replay: BattleReplay): void {
     clearAutoTimer();
 
-    const timeline = getReplayTimeline(replay, $gameStore.speedMs);
+    const timeline = getReplayTimeline(replay, $gameStore.rateMs);
     const nextCueIndex = timeline.cues.findIndex((cue) => cue.stepIndex > $gameStore.currentStep);
     if (nextCueIndex < 0) {
       gameStore.setAutoPlay(false);
@@ -953,7 +959,7 @@
     }
 
     autoTimelineReplayId = replay.id;
-    autoTimelineSpeedMs = $gameStore.speedMs;
+    autoTimelineRateMs = $gameStore.rateMs;
     autoTimelineCueIndex = nextCueIndex;
     autoTimelineStartedAt = performance.now() - timeline.cues[nextCueIndex]!.startMs;
 
@@ -964,7 +970,7 @@
         return;
       }
 
-      const activeTimeline = getReplayTimeline(activeReplay, autoTimelineSpeedMs);
+      const activeTimeline = getReplayTimeline(activeReplay, autoTimelineRateMs);
       const elapsedMs = performance.now() - autoTimelineStartedAt;
       let advanced = false;
 
@@ -1073,7 +1079,7 @@
       return;
     }
 
-    renderer.setPlaybackTiming($gameStore.autoPlay, $gameStore.speedMs);
+    renderer.setPlaybackTiming($gameStore.autoPlay, $gameStore.rateMs);
     renderer.setHexInspectionVisible(!replayEventLogCollapsed);
     renderer.setTerrainVisible(replayEventLogCollapsed);
 
@@ -1154,8 +1160,8 @@
     }
   }
 
-  function setReplaySpeed(speedMs: number): void {
-    gameStore.setSpeedMs(speedMs);
+  function setReplayRate(rateMs: number): void {
+    gameStore.setRateMs(rateMs);
   }
 
   function zoomReplayIn(): void {
@@ -1270,8 +1276,8 @@
     gameStore.reconnectMultiplayerContest(multiplayerPlayerName);
   }
 
-  function cancelMultiplayerReady(): void {
-    gameStore.cancelMultiplayerReady();
+  function cancelMultiplayerCycleEnd(): void {
+    gameStore.cancelMultiplayerCycleEnd();
   }
 
   function leaveMultiplayerContest(): void {
@@ -1410,25 +1416,25 @@
   }
 
   function canEditMultiplayerPlan(): boolean {
-    return !multiplayerReadySubmitted && !$gameStore.cycleAnimation;
+    return !multiplayerCycleEnded && !$gameStore.cycleAnimation;
   }
 
-  function multiplayerReadyLabel(): string {
+  function multiplayerCycleEndLabel(): string {
     const playerId = $gameStore.multiplayer?.playerId;
     if (!$gameStore.multiplayer || !playerId) {
-      return 'Submit Ready';
+      return 'End Cycle';
     }
-    if ($gameStore.multiplayer.readiness.playerOne && $gameStore.multiplayer.readiness.playerTwo) {
+    if ($gameStore.multiplayer.cycleEnded.playerOne && $gameStore.multiplayer.cycleEnded.playerTwo) {
       return 'Resolving';
     }
-    return $gameStore.multiplayer.readiness[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'Submit Ready';
+    return $gameStore.multiplayer.cycleEnded[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'End Cycle';
   }
 
   function playerConnectionLabel(playerId: ContestPlayerId): string {
     if (!$gameStore.multiplayer?.connectedPlayers[playerId]) {
       return 'Offline';
     }
-    return $gameStore.multiplayer.readiness[playerId] ? 'Ready' : 'Choosing';
+    return $gameStore.multiplayer.cycleEnded[playerId] ? 'Cycle Ended' : 'Planning';
   }
 
   function setRiftCenterMode(): void {
@@ -1474,7 +1480,7 @@
   }
 
   function revealEssenceDraft(): void {
-    if (multiplayerReadySubmitted) {
+    if (multiplayerCycleEnded) {
       return;
     }
     gameStore.revealEssenceDraft();
@@ -1502,7 +1508,7 @@
     selectRace(raceId);
 
     if (wasSelected) {
-      pinnedDetail = null;
+      pinnedDetails = [];
       hoveredDetail = null;
       return;
     }
@@ -1857,7 +1863,7 @@
   function selectReplay(replayId: string): void {
     selectedReplayId = selectedReplayId === replayId ? null : replayId;
     hoveredDetail = null;
-    pinnedDetail = null;
+    pinnedDetails = [];
     signalTutorial('archive-inspect');
   }
 
@@ -1896,7 +1902,7 @@
   function selectTroopOfferUnlock(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
     if (selectedTroopOfferUnlockId === troopUnlockId) {
       selectedTroopOfferUnlockId = null;
-      pinnedDetail = null;
+      pinnedDetails = [];
       hoveredDetail = null;
       hoveredAbilityTooltip = null;
       pinnedAbilityTooltip = null;
@@ -1904,7 +1910,7 @@
     }
 
     selectedTroopOfferUnlockId = troopUnlockId;
-    pinnedDetail = detail;
+    pinnedDetails = [detail];
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
@@ -1919,7 +1925,7 @@
     gameStore.claimTroopOffer(selectedTroopOfferUnlockId);
     signalTutorial('draft-troop');
     selectedTroopOfferUnlockId = null;
-    pinnedDetail = null;
+    pinnedDetails = [];
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
@@ -1928,7 +1934,7 @@
   function selectUpgradeOffer(upgradeId: UpgradeId, detail: DetailCard): void {
     if (selectedUpgradeOfferId === upgradeId) {
       selectedUpgradeOfferId = null;
-      pinnedDetail = null;
+      pinnedDetails = [];
       hoveredDetail = null;
       hoveredAbilityTooltip = null;
       pinnedAbilityTooltip = null;
@@ -1936,7 +1942,7 @@
     }
 
     selectedUpgradeOfferId = upgradeId;
-    pinnedDetail = detail;
+    pinnedDetails = [detail];
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
@@ -1951,7 +1957,7 @@
     gameStore.claimUpgradeOffer(selectedUpgradeOfferId);
     signalTutorial('draft-upgrade');
     selectedUpgradeOfferId = null;
-    pinnedDetail = null;
+    pinnedDetails = [];
     hoveredDetail = null;
     hoveredAbilityTooltip = null;
     pinnedAbilityTooltip = null;
@@ -2027,10 +2033,12 @@
 
   function buildReplayHealthSide(roster: BattleUnit[], snapshot: BattleUnit[], side: SideId): ReplayHealthSide {
     const currentUnitsById = new Map(snapshot.map((unit) => [unit.id, unit]));
-    const sideUnits = roster.filter((unit) => (currentUnitsById.get(unit.id)?.side ?? unit.side) === side);
-    const snapshotSideUnits = snapshot.filter((unit) => unit.side === side);
-    const currentHp = snapshotSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
-    const maxHp = snapshotSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
+    const sideUnits = roster.filter((unit) => unit.side === side);
+    const currentSideUnits = sideUnits
+      .map((unit) => currentUnitsById.get(unit.id))
+      .filter((unit): unit is BattleUnit => !!unit);
+    const currentHp = currentSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
+    const maxHp = currentSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
     const units = sideUnits.flatMap((unit) => {
       const currentUnit = currentUnitsById.get(unit.id);
       if (!currentUnit?.alive) {
@@ -2041,8 +2049,8 @@
         unit: currentUnit,
         hpPercent: getHpPercent(currentUnit.hp, currentUnit.maxHp),
         hpLabel: formatHpLabel(currentUnit.hp, currentUnit.maxHp),
-        initiativePercent: `${Math.max(0, Math.min(100, currentUnit.initiative))}%`,
-        initiativeReady: currentUnit.initiative >= 100,
+        readinessPercent: `${Math.max(0, Math.min(100, currentUnit.readiness))}%`,
+        readinessReady: currentUnit.readiness >= 100,
         portraitUrl: getReplayUnitPortraitUrl(currentUnit),
       }];
     });
@@ -2109,11 +2117,11 @@
       return { stat: 'damage', line: { label, value: amount, kind: 'delta' } };
     }
     if (metadata.effect === 'haste') {
-      return { stat: 'speed', line: { label, value: amount, kind: 'delta' } };
+      return { stat: 'rate', line: { label, value: amount, kind: 'delta' } };
     }
     if (metadata.effect === 'statDelta') {
       const stat = metadata.stat;
-      if (stat === 'damage' || stat === 'speed' || stat === 'armor' || stat === 'range' || stat === 'capacity') {
+      if (stat === 'damage' || stat === 'rate' || stat === 'armor' || stat === 'range' || stat === 'capacity') {
         return { stat, line: { label, value: amount, kind: 'delta' } };
       }
     }
@@ -2863,7 +2871,7 @@
     if (
       autoTimelineFrame === null ||
       autoTimelineReplayId !== $gameStore.loadedReplay.id ||
-      autoTimelineSpeedMs !== $gameStore.speedMs
+      autoTimelineRateMs !== $gameStore.rateMs
     ) {
       startAutoTimeline($gameStore.loadedReplay);
     }
@@ -3000,7 +3008,7 @@
   $: if (
     $gameStore.screen === 'overworld' &&
     $gameStore.game.phase === 'planning' &&
-    !multiplayerReadySubmitted &&
+    !multiplayerCycleEnded &&
     !essenceDraftActive &&
     !confirmedTroopOfferUnlockId &&
     !confirmedUpgradeOfferId &&
@@ -3010,9 +3018,9 @@
     revealEssenceDraft();
   }
 
-  $: multiplayerReadySubmitted = (() => {
+  $: multiplayerCycleEnded = (() => {
     const playerId = $gameStore.multiplayer?.playerId;
-    return !!playerId && !!$gameStore.multiplayer?.readiness[playerId];
+    return !!playerId && !!$gameStore.multiplayer?.cycleEnded[playerId];
   })();
   $: multiplayerStatus = (() => {
     if (!$gameStore.multiplayer) {
@@ -3020,7 +3028,7 @@
     }
     const room = $gameStore.multiplayer.roomId ? `Room ${$gameStore.multiplayer.roomId}` : 'Connecting';
     const player = getLocalPlayerName();
-    const message = multiplayerReadySubmitted ? `Waiting for ${getOpponentPlayerName()}.` : ($gameStore.multiplayer.message ?? multiplayerReadyLabel());
+    const message = multiplayerCycleEnded ? `Waiting for ${getOpponentPlayerName()}.` : ($gameStore.multiplayer.message ?? multiplayerCycleEndLabel());
     return `${room} - ${player} - ${message}`;
   })();
 
@@ -3055,11 +3063,13 @@
       resetZoneState();
     }
   }
-  $: activeDetail = pinnedDetail ?? hoveredDetail;
+  $: activeDetail = hoveredDetail ?? pinnedDetails[0] ?? null;
   $: secondaryUnitDetail =
-    pinnedDetail?.kind === 'unit' && hoveredDetail?.kind === 'unit' && hoveredDetail.detailKey !== pinnedDetail.detailKey
-      ? hoveredDetail
-      : null;
+    pinnedDetails[1]?.kind === 'unit'
+      ? pinnedDetails[1]
+      : pinnedDetails[0]?.kind === 'unit' && hoveredDetail?.kind === 'unit' && hoveredDetail.detailKey !== pinnedDetails[0].detailKey
+        ? hoveredDetail
+        : null;
   $: currentAbilityOwnerKey =
     activeDetail?.kind === 'unit'
       ? activeDetail.detailKey
@@ -3090,7 +3100,7 @@
       : mustAssignTroopsBeforeCycleEnd
         ? 'Review Rifts'
         : $gameStore.multiplayer
-          ? multiplayerReadyLabel()
+          ? multiplayerCycleEndLabel()
           : $gameStore.cycleEndConfirmationPending
             ? 'Confirm End Cycle'
             : 'End Cycle';
@@ -3144,8 +3154,8 @@
 
   function toggleOpeningRace(troopUnlockId: TroopUnlockId): void {
     if (isOpeningTroopSelected(troopUnlockId)) {
-      if (pinnedDetail?.detailKey === `opening:${troopUnlockId}`) {
-        pinnedDetail = null;
+      if (pinnedDetails.some((detail) => detail.detailKey === `opening:${troopUnlockId}`)) {
+        pinnedDetails = pinnedDetails.filter((detail) => detail.detailKey !== `opening:${troopUnlockId}`);
       }
       gameStore.unclaimOpeningTroop(troopUnlockId);
       signalTutorial('race-deselect');
@@ -3154,7 +3164,7 @@
 
     if (canClaimOpeningTroop(troopUnlockId)) {
       gameStore.claimOpeningTroop(troopUnlockId);
-      pinnedDetail = null;
+      pinnedDetails = [];
       hoveredDetail = null;
       signalTutorial($gameStore.game.troops.length === 2 ? 'opening-confirmed' : 'race-select');
     }
@@ -3235,8 +3245,8 @@
     : [];
 
   $: replay = $gameStore.loadedReplay;
-  $: if ($gameStore.tutorialProgress?.step === 'play' && $gameStore.speedMs !== 500) {
-    gameStore.setSpeedMs(500);
+  $: if ($gameStore.tutorialProgress?.step === 'play' && $gameStore.rateMs !== 500) {
+    gameStore.setRateMs(500);
   }
   $: if ($gameStore.tutorialProgress?.step === 'timeline-event' && $gameStore.autoPlay) {
     gameStore.setAutoPlay(false);
@@ -3603,11 +3613,9 @@
                     class:tutorial-scene-locked={tutorialSceneLockActive() && !(gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest')}
                     data-ui-name={`${newGameActionLabel(newGameSlot, gameMode)} for save slot ${newGameSlot.slotId}`}
                     on:click={() => chooseNewGameMode(newGameSlot, gameMode)}
-                    aria-describedby={`new-game-${gameMode}-description`}
                     title={newGameModeDescription(gameMode)}
                   >
                     <span>{newGameActionLabel(newGameSlot, gameMode)}</span>
-                    <small id={`new-game-${gameMode}-description`} role="tooltip">{newGameModeDescription(gameMode)}</small>
                   </button>
                 {/each}
               </div>
@@ -3623,7 +3631,7 @@
               <button on:click={restartTutorial}>Restart Tutorial</button>
             </div>
           {:else}
-            <p>Shiftmake is a strategy game about building a mixed-race army and sending it through Rifts — portals to contested worlds. Each cycle, you inspect open Rifts, assign ready troops, and end the cycle to resolve all battles automatically.</p>
+            <p>Shiftmake is a strategy game about building a mixed-race army and sending it through Rifts — portals to contested worlds. Each cycle, you inspect open Rifts, assign available troops, and end the cycle to resolve all battles automatically.</p>
             <p>Skill lives in preparation, not in the fight itself. Rifts are fully previewable before you commit: you can see the enemy composition, modifiers that change battle rules, and the reward tier. Battles play out on their own, but you can replay each one in full detail afterward.</p>
             <p>A run lasts 10 cycles. You score Victory Points by winning Rifts, spend Essence to draft new troops and upgrades, and gradually expand your roster by unlocking new races. The tutorial walks through these mechanics using a fixed Contest vs AI run.</p>
             <button class="primary" on:click={startTutorial}>Start Tutorial</button>
@@ -3711,8 +3719,8 @@
             {#if !$gameStore.multiplayer?.connected}
               <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
             {/if}
-            {#if multiplayerReadySubmitted}
-              <button type="button" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+            {#if multiplayerCycleEnded}
+              <button type="button" on:click={cancelMultiplayerCycleEnd}>Cancel Cycle End</button>
             {/if}
             <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
             {#if multiplayerCopyMessage}
@@ -3843,11 +3851,11 @@
                 <button
                   type="button"
                   class="draft-troop-icon opening-starter-tile ui-debug-target"
-                  class:selected={pinnedDetail?.detailKey === starterTroopDetail.detailKey}
+                  class:selected={pinnedDetails.some((detail) => detail.detailKey === starterTroopDetail.detailKey)}
                   class:incompatible={starterIncompatible}
                   data-ui-name={`Opening included troop ${starterTroopDef.label}`}
                   aria-label={`Inspect ${starterTroopDef.label}`}
-                  aria-pressed={pinnedDetail?.detailKey === starterTroopDetail.detailKey}
+                  aria-pressed={pinnedDetails.some((detail) => detail.detailKey === starterTroopDetail.detailKey)}
                   on:mouseenter={() => previewDetail(starterTroopDetail)}
                   on:focus={() => previewDetail(starterTroopDetail)}
                   on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
@@ -3884,7 +3892,7 @@
                       <button
                         type="button"
                         class="draft-troop-icon troop-preview opening-future-tile ui-debug-target"
-                        class:selected={pinnedDetail?.detailKey === troopDetail.detailKey}
+                        class:selected={pinnedDetails.some((detail) => detail.detailKey === troopDetail.detailKey)}
                         data-ui-name={`Opening future troop ${troopDef.label}`}
                         aria-label={`Inspect future unlock ${troopDef.label}`}
                         on:mouseenter={() => previewDetail(troopDetail)}
@@ -3934,9 +3942,9 @@
           class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'opening'}
           data-ui-name="Begin campaign button"
           on:click={beginOpeningCampaign}
-          disabled={$gameStore.game.troops.length !== 2 || multiplayerReadySubmitted}
+          disabled={$gameStore.game.troops.length !== 2 || multiplayerCycleEnded}
         >
-          {$gameStore.multiplayer ? multiplayerReadyLabel() : `Begin ${gameModeLabel($gameStore.game.gameMode)}`}
+          {$gameStore.multiplayer ? multiplayerCycleEndLabel() : `Begin ${gameModeLabel($gameStore.game.gameMode)}`}
         </button>
       </div>
     </section>
@@ -3968,8 +3976,8 @@
             {#if !$gameStore.multiplayer?.connected}
               <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
             {/if}
-            {#if multiplayerReadySubmitted}
-              <button type="button" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+            {#if multiplayerCycleEnded}
+              <button type="button" on:click={cancelMultiplayerCycleEnd}>Cancel Cycle End</button>
             {/if}
             <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
             {#if multiplayerCopyMessage}
@@ -4055,7 +4063,7 @@
                 class:selected={selectedScheduledRaceId === raceId}
                 aria-label={`Select ${race.label}`}
                 aria-pressed={selectedScheduledRaceId === raceId}
-                disabled={multiplayerReadySubmitted}
+                disabled={multiplayerCycleEnded}
                 on:click={() => selectScheduledRaceUnlock(raceId)}
               ></button>
               <header class="draft-card-header">
@@ -4171,8 +4179,8 @@
         </div>
       </div>
       <div class="opening-actions">
-        <button class="primary large" disabled={!selectedScheduledRaceId || multiplayerReadySubmitted} on:click={confirmScheduledRaceUnlock}>
-          {$gameStore.multiplayer && multiplayerReadySubmitted ? multiplayerReadyLabel() : `Confirm ${selectedScheduledRaceId ? getRace(selectedScheduledRaceId).label : 'Race'}`}
+        <button class="primary large" disabled={!selectedScheduledRaceId || multiplayerCycleEnded} on:click={confirmScheduledRaceUnlock}>
+          {$gameStore.multiplayer && multiplayerCycleEnded ? multiplayerCycleEndLabel() : `Confirm ${selectedScheduledRaceId ? getRace(selectedScheduledRaceId).label : 'Race'}`}
         </button>
       </div>
     </section>
@@ -4204,8 +4212,8 @@
             {#if !$gameStore.multiplayer?.connected}
               <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
             {/if}
-            {#if multiplayerReadySubmitted}
-              <button type="button" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+            {#if multiplayerCycleEnded}
+              <button type="button" on:click={cancelMultiplayerCycleEnd}>Cancel Cycle End</button>
             {/if}
             <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
             {#if multiplayerCopyMessage}
@@ -4287,48 +4295,25 @@
           on:mouseleave={clearTopbarTooltip}
           on:blur={clearTopbarTooltip}
         ><span>Cycle</span><strong>{cycleProgressLabel}</strong></button>
-        <button
-          type="button"
-          class="resource-counter resource-essence ui-debug-target info-target"
-          data-ui-name="Essence counter"
-          data-tutorial-target="essence-counter"
-          on:mouseenter={() => showTopbarTooltip('Essence', 'Essence reveals troop and upgrade drafts.')}
-          on:focus={() => showTopbarTooltip('Essence', 'Essence reveals troop and upgrade drafts.')}
-          on:mouseleave={clearTopbarTooltip}
-          on:blur={clearTopbarTooltip}
-          on:click={focusEssenceDraft}
-        >
-          <span>Essence</span><strong><i class="resource-icon essence"></i>{formatFixed($gameStore.game.essence)}</strong>
-        </button>
         {#if $gameStore.game.gameMode === 'contest'}
-          <button
-            type="button"
+          <div
             class="contest-score topbar-info-button ui-debug-target info-target"
             data-ui-name="Contest score counter"
-            on:mouseenter={() => showTopbarTooltip('Contest VP', 'Victory Points come from Rifts held at cycle end.')}
-            on:focus={() => showTopbarTooltip('Contest VP', 'Victory Points come from Rifts held at cycle end.')}
-            on:mouseleave={clearTopbarTooltip}
-            on:blur={clearTopbarTooltip}
           >
             <span>Contest VP</span>
             <strong>{$gameStore.game.victoryPoints} - {$gameStore.game.contest?.players.playerTwo.victoryPoints ?? 0}</strong>
-          </button>
+          </div>
           {#if $gameStore.multiplayer}
             <div class="contest-score multiplayer-room-status ui-debug-target" data-ui-name="Multiplayer room status">
               <span>Room {$gameStore.multiplayer.roomId ?? '...'}</span>
-              <strong>{$gameStore.multiplayer.connected ? multiplayerReadyLabel() : 'Offline'}</strong>
+              <strong>{$gameStore.multiplayer.connected ? multiplayerCycleEndLabel() : 'Offline'}</strong>
             </div>
           {/if}
         {:else}
-          <button
-            type="button"
+          <div
             class="topbar-info-button ui-debug-target info-target"
             data-ui-name="Victory points counter"
-            on:mouseenter={() => showTopbarTooltip('Victory Points', 'Victory Points come from conquered Rifts.')}
-            on:focus={() => showTopbarTooltip('Victory Points', 'Victory Points come from conquered Rifts.')}
-            on:mouseleave={clearTopbarTooltip}
-            on:blur={clearTopbarTooltip}
-          ><span>Victory Points</span><strong>{$gameStore.game.victoryPoints}</strong></button>
+          ><span>Victory Points</span><strong>{$gameStore.game.victoryPoints}</strong></div>
         {/if}
       </div>
       {#if topbarTooltip}
@@ -4386,8 +4371,8 @@
           {#if !$gameStore.multiplayer.connected}
             <button class="primary ui-debug-target" data-ui-name="Reconnect multiplayer room" on:click={reconnectMultiplayerContest}>Reconnect</button>
           {/if}
-          {#if multiplayerReadySubmitted}
-            <button class="ui-debug-target" data-ui-name="Cancel multiplayer ready" on:click={cancelMultiplayerReady}>Cancel Ready</button>
+          {#if multiplayerCycleEnded}
+            <button class="ui-debug-target" data-ui-name="Cancel multiplayer cycle end" on:click={cancelMultiplayerCycleEnd}>Cancel Cycle End</button>
           {/if}
           <button class="ui-debug-target" data-ui-name="Leave multiplayer room" on:click={leaveMultiplayerContest}>Leave Room</button>
           {#if multiplayerCopyMessage}
@@ -4585,7 +4570,7 @@
           </div>
 
           <div class="assignment-panel">
-            <p class="assignment-label">Ready Troops</p>
+            <p class="assignment-label">Available Troops</p>
             {#if selectedRiftAssignableTroops.length === 0}
               <p class="assignment-empty">No idle troops are ready for this Rift.</p>
             {:else}
@@ -4599,7 +4584,7 @@
                     troop.unitClassId,
                     troopDef.stats,
                     troopDef.quantity,
-                    troop.assignmentRiftId === selectedRift.id ? 'Assigned to this Rift' : 'Ready troop',
+                    troop.assignmentRiftId === selectedRift.id ? 'Assigned to this Rift' : 'Available troop',
                     troopDef.abilities,
                     troopDef.statBreakdowns,
                   )}
@@ -4734,12 +4719,12 @@
               class:contest-human-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerOne' || rift.controller === 'human')}
               class:contest-ai-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerTwo' || rift.controller === 'ai')}
               class:archive-highlighted={selectedRiftId === rift.id}
-              class:drop-target-unavailable={!!troopDrag && !multiplayerReadySubmitted && !$gameStore.cycleAnimation && !canAssignTroopToRift($gameStore.game, troopDrag.troopId, rift.id).ok}
+              class:drop-target-unavailable={!!troopDrag && !multiplayerCycleEnded && !$gameStore.cycleAnimation && !canAssignTroopToRift($gameStore.game, troopDrag.troopId, rift.id).ok}
               data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
               data-rift-id={rift.id}
               data-tutorial-target="rift-card"
               class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
-              class:drop-target-blocked={multiplayerReadySubmitted || !!getRiftDropValidationMessage(rift.id)}
+              class:drop-target-blocked={multiplayerCycleEnded || !!getRiftDropValidationMessage(rift.id)}
               data-rift-drop-target={canEditMultiplayerPlan() ? rift.id : undefined}
               on:dragover={allowNativeTroopDrop}
               on:drop={(event) => finishNativeTroopDrop(event, { kind: 'rift', riftId: rift.id })}
@@ -4889,8 +4874,8 @@
                       class:upgrade-affected={troopId !== null && isUpgradeAffectingTroop(troopId)}
                       class:holding={troopId !== null && isHoldingTroop(troopId)}
                       class:conflict-pulse={troopId !== null && (assignmentConflict?.troopId === troopId || assignmentConflict?.conflictTroopId === troopId)}
-                      class:readonly-plan={multiplayerReadySubmitted && troopId !== null && !group.participant}
-                      aria-label={troopId !== null && !group.participant && canEditMultiplayerPlan() ? `Drag ${combatant.label} to another Rift or Ready Troops` : `Inspect ${combatant.label}`}
+                      class:readonly-plan={multiplayerCycleEnded && troopId !== null && !group.participant}
+                      aria-label={troopId !== null && !group.participant && canEditMultiplayerPlan() ? `Drag ${combatant.label} to another Rift or Available Troops` : `Inspect ${combatant.label}`}
                       on:pointerdown={(event) => {
                         if (troopId !== null && !group.participant && canEditMultiplayerPlan()) {
                           startTroopDrag(
@@ -4997,7 +4982,7 @@
                       ? `Assigned to ${troop.assignmentRiftId}`
                       : troop.recoveryCyclesRemaining > 0
                         ? `Recovering ${troop.recoveryCyclesRemaining}`
-                        : 'Ready',
+                        : 'Available',
                     troopDef.abilities,
                     troopDef.statBreakdowns,
                   )}
@@ -5766,16 +5751,16 @@
         {#if $gameStore.centerMode === 'rifts'}
           <div
             class="ready-troops-panel footer-ready-troops-panel ui-debug-target"
-            data-ui-name="Ready troops panel"
+            data-ui-name="Available troops panel"
             class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'ready')}
             role="region"
-            aria-label="Ready Troops drop zone"
+            aria-label="Available Troops drop zone"
             data-ready-drop-target={canEditMultiplayerPlan() ? 'true' : undefined}
             on:dragover={allowNativeTroopDrop}
             on:drop={(event) => finishNativeTroopDrop(event, { kind: 'ready' })}
           >
             <div class="ready-troops-header">
-              <h2>Ready Troops</h2>
+              <h2>Available Troops</h2>
             </div>
 
             {#if readyTroops.length === 0}
@@ -5796,20 +5781,20 @@
                     troop.unitClassId,
                     troopDef.stats,
                     troopDef.quantity,
-                    'Ready troop',
+                    'Available troop',
                     troopDef.abilities,
                     troopDef.statBreakdowns,
                   )}
                     <button
                       class="unit-tile ready-troop-tile draggable-troop-tile ui-debug-target"
-                      data-ui-name={`Ready troop ${troopDef.label}`}
+                      data-ui-name={`Available troop ${troopDef.label}`}
                       data-tutorial-target="ready-troop"
                       class:selected={selectedTroopId === troop.id || activeDetail?.detailKey === troopDetail.detailKey}
                       class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
                       class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
                       class:assignment-attention={troopAssignmentHighlighted}
                       class:conflict-pulse={assignmentConflict?.troopId === troop.id || assignmentConflict?.conflictTroopId === troop.id}
-                      class:readonly-plan={multiplayerReadySubmitted}
+                      class:readonly-plan={multiplayerCycleEnded}
                     aria-label={canEditMultiplayerPlan() ? `Drag ${troopDef.label} to a Rift` : `Inspect ${troopDef.label}`}
                     on:pointerdown={(event) => {
                       if (canEditMultiplayerPlan()) {
@@ -5856,7 +5841,7 @@
             data-ui-name={mustSpendEssenceBeforeCycleEnd ? 'Spend essence button' : mustAssignTroopsBeforeCycleEnd ? 'Assign troops button' : 'End cycle button'}
             data-tutorial-target="end-cycle-button"
             on:click={handleEndCycle}
-            disabled={multiplayerReadySubmitted || !!$gameStore.cycleAnimation}
+            disabled={multiplayerCycleEnded || !!$gameStore.cycleAnimation}
           >
             {primaryCycleActionLabel}
           </button>
@@ -5895,7 +5880,6 @@
       <div class="replay-header ui-debug-target" data-ui-name="Replay header">
         <div class="replay-title-row">
           <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
-          <DebugToolsMenu mode="battle-button" rendererDiagnostics={rendererDiagnostics} />
         </div>
         <div class="replay-actions replay-header-actions">
           <button
@@ -5931,24 +5915,6 @@
           {/if}
         </div>
       {/if}
-      <BattleControls
-        replayLength={replay?.steps.length ?? 0}
-        currentStep={$gameStore.currentStep}
-        autoPlay={$gameStore.autoPlay}
-        speedMs={$gameStore.speedMs}
-        onJumpStart={() => runManualReplayAction(() => gameStore.jumpTo(-1), 'reset')}
-        onStepBack={() => {
-          runManualReplayAction(() => gameStore.stepBackward());
-          signalTutorial('step-previous');
-        }}
-        onStepForward={() => {
-          runManualReplayAction(() => gameStore.stepForward());
-          signalTutorial('step-next');
-        }}
-        onToggleAuto={toggleReplayAutoPlay}
-        onSetSpeed={setReplaySpeed}
-      />
-
       <section class="panel focus-panel ui-debug-target" data-ui-name="Replay focus panel">
         {#if activeDetail}
           <div class="detail-panel replay-detail-panel">
@@ -5983,7 +5949,7 @@
               onGoToNextAction={() => goToReplayUnitActionStep(lockedUnitNextActionStep)}
               docked={true}
               liveBuffLines={inspectedUnitLiveStatLines}
-              onHoverStat={(key) => key === 'speed' && signalTutorial('speed-hover')}
+              onHoverStat={(key) => key === 'rate' && signalTutorial('rate-hover')}
               onHoverAbility={() => signalTutorial('ability-hover')}
               onPreviousAction={() => signalTutorial('unit-previous-action')}
               onNextAction={() => signalTutorial('unit-next-action')}
@@ -6000,7 +5966,7 @@
                 locked={false}
                 docked={true}
                 liveBuffLines={hoveredReplayUnitLiveStatLines}
-                onHoverStat={(key) => key === 'speed' && signalTutorial('speed-hover')}
+                onHoverStat={(key) => key === 'rate' && signalTutorial('rate-hover')}
                 onHoverAbility={() => signalTutorial('ability-hover')}
               />
             {/if}
@@ -6017,6 +5983,25 @@
 
     <section class="center replay-center ui-debug-target" data-ui-name="Replay battlefield">
       <div class="viewport-shell ui-debug-target" data-ui-name="Replay viewport shell">
+        <div class="replay-map-controls ui-debug-target" data-ui-name="Replay controls overlay">
+          <BattleControls
+            replayLength={replay?.steps.length ?? 0}
+            currentStep={$gameStore.currentStep}
+            autoPlay={$gameStore.autoPlay}
+            rateMs={$gameStore.rateMs}
+            onJumpStart={() => runManualReplayAction(() => gameStore.jumpTo(-1), 'reset')}
+            onStepBack={() => {
+              runManualReplayAction(() => gameStore.stepBackward());
+              signalTutorial('step-previous');
+            }}
+            onStepForward={() => {
+              runManualReplayAction(() => gameStore.stepForward());
+              signalTutorial('step-next');
+            }}
+            onToggleAuto={toggleReplayAutoPlay}
+            onSetRate={setReplayRate}
+          />
+        </div>
         <div class="replay-zoom-controls ui-debug-target" data-ui-name="Replay zoom controls" aria-label="Replay zoom controls">
           <button class="replay-zoom-button ui-debug-target" data-ui-name="Zoom in button" type="button" aria-label="Zoom In" title="Zoom In" on:click={zoomReplayIn}>+</button>
           <button class="replay-zoom-button ui-debug-target" data-ui-name="Zoom out button" type="button" aria-label="Zoom Out" title="Zoom Out" on:click={zoomReplayOut}>-</button>
@@ -6051,7 +6036,7 @@
                   class:active={entry.active}
                   data-ui-name={`Replay player ability ${entry.ability.label}`}
                   aria-label={`${entry.ability.label}: ${formatAbilityDescription(entry.ability)}`}
-                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.speedMs * 1.5))}ms;`}
+                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.rateMs * 1.5))}ms;`}
                   on:mouseenter={() => showReplayAbilityTooltip(entry)}
                   on:focus={() => showReplayAbilityTooltip(entry)}
                   on:mouseleave={clearReplayAbilityTooltip}
@@ -6069,7 +6054,7 @@
                   class:active={entry.active}
                   data-ui-name={`Replay enemy ability ${entry.ability.label}`}
                   aria-label={`${entry.ability.label}: ${formatAbilityDescription(entry.ability)}`}
-                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.speedMs * 1.5))}ms;`}
+                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.rateMs * 1.5))}ms;`}
                   on:mouseenter={() => showReplayAbilityTooltip(entry)}
                   on:focus={() => showReplayAbilityTooltip(entry)}
                   on:mouseleave={clearReplayAbilityTooltip}
@@ -6091,15 +6076,6 @@
     </section>
 
     <section class="right replay-right ui-debug-target" data-ui-name="Replay right sidebar">
-      <button
-        class="replay-exit-button sidebar-back-button ui-debug-target"
-        class:tutorial-scene-locked={tutorialSceneLockActive()}
-        data-ui-name="Back to archive from replay"
-        aria-label="Back to archive"
-        on:click={() => guardTutorialSceneChange(closeReplayToArchive)}
-      >
-        <span aria-hidden="true">&larr;</span> Back to Archive
-      </button>
       <section class="panel collapsible-panel ui-debug-target" data-ui-name="Deprecated alive counts panel" hidden>
         <button class="panel-toggle ui-debug-target" data-ui-name="Toggle alive counts panel" on:click={() => (replayAliveCountsExpanded = !replayAliveCountsExpanded)}>
           <div>
@@ -6176,21 +6152,24 @@
       </section>
 
       <section class="collapsible-stack ui-debug-target" data-ui-name="Replay event log stack" class:collapsed={replayEventLogCollapsed}>
-        <button
-          class="panel panel-toggle event-log-toggle ui-debug-target"
-          data-ui-name="Toggle event log"
-          on:click={() => {
-            replayEventLogCollapsed = !replayEventLogCollapsed;
-            if (!replayEventLogCollapsed) {
-              signalTutorial('event-log-show');
-            } else if ($gameStore.tutorialProgress?.step === 'timeline-event') {
-              showTutorialScenePrompt('Re-open the Event Log to continue.');
-            }
-          }}
-        >
-          <span class="event-log-tab" class:active={replayEventLogCollapsed}>Overview</span>
-          <span class="event-log-tab" class:active={!replayEventLogCollapsed}>Event Log</span>
-        </button>
+        <div class="replay-log-toolbar">
+          <button
+            class="panel panel-toggle event-log-toggle ui-debug-target"
+            data-ui-name="Toggle event log"
+            on:click={() => {
+              replayEventLogCollapsed = !replayEventLogCollapsed;
+              if (!replayEventLogCollapsed) {
+                signalTutorial('event-log-show');
+              } else if ($gameStore.tutorialProgress?.step === 'timeline-event') {
+                showTutorialScenePrompt('Re-open the Event Log to continue.');
+              }
+            }}
+          >
+            <span class="event-log-tab" class:active={replayEventLogCollapsed}>Overview</span>
+            <span class="event-log-tab" class:active={!replayEventLogCollapsed}>Event Log</span>
+          </button>
+          <DebugToolsMenu mode="battle-button" rendererDiagnostics={rendererDiagnostics} />
+        </div>
         {#if replayEventLogCollapsed}
           <section class="panel replay-health-overview ui-debug-target" data-ui-name="Collapsed event log health overview" aria-label="Replay health overview">
             {#each replayHealthOverview as side}
@@ -6229,23 +6208,23 @@
                           <div
                             class="replay-health-track"
                             role="meter"
-                            aria-label={`${entry.unit.troopLabel} initiative ${formatFixed(entry.unit.initiative)} out of 100`}
+                            aria-label={`${entry.unit.troopLabel} readiness ${formatFixed(entry.unit.readiness)} out of 100`}
                             aria-valuemin="0"
                             aria-valuemax="100"
-                            aria-valuenow={Math.max(0, Math.min(100, entry.unit.initiative))}
+                            aria-valuenow={Math.max(0, Math.min(100, entry.unit.readiness))}
                           >
                             <div class="replay-health-bar" aria-hidden="true">
                               <span style={`width: ${entry.hpPercent}`}></span>
                             </div>
                             <span
-                              class="replay-initiative-row replay-initiative-marker"
-                              class:ready={entry.initiativeReady}
-                              style={`--initiative-position: ${entry.initiativePercent};`}
-                              on:mouseenter={(event) => showInitiativeTooltip(entry.unit, event)}
-                              on:mouseleave={clearInitiativeTooltip}
+                              class="replay-readiness-row replay-readiness-marker"
+                              class:ready={entry.readinessReady}
+                              style={`--readiness-position: ${entry.readinessPercent};`}
+                              on:mouseenter={(event) => showReadinessTooltip(entry.unit, event)}
+                              on:mouseleave={clearReadinessTooltip}
                               aria-hidden="true"
                             >
-                              {statIcon('speed')}
+                              {statIcon('rate')}
                             </span>
                           </div>
                         </div>
@@ -6385,10 +6364,10 @@
   </div>
 {/if}
 
-{#if initiativeTooltip}
-  <div class="initiative-tooltip" style={`left:${initiativeTooltip.x}px; top:${initiativeTooltip.y}px;`} role="tooltip">
-    <strong>{initiativeTooltip.label}</strong>
-    <span>{initiativeTooltip.description}</span>
+{#if readinessTooltip}
+  <div class="readiness-tooltip" style={`left:${readinessTooltip.x}px; top:${readinessTooltip.y}px;`} role="tooltip">
+    <strong>{readinessTooltip.label}</strong>
+    <span>{readinessTooltip.description}</span>
   </div>
 {/if}
 
@@ -6433,6 +6412,11 @@
 
   button {
     cursor: pointer;
+  }
+
+  button:not(:disabled):active {
+    transform: translateY(1px) scale(0.985);
+    filter: brightness(0.9);
   }
 
   .info-target {
@@ -6535,11 +6519,15 @@
     color: inherit;
     font: inherit;
     text-align: left;
+    cursor: default;
+  }
+
+  button.topbar-info-button {
     cursor: help;
   }
 
-  .topbar-info-button:hover,
-  .topbar-info-button:focus-visible,
+  button.topbar-info-button:hover,
+  button.topbar-info-button:focus-visible,
   .resource-counter:hover,
   .resource-counter:focus-visible {
     border-color: rgba(211, 176, 255, 0.58);
@@ -6565,7 +6553,7 @@
     font-size: var(--ui-text-small);
   }
 
-  .initiative-tooltip {
+  .readiness-tooltip {
     position: fixed;
     z-index: 44;
     display: grid;
@@ -6582,12 +6570,12 @@
     transform: translate(-50%, calc(-100% - 0.45rem));
   }
 
-  .initiative-tooltip strong {
+  .readiness-tooltip strong {
     color: #ffcf73;
     font-size: 0.82rem;
   }
 
-  .initiative-tooltip span {
+  .readiness-tooltip span {
     color: #c7d5e0;
     line-height: 1.32;
   }
@@ -7335,6 +7323,8 @@
     display: inline-grid;
     place-items: center;
     border-radius: 999px;
+    font-size: 1rem;
+    line-height: 1;
   }
 
   .archive-side-label.archive-player,
@@ -9401,8 +9391,10 @@
 
   .menu-back-button::before {
     content: '<';
+    display: block;
     font-size: 1.2rem;
     line-height: 1;
+    transform: translateY(-0.02em);
   }
 
 
@@ -9547,32 +9539,6 @@
     font-size: 0.9rem;
     line-height: 1.15;
     text-transform: uppercase;
-  }
-
-  .new-game-option small {
-    visibility: hidden;
-    position: absolute;
-    left: 0.65rem;
-    right: 0.65rem;
-    bottom: calc(100% + 0.28rem);
-    z-index: 3;
-    padding: 0.45rem 0.55rem;
-    border: 1px solid rgba(213, 178, 116, 0.34);
-    border-radius: 8px;
-    background: rgba(8, 12, 18, 0.98);
-    box-shadow: var(--ui-shadow-panel);
-    color: var(--ui-color-text-muted);
-    font-family: var(--ui-font-readable);
-    font-size: 0.78rem;
-    line-height: 1.25;
-    text-transform: none;
-    pointer-events: none;
-  }
-
-  .new-game-option:hover small,
-  .new-game-option:focus small,
-  .new-game-option:focus-visible small {
-    visibility: visible;
   }
 
   .multiplayer-menu {
@@ -10443,6 +10409,14 @@
       linear-gradient(180deg, rgba(10, 15, 24, 0.98), rgba(5, 8, 13, 0.98));
   }
 
+  .replay-map-controls {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 6;
+    pointer-events: auto;
+  }
+
   .viewport {
     display: block;
     position: relative;
@@ -10714,6 +10688,13 @@
     background: transparent;
   }
 
+  .replay-log-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    align-items: stretch;
+  }
+
   .event-log-tab {
     min-width: 0;
     padding: 0.55rem 0.78rem 0.48rem;
@@ -10853,7 +10834,7 @@
     transition: width 140ms ease-out;
   }
 
-  .replay-health-side.enemy .replay-health-bar:not(.initiative) {
+  .replay-health-side.enemy .replay-health-bar:not(.readiness) {
     border-color: rgba(235, 94, 94, 0.84);
   }
 
@@ -10921,19 +10902,19 @@
     height: 0.42rem;
   }
 
-  .replay-initiative-marker {
-    --initiative-marker-size: 0.9rem;
+  .replay-readiness-marker {
+    --readiness-marker-size: 0.9rem;
     position: absolute;
     left: clamp(
-      calc(var(--initiative-marker-size) / 2),
-      var(--initiative-position),
-      calc(100% - var(--initiative-marker-size) / 2)
+      calc(var(--readiness-marker-size) / 2),
+      var(--readiness-position),
+      calc(100% - var(--readiness-marker-size) / 2)
     );
     top: 50%;
     display: grid;
     place-items: center;
-    width: var(--initiative-marker-size);
-    height: var(--initiative-marker-size);
+    width: var(--readiness-marker-size);
+    height: var(--readiness-marker-size);
     border: 0;
     background: transparent;
     box-shadow: none;
@@ -10953,7 +10934,7 @@
     pointer-events: auto;
   }
 
-  .replay-initiative-marker.ready {
+  .replay-readiness-marker.ready {
     filter: saturate(1.2) brightness(1.12);
     text-shadow:
       -0.04rem 0 #05070a,
@@ -10964,7 +10945,7 @@
       0 0 0.55rem rgba(255, 190, 71, 0.9);
   }
 
-  .replay-initiative-marker.ready::after {
+  .replay-readiness-marker.ready::after {
     content: '';
     position: absolute;
     inset: -0.08rem 0.08rem 0.08rem -0.08rem;

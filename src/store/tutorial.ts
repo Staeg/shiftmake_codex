@@ -21,8 +21,8 @@ export type TutorialAction =
   | 'unit-unhover'
   | 'unit-lock'
   | 'unit-unlock'
-  | 'speed-hover'
-  | 'initiative-hover'
+  | 'rate-hover'
+  | 'readiness-hover'
   | 'play'
   | 'pause'
   | 'event-log-show'
@@ -60,8 +60,8 @@ export type TutorialStepId =
   | 'battle-layout'
   | 'unit-hover'
   | 'unit-lock'
-  | 'speed'
-  | 'initiative'
+  | 'rate'
+  | 'readiness'
   | 'play'
   | 'timeline-show'
   | 'timeline-event'
@@ -105,8 +105,8 @@ const STEP_ORDER: TutorialStepId[] = [
   'battle-layout',
   'unit-hover',
   'unit-lock',
-  'speed',
-  'initiative',
+  'rate',
+  'readiness',
   'play',
   'timeline-show',
   'timeline-event',
@@ -140,8 +140,8 @@ const REPLAY_STEPS = new Set<TutorialStepId>([
   'battle-layout',
   'unit-hover',
   'unit-lock',
-  'speed',
-  'initiative',
+  'rate',
+  'readiness',
   'play',
   'timeline-show',
   'timeline-event',
@@ -288,10 +288,10 @@ export function recordTutorialAction(progress: TutorialProgress, action: Tutoria
       return actionSatisfied(next, 'unit-hover', 'unit-unhover') ? advance(next) : next;
     case 'unit-lock':
       return actionSatisfied(next, 'unit-lock', 'unit-unlock') ? advance(next) : next;
-    case 'speed':
-      return action === 'speed-hover' ? advance(next) : next;
-    case 'initiative':
-      return action === 'initiative-hover' ? advance(next) : next;
+    case 'rate':
+      return action === 'rate-hover' ? advance(next) : next;
+    case 'readiness':
+      return action === 'readiness-hover' ? advance(next) : next;
     case 'play':
       return actionSatisfied(next, 'play', 'pause') ? advance(next) : next;
     case 'timeline-show':

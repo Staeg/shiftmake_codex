@@ -20,16 +20,16 @@
       "name": "Ale and Hearty",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: one random unit from each troop has speed set to 1 at the start of combat.",
+      "mechanic": "Passive: one random unit from each troop has rate set to 1 at the start of combat.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "speed"
+        "rate"
       ],
       "relatedUpgradeContexts": [
-        "Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat. Direct upgrade effects: speed +60%."
+        "Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +60% rate. One random unit from each Dwarven troop has its rate set to 1 at the start of combat. Direct upgrade effects: rate +60%."
       ],
       "sourceAbilityIds": [
         "ale-and-hearty"
@@ -50,7 +50,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "healing",
         "summon",
         "corpse",
@@ -154,12 +154,12 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "corpse",
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Berserk (Orcs, tier 3): When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn."
+        "Berserk (Orcs, tier 3): When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn."
       ],
       "sourceAbilityIds": [
         "berserk"
@@ -197,19 +197,19 @@
       "name": "Blood Oath",
       "owner": null,
       "tier": null,
-      "mechanic": "When a touching ally dies: set initiative to 100.",
+      "mechanic": "When a touching ally dies: set readiness to 100.",
       "trigger": "onFallen; near fallen ally unit",
       "target": "self",
       "effects": [
-        "set initiative to 100"
+        "set readiness to 100"
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact."
+        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact."
       ],
       "sourceAbilityIds": [
         "blood-oath"
@@ -223,19 +223,19 @@
       "name": "Bolstering Light",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: Priest heals that bring a target to full HP give the target and Priest +1 speed and +1 damage; other Priest heals give both 40 initiative.",
+      "mechanic": "Passive: Priest heals that bring a target to full HP give the target and Priest +1 rate and +1 damage; other Priest heals give both 40 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
-        "initiative",
+        "rate",
+        "readiness",
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative."
+        "Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness."
       ],
       "sourceAbilityIds": [
         "bolstering-light"
@@ -279,7 +279,7 @@
         "base-ability",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "melee",
         "defense"
       ],
@@ -298,20 +298,20 @@
       "name": "Bramble Snare",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: each shapeshift empowers this unit so its melee attacks reduce target speed by 2 for the battle.",
+      "mechanic": "Passive: each shapeshift empowers this unit so its melee attacks reduce target rate by 2 for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "melee",
         "debuff",
         "transformation"
       ],
       "relatedUpgradeContexts": [
-        "Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit."
+        "Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit."
       ],
       "sourceAbilityIds": [
         "bramble-snare"
@@ -333,7 +333,7 @@
         "base-ability",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "debuff",
@@ -341,7 +341,7 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle."
+        "Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle."
       ],
       "sourceAbilityIds": [
         "carrion-choir"
@@ -361,7 +361,7 @@
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "summon",
         "transformation"
       ],
@@ -388,7 +388,7 @@
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "summon"
       ],
       "relatedUpgradeContexts": [],
@@ -413,7 +413,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "ranged",
@@ -434,23 +434,23 @@
       "name": "Concussive Shots",
       "owner": null,
       "tier": null,
-      "mechanic": "On attack: set the target initiative to 0.",
+      "mechanic": "On attack: set the target readiness to 0.",
       "trigger": "onAttack",
       "target": "default",
       "effects": [
-        "set initiative to 0"
+        "set readiness to 0"
       ],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "ranged",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there."
+        "On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there."
       ],
       "sourceAbilityIds": [
         "concussive-shots"
@@ -497,7 +497,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "healing",
         "summon",
         "corpse",
@@ -547,18 +547,18 @@
       "name": "Crippling Hex",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: enemies who kill this Militia gain Hex. Hex reduces enemy speed.",
+      "mechanic": "Passive: enemies who kill this Militia gain Hex. Hex reduces enemy rate.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Crippling Hex (Militia, tier 3): Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex."
+        "Crippling Hex (Militia, tier 3): Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% rate for each stack of Hex."
       ],
       "sourceAbilityIds": [
         "crippling-hex"
@@ -572,17 +572,17 @@
       "name": "Diggy Hole",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 initiative.",
+      "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "movement"
       ],
       "relatedUpgradeContexts": [
-        "Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative."
+        "Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness."
       ],
       "sourceAbilityIds": [
         "diggy-hole"
@@ -627,7 +627,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "corpse"
       ],
       "relatedUpgradeContexts": [
@@ -645,7 +645,7 @@
       "name": "Early Riser",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: skeletons this unit summons spawn with +100 initiative.",
+      "mechanic": "Passive: skeletons this unit summons spawn with +100 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -653,7 +653,7 @@
         "base-ability",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "debuff",
@@ -661,7 +661,7 @@
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle."
+        "Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle."
       ],
       "sourceAbilityIds": [
         "early-riser"
@@ -704,7 +704,7 @@
       "name": "Enhance 1",
       "owner": null,
       "tier": null,
-      "mechanic": "End of turn: a random allied non-caster within this unit's range gains +1 speed and +1 damage for the battle.",
+      "mechanic": "End of turn: a random allied non-caster within this unit's range gains +1 rate and +1 damage for the battle.",
       "trigger": "endOfTurn",
       "target": "random; ally; radius from selfRange; not caster",
       "effects": [
@@ -714,8 +714,8 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
-        "initiative",
+        "rate",
+        "readiness",
         "ranged",
         "synergy"
       ],
@@ -856,7 +856,7 @@
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "healing",
         "summon",
         "transformation"
@@ -876,7 +876,7 @@
       "name": "Forsaken 80",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: if this is the only troop on its side, gain 80% health, damage, and speed.",
+      "mechanic": "Start of battle: if this is the only troop on its side, gain 80% health, damage, and rate.",
       "trigger": "startOfBattle; condition forsaken",
       "target": "self",
       "effects": [
@@ -887,11 +887,11 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Forsaken (Elves, tier 3): Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed."
+        "Forsaken (Elves, tier 3): Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% rate."
       ],
       "sourceAbilityIds": [
         "forsaken-80"
@@ -992,12 +992,12 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "corpse",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative."
+        "Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness."
       ],
       "sourceAbilityIds": [
         "goblin-farewell"
@@ -1167,7 +1167,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "synergy"
       ],
       "relatedUpgradeContexts": [
@@ -1185,18 +1185,18 @@
       "name": "Hunter's Zeal",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants initiative at end of turn.",
+      "mechanic": "Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants readiness at end of turn.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "ranged"
       ],
       "relatedUpgradeContexts": [
-        "Hunter's Zeal (Ranger, tier 3): On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns."
+        "Hunter's Zeal (Ranger, tier 3): On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 readiness for each stack of Zeal they have at the end of their turns."
       ],
       "sourceAbilityIds": [
         "hunters-zeal"
@@ -1217,11 +1217,11 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "corpse"
       ],
       "relatedUpgradeContexts": [
-        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact."
+        "Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact."
       ],
       "sourceAbilityIds": [
         "last-witness"
@@ -1261,19 +1261,19 @@
       "name": "Living Circuit",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: end of turn, gain 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative.",
+      "mechanic": "Passive: end of turn, gain 15 readiness once if any allied elemental is in range, and all allied elementals in range gain 15 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "summon",
         "ranged",
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Living Circuit (Elementalist, tier 3): End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative."
+        "Living Circuit (Elementalist, tier 3): End of turn: if any allied elemental is in range, this Elementalist gains 15 readiness once and all allied elementals in range gain 15 readiness."
       ],
       "sourceAbilityIds": [
         "living-circuit"
@@ -1287,19 +1287,19 @@
       "name": "Long Shot Doctrine",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: ranged and caster attacks gain +1 damage and +2 initiative per hex of distance.",
+      "mechanic": "Passive: ranged and caster attacks gain +1 damage and +2 readiness per hex of distance.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "ranged",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative."
+        "Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness."
       ],
       "sourceAbilityIds": [
         "long-shot-doctrine"
@@ -1319,7 +1319,7 @@
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "healing",
         "corpse"
       ],
@@ -1346,7 +1346,7 @@
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "healing",
         "ranged"
       ],
@@ -1419,7 +1419,7 @@
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "healing",
         "debuff"
       ],
@@ -1447,7 +1447,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "synergy"
       ],
       "relatedUpgradeContexts": [],
@@ -1463,23 +1463,23 @@
       "name": "Pinning Volley",
       "owner": null,
       "tier": null,
-      "mechanic": "On attack: reduce the target speed by 1 for the battle.",
+      "mechanic": "On attack: reduce the target rate by 1 for the battle.",
       "trigger": "onAttack",
       "target": "default",
       "effects": [
-        "speed -1"
+        "rate -1"
       ],
       "gameplayTags": [
         "base-ability",
         "damage",
         "armor",
-        "speed",
+        "rate",
         "ranged",
         "debuff",
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle."
+        "Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle."
       ],
       "sourceAbilityIds": [
         "pinning-volley"
@@ -1493,7 +1493,7 @@
       "name": "Power of Friendship",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop on this side.",
+      "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% rate for each other friendly troop on this side.",
       "trigger": "startOfBattle",
       "target": "self",
       "effects": [
@@ -1504,12 +1504,12 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "healing",
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side."
+        "Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% rate for each other friendly troop on its side."
       ],
       "sourceAbilityIds": [
         "combined-arms-20"
@@ -1523,18 +1523,18 @@
       "name": "R-selected",
       "owner": null,
       "tier": null,
-      "mechanic": "Start of turn: gain +10 initiative per other touching Militia. Overworld: Militia troops may enter the same Rift together.",
+      "mechanic": "Start of turn: gain +10 readiness per other touching Militia. Overworld: Militia troops may enter the same Rift together.",
       "trigger": "startOfTurn",
       "target": "self",
       "effects": [
-        "initiative +10"
+        "readiness +10"
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative"
+        "readiness"
       ],
       "relatedUpgradeContexts": [
-        "R-selected (Militia, tier 3): Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together."
+        "R-selected (Militia, tier 3): Start of turn: Militia gain +10 readiness for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together."
       ],
       "sourceAbilityIds": [
         "rabble-rush"
@@ -1556,7 +1556,7 @@
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "healing"
       ],
       "relatedUpgradeContexts": [],
@@ -1580,7 +1580,7 @@
         "base-ability",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "melee",
         "defense"
       ],
@@ -1599,18 +1599,18 @@
       "name": "Rowdy Regrowth",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: whenever this unit is healed, gain 20 initiative and +1 damage.",
+      "mechanic": "Passive: whenever this unit is healed, gain 20 readiness and +1 damage.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 initiative and +1 damage."
+        "Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 readiness and +1 damage."
       ],
       "sourceAbilityIds": [
         "rowdy-regrowth"
@@ -1657,13 +1657,13 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "ranged"
       ],
       "relatedUpgradeContexts": [
-        "On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there."
+        "On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there."
       ],
       "sourceAbilityIds": [
         "scavengers-hunger-2"
@@ -1677,23 +1677,23 @@
       "name": "Seeing Red",
       "owner": null,
       "tier": null,
-      "mechanic": "On kill: lose 1 armor for the battle and gain 75 initiative.",
+      "mechanic": "On kill: lose 1 armor for the battle and gain 75 readiness.",
       "trigger": "onKill",
       "target": "self",
       "effects": [
         "armor -1",
-        "initiative +75"
+        "readiness +75"
       ],
       "gameplayTags": [
         "base-ability",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "debuff",
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Seeing Red (Orcs, tier 1): Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative."
+        "Seeing Red (Orcs, tier 1): Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness."
       ],
       "sourceAbilityIds": [
         "seeing-red"
@@ -1707,7 +1707,7 @@
       "name": "Self Haste 2",
       "owner": null,
       "tier": null,
-      "mechanic": "End of turn: gain +2 speed for the battle.",
+      "mechanic": "End of turn: gain +2 rate for the battle.",
       "trigger": "endOfTurn",
       "target": "self",
       "effects": [
@@ -1715,8 +1715,8 @@
       ],
       "gameplayTags": [
         "base-ability",
-        "speed",
-        "initiative"
+        "rate",
+        "readiness"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -1786,7 +1786,7 @@
       "name": "Shapeshift - Bear",
       "owner": null,
       "tier": null,
-      "mechanic": "After 5 turns, once: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.",
+      "mechanic": "After 5 turns, once: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit.",
       "trigger": "endOfTurn; charge every 5 turns; max 1 uses",
       "target": "self",
       "effects": [
@@ -1799,7 +1799,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "healing",
         "ranged",
         "transformation"
@@ -1817,7 +1817,7 @@
       "name": "Shapeshift - Bear",
       "owner": null,
       "tier": null,
-      "mechanic": "After every 5 turns, twice: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.",
+      "mechanic": "After every 5 turns, twice: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit.",
       "trigger": "endOfTurn; charge every 5 turns; max 2 uses",
       "target": "self",
       "effects": [
@@ -1830,7 +1830,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "healing",
         "ranged",
         "transformation"
@@ -1887,13 +1887,13 @@
         "base-ability",
         "damage",
         "armor",
-        "speed",
+        "rate",
         "ranged",
         "debuff",
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle."
+        "Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle."
       ],
       "sourceAbilityIds": [
         "shredding-arrows"
@@ -1907,19 +1907,19 @@
       "name": "Silver Distance",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: ranged and caster attacks made from max range make the target lose 30 initiative.",
+      "mechanic": "Passive: ranged and caster attacks made from max range make the target lose 30 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "ranged",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative."
+        "Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness."
       ],
       "sourceAbilityIds": [
         "silver-distance"
@@ -1959,19 +1959,19 @@
       "name": "Snatch the Moment",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: on kill, all enemies lose 10 initiative.",
+      "mechanic": "Passive: on kill, all enemies lose 10 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "corpse",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative."
+        "Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness."
       ],
       "sourceAbilityIds": [
         "snatch-the-moment"
@@ -2009,19 +2009,19 @@
       "name": "Stall Warts",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: after being hit by normal attacks, gain +1 armor and lose 1 speed for the battle.",
+      "mechanic": "Passive: after being hit by normal attacks, gain +1 armor and lose 1 rate for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "armor",
-        "speed",
+        "rate",
         "debuff",
         "defense"
       ],
       "relatedUpgradeContexts": [
-        "Stall Warts (Dwarves, tier 3): Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks."
+        "Stall Warts (Dwarves, tier 3): Dwarven troops gain +1 armor and lose 1 rate for the rest of the battle after they are hit by normal attacks."
       ],
       "sourceAbilityIds": [
         "stall-warts"
@@ -2042,7 +2042,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "corpse"
       ],
@@ -2097,7 +2097,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "ranged",
         "synergy"
@@ -2226,7 +2226,7 @@
       ],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "melee",
         "defense"
       ],
@@ -2250,12 +2250,12 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "melee",
         "transformation"
       ],
       "relatedUpgradeContexts": [
-        "Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit."
+        "Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit."
       ],
       "sourceAbilityIds": [
         "thornhide"
@@ -2319,18 +2319,18 @@
       "name": "Triumphant Zeal",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% speed, and +10% max health.",
+      "mechanic": "Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% rate, and +10% max health.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "healing"
       ],
       "relatedUpgradeContexts": [
-        "Triumphant Zeal (Champion, tier 3): On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have."
+        "Triumphant Zeal (Champion, tier 3): On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% rate, and +10% max health for each stack of Zeal they have."
       ],
       "sourceAbilityIds": [
         "triumph"
@@ -2344,18 +2344,18 @@
       "name": "Tubthumping",
       "owner": null,
       "tier": null,
-      "mechanic": "Passive: effects that would reduce this unit damage or speed instead increase it by 1.",
+      "mechanic": "Passive: effects that would reduce this unit damage or rate instead increase it by 1.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "debuff"
       ],
       "relatedUpgradeContexts": [
-        "Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1."
+        "Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1."
       ],
       "sourceAbilityIds": [
         "tubthumping"
@@ -2376,12 +2376,12 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "debuff",
         "synergy"
       ],
       "relatedUpgradeContexts": [
-        "Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1."
+        "Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1."
       ],
       "sourceAbilityIds": [
         "united"
@@ -2446,7 +2446,7 @@
       "name": "Vengeance 3",
       "owner": null,
       "tier": null,
-      "mechanic": "When a touching ally dies, gain +3 speed and +3 damage for the battle.",
+      "mechanic": "When a touching ally dies, gain +3 rate and +3 damage for the battle.",
       "trigger": "onFallen; near fallen ally unit",
       "target": "self",
       "effects": [
@@ -2456,7 +2456,7 @@
       "gameplayTags": [
         "base-ability",
         "damage",
-        "speed",
+        "rate",
         "corpse"
       ],
       "relatedUpgradeContexts": [],
@@ -2527,7 +2527,7 @@
       "effects": [],
       "gameplayTags": [
         "base-ability",
-        "initiative",
+        "readiness",
         "ranged",
         "synergy"
       ],
@@ -2570,14 +2570,14 @@
       "name": "Diggy Hole",
       "owner": "Dwarves",
       "tier": 1,
-      "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.",
+      "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "race-upgrade",
         "dwarves",
-        "initiative",
+        "readiness",
         "movement"
       ],
       "relatedUpgradeContexts": [],
@@ -2593,16 +2593,16 @@
       "name": "Ale and Hearty",
       "owner": "Dwarves",
       "tier": 2,
-      "mechanic": "Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.",
+      "mechanic": "Dwarven troops gain +60% rate. One random unit from each Dwarven troop has its rate set to 1 at the start of combat.",
       "trigger": "passive",
       "target": null,
       "effects": [
-        "speed +60%"
+        "rate +60%"
       ],
       "gameplayTags": [
         "race-upgrade",
         "dwarves",
-        "speed"
+        "rate"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -2617,7 +2617,7 @@
       "name": "Stall Warts",
       "owner": "Dwarves",
       "tier": 3,
-      "mechanic": "Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.",
+      "mechanic": "Dwarven troops gain +1 armor and lose 1 rate for the rest of the battle after they are hit by normal attacks.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2625,7 +2625,7 @@
         "race-upgrade",
         "dwarves",
         "armor",
-        "speed",
+        "rate",
         "debuff",
         "defense"
       ],
@@ -2668,7 +2668,7 @@
       "name": "Silvershot Doctrine",
       "owner": "Elves",
       "tier": 2,
-      "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.",
+      "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2676,7 +2676,7 @@
         "race-upgrade",
         "elves",
         "damage",
-        "initiative",
+        "readiness",
         "ranged",
         "debuff"
       ],
@@ -2694,7 +2694,7 @@
       "name": "Forsaken",
       "owner": "Elves",
       "tier": 3,
-      "mechanic": "Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.",
+      "mechanic": "Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% rate.",
       "trigger": "startOfBattle; condition forsaken",
       "target": "self",
       "effects": [
@@ -2706,7 +2706,7 @@
         "race-upgrade",
         "elves",
         "damage",
-        "speed",
+        "rate",
         "healing"
       ],
       "relatedUpgradeContexts": [],
@@ -2753,7 +2753,7 @@
       "gameplayTags": [
         "race-upgrade",
         "fae",
-        "initiative",
+        "readiness",
         "summon",
         "transformation"
       ],
@@ -2793,7 +2793,7 @@
       "name": "Gallowsworn",
       "owner": "Goblins",
       "tier": 1,
-      "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.",
+      "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness.",
       "trigger": "onDeath",
       "target": "random; enemy; radius 0",
       "effects": [
@@ -2803,7 +2803,7 @@
         "race-upgrade",
         "goblins",
         "damage",
-        "initiative",
+        "readiness",
         "corpse",
         "debuff"
       ],
@@ -2828,7 +2828,7 @@
       "gameplayTags": [
         "race-upgrade",
         "goblins",
-        "initiative",
+        "readiness",
         "healing",
         "debuff"
       ],
@@ -2855,7 +2855,7 @@
         "race-upgrade",
         "goblins",
         "damage",
-        "initiative",
+        "readiness",
         "synergy"
       ],
       "relatedUpgradeContexts": [],
@@ -2871,7 +2871,7 @@
       "name": "Tubthumping",
       "owner": "Humans",
       "tier": 1,
-      "mechanic": "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.",
+      "mechanic": "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -2879,7 +2879,7 @@
         "race-upgrade",
         "humans",
         "damage",
-        "speed",
+        "rate",
         "debuff",
         "synergy"
       ],
@@ -2897,7 +2897,7 @@
       "name": "Combined Arms",
       "owner": "Humans",
       "tier": 2,
-      "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.",
+      "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% rate for each other friendly troop on its side.",
       "trigger": "startOfBattle",
       "target": "self",
       "effects": [
@@ -2909,7 +2909,7 @@
         "race-upgrade",
         "humans",
         "damage",
-        "speed",
+        "rate",
         "healing",
         "synergy"
       ],
@@ -2949,19 +2949,19 @@
       "name": "Seeing Red",
       "owner": "Orcs",
       "tier": 1,
-      "mechanic": "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.",
+      "mechanic": "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness.",
       "trigger": "onKill",
       "target": "self",
       "effects": [
         "armor -1",
-        "initiative +75"
+        "readiness +75"
       ],
       "gameplayTags": [
         "race-upgrade",
         "orcs",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "debuff",
         "defense"
       ],
@@ -3001,7 +3001,7 @@
       "name": "Berserk",
       "owner": "Orcs",
       "tier": 3,
-      "mechanic": "When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.",
+      "mechanic": "When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3009,7 +3009,7 @@
         "race-upgrade",
         "orcs",
         "damage",
-        "initiative",
+        "readiness",
         "corpse",
         "defense"
       ],
@@ -3076,7 +3076,7 @@
       "name": "Rowdy Regrowth",
       "owner": "Trolls",
       "tier": 2,
-      "mechanic": "Whenever a Troll regains health, it gains 20 initiative and +1 damage.",
+      "mechanic": "Whenever a Troll regains health, it gains 20 readiness and +1 damage.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3084,7 +3084,7 @@
         "race-upgrade",
         "trolls",
         "damage",
-        "initiative",
+        "readiness",
         "healing"
       ],
       "relatedUpgradeContexts": [],
@@ -3127,7 +3127,7 @@
       "gameplayTags": [
         "rift-mutator",
         "armor",
-        "initiative",
+        "readiness",
         "debuff",
         "defense"
       ],
@@ -3142,13 +3142,13 @@
       "name": "Haze",
       "owner": "Rift",
       "tier": null,
-      "mechanic": "All units lose 5 initiative every beat.",
+      "mechanic": "All units lose 5 readiness every beat.",
       "trigger": "battle-wide environmental rule",
       "target": "all units or the whole battle",
       "effects": [],
       "gameplayTags": [
         "rift-mutator",
-        "initiative",
+        "readiness",
         "debuff"
       ],
       "relatedUpgradeContexts": [],
@@ -3183,13 +3183,13 @@
       "name": "Momentum",
       "owner": "Rift",
       "tier": null,
-      "mechanic": "All units gain +10 initiative every beat.",
+      "mechanic": "All units gain +10 readiness every beat.",
       "trigger": "battle-wide environmental rule",
       "target": "all units or the whole battle",
       "effects": [],
       "gameplayTags": [
         "rift-mutator",
-        "initiative"
+        "readiness"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [],
@@ -3245,7 +3245,7 @@
       "name": "Crippling Shots",
       "owner": "Archer",
       "tier": 3,
-      "mechanic": "On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.",
+      "mechanic": "On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle.",
       "trigger": "onAttack",
       "target": "default",
       "effects": [
@@ -3256,7 +3256,7 @@
         "archer",
         "damage",
         "armor",
-        "speed",
+        "rate",
         "ranged",
         "debuff",
         "defense"
@@ -3347,16 +3347,16 @@
       "name": "Witness",
       "owner": "Avenger",
       "tier": 3,
-      "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.",
+      "mechanic": "When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact.",
       "trigger": "onFallen; near fallen ally unit",
       "target": "self",
       "effects": [
-        "set initiative to 100"
+        "set readiness to 100"
       ],
       "gameplayTags": [
         "troop-class-upgrade",
         "avenger",
-        "initiative",
+        "readiness",
         "corpse"
       ],
       "relatedUpgradeContexts": [],
@@ -3492,7 +3492,7 @@
       "name": "Triumphant Zeal",
       "owner": "Champion",
       "tier": 3,
-      "mechanic": "On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.",
+      "mechanic": "On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% rate, and +10% max health for each stack of Zeal they have.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3500,7 +3500,7 @@
         "troop-class-upgrade",
         "champion",
         "damage",
-        "speed",
+        "rate",
         "healing"
       ],
       "relatedUpgradeContexts": [],
@@ -3530,7 +3530,7 @@
         "troop-class-upgrade",
         "druid",
         "damage",
-        "speed",
+        "rate",
         "healing",
         "ranged",
         "transformation"
@@ -3548,7 +3548,7 @@
       "name": "Ent's Visage",
       "owner": "Druid",
       "tier": 3,
-      "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.",
+      "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3556,7 +3556,7 @@
         "troop-class-upgrade",
         "druid",
         "damage",
-        "speed",
+        "rate",
         "melee",
         "transformation"
       ],
@@ -3581,7 +3581,7 @@
       "gameplayTags": [
         "troop-class-upgrade",
         "druid",
-        "initiative",
+        "readiness",
         "healing",
         "summon",
         "transformation"
@@ -3657,14 +3657,14 @@
       "name": "Living Circuit",
       "owner": "Elementalist",
       "tier": 3,
-      "mechanic": "End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.",
+      "mechanic": "End of turn: if any allied elemental is in range, this Elementalist gains 15 readiness once and all allied elementals in range gain 15 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
       "gameplayTags": [
         "troop-class-upgrade",
         "elementalist",
-        "initiative",
+        "readiness",
         "summon",
         "ranged",
         "synergy"
@@ -3691,7 +3691,7 @@
         "knight",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "melee",
         "defense"
       ],
@@ -3761,7 +3761,7 @@
       "name": "Crippling Hex",
       "owner": "Militia",
       "tier": 3,
-      "mechanic": "Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.",
+      "mechanic": "Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% rate for each stack of Hex.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3769,7 +3769,7 @@
         "troop-class-upgrade",
         "militia",
         "damage",
-        "speed",
+        "rate",
         "debuff"
       ],
       "relatedUpgradeContexts": [],
@@ -3808,16 +3808,16 @@
       "name": "R-selected",
       "owner": "Militia",
       "tier": 3,
-      "mechanic": "Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.",
+      "mechanic": "Start of turn: Militia gain +10 readiness for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.",
       "trigger": "startOfTurn",
       "target": "self",
       "effects": [
-        "initiative +10"
+        "readiness +10"
       ],
       "gameplayTags": [
         "troop-class-upgrade",
         "militia",
-        "initiative"
+        "readiness"
       ],
       "relatedUpgradeContexts": [],
       "sourceAbilityIds": [
@@ -3832,7 +3832,7 @@
       "name": "Explosion Corpse",
       "owner": "Necromancer",
       "tier": 3,
-      "mechanic": "Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
+      "mechanic": "Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3841,7 +3841,7 @@
         "necromancer",
         "damage",
         "armor",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "debuff",
@@ -3870,7 +3870,7 @@
         "troop-class-upgrade",
         "necromancer",
         "damage",
-        "initiative",
+        "readiness",
         "healing",
         "summon",
         "corpse",
@@ -3915,7 +3915,7 @@
       "name": "Bolstering Light",
       "owner": "Priest",
       "tier": 3,
-      "mechanic": "When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.",
+      "mechanic": "When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3923,8 +3923,8 @@
         "troop-class-upgrade",
         "priest",
         "damage",
-        "speed",
-        "initiative",
+        "rate",
+        "readiness",
         "healing"
       ],
       "relatedUpgradeContexts": [],
@@ -3990,7 +3990,7 @@
       "name": "Hunter's Zeal",
       "owner": "Ranger",
       "tier": 3,
-      "mechanic": "On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.",
+      "mechanic": "On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 readiness for each stack of Zeal they have at the end of their turns.",
       "trigger": "passive",
       "target": null,
       "effects": [],
@@ -3998,7 +3998,7 @@
         "troop-class-upgrade",
         "ranger",
         "damage",
-        "initiative",
+        "readiness",
         "ranged"
       ],
       "relatedUpgradeContexts": [],
@@ -4014,17 +4014,17 @@
       "name": "On the Hunt",
       "owner": "Ranger",
       "tier": 3,
-      "mechanic": "On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
+      "mechanic": "On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
       "trigger": "onAttack",
       "target": "default",
       "effects": [
-        "set initiative to 0"
+        "set readiness to 0"
       ],
       "gameplayTags": [
         "troop-class-upgrade",
         "ranger",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "corpse",
         "ranged",
@@ -4077,7 +4077,7 @@
       "gameplayTags": [
         "troop-class-upgrade",
         "shaman",
-        "initiative",
+        "readiness",
         "ranged",
         "synergy"
       ],
@@ -4153,7 +4153,7 @@
         "troop-class-upgrade",
         "soldier",
         "damage",
-        "initiative",
+        "readiness",
         "corpse"
       ],
       "relatedUpgradeContexts": [],
@@ -4176,7 +4176,7 @@
       "gameplayTags": [
         "troop-class-upgrade",
         "soldier",
-        "initiative",
+        "readiness",
         "healing",
         "corpse"
       ],
@@ -4254,7 +4254,7 @@
         "troop-class-upgrade",
         "wizard",
         "damage",
-        "initiative",
+        "readiness",
         "summon",
         "ranged",
         "synergy"

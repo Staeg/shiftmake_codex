@@ -130,7 +130,7 @@ interface StoreState {
   currentStep: number;
   selectedEvent: number | null;
   autoPlay: boolean;
-  speedMs: number;
+  rateMs: number;
   validationMessages: string[];
   systemMessage: string | null;
   cycleEndConfirmationPending: boolean;
@@ -154,13 +154,13 @@ let multiplayerReconnectAttempts = 0;
 
 function isMultiplayerSubmitted(state: StoreState): boolean {
   const playerId = state.multiplayer?.playerId;
-  return !!playerId && !!state.multiplayer?.readiness[playerId];
+  return !!playerId && !!state.multiplayer?.cycleEnded[playerId];
 }
 
 function isBenignMultiplayerStatusMessage(message: string | null): boolean {
   return (
-    message === 'Ready submitted. Waiting for the other player.' ||
-    message === 'Ready canceled.' ||
+    message === 'Cycle ended. Waiting for the other player.' ||
+    message === 'Cycle end canceled.' ||
     message === 'Both players submitted. Cycle resolved.' ||
     message === 'Both players submitted. Contest updated.'
   );
@@ -279,7 +279,7 @@ function makeInitialState(): StoreState {
     currentStep: -1,
     selectedEvent: null,
     autoPlay: false,
-    speedMs: 125,
+    rateMs: 125,
     validationMessages: [],
     systemMessage: null,
     cycleEndConfirmationPending: false,
@@ -424,7 +424,7 @@ function getOldestReplayCandidate(
 
 function buildEndCycleWarning(hasNoAssignments: boolean, hasHoldingOnly: boolean, hasIdleTroops: boolean, hasUnspentEssence: boolean): string {
   if (hasIdleTroops) {
-    return 'Some ready troops are still idle. End the cycle anyway?';
+    return 'Some available troops are still idle. End the cycle anyway?';
   }
   if (hasHoldingOnly && hasUnspentEssence) {
     return 'Your troops are only holding existing Rifts and you still have unspent Essence. End the cycle anyway?';
@@ -641,7 +641,7 @@ export const gameStore = (() => {
         roomId: roomId || null,
         playerId: storedIdentity?.playerId ?? null,
         playerToken: storedIdentity?.playerToken ?? null,
-        readiness: { playerOne: false, playerTwo: false },
+        cycleEnded: { playerOne: false, playerTwo: false },
         connectedPlayers: { playerOne: false, playerTwo: false },
         playerNames: { ...DEFAULT_CONTEST_PLAYER_NAMES },
         message: 'Connecting to Contest room...',
@@ -662,9 +662,9 @@ export const gameStore = (() => {
             multiplayer: state.multiplayer
               ? {
                   ...state.multiplayer,
-                  readiness: state.multiplayer.playerId
-                    ? { ...state.multiplayer.readiness, [state.multiplayer.playerId]: false }
-                    : state.multiplayer.readiness,
+                  cycleEnded: state.multiplayer.playerId
+                    ? { ...state.multiplayer.cycleEnded, [state.multiplayer.playerId]: false }
+                    : state.multiplayer.cycleEnded,
                   message: message.message,
                 }
               : state.multiplayer,
@@ -691,7 +691,7 @@ export const gameStore = (() => {
               roomId: message.roomId,
               playerId: message.playerId,
               playerToken: message.playerToken,
-              readiness: message.readiness,
+              cycleEnded: message.cycleEnded,
               connectedPlayers: message.connectedPlayers ?? state.multiplayer?.connectedPlayers ?? { playerOne: true, playerTwo: true },
               playerNames: message.playerNames,
               message: message.message,
@@ -724,7 +724,7 @@ export const gameStore = (() => {
     });
   }
 
-  function submitMultiplayerReady(): void {
+  function submitMultiplayerCycleEnd(): void {
     if (!snapshot.multiplayer || !snapshot.multiplayer.connected || !isContestMultiplayerSocketOpen()) {
       update((state) => ({ ...state, systemMessage: 'No multiplayer room is connected.' }));
       return;
@@ -745,7 +745,7 @@ export const gameStore = (() => {
       }));
       return;
     }
-    sendContestMultiplayerMessage({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(snapshot.game) });
+    sendContestMultiplayerMessage({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(snapshot.game) });
     const playerId = snapshot.multiplayer.playerId;
     update((state) => ({
       ...state,
@@ -753,32 +753,32 @@ export const gameStore = (() => {
         state.multiplayer && playerId
           ? {
               ...state.multiplayer,
-              readiness: { ...state.multiplayer.readiness, [playerId]: true },
-              message: 'Ready submitted. Waiting for the other player.',
+              cycleEnded: { ...state.multiplayer.cycleEnded, [playerId]: true },
+              message: 'Cycle ended. Waiting for the other player.',
             }
           : state.multiplayer,
       systemMessage: null,
     }));
   }
 
-  function cancelMultiplayerReady(): void {
+  function cancelMultiplayerCycleEnd(): void {
     if (!snapshot.multiplayer || !snapshot.multiplayer.connected || !isContestMultiplayerSocketOpen()) {
       update((state) => ({ ...state, systemMessage: 'No multiplayer room is connected.' }));
       return;
     }
     const playerId = snapshot.multiplayer.playerId;
-    if (!playerId || !snapshot.multiplayer.readiness[playerId]) {
+    if (!playerId || !snapshot.multiplayer.cycleEnded[playerId]) {
       return;
     }
-    sendContestMultiplayerMessage({ kind: 'unsubmit-ready' });
+    sendContestMultiplayerMessage({ kind: 'cancel-cycle-ended' });
     update((state) => ({
       ...state,
       multiplayer:
         state.multiplayer && playerId
           ? {
               ...state.multiplayer,
-              readiness: { ...state.multiplayer.readiness, [playerId]: false },
-              message: 'Ready canceled.',
+              cycleEnded: { ...state.multiplayer.cycleEnded, [playerId]: false },
+              message: 'Cycle end canceled.',
             }
           : state.multiplayer,
       systemMessage: null,
@@ -804,8 +804,8 @@ export const gameStore = (() => {
       });
     },
     connectMultiplayerContest,
-    submitMultiplayerReady,
-    cancelMultiplayerReady,
+    submitMultiplayerCycleEnd,
+    cancelMultiplayerCycleEnd,
     reconnectMultiplayerContest,
     leaveMultiplayerContest() {
       closeMultiplayerSocket({ notifyServer: true });
@@ -1024,7 +1024,7 @@ export const gameStore = (() => {
     },
     async startOpeningCampaign() {
       if (snapshot.multiplayer) {
-        submitMultiplayerReady();
+        submitMultiplayerCycleEnd();
         return;
       }
       if (snapshot.game.gameMode === 'ladder') {
@@ -1176,7 +1176,7 @@ export const gameStore = (() => {
     },
     endCycle(force = false) {
       if (snapshot.multiplayer) {
-        submitMultiplayerReady();
+        submitMultiplayerCycleEnd();
         return;
       }
       update((state) => {
@@ -1584,8 +1584,8 @@ export const gameStore = (() => {
     setAutoPlay(value: boolean) {
       update((state) => ({ ...state, autoPlay: value }));
     },
-    setSpeedMs(speedMs: number) {
-      update((state) => ({ ...state, speedMs }));
+    setRateMs(rateMs: number) {
+      update((state) => ({ ...state, rateMs }));
     },
     clearSystemMessage() {
       update((state) => ({ ...state, systemMessage: null, cycleEndConfirmationPending: false }));

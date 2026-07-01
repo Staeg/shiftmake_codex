@@ -27,19 +27,19 @@ Per side:
 
 After provisional placement, the engine inserts empty columns until the closest opposing footprints are exactly 7 hexes apart. It then fills the playable `mapHexes` across the established rows with visual-column-aligned left and right limits, producing staggered zig-zag board ends whose row starts and row ends stay within half a horizontal hex of each other while still covering every occupied footprint.
 
-## Beats and initiative
+## Beats and readiness
 
 Battles advance in beats.
 
 On each beat:
 
-1. Every alive unit gains initiative equal to `speed + mutator bonus`.
+1. Every alive unit gains readiness equal to `rate + mutator bonus`.
 2. A replay `beat` step is logged.
 3. Beat-timed mutators then resolve.
-4. Units with initiative `>= 100` act in shuffled order.
-5. Each acting unit spends `100` initiative.
+4. Units with readiness `>= 100` act in shuffled order.
+5. Each acting unit spends `100` readiness.
 
-Initial initiative is random from `0` to `10` inclusive.
+Initial readiness is random from `0` to `10` inclusive.
 
 If a battle reaches `1000` beats, it stops and the outcome is resolved from remaining survivors, which usually means a draw.
 
@@ -80,8 +80,8 @@ Ranged attacks are further multiplied by any active mutator effect, currently on
 
 Current mutator-specific battle rules include:
 
-- `Momentum`: all units gain +10 initiative each beat
-- `Haze`: all units lose 5 initiative each beat
+- `Momentum`: all units gain +10 readiness each beat
+- `Haze`: all units lose 5 rate
 - `Corrosion`: all units start at 0 armor and cannot have positive armor during that battle
 - `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor if its full footprint fits
 - `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to taking damage

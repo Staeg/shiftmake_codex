@@ -6,7 +6,7 @@ function cloneStats(stats) {
   return {
     health: clampStat("health", stats.health),
     damage: clampStat("damage", stats.damage),
-    speed: clampStat("speed", stats.speed),
+    rate: clampStat("rate", stats.rate),
     move: clampStat("move", stats.move),
     range: clampStat("range", stats.range),
     armor: clampStat("armor", stats.armor),
@@ -262,7 +262,7 @@ function buildRoleScenarioBattleInput(scenarioId, seed) {
             combatantId: "player-pusher",
             label: "Benchmark Pusher",
             side: "player",
-            stats: { speed: 20 },
+            stats: { rate: 20 },
             quantity: 1
           })
         ],

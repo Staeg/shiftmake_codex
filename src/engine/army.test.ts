@@ -123,10 +123,10 @@ describe('troop composition', () => {
 
     expect(tier3Enemy.stats.health).toBe(humanSoldierBase.stats.health);
     expect(tier3Enemy.stats.damage).toBe(humanSoldierBase.stats.damage);
-    expect(tier3Enemy.stats.speed).toBe(humanSoldierBase.stats.speed);
+    expect(tier3Enemy.stats.rate).toBe(humanSoldierBase.stats.rate);
 
     expect(tier4Enemy.stats.health).toBe(humanSoldierBase.stats.health * 1.2);
     expect(tier4Enemy.stats.damage).toBe(humanSoldierBase.stats.damage * 1.2);
-    expect(tier4Enemy.stats.speed).toBe(humanSoldierBase.stats.speed * 1.2);
+    expect(tier4Enemy.stats.rate).toBe(humanSoldierBase.stats.rate * 1.2);
   });
 });

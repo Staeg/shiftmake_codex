@@ -12,7 +12,7 @@ type SnapshotMessage = {
   playerId: ContestPlayerId;
   playerToken: string;
   game: GameState;
-  readiness: Record<ContestPlayerId, boolean>;
+  cycleEnded: Record<ContestPlayerId, boolean>;
   playerNames: Record<ContestPlayerId, string>;
   replayPayloads: Record<string, StoredReplayPayload>;
   message: string | null;
@@ -206,8 +206,8 @@ describe('Contest multiplayer two-client smoke suite', () => {
     expect(hostJoined.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
     expect(guestJoined.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
 
-    host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(hostJoined.game)) });
-    guest.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(guestJoined.game)) });
+    host.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(hostJoined.game)) });
+    guest.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(guestJoined.game)) });
 
     const hostPlanning = await host.waitForSnapshot((message) => message.game.phase === 'planning' && message.game.cycleNumber === 1);
     const guestPlanning = await guest.waitForSnapshot((message) => message.game.phase === 'planning' && message.game.cycleNumber === 1);
@@ -217,8 +217,8 @@ describe('Contest multiplayer two-client smoke suite', () => {
     expect(hostPlanning.playerId).toBe('playerOne');
     expect(guestPlanning.playerId).toBe('playerTwo');
 
-    host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(hostPlanning.game))) });
-    guest.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(guestPlanning.game))) });
+    host.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(hostPlanning.game))) });
+    guest.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(guestPlanning.game))) });
 
     const hostResolved = await host.waitForSnapshot((message) => message.game.cycleNumber === 2 && Object.keys(message.replayPayloads).length > 0);
     const guestResolved = await guest.waitForSnapshot((message) => message.game.cycleNumber === 2 && Object.keys(message.replayPayloads).length > 0);
@@ -233,15 +233,15 @@ describe('Contest multiplayer two-client smoke suite', () => {
     expect(guestLocalReplay?.input.sideParticipants?.enemy.kind).toBe('neutral');
   });
 
-  it('frees a pre-start disconnected ready player for a normal join', async () => {
+  it('frees a pre-start disconnected cycle-ended player for a normal join', async () => {
     const host = await connectClient(serverUrl());
     clients.push(host);
 
     host.send({ kind: 'create-room', roomId: 'E2E2', seed: 84, playerName: 'Ada' });
     const created = await host.waitForSnapshot((message) => message.roomId === 'E2E2' && message.playerId === 'playerOne');
 
-    host.send({ kind: 'submit-ready', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(created.game)) });
-    const waiting = await host.waitForSnapshot((message) => message.readiness.playerOne && !message.readiness.playerTwo);
+    host.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(created.game)) });
+    const waiting = await host.waitForSnapshot((message) => message.cycleEnded.playerOne && !message.cycleEnded.playerTwo);
     host.close();
 
     const replacement = await connectClient(serverUrl());
@@ -251,6 +251,6 @@ describe('Contest multiplayer two-client smoke suite', () => {
     const joined = await replacement.waitForSnapshot((message) => message.playerId === 'playerOne' && message.playerNames.playerOne === 'Cleo');
     expect(joined.roomId).toBe('E2E2');
     expect(joined.playerToken).not.toBe(waiting.playerToken);
-    expect(joined.readiness.playerOne).toBe(false);
+    expect(joined.cycleEnded.playerOne).toBe(false);
   });
 });

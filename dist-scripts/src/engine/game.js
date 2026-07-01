@@ -673,12 +673,12 @@ function validateAssignments(state) {
   if (assignedTroops.length === 0 && readyTroops.length > 0 && occupiedHumanTroopIds.size === 0) {
     issues.push({
       kind: "no_troops_assigned",
-      message: "Assign every ready troop before ending the cycle."
+      message: "Assign every available troop before ending the cycle."
     });
   } else if (readyTroops.length > 0) {
     issues.push({
       kind: "idle_troops_remaining",
-      message: `${readyTroops.length} ready ${readyTroops.length === 1 ? "troop is" : "troops are"} still idle. Assign every ready troop before ending the cycle.`
+      message: `${readyTroops.length} available ${readyTroops.length === 1 ? "troop is" : "troops are"} still idle. Assign every available troop before ending the cycle.`
     });
   }
   const seenTroops = /* @__PURE__ */ new Set();
@@ -1062,7 +1062,7 @@ function sortAiRiftsForDeployment(rifts) {
 function scoreResolvedCombatantPower(combatant) {
   const offensePower = combatant.quantity * combatant.stats.health * combatant.stats.damage;
   const durabilityPower = combatant.quantity * combatant.stats.health * (1 + combatant.stats.armor / 10);
-  const tempoPower = combatant.quantity * combatant.stats.speed * 8;
+  const tempoPower = combatant.quantity * combatant.stats.rate * 8;
   const reachPower = combatant.stats.range * combatant.quantity * 20;
   const capacityPower = combatant.stats.capacity * combatant.quantity * 12;
   return offensePower + durabilityPower + tempoPower + reachPower + capacityPower;

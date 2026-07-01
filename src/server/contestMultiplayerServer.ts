@@ -23,8 +23,8 @@ type ClientMessage =
   | { kind: 'create-room'; roomId?: string; seed?: number; playerName?: string }
   | { kind: 'join-room'; roomId: string; playerName?: string }
   | { kind: 'reconnect-room'; roomId: string; playerId: ContestPlayerId; token: string; playerName?: string }
-  | { kind: 'submit-ready'; submission: ContestMultiplayerSubmission; game?: GameState }
-  | { kind: 'unsubmit-ready' }
+  | { kind: 'submit-cycle-ended'; submission: ContestMultiplayerSubmission; game?: GameState }
+  | { kind: 'cancel-cycle-ended' }
   | { kind: 'leave-room' };
 
 type ServerMessage =
@@ -34,7 +34,7 @@ type ServerMessage =
       playerId: ContestPlayerId;
       playerToken: string;
       game: GameState;
-      readiness: Record<ContestPlayerId, boolean>;
+      cycleEnded: Record<ContestPlayerId, boolean>;
       connectedPlayers: Record<ContestPlayerId, boolean>;
       playerNames: ContestPlayerNames;
       replayPayloads: Record<string, StoredReplayPayload>;
@@ -316,7 +316,7 @@ function isClientMessage(value: unknown): value is ClientMessage {
       (value.playerName === undefined || typeof value.playerName === 'string')
     );
   }
-  if (value.kind === 'submit-ready') {
+  if (value.kind === 'submit-cycle-ended') {
     if (!isObjectRecord(value.submission)) {
       return value.game !== undefined;
     }
@@ -339,7 +339,7 @@ function isClientMessage(value: unknown): value is ClientMessage {
       typeof submission.endCycleConfirmed === 'boolean'
     );
   }
-  return value.kind === 'unsubmit-ready' || value.kind === 'leave-room';
+  return value.kind === 'cancel-cycle-ended' || value.kind === 'leave-room';
 }
 
 function parseClientMessage(raw: WebSocket.RawData): ClientMessage | string {
@@ -417,7 +417,7 @@ function checkSocketHeartbeat(socket: WebSocket): boolean {
   return true;
 }
 
-function readiness(room: ContestRoom): Record<ContestPlayerId, boolean> {
+function cycleEnded(room: ContestRoom): Record<ContestPlayerId, boolean> {
   return {
     playerOne: !!room.submissions.playerOne,
     playerTwo: !!room.submissions.playerTwo,
@@ -494,7 +494,7 @@ function broadcast(room: ContestRoom, message: RoomMessage = null): void {
       playerId,
       playerToken: room.playerTokens[playerId] ?? '',
       game: { ...game, replayIndex: projectReplayIndexForPlayer(game.replayIndex, replayPayloads) },
-      readiness: readiness(room),
+      cycleEnded: cycleEnded(room),
       connectedPlayers: connectedPlayers(room),
       playerNames: room.playerNames,
       replayPayloads,
@@ -596,8 +596,8 @@ function rejoinClientByName(socket: WebSocket, room: ContestRoom, playerId: Cont
 function maybeAdvanceRoom(room: ContestRoom): void {
   if (!room.submissions.playerOne || !room.submissions.playerTwo) {
     broadcast(room, {
-      playerOne: room.submissions.playerOne ? 'Ready submitted. Waiting for the other player.' : null,
-      playerTwo: room.submissions.playerTwo ? 'Ready submitted. Waiting for the other player.' : null,
+      playerOne: room.submissions.playerOne ? 'Cycle ended. Waiting for the other player.' : null,
+      playerTwo: room.submissions.playerTwo ? 'Cycle ended. Waiting for the other player.' : null,
     });
     return;
   }
@@ -683,7 +683,7 @@ function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
     return;
   }
 
-  if (message.kind === 'submit-ready') {
+  if (message.kind === 'submit-cycle-ended') {
     if (!message.submission) {
       send(socket, { kind: 'room-error', message: 'Full-state multiplayer submissions are no longer accepted. Refresh the page and submit again.' });
       return;
@@ -701,10 +701,10 @@ function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
     return;
   }
 
-  if (message.kind === 'unsubmit-ready') {
+  if (message.kind === 'cancel-cycle-ended') {
     delete room.submissions[membership.playerId];
     touchRoom(room);
-    broadcast(room, 'Ready canceled.');
+    broadcast(room, 'Cycle end canceled.');
     return;
   }
 

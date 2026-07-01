@@ -40,7 +40,7 @@ There are always 4 newly generated Rifts per cycle.
 
 Tier currently affects:
 
-- enemy stat scaling: only Tier 4 gets `+20%` health, damage, and speed over base
+- enemy stat scaling: only Tier 4 gets `+20%` health, damage, and rate over base
 - number of enemy combatant groups: Tier 1-3 use `tier + 1`, Tier 4 stays at 4 groups
 - VP reward: equal to tier
 - mutator count: currently 1 mutator per Rift
@@ -50,8 +50,8 @@ Tier currently affects:
 
 Implemented mutators:
 
-- `Momentum`: all units gain +10 initiative each beat
-- `Haze`: all units lose 5 initiative each beat
+- `Momentum`: all units gain +10 readiness each beat
+- `Haze`: all units lose 5 rate
 - `Heavy Air`: ranged attacks deal 50% damage
 - `Corrosion`: all units start with 0 armor and cannot have positive armor during that battle
 - `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor position if its full footprint fits
@@ -76,7 +76,7 @@ Current Rift assignment restrictions:
 
 - a troop cannot be assigned while recovering
 - a troop can only be assigned to one Rift at a time
-- every ready troop that is not already occupying a Contest Rift must be assigned before the cycle can end
+- every available troop that is not already occupying a Contest Rift must be assigned before the cycle can end
 - no more than one troop from the same race can enter the same Rift unless that race has the `United` overworld effect
 - no more than one troop of the same troop class can enter the same Rift
 

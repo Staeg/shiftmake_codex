@@ -17,7 +17,7 @@ interface DebugState {
   currentStep: number;
   selectedEvent: number | null;
   autoPlay: boolean;
-  speedMs: number;
+  rateMs: number;
 }
 
 function createDefaultArmy(): ArmyDebugSelection {
@@ -50,7 +50,7 @@ const initialState: DebugState = {
   currentStep: -1,
   selectedEvent: null,
   autoPlay: false,
-  speedMs: 125,
+  rateMs: 125,
 };
 
 function parseSeed(raw: string): number | undefined {
@@ -223,8 +223,8 @@ export const debugBattleStore = (() => {
     setAutoPlay(value: boolean) {
       update((state) => ({ ...state, autoPlay: value }));
     },
-    setSpeedMs(speedMs: number) {
-      update((state) => ({ ...state, speedMs }));
+    setRateMs(rateMs: number) {
+      update((state) => ({ ...state, rateMs }));
     },
   };
 })();

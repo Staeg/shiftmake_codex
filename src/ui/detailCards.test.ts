@@ -9,7 +9,7 @@ describe('buildResolvedUnitDetail', () => {
       label: 'Test Elementalist',
       raceId: 'troll',
       unitClassId: 'elementalist',
-      stats: { health: 1, damage: 1, speed: 1, move: 1, armor: 0, range: 1, capacity: 1, size: 1 },
+      stats: { health: 1, damage: 1, rate: 1, move: 1, armor: 0, range: 1, capacity: 1, size: 1 },
       quantity: 1,
       description: 'Regression preview.',
       abilities: [getAbility('charge-4-summon-elemental-mitosis')],

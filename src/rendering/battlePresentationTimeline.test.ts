@@ -56,7 +56,7 @@ describe('battlePresentationTimeline', () => {
     expect(timeline.durationMs).toBeGreaterThan(timeline.cues[timeline.cues.length - 1]!.startMs);
   });
 
-  it('scales timing from the replay speed control', () => {
+  it('scales timing from the replay rate control', () => {
     const replay = makeReplay([makeStep(0, 'attack', { mode: 'ranged' }), makeStep(1, 'heal')]);
 
     const normal = buildBattlePresentationTimeline(replay, 500);

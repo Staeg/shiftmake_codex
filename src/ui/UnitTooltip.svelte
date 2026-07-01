@@ -2,7 +2,7 @@
   import { formatFixed } from '../engine/fixed';
   import { getSummonedUnitPreviews } from '../engine/unitCatalog';
   import type { AbilityDefinition, BattleUnit, ExplainedStatKey, RaceId, ReplayTroopProfile, StatBreakdown, StatBreakdownLine, UnitClassId } from '../engine/types';
-  import { formatAbilityDescription, formatRoleExact, statIcon } from './inspectText';
+  import { formatAbilityDescription, statIcon } from './inspectText';
   import GameIcon from './GameIcon.svelte';
   import StatBreakdownGrid from './StatBreakdownGrid.svelte';
 
@@ -24,7 +24,6 @@
   export let onHoverAbility: (() => void) | null = null;
   export let onPreviousAction: (() => void) | null = null;
   export let onNextAction: (() => void) | null = null;
-  let hoveredRoleText: { label: string; description: string } | null = null;
   let hoveredAbilityText: { label: string; description: string } | null = null;
   let hoveredSummonProfile: ReplayTroopProfile | null = null;
 
@@ -33,7 +32,7 @@
         troopLabel: unit?.troopLabel ?? profile?.troopLabel ?? '',
         hp: unit?.hp ?? profile?.stats.health ?? 0,
         maxHp: unit?.maxHp ?? profile?.stats.health ?? 0,
-        initiative: unit ? unit.initiative : null,
+        readiness: unit ? unit.readiness : null,
         role: unit?.role ?? profile?.role ?? 'frontline',
         raceId: unit?.raceId ?? profile?.raceId ?? '',
         unitClassId: unit?.unitClassId ?? profile?.unitClassId ?? '',
@@ -63,8 +62,8 @@
           ? display.stats?.damage ?? 0
           : stat === 'armor'
             ? display.stats?.armor ?? 0
-            : stat === 'speed'
-              ? display.stats?.speed ?? 0
+            : stat === 'rate'
+              ? display.stats?.rate ?? 0
               : stat === 'move'
                 ? display.stats?.move ?? 0
                 : stat === 'range'
@@ -85,11 +84,9 @@
         { key: 'health' as const, label: statIcon('health'), value: `${formatFixed(Math.max(0, display.hp))}/${formatFixed(Math.max(0, display.maxHp))}`, breakdown: mergedBreakdown('health') },
         { key: 'damage' as const, label: statIcon('damage'), value: formatFixed(display.stats.damage), breakdown: mergedBreakdown('damage') },
         { key: 'armor' as const, label: statIcon('armor'), value: formatFixed(display.stats.armor), breakdown: mergedBreakdown('armor') },
-        { key: 'speed' as const, label: statIcon('speed'), value: formatFixed(display.stats.speed), breakdown: mergedBreakdown('speed') },
+        { key: 'rate' as const, label: statIcon('rate'), value: formatFixed(display.stats.rate), breakdown: mergedBreakdown('rate') },
         { key: 'move' as const, label: statIcon('move'), value: formatFixed(display.stats.move), breakdown: mergedBreakdown('move') },
         { key: 'range' as const, label: statIcon('range'), value: formatFixed(display.stats.range), breakdown: mergedBreakdown('range') },
-        { key: 'size' as const, label: statIcon('size'), value: formatFixed(display.stats.size), breakdown: mergedBreakdown('size') },
-        { key: 'capacity' as const, label: statIcon('capacity'), value: formatFixed(display.stats.capacity), breakdown: mergedBreakdown('capacity') },
       ]
     : [];
 
@@ -116,7 +113,7 @@
       return null;
     }
     const statBreakdowns = Object.fromEntries(
-      (['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'] as const).map((stat) => [
+      (['health', 'damage', 'rate', 'move', 'armor', 'range', 'capacity', 'size'] as const).map((stat) => [
         stat,
         { stat, finalValue: preview.troop.stats[stat], lines: [{ label: 'Summoned', value: preview.troop.stats[stat], kind: 'base' as const }] },
       ]),
@@ -155,28 +152,10 @@
     </header>
 
     <div class="rows">
-      <button
-        type="button"
-        class="inspect-chip"
-        on:mouseenter={() => (hoveredRoleText = { label: display.role, description: formatRoleExact(display.role) })}
-        on:focus={() => (hoveredRoleText = { label: display.role, description: formatRoleExact(display.role) })}
-        on:mouseleave={() => (hoveredRoleText = null)}
-        on:blur={() => (hoveredRoleText = null)}
-      >
-        <span>Role</span>
-        <b>{display.role}</b>
-      </button>
-      {#if display.initiative !== null}
-        <div><span>Initiative</span><b>{formatFixed(display.initiative)}</b></div>
+      {#if display.readiness !== null}
+        <div><span>Readiness</span><b>{formatFixed(display.readiness)}</b></div>
       {/if}
     </div>
-
-    {#if hoveredRoleText}
-      <div class="inspect-tooltip role-tooltip">
-        <strong>{hoveredRoleText.label}</strong>
-        <p>{hoveredRoleText.description}</p>
-      </div>
-    {/if}
 
     {#if display.stats}
       <StatBreakdownGrid stats={statEntries} columns={3} {onHoverStat} />
@@ -239,12 +218,12 @@
     {#if hoveredSummonProfile}
       <div class="inspect-tooltip summon-profile">
         <strong>{hoveredSummonProfile.troopLabel}</strong>
-        <p>{hoveredSummonProfile.role} summoned unit.</p>
+        <p>Summoned unit.</p>
         <StatBreakdownGrid
           stats={[
             { key: 'health', label: statIcon('health'), value: formatFixed(hoveredSummonProfile.stats.health), breakdown: hoveredSummonProfile.statBreakdowns.health },
             { key: 'damage', label: statIcon('damage'), value: formatFixed(hoveredSummonProfile.stats.damage), breakdown: hoveredSummonProfile.statBreakdowns.damage },
-            { key: 'speed', label: statIcon('speed'), value: formatFixed(hoveredSummonProfile.stats.speed), breakdown: hoveredSummonProfile.statBreakdowns.speed },
+            { key: 'rate', label: statIcon('rate'), value: formatFixed(hoveredSummonProfile.stats.rate), breakdown: hoveredSummonProfile.statBreakdowns.rate },
             { key: 'move', label: statIcon('move'), value: formatFixed(hoveredSummonProfile.stats.move), breakdown: hoveredSummonProfile.statBreakdowns.move },
             { key: 'armor', label: statIcon('armor'), value: formatFixed(hoveredSummonProfile.stats.armor), breakdown: hoveredSummonProfile.statBreakdowns.armor },
           ]}
@@ -371,8 +350,7 @@
     margin-bottom: 0.28rem;
   }
 
-  .rows div,
-  .inspect-chip {
+  .rows div {
     display: flex;
     justify-content: space-between;
     background: rgba(22, 32, 44, 0.65);
@@ -380,13 +358,6 @@
     border-radius: 6px;
     padding: 0.16rem 0.28rem;
     font-size: 0.7rem;
-  }
-
-  .inspect-chip {
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: help;
   }
 
   :global(.tooltip .stats-grid) {
@@ -519,11 +490,6 @@
 
   .inspect-tooltip p {
     margin: 0;
-  }
-
-  .role-tooltip {
-    margin-top: -0.1rem;
-    margin-bottom: 0.28rem;
   }
 
 </style>

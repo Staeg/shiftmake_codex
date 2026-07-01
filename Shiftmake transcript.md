@@ -186,17 +186,17 @@ I see. I see. OK.
 
 Umm, decay Haze.
 
-I think I like haze unless things have low initiative.
+I think I like haze unless things have low readiness.
 
 See.
 
 Wait, do they have?
 
-Initiative.
+Readiness.
 
 Speaker 2 00:02:42
 
-Speed is the thing that gives you initiative every beat.
+Rate is the thing that gives you readiness every beat.
 
 Speaker 1 00:02:45
 
@@ -204,7 +204,7 @@ Oh, OK, OK, OK.
 
 Uh-huh.
 
-I suppose that's probably more intuitive for somebody who's familiar with how initiative systems work.
+I suppose that's probably more intuitive for somebody who's familiar with how readiness systems work.
 
 Speaker 2 00:02:57
 
@@ -218,7 +218,7 @@ But maybe, yeah, maybe that's not necessary. But if it's at.
 
 Speaker 2 00:03:09
 
-All possible to do that. I would like to do that, but my understanding is that it's basically not possible to do that, and it's possible that words other than speed and initiative that are maybe more conceptually distinct or like their relationship is more obvious, like which one is filling a bar.
+All possible to do that. I would like to do that, but my understanding is that it's basically not possible to do that, and it's possible that words other than rate and readiness that are maybe more conceptually distinct or like their relationship is more obvious, like which one is filling a bar.
 
 And which one is the bar?
 
@@ -226,7 +226,7 @@ Speaker 1 00:03:30
 
 Yeah, but one thing since you're using an icon with it.
 
-Is it possible that when you mention initiative.
+Is it possible that when you mention readiness.
 
 It could have the.
 
@@ -240,13 +240,13 @@ Yeah, yeah. That would make it much more easy to track down what's going on.
 
 Speaker 2 00:04:06
 
-And the icon for speed should be different from the icon for initiative.
+And the icon for rate should be different from the icon for readiness.
 
 But the relationship should be obvious about how uh.
 
-Speed is something that increases initiative, Uh.
+Rate is something that increases readiness, Uh.
 
-But we need to figure out what the actual icons that we'll use are. Possibly just rename speed initiative to something else.
+But we need to figure out what the actual icons that we'll use are. Possibly just rename rate readiness to something else.
 
 Speaker 1 00:04:33
 
@@ -272,7 +272,7 @@ It's too quick.
 
 He's.
 
-Let's lose Lose 5 initiative.
+Let's lose Lose 5 readiness.
 
 Avery Beach.
 
@@ -280,33 +280,33 @@ Which means this would basically.
 
 Immediately go to 0.
 
-Umm wait. OK wait. How is the relationship between initiative and speed work again? Like if I lose 5 initiative, is that the same as this number going down by 5? Uh.
+Umm wait. OK wait. How is the relationship between readiness and rate work again? Like if I lose 5 readiness, is that the same as this number going down by 5? Uh.
 
 Speaker 2 00:05:42
 
-Yeah, so Hayes effectively means all units lose 5 speed.
+Yeah, so Hayes effectively means all units lose 5 rate.
 
 Uh, it doesn't.
 
 Speaker 1 00:05:47
 
-You are losing speed.
+You are losing rate.
 
 Speaker 2 00:05:50
 
 Uh, so.
 
-Speed gives you initiative every beat.
+Rate gives you readiness every beat.
 
 Speaker 1 00:05:55
 
 OK.
 
-So it's a Rep like speed is.
+So it's a Rep like rate is.
 
 Speaker 2 00:06:01
 
-He should just, uh, uh, bookmark uh, Hayes should just say all units lose 5 speed.
+He should just, uh, uh, bookmark uh, Hayes should just say all units lose 5 rate.
 
 Speaker 1 00:06:09
 
@@ -324,11 +324,11 @@ Speaker 2 00:06:19
 
 Unless there are special effects that interact with.
 
-Speed as a percentage, for example, they are equivalent.
+Rate as a percentage, for example, they are equivalent.
 
 Speaker 1 00:06:25
 
-But what happens is that I gain 8.8 speed every beat, but I also lose 5 so I end up with three-point.
+But what happens is that I gain 8.8 rate every beat, but I also lose 5 so I end up with three-point.
 
 Speaker 2 00:06:32
 
@@ -338,7 +338,7 @@ Speaker 1 00:06:37
 
 So it slows me down each beat. It doesn't take me to 0. Yes. OK, OK, cool.
 
-Uh, in that case, how speedy are these guys? They're quite speedy.
+Uh, in that case, how ratey are these guys? They're quite ratey.
 
 Uh, this? I don't have all that much help, so I don't really want that.
 
@@ -514,7 +514,7 @@ One yeah, bookmark. Move the replay control panel to the top left of the central
 
 A loopy arrow for reset and back and forth or like left and right arrows for previous and next step.
 
-And uh, no name, uh, no word for speed, just uh, drop down menu that says 4X uh, or whatever. It's self-explanatory.
+And uh, no name, uh, no word for rate, just uh, drop down menu that says 4X uh, or whatever. It's self-explanatory.
 
 Speaker 1 00:13:40
 

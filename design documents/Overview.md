@@ -13,7 +13,7 @@ You build a mixed-race army, preview visible Rifts, assign troops, draft new tro
 3. Enter the planning screen for the current cycle.
 4. Inspect visible Rifts, their mutators, enemy troops, and VP reward directly from the board.
 5. Spend carried Essence on troop and upgrade draft claims.
-6. Assign every ready troop to Rifts.
+6. Assign every available troop to Rifts.
 7. End the cycle to auto-resolve all assigned Rift battles.
 8. Gain VP equal to the tier of each Rift you win.
 9. Gain 2 Essence for the next cycle.
@@ -29,7 +29,7 @@ Ladder follows the same 10-cycle progression, unlock, assignment, Essence, VP, r
 - Rifts are fully previewable before commitment.
 - Battles are not player-controlled, so skill expression is in preparation and assignment.
 - Spendable Essence must be used before ending a cycle. If no draft can be revealed, leftover Essence can carry forward.
-- Every ready troop must be assigned before ending a cycle; troops already holding Contest Rifts count as committed.
+- Every available troop must be assigned before ending a cycle; troops already holding Contest Rifts count as committed.
 
 ## Current progression actions
 

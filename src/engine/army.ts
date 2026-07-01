@@ -28,7 +28,7 @@ import type {
 } from './types';
 
 export const BATTLE_RECOVERY = 1;
-const EXPLAINED_STAT_KEYS: ExplainedStatKey[] = ['health', 'damage', 'speed', 'move', 'armor', 'range', 'capacity', 'size'];
+const EXPLAINED_STAT_KEYS: ExplainedStatKey[] = ['health', 'damage', 'rate', 'move', 'armor', 'range', 'capacity', 'size'];
 
 export function createTroopInstance(raceId: RaceId, unitClassId: UnitClassId): TroopInstance {
   return {
@@ -75,7 +75,7 @@ function applyTierScaling(stats: UnitStats, tier: number | null): UnitStats {
     ...stats,
     health: fixed(stats.health * multiplier),
     damage: fixed(stats.damage * multiplier),
-    speed: fixedClamp(fixed(stats.speed * multiplier), 1, 100),
+    rate: fixedClamp(fixed(stats.rate * multiplier), 1, 100),
   };
 }
 
@@ -263,7 +263,7 @@ function baseUnitStatsForClass(unitClassId: UnitClassId): UnitStats {
   return {
     health: clampStat('health', unitClass.stats.health),
     damage: clampStat('damage', unitClass.stats.damage),
-    speed: clampStat('speed', unitClass.stats.speed),
+    rate: clampStat('rate', unitClass.stats.rate),
     move: clampStat('move', unitClass.stats.move),
     armor: clampStat('armor', unitClass.stats.armor),
     range: clampStat('range', unitClass.stats.range),

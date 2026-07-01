@@ -607,7 +607,7 @@ describe('campaign progression', () => {
                 role: 'backline',
                 unitClassTag: 'wizard',
                 attributes: ['caster', 'troll'],
-                stats: { health: 1, damage: 1, speed: 1, range: 1, armor: 0, size: 1, capacity: 0 },
+                stats: { health: 1, damage: 1, rate: 1, range: 1, armor: 0, size: 1, capacity: 0 },
                 abilities: [],
                 quantity: 1,
                 cost: 1,

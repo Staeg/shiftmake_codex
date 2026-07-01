@@ -145,7 +145,7 @@ function createPlacedUnit(side, combatant, index, anchor, orientation, rng) {
     footprintOrientation: orientation,
     hp: combatant.stats.health,
     maxHp: combatant.stats.health,
-    initiative: fixed(rng.int(11)),
+    readiness: fixed(rng.int(11)),
     alive: true,
     engagedWith: /* @__PURE__ */ new Set(),
     resolvedStats: { ...combatant.stats },
@@ -366,7 +366,7 @@ function buildEffects(mutatorIds) {
     (effects, mutatorId) => {
       const definition = getMutator(mutatorId);
       return {
-        initiativeBonusPerBeat: effects.initiativeBonusPerBeat + (definition.initiativeBonusPerBeat ?? 0),
+        readinessBonusPerBeat: effects.readinessBonusPerBeat + (definition.readinessBonusPerBeat ?? 0),
         rangedDamageMultiplier: effects.rangedDamageMultiplier * (definition.rangedDamageMultiplier ?? 1),
         removeFading: effects.removeFading || Boolean(definition.removeFading),
         armorCap: typeof definition.armorCap === "number" ? effects.armorCap === null ? definition.armorCap : Math.min(effects.armorCap, definition.armorCap) : effects.armorCap,
@@ -374,7 +374,7 @@ function buildEffects(mutatorIds) {
         decayDamagePerBeat: effects.decayDamagePerBeat + (definition.decayDamagePerBeat ?? 0)
       };
     },
-    { initiativeBonusPerBeat: 0, rangedDamageMultiplier: 1, removeFading: false, armorCap: null, randomMoveEveryBeats: null, decayDamagePerBeat: 0 }
+    { readinessBonusPerBeat: 0, rangedDamageMultiplier: 1, removeFading: false, armorCap: null, randomMoveEveryBeats: null, decayDamagePerBeat: 0 }
   );
 }
 function filterMutatorBlockedAbilities(abilities, effects) {
@@ -427,7 +427,7 @@ function cloneSnapshot(units) {
       stats: { ...unit.resolvedStats },
       hp: fixed(unit.hp),
       maxHp: fixed(unit.maxHp),
-      initiative: fixed(unit.initiative),
+      readiness: fixed(unit.readiness),
       alive: unit.alive,
       engagedWithIds: [...unit.engagedWith]
     }))
@@ -509,7 +509,7 @@ function buildTroopProfiles(input, summonedProfiles, effects) {
       statBreakdowns: statBreakdowns ?? {
         health: { stat: "health", finalValue: stats.health, lines: [{ label: "Resolved", value: stats.health, kind: "base" }] },
         damage: { stat: "damage", finalValue: stats.damage, lines: [{ label: "Resolved", value: stats.damage, kind: "base" }] },
-        speed: { stat: "speed", finalValue: stats.speed, lines: [{ label: "Resolved", value: stats.speed, kind: "base" }] },
+        rate: { stat: "rate", finalValue: stats.rate, lines: [{ label: "Resolved", value: stats.rate, kind: "base" }] },
         ...combatant.role === "frontline" ? { move: { stat: "move", finalValue: stats.move, lines: [{ label: "Resolved", value: stats.move, kind: "base" }] } } : {},
         armor: { stat: "armor", finalValue: stats.armor, lines: [{ label: "Resolved", value: stats.armor, kind: "base" }] },
         range: { stat: "range", finalValue: stats.range, lines: [{ label: "Resolved", value: stats.range, kind: "base" }] },
@@ -608,14 +608,14 @@ function rebuildBatchedMessage(state, step) {
   if ((metadata.effect === "ramp" || metadata.effect === "statDelta" && metadata.stat === "damage") && signedAmount) {
     return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === "gains" ? "gain" : "lose")} ${signedAmount} damage${untilEndOfTurn}`);
   }
-  if ((metadata.effect === "haste" || metadata.effect === "statDelta" && metadata.stat === "speed") && signedAmount) {
-    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === "gains" ? "gain" : "lose")} ${signedAmount} speed${untilEndOfTurn}`);
+  if ((metadata.effect === "haste" || metadata.effect === "statDelta" && metadata.stat === "rate") && signedAmount) {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === "gains" ? "gain" : "lose")} ${signedAmount} rate${untilEndOfTurn}`);
   }
   if (metadata.effect === "bolster" && signedAmount) {
     return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === "gains" ? "gain" : "lose")} ${signedAmount} health${untilEndOfTurn}`);
   }
-  if (metadata.effect === "initiativeDelta" && signedAmount) {
-    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === "gains" ? "gain" : "lose")} ${signedAmount} initiative`);
+  if (metadata.effect === "readinessDelta" && signedAmount) {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, verb, verb === "gains" ? "gain" : "lose")} ${signedAmount} readiness`);
   }
   if (metadata.effect === "summon") {
     const actor = step.actorIds.length === 1 ? state.units.get(step.actorIds[0]) ?? null : null;
@@ -733,8 +733,8 @@ function enrichStepMetadata(state, kind, actorIds, targetIds, metadata) {
   if (kind === "beat" && typeof metadata.beat === "number") {
     explanation.beat = {
       beat: metadata.beat,
-      initiativeBonus: typeof metadata.initiativeBonus === "number" ? metadata.initiativeBonus : 0,
-      initiativePurposeHint: "Initiative fills until a unit reaches 100 and takes a turn."
+      readinessBonus: typeof metadata.readinessBonus === "number" ? metadata.readinessBonus : 0,
+      readinessPurposeHint: "Readiness fills until a unit reaches 100 and takes a turn."
     };
   }
   if (kind === "move" || kind === "engage") {
@@ -962,7 +962,7 @@ function isRangedOrCaster(unit) {
   return unit.attributes.includes("ranged") || unit.attributes.includes("caster");
 }
 function shouldTubthump(target, stat, amount) {
-  return amount < 0 && hasAbility(target, "tubthumping") && (stat === "speed" || stat === "damage");
+  return amount < 0 && hasAbility(target, "tubthumping") && (stat === "rate" || stat === "damage");
 }
 function findProtectingPriest(state, target) {
   const priests = getAliveUnits(state, target.side).filter(
@@ -1030,17 +1030,17 @@ function preventDeath(state, actor, target) {
   if (!target.berserkDeathPending && hasAbility(target, "berserk")) {
     target.berserkDeathPending = true;
     target.berserkTurnsUntilDeath = state.currentTurnUnitId === target.id ? 2 : 1;
-    target.initiative = 0;
+    target.readiness = 0;
     return saveUnitFromDeath(state, target, target, 1, "berserk", `${target.troopLabel} goes berserk and refuses damage until its next turn ends.`, "berserk");
   }
   return false;
 }
 function getDistanceDamageBonus(actor, target, context) {
   if (context.mode !== "ranged" || !hasAbility(actor, "long-shot-doctrine") || !isRangedOrCaster(actor)) {
-    return { damage: 0, initiative: 0 };
+    return { damage: 0, readiness: 0 };
   }
   const distance = unitFootprintDistance(actor, target);
-  return { damage: distance, initiative: distance * 2 };
+  return { damage: distance, readiness: distance * 2 };
 }
 function hasMatchingIdentityTag(unit, tags) {
   return tags.some((tag) => unit.unitClassTag === tag || unit.attributes.includes(tag));
@@ -1058,11 +1058,11 @@ function maybeApplyRowdyRegrowth(state, target) {
   if (!hasAbility(target, "rowdy-regrowth")) {
     return;
   }
-  target.initiative = fixedAdd(target.initiative, 20);
-  buildStep(state, "buff", [target.id], [target.id], `${target.troopLabel} gains 20 initiative from Rowdy Regrowth.`, {
+  target.readiness = fixedAdd(target.readiness, 20);
+  buildStep(state, "buff", [target.id], [target.id], `${target.troopLabel} gains 20 readiness from Rowdy Regrowth.`, {
     effect: "rowdyRegrowth",
     amount: 20,
-    value: target.initiative,
+    value: target.readiness,
     sourceAbilityId: "rowdy-regrowth",
     sourceAbilityLabel: getAbility("rowdy-regrowth").label
   });
@@ -1071,11 +1071,11 @@ function maybeApplyOverflowingGrace(state, actor, target, actualHeal) {
   if (!hasAbility(actor, "overflowing-grace") || actualHeal <= 0 || target.hp < target.maxHp) {
     return;
   }
-  target.initiative = fixedAdd(target.initiative, 40);
-  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} gains 40 initiative from Overflowing Grace.`, {
+  target.readiness = fixedAdd(target.readiness, 40);
+  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} gains 40 readiness from Overflowing Grace.`, {
     effect: "overflowingGrace",
     amount: 40,
-    value: target.initiative,
+    value: target.readiness,
     sourceAbilityId: "overflowing-grace",
     sourceAbilityLabel: getAbility("overflowing-grace").label
   });
@@ -1090,8 +1090,8 @@ function maybeApplyBolsteringLight(state, actor, target, actualHeal) {
     applyRamp(state, actor, target, runtime, { kind: "ramp", amount: 1, mode: "flat", disposition: "beneficial" });
     return;
   }
-  applyInitiativeDelta(state, actor, target, runtime, {
-    kind: "initiativeDelta",
+  applyReadinessDelta(state, actor, target, runtime, {
+    kind: "readinessDelta",
     amount: 40,
     disposition: "beneficial"
   });
@@ -1172,16 +1172,16 @@ function applyRamp(state, actor, target, runtime, effect) {
   return true;
 }
 function applyHaste(state, actor, target, runtime, effect) {
-  let increase = evaluateScaledAmount(target.resolvedStats.speed, effect.amount, effect.mode);
-  if (shouldTubthump(target, "speed", increase)) {
+  let increase = evaluateScaledAmount(target.resolvedStats.rate, effect.amount, effect.mode);
+  if (shouldTubthump(target, "rate", increase)) {
     increase = 1;
   }
   increase = amplifyPositiveAmount(target, increase);
   if (increase === 0) {
     return false;
   }
-  target.resolvedStats.speed = fixedClamp(fixedAdd(target.resolvedStats.speed, increase), 1, 100);
-  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} ${increase >= 0 ? "gains" : "loses"} ${increase >= 0 ? formatSigned(increase) : formatFixed(Math.abs(increase))} speed.`, {
+  target.resolvedStats.rate = fixedClamp(fixedAdd(target.resolvedStats.rate, increase), 1, 100);
+  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} ${increase >= 0 ? "gains" : "loses"} ${increase >= 0 ? formatSigned(increase) : formatFixed(Math.abs(increase))} rate.`, {
     amount: increase,
     effect: "haste",
     sourceAbilityId: runtime.definition.id,
@@ -1234,7 +1234,7 @@ function applyStatDelta(state, actor, target, runtime, effect) {
   }
   const currentValue = target.resolvedStats[effect.stat];
   let delta = evaluateScaledAmount(currentValue, effect.amount, effect.mode);
-  if ((effect.stat === "speed" || effect.stat === "damage") && shouldTubthump(target, effect.stat, delta)) {
+  if ((effect.stat === "rate" || effect.stat === "damage") && shouldTubthump(target, effect.stat, delta)) {
     delta = 1;
   }
   delta = amplifyPositiveAmount(target, delta);
@@ -1256,28 +1256,28 @@ function applyStatDelta(state, actor, target, runtime, effect) {
   });
   return true;
 }
-function applyInitiativeDelta(state, actor, target, runtime, effect) {
+function applyReadinessDelta(state, actor, target, runtime, effect) {
   if (!target.alive || effect.amount === 0) {
     return false;
   }
-  target.initiative = fixedMax(fixedAdd(target.initiative, effect.amount), 0);
-  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} ${effect.amount >= 0 ? "gains" : "loses"} ${formatFixed(Math.abs(effect.amount))} initiative.`, {
-    effect: "initiativeDelta",
-    value: target.initiative,
+  target.readiness = fixedMax(fixedAdd(target.readiness, effect.amount), 0);
+  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} ${effect.amount >= 0 ? "gains" : "loses"} ${formatFixed(Math.abs(effect.amount))} readiness.`, {
+    effect: "readinessDelta",
+    value: target.readiness,
     amount: effect.amount,
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label
   });
   return true;
 }
-function applyInitiativeSet(state, actor, target, runtime, effect) {
-  if (!target.alive || target.initiative === effect.value) {
+function applyReadinessSet(state, actor, target, runtime, effect) {
+  if (!target.alive || target.readiness === effect.value) {
     return false;
   }
-  target.initiative = fixed(effect.value);
-  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} sets initiative to ${formatFixed(target.initiative)}.`, {
-    effect: "initiativeSet",
-    value: target.initiative,
+  target.readiness = fixed(effect.value);
+  buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} sets readiness to ${formatFixed(target.readiness)}.`, {
+    effect: "readinessSet",
+    value: target.readiness,
     sourceAbilityId: runtime.definition.id,
     sourceAbilityLabel: runtime.definition.label
   });
@@ -1357,11 +1357,11 @@ function applyTemporaryEffect(state, actor, target, runtime, effect) {
     return true;
   }
   if (effect.kind === "haste") {
-    const amountApplied = amplifyPositiveAmount(target, evaluateScaledAmount(target.resolvedStats.speed, effect.amount, effect.mode));
+    const amountApplied = amplifyPositiveAmount(target, evaluateScaledAmount(target.resolvedStats.rate, effect.amount, effect.mode));
     if (amountApplied <= 0) {
       return false;
     }
-    target.resolvedStats.speed = fixedClamp(fixedAdd(target.resolvedStats.speed, amountApplied), 1, 100);
+    target.resolvedStats.rate = fixedClamp(fixedAdd(target.resolvedStats.rate, amountApplied), 1, 100);
     target.activeTimedEffects.push({
       effectKind: "haste",
       sourceAbilityId: runtime.definition.id,
@@ -1369,7 +1369,7 @@ function applyTemporaryEffect(state, actor, target, runtime, effect) {
       remainingTurns: turns,
       amountApplied
     });
-    buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(amountApplied)} speed until end of turn.`, {
+    buildStep(state, "buff", [actor.id], [target.id], `${target.troopLabel} gains ${formatSigned(amountApplied)} rate until end of turn.`, {
       amount: amountApplied,
       effect: "haste",
       sourceAbilityId: runtime.definition.id,
@@ -1497,8 +1497,8 @@ function expireTimedEffects(state, unit) {
       return;
     }
     if (effect.effectKind === "haste") {
-      unit.resolvedStats.speed = fixedClamp(fixedSub(unit.resolvedStats.speed, effect.amountApplied), 1, 100);
-      buildStep(state, "buff", [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.amountApplied)} speed.`, {
+      unit.resolvedStats.rate = fixedClamp(fixedSub(unit.resolvedStats.rate, effect.amountApplied), 1, 100);
+      buildStep(state, "buff", [effect.sourceUnitId], [unit.id], `${unit.troopLabel} loses ${formatSigned(effect.amountApplied)} rate.`, {
         amount: effect.amountApplied,
         effect: "haste",
         sourceAbilityId: effect.sourceAbilityId,
@@ -1680,7 +1680,7 @@ function recordSummonedProfile(state, unit) {
     statBreakdowns: {
       health: { stat: "health", finalValue: unit.resolvedStats.health, lines: [{ label: "Summoned", value: unit.resolvedStats.health, kind: "base" }] },
       damage: { stat: "damage", finalValue: unit.resolvedStats.damage, lines: [{ label: "Summoned", value: unit.resolvedStats.damage, kind: "base" }] },
-      speed: { stat: "speed", finalValue: unit.resolvedStats.speed, lines: [{ label: "Summoned", value: unit.resolvedStats.speed, kind: "base" }] },
+      rate: { stat: "rate", finalValue: unit.resolvedStats.rate, lines: [{ label: "Summoned", value: unit.resolvedStats.rate, kind: "base" }] },
       ...unit.role === "frontline" ? { move: { stat: "move", finalValue: unit.resolvedStats.move, lines: [{ label: "Summoned", value: unit.resolvedStats.move, kind: "base" }] } } : {},
       armor: { stat: "armor", finalValue: unit.resolvedStats.armor, lines: [{ label: "Summoned", value: unit.resolvedStats.armor, kind: "base" }] },
       range: { stat: "range", finalValue: unit.resolvedStats.range, lines: [{ label: "Summoned", value: unit.resolvedStats.range, kind: "base" }] },
@@ -1750,7 +1750,7 @@ function summonUnit(state, actor, runtime, effect, origin) {
     footprintOrientation: summonPlacement.orientation,
     hp: troop.stats.health,
     maxHp: troop.stats.health,
-    initiative: fixedMax(effect.initialInitiative ?? (hasAbility(actor, "early-riser") && effect.unitClassId === "skeleton" ? 100 : 0), 0),
+    readiness: fixedMax(effect.initialReadiness ?? (hasAbility(actor, "early-riser") && effect.unitClassId === "skeleton" ? 100 : 0), 0),
     alive: true,
     engagedWith: /* @__PURE__ */ new Set(),
     resolvedStats: { ...troop.stats },
@@ -1781,14 +1781,14 @@ function summonUnit(state, actor, runtime, effect, origin) {
   });
   return true;
 }
-function summonUnitsAtHex(state, actor, sourceAbilityId, unitClassId, count, origin, grantedAbilityIds = [], initialInitiative) {
+function summonUnitsAtHex(state, actor, sourceAbilityId, unitClassId, count, origin, grantedAbilityIds = [], initialReadiness) {
   const runtime = createRuntimeAbilityState(getAbility(sourceAbilityId));
   const effect = {
     kind: "summon",
     unitClassId,
     count: 1,
     grantedAbilityIds,
-    initialInitiative
+    initialReadiness
   };
   let summonedAny = false;
   for (let index = 0; index < count; index += 1) {
@@ -1881,8 +1881,8 @@ const PER_TARGET_EFFECT_HANDLERS = {
   statDelta: (state, actor, runtime, target, effect) => applyStatDelta(state, actor, target, runtime, effect),
   rangeset: (state, actor, runtime, target, effect) => applyRangeSet(state, actor, target, runtime, effect),
   roleset: (state, actor, runtime, target, effect) => applyRoleSet(state, actor, target, runtime, effect),
-  initiativeSet: (state, actor, runtime, target, effect) => applyInitiativeSet(state, actor, target, runtime, effect),
-  initiativeDelta: (state, actor, runtime, target, effect) => applyInitiativeDelta(state, actor, target, runtime, effect),
+  readinessSet: (state, actor, runtime, target, effect) => applyReadinessSet(state, actor, target, runtime, effect),
+  readinessDelta: (state, actor, runtime, target, effect) => applyReadinessDelta(state, actor, target, runtime, effect),
   grantAbility: (state, actor, runtime, target, effect) => applyGrantAbility(state, actor, target, runtime, effect),
   summon: (state, actor, runtime, _target, effect, event) => {
     const summon = effect;
@@ -2045,12 +2045,12 @@ function applyCopiousAle(state) {
     byTroop.forEach((units, key) => {
       const target = state.rng.pick(units);
       state.copiousAleAppliedTroopKeys.add(key);
-      const previousSpeed = target.resolvedStats.speed;
-      target.resolvedStats.speed = 1;
-      buildStep(state, "buff", [target.id], [target.id], `${target.troopLabel} has too much ale and slows to 1 speed.`, {
+      const previousRate = target.resolvedStats.rate;
+      target.resolvedStats.rate = 1;
+      buildStep(state, "buff", [target.id], [target.id], `${target.troopLabel} has too much ale and slows to 1 rate.`, {
         effect: "copiousAle",
-        stat: "speed",
-        amount: fixedSub(1, previousSpeed),
+        stat: "rate",
+        amount: fixedSub(1, previousRate),
         sourceAbilityId: "ale-and-hearty",
         sourceAbilityLabel: getAbility("ale-and-hearty").label
       });
@@ -2079,14 +2079,14 @@ function performLivingCircuit(state, actor) {
   if (elementals.length === 0) {
     return;
   }
-  applyInitiativeDelta(state, actor, actor, createRuntimeAbilityState(getAbility("living-circuit")), {
-    kind: "initiativeDelta",
+  applyReadinessDelta(state, actor, actor, createRuntimeAbilityState(getAbility("living-circuit")), {
+    kind: "readinessDelta",
     amount: 15,
     disposition: "beneficial"
   });
   elementals.forEach((elemental) => {
-    applyInitiativeDelta(state, actor, elemental, createRuntimeAbilityState(getAbility("living-circuit")), {
-      kind: "initiativeDelta",
+    applyReadinessDelta(state, actor, elemental, createRuntimeAbilityState(getAbility("living-circuit")), {
+      kind: "readinessDelta",
       amount: 15,
       disposition: "beneficial"
     });
@@ -2097,8 +2097,8 @@ function performThrillOfTheHunt(state, actor) {
     return;
   }
   getAliveUnits(state, actor.side).filter((unit) => unit.unitClassTag === "wolf" && unitsTouchOrOverlap(unit, actor)).forEach((wolf) => {
-    applyInitiativeDelta(state, actor, wolf, createRuntimeAbilityState(getAbility("thrill-of-the-hunt")), {
-      kind: "initiativeDelta",
+    applyReadinessDelta(state, actor, wolf, createRuntimeAbilityState(getAbility("thrill-of-the-hunt")), {
+      kind: "readinessDelta",
       amount: 10,
       disposition: "beneficial"
     });
@@ -2208,8 +2208,8 @@ function performLootFrenzy(state, actor, fallenFootprint) {
       mode: "flat",
       disposition: "beneficial"
     });
-    applyInitiativeDelta(state, actor, unit, createRuntimeAbilityState(getAbility("loot-frenzy")), {
-      kind: "initiativeDelta",
+    applyReadinessDelta(state, actor, unit, createRuntimeAbilityState(getAbility("loot-frenzy")), {
+      kind: "readinessDelta",
       amount: 30,
       disposition: "beneficial"
     });
@@ -2278,8 +2278,8 @@ function handleDeath(state, actor, target, context = { mode: "melee", category: 
   performScavengersHunger(state, actor, target);
   if (hasAbility(actor, "snatch-the-moment")) {
     getAliveUnits(state).filter((unit) => unit.side !== actor.side && unitsTouchOrOverlap(unit, target)).forEach((unit) => {
-      unit.initiative = fixedMax(fixedSub(unit.initiative, 20), 0);
-      buildStep(state, "buff", [actor.id], [unit.id], `${unit.troopLabel} loses 20 initiative.`, {
+      unit.readiness = fixedMax(fixedSub(unit.readiness, 20), 0);
+      buildStep(state, "buff", [actor.id], [unit.id], `${unit.troopLabel} loses 20 readiness.`, {
         effect: "snatchTheMoment",
         amount: -20,
         sourceAbilityId: "snatch-the-moment",
@@ -2415,7 +2415,7 @@ function applyStallWarts(state, unit) {
   });
   applyStatDelta(state, unit, unit, runtime, {
     kind: "statDelta",
-    stat: "speed",
+    stat: "rate",
     amount: -1,
     mode: "flat",
     disposition: "harmful"
@@ -2450,8 +2450,8 @@ function attack(state, actor, target, mode, allowOnAttackAbilities = true, strik
       recipient.hp = fixedSub(recipient.hp, damagePerRecipient);
     }
   });
-  if (distanceBonus.initiative > 0) {
-    actor.initiative = fixedAdd(actor.initiative, distanceBonus.initiative);
+  if (distanceBonus.readiness > 0) {
+    actor.readiness = fixedAdd(actor.readiness, distanceBonus.readiness);
   }
   buildStep(
     state,
@@ -2479,15 +2479,15 @@ function attack(state, actor, target, mode, allowOnAttackAbilities = true, strik
   if (mode === "melee" && hasAbility(actor, "bramble-snare") && actor.brambleSnareStacks > 0 && target.alive) {
     applyStatDelta(state, actor, target, createRuntimeAbilityState(getAbility("bramble-snare")), {
       kind: "statDelta",
-      stat: "speed",
+      stat: "rate",
       amount: actor.brambleSnareStacks * -2,
       mode: "flat",
       disposition: "harmful"
     });
   }
   if (mode === "ranged" && hasAbility(actor, "silver-distance") && distanceToTarget === actor.resolvedStats.range && target.alive) {
-    applyInitiativeDelta(state, actor, target, createRuntimeAbilityState(getAbility("silver-distance")), {
-      kind: "initiativeDelta",
+    applyReadinessDelta(state, actor, target, createRuntimeAbilityState(getAbility("silver-distance")), {
+      kind: "readinessDelta",
       amount: -30,
       disposition: "harmful"
     });
@@ -3244,7 +3244,7 @@ function applyChangeling(state) {
       removeAllEngagements(state, unit);
       unit.side = side;
       unit.committedBacklineTargetId = null;
-      unit.initiative = 0;
+      unit.readiness = 0;
       changed.push(unit);
     });
     state.changelingTriggeredSides.add(side);
@@ -3403,20 +3403,20 @@ function resolveBattle(rawInput) {
   while (!isBattleOver(state) && state.beatCount < MAX_BEATS) {
     state.beatCount += 1;
     getAliveUnits(state).forEach((unit) => {
-      unit.initiative = fixedAdd(unit.initiative, fixedAdd(unit.resolvedStats.speed, state.effects.initiativeBonusPerBeat));
+      unit.readiness = fixedAdd(unit.readiness, fixedAdd(unit.resolvedStats.rate, state.effects.readinessBonusPerBeat));
     });
-    buildStep(state, "beat", [], [], `Beat ${state.beatCount}: initiative increases for all units.`, {
+    buildStep(state, "beat", [], [], `Beat ${state.beatCount}: readiness increases for all units.`, {
       beat: state.beatCount,
-      initiativeBonus: state.effects.initiativeBonusPerBeat
+      readinessBonus: state.effects.readinessBonusPerBeat
     });
     applyBeatMutators(state);
-    const ready = getAliveUnits(state).filter((unit) => unit.initiative >= 100).map((unit) => unit.id);
+    const ready = getAliveUnits(state).filter((unit) => unit.readiness >= 100).map((unit) => unit.id);
     state.rng.shuffle(ready).forEach((unitId) => {
       const unit = state.units.get(unitId);
       if (!unit?.alive) {
         return;
       }
-      unit.initiative = fixedSub(unit.initiative, 100);
+      unit.readiness = fixedSub(unit.readiness, 100);
       executeTurn(state, unit);
     });
   }

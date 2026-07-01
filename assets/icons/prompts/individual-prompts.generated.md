@@ -9,9 +9,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Ale and Hearty
 Category: Ability
-Mechanic: Passive: one random unit from each troop has speed set to 1 at the start of combat.
-Upgrade context: Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat. Direct upgrade effects: speed +60%.
-Visual tags: speed
+Mechanic: Passive: one random unit from each troop has rate set to 1 at the start of combat.
+Upgrade context: Ale and Hearty (Dwarves, tier 2): Dwarven troops gain +60% rate. One random unit from each Dwarven troop has its rate set to 1 at the start of combat. Direct upgrade effects: rate +60%.
+Visual tags: rate
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -37,7 +37,7 @@ Name: Alternate Fuel
 Category: Ability
 Mechanic: Passive: corpse-consuming abilities may spend 10 HP instead of requiring or consuming a corpse, if that would not kill this unit.
 Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
-Visual tags: damage, initiative, healing, summon, corpse, synergy
+Visual tags: damage, readiness, healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -140,8 +140,8 @@ Create the next Shiftmake icon in the same style.
 Name: Berserk
 Category: Ability
 Mechanic: Passive: the first time this unit would die from damage, it becomes immune to damage and dies at the end of its next turn.
-Upgrade context: Berserk (Orcs, tier 3): When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.
-Visual tags: damage, initiative, corpse, defense
+Upgrade context: Berserk (Orcs, tier 3): When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.
+Visual tags: damage, readiness, corpse, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -192,12 +192,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Blood Oath
 Category: Ability
-Mechanic: When a touching ally dies: set initiative to 100.
-Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
+Mechanic: When a touching ally dies: set readiness to 100.
+Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact.
 Trigger: onFallen; near fallen ally unit
 Target: self
-Mechanical effects: set initiative to 100
-Visual tags: initiative, corpse
+Mechanical effects: set readiness to 100
+Visual tags: readiness, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -221,9 +221,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Bolstering Light
 Category: Ability
-Mechanic: Passive: Priest heals that bring a target to full HP give the target and Priest +1 speed and +1 damage; other Priest heals give both 40 initiative.
-Upgrade context: Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.
-Visual tags: damage, speed, initiative, healing
+Mechanic: Passive: Priest heals that bring a target to full HP give the target and Priest +1 rate and +1 damage; other Priest heals give both 40 readiness.
+Upgrade context: Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.
+Visual tags: damage, rate, readiness, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -274,7 +274,7 @@ Name: Brace
 Category: Ability
 Mechanic: Passive: start of turn, if engaged at full capacity, gain +5 armor until next turn.
 Upgrade context: Dine in Hell (Knight, tier 3): Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
-Visual tags: damage, armor, initiative, melee, defense
+Visual tags: damage, armor, readiness, melee, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -298,9 +298,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Bramble Snare
 Category: Ability
-Mechanic: Passive: each shapeshift empowers this unit so its melee attacks reduce target speed by 2 for the battle.
-Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.
-Visual tags: damage, speed, melee, debuff, transformation
+Mechanic: Passive: each shapeshift empowers this unit so its melee attacks reduce target rate by 2 for the battle.
+Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
+Visual tags: damage, rate, melee, debuff, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -325,8 +325,8 @@ Create the next Shiftmake icon in the same style.
 Name: Carrion Choir
 Category: Ability
 Mechanic: Passive: when this unit consumes a corpse, nearby enemies lose 1 armor and 1 damage for the battle.
-Upgrade context: Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
-Visual tags: damage, armor, initiative, summon, corpse, debuff, movement, defense
+Upgrade context: Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
+Visual tags: damage, armor, readiness, summon, corpse, debuff, movement, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -352,7 +352,7 @@ Name: Changeling
 Category: Ability
 Mechanic: Passive: after beat 12, one random enemy from each enemy troop changes sides.
 Upgrade context: Changeling (Fae, tier 3): If a Fae troop was brought to battle, after beat 12 a random enemy unit from each enemy troop changes sides.
-Visual tags: initiative, summon, transformation
+Visual tags: readiness, summon, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -380,7 +380,7 @@ Mechanic: Every 4 turns: summon 1 elemental on this unit or an adjacent hex.
 Trigger: endOfTurn; charge every 4 turns
 Target: self
 Mechanical effects: summon 1 elemental
-Visual tags: initiative, summon
+Visual tags: readiness, summon
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -409,7 +409,7 @@ Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemen
 Trigger: endOfTurn; charge every 4 turns
 Target: self
 Mechanical effects: summon 1 elemental
-Visual tags: damage, initiative, summon, corpse, ranged, synergy
+Visual tags: damage, readiness, summon, corpse, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -433,12 +433,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Concussive Shots
 Category: Ability
-Mechanic: On attack: set the target initiative to 0.
-Upgrade context: On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
+Mechanic: On attack: set the target readiness to 0.
+Upgrade context: On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
 Trigger: onAttack
 Target: default
-Mechanical effects: set initiative to 0
-Visual tags: damage, initiative, summon, corpse, ranged, debuff
+Mechanical effects: set readiness to 0
+Visual tags: damage, readiness, summon, corpse, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -493,7 +493,7 @@ Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton th
 Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
 Trigger: onFallen; near fallen all unit
 Mechanical effects: summon 1 skeleton
-Visual tags: damage, initiative, healing, summon, corpse, synergy
+Visual tags: damage, readiness, healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -543,9 +543,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Crippling Hex
 Category: Ability
-Mechanic: Passive: enemies who kill this Militia gain Hex. Hex reduces enemy speed.
-Upgrade context: Crippling Hex (Militia, tier 3): Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.
-Visual tags: damage, speed, debuff
+Mechanic: Passive: enemies who kill this Militia gain Hex. Hex reduces enemy rate.
+Upgrade context: Crippling Hex (Militia, tier 3): Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% rate for each stack of Hex.
+Visual tags: damage, rate, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -569,9 +569,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Diggy Hole
 Category: Ability
-Mechanic: Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 initiative.
-Upgrade context: Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.
-Visual tags: initiative, movement
+Mechanic: Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness.
+Upgrade context: Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.
+Visual tags: readiness, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -623,7 +623,7 @@ Name: Dreamwork
 Category: Ability
 Mechanic: Passive: once per beat, attack an adjacent enemy when that enemy is hit by another ally's normal attack.
 Upgrade context: Dreamwork (Soldier, tier 3): Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat.
-Visual tags: damage, initiative, corpse
+Visual tags: damage, readiness, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -647,9 +647,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Early Riser
 Category: Ability
-Mechanic: Passive: skeletons this unit summons spawn with +100 initiative.
-Upgrade context: Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
-Visual tags: damage, armor, initiative, summon, corpse, debuff, movement, defense
+Mechanic: Passive: skeletons this unit summons spawn with +100 readiness.
+Upgrade context: Explosion Corpse (Necromancer, tier 3): Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
+Visual tags: damage, armor, readiness, summon, corpse, debuff, movement, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -699,11 +699,11 @@ Create the next Shiftmake icon in the same style.
 
 Name: Enhance 1
 Category: Ability
-Mechanic: End of turn: a random allied non-caster within this unit's range gains +1 speed and +1 damage for the battle.
+Mechanic: End of turn: a random allied non-caster within this unit's range gains +1 rate and +1 damage for the battle.
 Trigger: endOfTurn
 Target: random; ally; radius from selfRange; not caster
 Mechanical effects: haste 1, ramp 1
-Visual tags: damage, speed, initiative, ranged, synergy
+Visual tags: damage, rate, readiness, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -858,7 +858,7 @@ Name: Forest Friends
 Category: Ability
 Mechanic: Passive: end of turn, heal self and all units Bonded to this unit for 20; whenever this unit shapeshifts, summon 2 wolves.
 Upgrade context: Forest Friends (Druid, tier 3): End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.
-Visual tags: initiative, healing, summon, transformation
+Visual tags: readiness, healing, summon, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -882,12 +882,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Forsaken 80
 Category: Ability
-Mechanic: Start of battle: if this is the only troop on its side, gain 80% health, damage, and speed.
-Upgrade context: Forsaken (Elves, tier 3): Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.
+Mechanic: Start of battle: if this is the only troop on its side, gain 80% health, damage, and rate.
+Upgrade context: Forsaken (Elves, tier 3): Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% rate.
 Trigger: startOfBattle; condition forsaken
 Target: self
 Mechanical effects: bolster 80%, haste 80%, ramp 80%
-Visual tags: damage, speed, healing
+Visual tags: damage, rate, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -993,11 +993,11 @@ Create the next Shiftmake icon in the same style.
 Name: Goblin Farewell
 Category: Ability
 Mechanic: On death: strike a random touching enemy one extra time.
-Upgrade context: Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.
+Upgrade context: Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness.
 Trigger: onDeath
 Target: random; enemy; radius 0
 Mechanical effects: 1 extra strike
-Visual tags: damage, initiative, corpse, debuff
+Visual tags: damage, readiness, corpse, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1182,7 +1182,7 @@ Upgrade context: Horde (Goblins, tier 2): Start of turn: each goblin unit gains 
 Trigger: startOfTurn
 Target: self
 Mechanical effects: ramp 4
-Visual tags: damage, initiative, synergy
+Visual tags: damage, readiness, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1206,9 +1206,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Hunter's Zeal
 Category: Ability
-Mechanic: Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants initiative at end of turn.
-Upgrade context: Hunter's Zeal (Ranger, tier 3): On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.
-Visual tags: damage, initiative, ranged
+Mechanic: Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants readiness at end of turn.
+Upgrade context: Hunter's Zeal (Ranger, tier 3): On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 readiness for each stack of Zeal they have at the end of their turns.
+Visual tags: damage, readiness, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1233,8 +1233,8 @@ Create the next Shiftmake icon in the same style.
 Name: Last Witness
 Category: Ability
 Mechanic: Passive: when a touching ally dies, strike their killer twice if still in contact.
-Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
-Visual tags: damage, initiative, corpse
+Upgrade context: Witness (Avenger, tier 3): When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact.
+Visual tags: damage, readiness, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1284,9 +1284,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Living Circuit
 Category: Ability
-Mechanic: Passive: end of turn, gain 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative.
-Upgrade context: Living Circuit (Elementalist, tier 3): End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.
-Visual tags: initiative, summon, ranged, synergy
+Mechanic: Passive: end of turn, gain 15 readiness once if any allied elemental is in range, and all allied elementals in range gain 15 readiness.
+Upgrade context: Living Circuit (Elementalist, tier 3): End of turn: if any allied elemental is in range, this Elementalist gains 15 readiness once and all allied elementals in range gain 15 readiness.
+Visual tags: readiness, summon, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1310,9 +1310,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Long Shot Doctrine
 Category: Ability
-Mechanic: Passive: ranged and caster attacks gain +1 damage and +2 initiative per hex of distance.
-Upgrade context: Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.
-Visual tags: damage, initiative, ranged, debuff
+Mechanic: Passive: ranged and caster attacks gain +1 damage and +2 readiness per hex of distance.
+Upgrade context: Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness.
+Visual tags: damage, readiness, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1338,7 +1338,7 @@ Name: Martyr's Zeal
 Category: Ability
 Mechanic: Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.
 Upgrade context: Martyr's Zeal (Soldier, tier 3): When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.
-Visual tags: initiative, healing, corpse
+Visual tags: readiness, healing, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1366,7 +1366,7 @@ Mechanic: End of turn: heal allies within this unit's range for 4.
 Trigger: endOfTurn
 Target: aoe; ally; radius from selfRange
 Mechanical effects: heal 4
-Visual tags: initiative, healing, ranged
+Visual tags: readiness, healing, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1444,7 +1444,7 @@ Name: Overwhelm Hex
 Category: Ability
 Mechanic: Passive: when a Goblin is present, one random unit from each enemy troop gains Hex at battle start. Hex drains health at end of turn.
 Upgrade context: Overwhelm Hex (Goblins, tier 1): When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn.
-Visual tags: initiative, healing, debuff
+Visual tags: readiness, healing, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1472,7 +1472,7 @@ Mechanic: Start of turn: gain +1 damage per other touching friendly unit until e
 Trigger: startOfTurn
 Target: self
 Mechanical effects: ramp 1
-Visual tags: damage, initiative, synergy
+Visual tags: damage, readiness, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1496,12 +1496,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Pinning Volley
 Category: Ability
-Mechanic: On attack: reduce the target speed by 1 for the battle.
-Upgrade context: Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.
+Mechanic: On attack: reduce the target rate by 1 for the battle.
+Upgrade context: Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle.
 Trigger: onAttack
 Target: default
-Mechanical effects: speed -1
-Visual tags: damage, armor, speed, ranged, debuff, defense
+Mechanical effects: rate -1
+Visual tags: damage, armor, rate, ranged, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1525,12 +1525,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Power of Friendship
 Category: Ability
-Mechanic: Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop on this side.
-Upgrade context: Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.
+Mechanic: Start of battle: gain +20% health, +20% damage, and +20% rate for each other friendly troop on this side.
+Upgrade context: Combined Arms (Humans, tier 2): Start of battle: each human unit gains +20% health, +20% damage, and +20% rate for each other friendly troop on its side.
 Trigger: startOfBattle
 Target: self
 Mechanical effects: bolster 20%, haste 20%, ramp 20%
-Visual tags: damage, speed, healing, synergy
+Visual tags: damage, rate, healing, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1554,12 +1554,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: R-selected
 Category: Ability
-Mechanic: Start of turn: gain +10 initiative per other touching Militia. Overworld: Militia troops may enter the same Rift together.
-Upgrade context: R-selected (Militia, tier 3): Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.
+Mechanic: Start of turn: gain +10 readiness per other touching Militia. Overworld: Militia troops may enter the same Rift together.
+Upgrade context: R-selected (Militia, tier 3): Start of turn: Militia gain +10 readiness for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.
 Trigger: startOfTurn
 Target: self
-Mechanical effects: initiative +10
-Visual tags: initiative
+Mechanical effects: readiness +10
+Visual tags: readiness
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1587,7 +1587,7 @@ Mechanic: End of turn: heal self for 5.
 Trigger: endOfTurn
 Target: self
 Mechanical effects: heal 5
-Visual tags: initiative, healing
+Visual tags: readiness, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1613,7 +1613,7 @@ Name: Retaliate
 Category: Ability
 Mechanic: Passive: when hit by a normal attack, make a normal attack back once.
 Upgrade context: Dine in Hell (Knight, tier 3): Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
-Visual tags: damage, armor, initiative, melee, defense
+Visual tags: damage, armor, readiness, melee, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1637,9 +1637,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Rowdy Regrowth
 Category: Ability
-Mechanic: Passive: whenever this unit is healed, gain 20 initiative and +1 damage.
-Upgrade context: Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 initiative and +1 damage.
-Visual tags: damage, initiative, healing
+Mechanic: Passive: whenever this unit is healed, gain 20 readiness and +1 damage.
+Upgrade context: Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 readiness and +1 damage.
+Visual tags: damage, readiness, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1690,8 +1690,8 @@ Create the next Shiftmake icon in the same style.
 Name: Scavenger's Hunger
 Category: Ability
 Mechanic: Passive: the first 2 times this unit kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
-Upgrade context: On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
-Visual tags: damage, initiative, summon, corpse, ranged
+Upgrade context: On the Hunt (Ranger, tier 3): On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
+Visual tags: damage, readiness, summon, corpse, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1715,12 +1715,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Seeing Red
 Category: Ability
-Mechanic: On kill: lose 1 armor for the battle and gain 75 initiative.
-Upgrade context: Seeing Red (Orcs, tier 1): Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.
+Mechanic: On kill: lose 1 armor for the battle and gain 75 readiness.
+Upgrade context: Seeing Red (Orcs, tier 1): Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness.
 Trigger: onKill
 Target: self
-Mechanical effects: armor -1, initiative +75
-Visual tags: damage, armor, initiative, debuff, defense
+Mechanical effects: armor -1, readiness +75
+Visual tags: damage, armor, readiness, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1744,11 +1744,11 @@ Create the next Shiftmake icon in the same style.
 
 Name: Self Haste 2
 Category: Ability
-Mechanic: End of turn: gain +2 speed for the battle.
+Mechanic: End of turn: gain +2 rate for the battle.
 Trigger: endOfTurn
 Target: self
 Mechanical effects: haste 2
-Visual tags: speed, initiative
+Visual tags: rate, readiness
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1827,11 +1827,11 @@ Create the next Shiftmake icon in the same style.
 
 Name: Shapeshift - Bear
 Category: Ability
-Mechanic: After 5 turns, once: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.
+Mechanic: After 5 turns, once: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit.
 Trigger: endOfTurn; charge every 5 turns; max 1 uses
 Target: self
 Mechanical effects: bolster 100, haste 5, ramp 20, set range to 0, set role to frontline
-Visual tags: damage, speed, healing, ranged, transformation
+Visual tags: damage, rate, healing, ranged, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1855,12 +1855,12 @@ Create the next Shiftmake icon in the same style.
 
 Name: Shapeshift - Bear
 Category: Ability
-Mechanic: After every 5 turns, twice: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.
+Mechanic: After every 5 turns, twice: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit.
 Upgrade context: True Form (Druid, tier 2): Druid's Shapeshift can now trigger an additional time.
 Trigger: endOfTurn; charge every 5 turns; max 2 uses
 Target: self
 Mechanical effects: bolster 100, haste 5, ramp 20, set range to 0, set role to frontline
-Visual tags: damage, speed, healing, ranged, transformation
+Visual tags: damage, rate, healing, ranged, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1911,11 +1911,11 @@ Create the next Shiftmake icon in the same style.
 Name: Shredding Arrows
 Category: Ability
 Mechanic: On attack: reduce the target armor by 1 for the battle.
-Upgrade context: Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.
+Upgrade context: Crippling Shots (Archer, tier 3): On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle.
 Trigger: onAttack
 Target: default
 Mechanical effects: armor -1
-Visual tags: damage, armor, speed, ranged, debuff, defense
+Visual tags: damage, armor, rate, ranged, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1939,9 +1939,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Silver Distance
 Category: Ability
-Mechanic: Passive: ranged and caster attacks made from max range make the target lose 30 initiative.
-Upgrade context: Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.
-Visual tags: damage, initiative, ranged, debuff
+Mechanic: Passive: ranged and caster attacks made from max range make the target lose 30 readiness.
+Upgrade context: Silvershot Doctrine (Elves, tier 2): Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness.
+Visual tags: damage, readiness, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -1991,9 +1991,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Snatch the Moment
 Category: Ability
-Mechanic: Passive: on kill, all enemies lose 10 initiative.
-Upgrade context: Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.
-Visual tags: damage, initiative, corpse, debuff
+Mechanic: Passive: on kill, all enemies lose 10 readiness.
+Upgrade context: Gallowsworn (Goblins, tier 1): On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness.
+Visual tags: damage, readiness, corpse, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2043,9 +2043,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Stall Warts
 Category: Ability
-Mechanic: Passive: after being hit by normal attacks, gain +1 armor and lose 1 speed for the battle.
-Upgrade context: Stall Warts (Dwarves, tier 3): Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.
-Visual tags: armor, speed, debuff, defense
+Mechanic: Passive: after being hit by normal attacks, gain +1 armor and lose 1 rate for the battle.
+Upgrade context: Stall Warts (Dwarves, tier 3): Dwarven troops gain +1 armor and lose 1 rate for the rest of the battle after they are hit by normal attacks.
+Visual tags: armor, rate, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2071,7 +2071,7 @@ Name: Static Charge
 Category: Ability
 Mechanic: Passive: when this unit applies Enhance, affected allies gain 1 extra strike on their next normal attack.
 Upgrade context: Grave Vigor (Shaman, tier 3): Whenever a Shaman applies a beneficial effect, that target leaves no corpse on death and summons 1 skeleton on death, gains 1 extra strike on its next normal attack if the effect was Enhance, and then ignores future beneficial effects and targeting from units with Grave Vigor.
-Visual tags: damage, initiative, summon, corpse
+Visual tags: damage, readiness, summon, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2126,7 +2126,7 @@ Upgrade context: Storm Rods (Wizard, tier 3): Every 4 turns, each Wizard makes 2
 Trigger: endOfTurn; charge every 4 turns
 Target: random; enemy; radius from selfRange
 Mechanical effects: 2 extra strikes
-Visual tags: damage, initiative, summon, ranged, synergy
+Visual tags: damage, readiness, summon, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2268,7 +2268,7 @@ Mechanic: End of turn: engage unengaged enemies in footprint contact up to Capac
 Trigger: endOfTurn
 Target: aoe; enemy; radius 0; unengaged
 Mechanical effects: redirect into engagement
-Visual tags: initiative, melee, defense
+Visual tags: readiness, melee, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2293,8 +2293,8 @@ Create the next Shiftmake icon in the same style.
 Name: Thornhide
 Category: Ability
 Mechanic: Passive: after shapeshifting, normal attackers take 6 damage when they hit this unit.
-Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.
-Visual tags: damage, speed, melee, transformation
+Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
+Visual tags: damage, rate, melee, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2370,9 +2370,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Triumphant Zeal
 Category: Ability
-Mechanic: Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% speed, and +10% max health.
-Upgrade context: Triumphant Zeal (Champion, tier 3): On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.
-Visual tags: damage, speed, healing
+Mechanic: Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% rate, and +10% max health.
+Upgrade context: Triumphant Zeal (Champion, tier 3): On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% rate, and +10% max health for each stack of Zeal they have.
+Visual tags: damage, rate, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2396,9 +2396,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Tubthumping
 Category: Ability
-Mechanic: Passive: effects that would reduce this unit damage or speed instead increase it by 1.
-Upgrade context: Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.
-Visual tags: damage, speed, debuff
+Mechanic: Passive: effects that would reduce this unit damage or rate instead increase it by 1.
+Upgrade context: Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1.
+Visual tags: damage, rate, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2423,8 +2423,8 @@ Create the next Shiftmake icon in the same style.
 Name: United
 Category: Ability
 Mechanic: Overworld: troops of this race may enter the same Rift together.
-Upgrade context: Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.
-Visual tags: damage, speed, debuff, synergy
+Upgrade context: Tubthumping (Humans, tier 1): Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1.
+Visual tags: damage, rate, debuff, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2504,11 +2504,11 @@ Create the next Shiftmake icon in the same style.
 
 Name: Vengeance 3
 Category: Ability
-Mechanic: When a touching ally dies, gain +3 speed and +3 damage for the battle.
+Mechanic: When a touching ally dies, gain +3 rate and +3 damage for the battle.
 Trigger: onFallen; near fallen ally unit
 Target: self
 Mechanical effects: haste 3, ramp 3
-Visual tags: damage, speed, corpse
+Visual tags: damage, rate, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2586,7 +2586,7 @@ Name: War Drums
 Category: Ability
 Mechanic: End of turn: pick a random allied non-caster in range; enhance it and all allies touching it.
 Upgrade context: War Drums (Shaman, tier 2): Enhance 1 affects all allies on the chosen ally hex instead of one random ally.
-Visual tags: initiative, ranged, synergy
+Visual tags: readiness, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2638,8 +2638,8 @@ Name: Diggy Hole
 Category: Race upgrade
 Owner: Dwarves
 Tier: 1
-Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.
-Visual tags: dwarves, initiative, movement
+Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.
+Visual tags: dwarves, readiness, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2665,9 +2665,9 @@ Name: Ale and Hearty
 Category: Race upgrade
 Owner: Dwarves
 Tier: 2
-Mechanic: Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.
-Mechanical effects: speed +60%
-Visual tags: dwarves, speed
+Mechanic: Dwarven troops gain +60% rate. One random unit from each Dwarven troop has its rate set to 1 at the start of combat.
+Mechanical effects: rate +60%
+Visual tags: dwarves, rate
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2693,8 +2693,8 @@ Name: Stall Warts
 Category: Race upgrade
 Owner: Dwarves
 Tier: 3
-Mechanic: Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.
-Visual tags: dwarves, armor, speed, debuff, defense
+Mechanic: Dwarven troops gain +1 armor and lose 1 rate for the rest of the battle after they are hit by normal attacks.
+Visual tags: dwarves, armor, rate, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2748,8 +2748,8 @@ Name: Silvershot Doctrine
 Category: Race upgrade
 Owner: Elves
 Tier: 2
-Mechanic: Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.
-Visual tags: elves, damage, initiative, ranged, debuff
+Mechanic: Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness.
+Visual tags: elves, damage, readiness, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2775,11 +2775,11 @@ Name: Forsaken
 Category: Race upgrade
 Owner: Elves
 Tier: 3
-Mechanic: Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.
+Mechanic: Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% rate.
 Trigger: startOfBattle; condition forsaken
 Target: self
 Mechanical effects: bolster 80%, haste 80%, ramp 80%
-Visual tags: elves, damage, speed, healing
+Visual tags: elves, damage, rate, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2833,7 +2833,7 @@ Category: Race upgrade
 Owner: Fae
 Tier: 3
 Mechanic: If a Fae troop was brought to battle, after beat 12 a random enemy unit from each enemy troop changes sides.
-Visual tags: fae, initiative, summon, transformation
+Visual tags: fae, readiness, summon, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2886,11 +2886,11 @@ Name: Gallowsworn
 Category: Race upgrade
 Owner: Goblins
 Tier: 1
-Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.
+Mechanic: On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness.
 Trigger: onDeath
 Target: random; enemy; radius 0
 Mechanical effects: 1 extra strike
-Visual tags: goblins, damage, initiative, corpse, debuff
+Visual tags: goblins, damage, readiness, corpse, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2917,7 +2917,7 @@ Category: Race upgrade
 Owner: Goblins
 Tier: 1
 Mechanic: When a Goblin is present, a random unit from each enemy troop gains 1 stack of Hex at the start of the battle. Enemies lose health equal to the number of your living Goblins per stack of Hex they have at the end of their turn.
-Visual tags: goblins, initiative, healing, debuff
+Visual tags: goblins, readiness, healing, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2947,7 +2947,7 @@ Mechanic: Start of turn: each goblin unit gains +4 damage per other friendly uni
 Trigger: startOfTurn
 Target: self
 Mechanical effects: ramp 4
-Visual tags: goblins, damage, initiative, synergy
+Visual tags: goblins, damage, readiness, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2973,8 +2973,8 @@ Name: Tubthumping
 Category: Race upgrade
 Owner: Humans
 Tier: 1
-Mechanic: Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.
-Visual tags: humans, damage, speed, debuff, synergy
+Mechanic: Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1.
+Visual tags: humans, damage, rate, debuff, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3000,11 +3000,11 @@ Name: Combined Arms
 Category: Race upgrade
 Owner: Humans
 Tier: 2
-Mechanic: Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.
+Mechanic: Start of battle: each human unit gains +20% health, +20% damage, and +20% rate for each other friendly troop on its side.
 Trigger: startOfBattle
 Target: self
 Mechanical effects: bolster 20%, haste 20%, ramp 20%
-Visual tags: humans, damage, speed, healing, synergy
+Visual tags: humans, damage, rate, healing, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3057,11 +3057,11 @@ Name: Seeing Red
 Category: Race upgrade
 Owner: Orcs
 Tier: 1
-Mechanic: Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.
+Mechanic: Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness.
 Trigger: onKill
 Target: self
-Mechanical effects: armor -1, initiative +75
-Visual tags: orcs, damage, armor, initiative, debuff, defense
+Mechanical effects: armor -1, readiness +75
+Visual tags: orcs, damage, armor, readiness, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3114,8 +3114,8 @@ Name: Berserk
 Category: Race upgrade
 Owner: Orcs
 Tier: 3
-Mechanic: When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.
-Visual tags: orcs, damage, initiative, corpse, defense
+Mechanic: When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.
+Visual tags: orcs, damage, readiness, corpse, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3195,8 +3195,8 @@ Name: Rowdy Regrowth
 Category: Race upgrade
 Owner: Trolls
 Tier: 2
-Mechanic: Whenever a Troll regains health, it gains 20 initiative and +1 damage.
-Visual tags: trolls, damage, initiative, healing
+Mechanic: Whenever a Troll regains health, it gains 20 readiness and +1 damage.
+Visual tags: trolls, damage, readiness, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3252,7 +3252,7 @@ Owner: Rift
 Mechanic: Every beat, each unit loses 1 HP ignoring armor.
 Trigger: battle-wide environmental rule
 Target: all units or the whole battle
-Visual tags: armor, initiative, debuff, defense
+Visual tags: armor, readiness, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3277,10 +3277,10 @@ Create the next Shiftmake icon in the same style.
 Name: Haze
 Category: Rift mutator
 Owner: Rift
-Mechanic: All units lose 5 initiative every beat.
+Mechanic: All units lose 5 readiness every beat.
 Trigger: battle-wide environmental rule
 Target: all units or the whole battle
-Visual tags: initiative, debuff
+Visual tags: readiness, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3333,10 +3333,10 @@ Create the next Shiftmake icon in the same style.
 Name: Momentum
 Category: Rift mutator
 Owner: Rift
-Mechanic: All units gain +10 initiative every beat.
+Mechanic: All units gain +10 readiness every beat.
 Trigger: battle-wide environmental rule
 Target: all units or the whole battle
-Visual tags: initiative
+Visual tags: readiness
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3417,11 +3417,11 @@ Name: Crippling Shots
 Category: Troop-class upgrade
 Owner: Archer
 Tier: 3
-Mechanic: On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.
+Mechanic: On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle.
 Trigger: onAttack
 Target: default
 Mechanical effects: armor -1
-Visual tags: archer, damage, armor, speed, ranged, debuff, defense
+Visual tags: archer, damage, armor, rate, ranged, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3530,11 +3530,11 @@ Name: Witness
 Category: Troop-class upgrade
 Owner: Avenger
 Tier: 3
-Mechanic: When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.
+Mechanic: When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact.
 Trigger: onFallen; near fallen ally unit
 Target: self
-Mechanical effects: set initiative to 100
-Visual tags: avenger, initiative, corpse
+Mechanical effects: set readiness to 100
+Visual tags: avenger, readiness, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3696,8 +3696,8 @@ Name: Triumphant Zeal
 Category: Troop-class upgrade
 Owner: Champion
 Tier: 3
-Mechanic: On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.
-Visual tags: champion, damage, speed, healing
+Mechanic: On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% rate, and +10% max health for each stack of Zeal they have.
+Visual tags: champion, damage, rate, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3727,7 +3727,7 @@ Mechanic: Druid's Shapeshift can now trigger an additional time.
 Trigger: endOfTurn; charge every 5 turns; max 2 uses
 Target: self
 Mechanical effects: bolster 100, haste 5, ramp 20, set range to 0, set role to frontline
-Visual tags: druid, damage, speed, healing, ranged, transformation
+Visual tags: druid, damage, rate, healing, ranged, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3753,8 +3753,8 @@ Name: Ent's Visage
 Category: Troop-class upgrade
 Owner: Druid
 Tier: 3
-Mechanic: After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.
-Visual tags: druid, damage, speed, melee, transformation
+Mechanic: After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
+Visual tags: druid, damage, rate, melee, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3781,7 +3781,7 @@ Category: Troop-class upgrade
 Owner: Druid
 Tier: 3
 Mechanic: End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.
-Visual tags: druid, initiative, healing, summon, transformation
+Visual tags: druid, readiness, healing, summon, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3862,8 +3862,8 @@ Name: Living Circuit
 Category: Troop-class upgrade
 Owner: Elementalist
 Tier: 3
-Mechanic: End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.
-Visual tags: elementalist, initiative, summon, ranged, synergy
+Mechanic: End of turn: if any allied elemental is in range, this Elementalist gains 15 readiness once and all allied elementals in range gain 15 readiness.
+Visual tags: elementalist, readiness, summon, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3890,7 +3890,7 @@ Category: Troop-class upgrade
 Owner: Knight
 Tier: 3
 Mechanic: Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
-Visual tags: knight, damage, armor, initiative, melee, defense
+Visual tags: knight, damage, armor, readiness, melee, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3973,8 +3973,8 @@ Name: Crippling Hex
 Category: Troop-class upgrade
 Owner: Militia
 Tier: 3
-Mechanic: Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.
-Visual tags: militia, damage, speed, debuff
+Mechanic: Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% rate for each stack of Hex.
+Visual tags: militia, damage, rate, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4027,11 +4027,11 @@ Name: R-selected
 Category: Troop-class upgrade
 Owner: Militia
 Tier: 3
-Mechanic: Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.
+Mechanic: Start of turn: Militia gain +10 readiness for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.
 Trigger: startOfTurn
 Target: self
-Mechanical effects: initiative +10
-Visual tags: militia, initiative
+Mechanical effects: readiness +10
+Visual tags: militia, readiness
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4057,8 +4057,8 @@ Name: Explosion Corpse
 Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
-Mechanic: Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
-Visual tags: necromancer, damage, armor, initiative, summon, corpse, debuff, movement, defense
+Mechanic: Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.
+Visual tags: necromancer, damage, armor, readiness, summon, corpse, debuff, movement, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4085,7 +4085,7 @@ Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
 Mechanic: Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
-Visual tags: necromancer, damage, initiative, healing, summon, corpse, synergy
+Visual tags: necromancer, damage, readiness, healing, summon, corpse, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4138,8 +4138,8 @@ Name: Bolstering Light
 Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
-Mechanic: When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.
-Visual tags: priest, damage, speed, initiative, healing
+Mechanic: When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.
+Visual tags: priest, damage, rate, readiness, healing
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4219,8 +4219,8 @@ Name: Hunter's Zeal
 Category: Troop-class upgrade
 Owner: Ranger
 Tier: 3
-Mechanic: On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.
-Visual tags: ranger, damage, initiative, ranged
+Mechanic: On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 readiness for each stack of Zeal they have at the end of their turns.
+Visual tags: ranger, damage, readiness, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4246,11 +4246,11 @@ Name: On the Hunt
 Category: Troop-class upgrade
 Owner: Ranger
 Tier: 3
-Mechanic: On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
+Mechanic: On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.
 Trigger: onAttack
 Target: default
-Mechanical effects: set initiative to 0
-Visual tags: ranger, damage, initiative, summon, corpse, ranged, debuff
+Mechanical effects: set readiness to 0
+Visual tags: ranger, damage, readiness, summon, corpse, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4304,7 +4304,7 @@ Category: Troop-class upgrade
 Owner: Shaman
 Tier: 2
 Mechanic: Enhance 1 affects all allies on the chosen ally hex instead of one random ally.
-Visual tags: shaman, initiative, ranged, synergy
+Visual tags: shaman, readiness, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4388,7 +4388,7 @@ Category: Troop-class upgrade
 Owner: Soldier
 Tier: 3
 Mechanic: Whenever an enemy adjacent to a Soldier is hit by another ally's normal attack, that Soldier makes a normal attack against it. Each Soldier can trigger at most once per beat.
-Visual tags: soldier, damage, initiative, corpse
+Visual tags: soldier, damage, readiness, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4415,7 +4415,7 @@ Category: Troop-class upgrade
 Owner: Soldier
 Tier: 3
 Mechanic: When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.
-Visual tags: soldier, initiative, healing, corpse
+Visual tags: soldier, readiness, healing, corpse
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4500,7 +4500,7 @@ Mechanic: Every 4 turns, each Wizard makes 2 extra strikes against a random enem
 Trigger: endOfTurn; charge every 4 turns
 Target: random; enemy; radius from selfRange
 Mechanical effects: 2 extra strikes
-Visual tags: wizard, damage, initiative, summon, ranged, synergy
+Visual tags: wizard, damage, readiness, summon, ranged, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.

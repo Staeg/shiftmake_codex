@@ -8,7 +8,7 @@ Use this after generating each batch.
 - Still communicates the broad mechanic at 32x32.
 - Contains no text, letters, numbers, captions, or watermarking.
 - Has a strong central silhouette.
-- Has one obvious gameplay category: damage, healing, summon, defense, mobility, initiative, corpse, debuff, race synergy, or Rift environment.
+- Has one obvious gameplay category: damage, healing, summon, defense, mobility, readiness, corpse, debuff, race synergy, or Rift environment.
 - Is distinct from nearby mechanics in the same unit or race family.
 - Does not depend on tiny detail to make sense.
 

@@ -277,7 +277,7 @@ export class BattleRenderer {
 
   private isAutoPlayback = false;
 
-  private playbackSpeedMs = BASE_STEP_MS;
+  private playbackRateMs = BASE_STEP_MS;
 
   private hexInspectionVisible = false;
 
@@ -364,10 +364,10 @@ export class BattleRenderer {
     this.onDiagnostic = handler;
   }
 
-  setPlaybackTiming(autoPlay: boolean, speedMs: number): void {
-    const nextSpeedMs = Number.isFinite(speedMs) && speedMs > 0 ? speedMs : BASE_STEP_MS;
+  setPlaybackTiming(autoPlay: boolean, rateMs: number): void {
+    const nextRateMs = Number.isFinite(rateMs) && rateMs > 0 ? rateMs : BASE_STEP_MS;
     this.isAutoPlayback = autoPlay;
-    this.playbackSpeedMs = nextSpeedMs;
+    this.playbackRateMs = nextRateMs;
   }
 
   setHexInspectionVisible(visible: boolean): void {
@@ -981,7 +981,7 @@ export class BattleRenderer {
     if (!this.isAutoPlayback) {
       return durationMs;
     }
-    return Math.max(1, Math.round(durationMs * (this.playbackSpeedMs / BASE_STEP_MS)));
+    return Math.max(1, Math.round(durationMs * (this.playbackRateMs / BASE_STEP_MS)));
   }
 
   private playStepEffect(step: BattleStep, prevUnits: BattleUnit[], nextUnits: BattleUnit[]): void {
@@ -1303,7 +1303,7 @@ export class BattleRenderer {
 
     const effect = typeof step.metadata?.effect === 'string' ? step.metadata.effect : null;
     const value = step.metadata?.value;
-    if ((effect === 'initiativeSet' || effect === 'rangeset') && typeof value === 'number' && value <= 0) {
+    if ((effect === 'readinessSet' || effect === 'rangeset') && typeof value === 'number' && value <= 0) {
       return 'negative';
     }
 

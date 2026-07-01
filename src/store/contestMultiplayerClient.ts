@@ -7,7 +7,7 @@ export interface MultiplayerSession {
   roomId: string | null;
   playerId: 'playerOne' | 'playerTwo' | null;
   playerToken: string | null;
-  readiness: { playerOne: boolean; playerTwo: boolean };
+  cycleEnded: { playerOne: boolean; playerTwo: boolean };
   connectedPlayers: { playerOne: boolean; playerTwo: boolean };
   playerNames: ContestPlayerNames;
   message: string | null;
@@ -20,7 +20,7 @@ export type MultiplayerServerMessage =
       playerId: 'playerOne' | 'playerTwo';
       playerToken: string;
       game: GameState;
-      readiness: { playerOne: boolean; playerTwo: boolean };
+      cycleEnded: { playerOne: boolean; playerTwo: boolean };
       connectedPlayers?: { playerOne: boolean; playerTwo: boolean };
       playerNames: ContestPlayerNames;
       replayPayloads: Record<string, StoredReplayPayload>;

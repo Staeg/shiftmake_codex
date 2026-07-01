@@ -4,36 +4,36 @@
   export let replayLength = 0;
   export let currentStep = -1;
   export let autoPlay = false;
-  export let speedMs = 125;
+  export let rateMs = 125;
 
   export let onStepBack: () => void;
   export let onStepForward: () => void;
   export let onJumpStart: () => void;
   export let onToggleAuto: () => void;
-  export let onSetSpeed: (ms: number) => void;
+  export let onSetRate: (ms: number) => void;
 
-  const SPEED_MULTIPLIERS = [0.25, 1, 4, 16, 64];
-  const SPEED_PRESETS = SPEED_MULTIPLIERS.map((multiplier) => ({
-    label: `${multiplier}x`,
+  const RATE_MULTIPLIERS = [0.25, 1, 4, 16, 64];
+  const RATE_PRESETS = RATE_MULTIPLIERS.map((multiplier) => ({
+    label: `${multiplier}×`,
     ms: Math.round(BASE_STEP_MS / multiplier),
   }));
 
-  let speedSelection = String(speedMs);
+  let rateSelection = String(rateMs);
 
-  $: speedSelection = String(speedMs);
+  $: rateSelection = String(rateMs);
 
-  function handleSpeedChange(event: Event): void {
+  function handleRateChange(event: Event): void {
     const select = event.currentTarget as HTMLSelectElement;
-    onSetSpeed(Number(select.value));
+    onSetRate(Number(select.value));
   }
 </script>
 
-<section class="panel">
+<section class="panel replay-control-panel">
   <div class="controls">
-    <button class="play-button" data-tutorial-target="replay-play" on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Pause' : 'Play'}</button>
-    <button data-tutorial-target="replay-reset" on:click={onJumpStart} disabled={currentStep < 0}>Reset Replay</button>
-    <button data-tutorial-target="replay-previous-step" on:click={onStepBack} disabled={currentStep < 0}>Previous Step</button>
-    <button data-tutorial-target="replay-next-step" on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>Next Step</button>
+    <button class="play-button" data-tutorial-target="replay-play" aria-label={autoPlay ? 'Pause replay' : 'Play replay'} title={autoPlay ? 'Pause replay' : 'Play replay'} on:click={onToggleAuto} disabled={replayLength <= 0}>{autoPlay ? 'Ⅱ' : '▶'}</button>
+    <button data-tutorial-target="replay-reset" aria-label="Reset replay" title="Reset replay" on:click={onJumpStart} disabled={currentStep < 0}>↻</button>
+    <button data-tutorial-target="replay-previous-step" aria-label="Previous step" title="Previous step" on:click={onStepBack} disabled={currentStep < 0}>←</button>
+    <button data-tutorial-target="replay-next-step" aria-label="Next step" title="Next step" on:click={onStepForward} disabled={replayLength <= 0 || currentStep >= replayLength - 1}>→</button>
   </div>
 
   <div class="meta">
@@ -41,10 +41,9 @@
       <span>Step</span>
       <strong>{Math.max(0, currentStep + 1)}/{replayLength}</strong>
     </div>
-    <label>
-      <span>Speed</span>
-      <select data-tutorial-target="replay-speed" bind:value={speedSelection} on:change={handleSpeedChange}>
-        {#each SPEED_PRESETS as preset}
+    <label aria-label="Replay rate">
+      <select data-tutorial-target="replay-rate" bind:value={rateSelection} on:change={handleRateChange}>
+        {#each RATE_PRESETS as preset}
           <option value={String(preset.ms)}>{preset.label}</option>
         {/each}
       </select>
@@ -62,6 +61,10 @@
     gap: 0.55rem;
   }
 
+  .replay-control-panel {
+    width: min(20rem, calc(100vw - 2rem));
+  }
+
   .controls {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -75,6 +78,7 @@
     color: #f4f9ff;
     border-radius: 8px;
     min-height: 2.1rem;
+    min-width: 2.1rem;
     padding: 0.35rem 0.5rem;
     font: inherit;
     font-size: 0.74rem;
@@ -82,6 +86,10 @@
 
   button {
     cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 1rem;
+    line-height: 1;
   }
 
   .play-button {
@@ -113,8 +121,7 @@
     gap: 0.1rem;
   }
 
-  .step-readout span,
-  label span {
+  .step-readout span {
     font-size: 0.66rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;

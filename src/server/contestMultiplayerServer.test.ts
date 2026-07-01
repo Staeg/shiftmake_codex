@@ -11,7 +11,7 @@ type SnapshotMessage = {
   roomId: string;
   playerId: 'playerOne' | 'playerTwo';
   playerToken: string;
-  readiness: { playerOne: boolean; playerTwo: boolean };
+  cycleEnded: { playerOne: boolean; playerTwo: boolean };
   connectedPlayers: { playerOne: boolean; playerTwo: boolean };
   playerNames: { playerOne: string; playerTwo: string };
 };
@@ -174,7 +174,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM18', seed: 18, playerName: 'Ada' });
     const room = contestMultiplayerServerInternals.rooms.get('ROOM18')!;
     sendClientMessage(playerOne, {
-      kind: 'submit-ready',
+      kind: 'submit-cycle-ended',
       submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'playerOne'))),
     });
     const waiting = latestSnapshot(playerOne);
@@ -187,7 +187,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(snapshot.playerId).toBe('playerOne');
     expect(snapshot.playerNames.playerOne).toBe('ada');
     expect(snapshot.playerToken).not.toBe(waiting.playerToken);
-    expect(snapshot.readiness.playerOne).toBe(true);
+    expect(snapshot.cycleEnded.playerOne).toBe(true);
     expect(snapshot.connectedPlayers.playerOne).toBe(true);
   });
 
@@ -228,13 +228,13 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(latestError(reconnect).message).toContain('Could not reconnect');
   });
 
-  it('replacing a socket for the same token preserves that player readiness', () => {
+  it('replacing a socket for the same token preserves that player cycle-ended state', () => {
     const playerOne = new FakeSocket();
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM5', seed: 5, playerName: 'One' });
     const token = latestSnapshot(playerOne).playerToken;
     const room = contestMultiplayerServerInternals.rooms.get('ROOM5')!;
     sendClientMessage(playerOne, {
-      kind: 'submit-ready',
+      kind: 'submit-cycle-ended',
       submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'playerOne'))),
     });
 
@@ -244,7 +244,7 @@ describe('Contest multiplayer reconnect rooms', () => {
 
     const snapshot = latestSnapshot(reconnect);
     expect(snapshot.playerId).toBe('playerOne');
-    expect(snapshot.readiness.playerOne).toBe(true);
+    expect(snapshot.cycleEnded.playerOne).toBe(true);
     expect(contestMultiplayerServerInternals.rooms.get('ROOM5')?.clients.playerOne?.socket).toBe(reconnect);
   });
 
@@ -252,7 +252,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     const playerOne = new FakeSocket();
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM6', seed: 6, playerName: 'One' });
 
-    sendClientMessage(playerOne, { kind: 'submit-ready', game: chooseFirstTwoOpeningTroops(startNewGame(6, 'contest')) });
+    sendClientMessage(playerOne, { kind: 'submit-cycle-ended', game: chooseFirstTwoOpeningTroops(startNewGame(6, 'contest')) });
 
     expect(latestError(playerOne).message).toContain('Full-state multiplayer submissions');
     expect(contestMultiplayerServerInternals.rooms.get('ROOM6')?.submissions.playerOne).toBeUndefined();
@@ -280,7 +280,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(contestMultiplayerServerInternals.rooms.has('ROOM8')).toBe(true);
   });
 
-  it('refreshes room updatedAt when a player submits readiness', () => {
+  it('refreshes room updatedAt when a player ends the cycle', () => {
     vi.useFakeTimers();
     vi.setSystemTime(2_000);
     const playerOne = new FakeSocket();
@@ -290,7 +290,7 @@ describe('Contest multiplayer reconnect rooms', () => {
 
     vi.setSystemTime(5_000);
     sendClientMessage(playerOne, {
-      kind: 'submit-ready',
+      kind: 'submit-cycle-ended',
       submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'playerOne'))),
     });
 
@@ -360,7 +360,7 @@ describe('Contest multiplayer reconnect rooms', () => {
     const socket = new FakeSocket();
 
     for (let index = 0; index <= contestMultiplayerServerInternals.MAX_MESSAGES_PER_WINDOW; index += 1) {
-      sendClientMessage(socket, { kind: 'unsubmit-ready' });
+      sendClientMessage(socket, { kind: 'cancel-cycle-ended' });
     }
 
     expect(latestError(socket).message).toContain('Too many');

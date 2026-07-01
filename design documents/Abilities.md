@@ -95,7 +95,7 @@ Filters match against a unit's combined primary `unitClassTag` plus `attributes`
 
 ### Haste
 
-- increases speed
+- increases rate
 
 ### Heal
 
@@ -120,9 +120,9 @@ Filters match against a unit's combined primary `unitClassTag` plus `attributes`
 
 - sets role to a fixed role
 
-### InitiativeSet
+### ReadinessSet
 
-- sets initiative to a fixed value
+- sets readiness to a fixed value
 
 ### GrantAbility
 
@@ -235,12 +235,12 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `onAttack`
 - instant
 - `target: default`
-- Effect: set the attacked target's initiative to 0
+- Effect: set the attacked target's readiness to 0
 
 ### Bolstering Light
 
 - `passive`
-- Effect: if a Priest heal brings the target to full HP, the target and the Priest gain +1 speed and +1 damage for the battle; otherwise, the target and the Priest gain 40 initiative
+- Effect: if a Priest heal brings the target to full HP, the target and the Priest gain +1 rate and +1 damage for the battle; otherwise, the target and the Priest gain 40 readiness
 
 ### Corpse Summon Skeleton
 
@@ -259,7 +259,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 ### Explosion Corpse
 
 - `passive`
-- Effect: skeletons summoned by this unit spawn with 100 initiative; whenever this unit consumes a corpse, enemies adjacent to that corpse's hex lose 1 armor and 1 damage for the battle
+- Effect: skeletons summoned by this unit spawn with 100 readiness; whenever this unit consumes a corpse, enemies adjacent to that corpse's hex lose 1 armor and 1 damage for the battle
 
 ### Enhance 1
 
@@ -267,7 +267,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `target: random ally R`
 - `target filter: notClasses: ['caster']`
-- Effect: target gains +1 speed and +1 damage
+- Effect: target gains +1 rate and +1 damage
 
 ### Executioner
 
@@ -280,7 +280,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `target: self`
 - `trigger modifier: condition: 'forsaken'`
-- Effect: gain +80% health, damage, and speed if this is the only troop on its side
+- Effect: gain +80% health, damage, and rate if this is the only troop on its side
 
 ### Frenzy: Ramp 1
 
@@ -347,7 +347,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `target: self`
 - `trigger modifier: repeatPerDistinctFriendlyTroop`
-- Effect: gain +20% health, damage, and speed per other friendly troop on this side
+- Effect: gain +20% health, damage, and rate per other friendly troop on this side
 
 ### Ramp 1
 
@@ -395,14 +395,14 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - `target: self`
 - `trigger modifier: chargeEvery: 5`
 - `trigger modifier: maxUses: 1`
-- Effects: +100 health, +5 speed, +20 damage, set range to 0, set role to frontline
+- Effects: +100 health, +5 rate, +20 damage, set range to 0, set role to frontline
 
 ### Crippling Shots
 
 - `onAttack`
 - battle
 - `target: default`
-- Effect: reduce the attacked target armor by 1 and speed by 1 for the battle
+- Effect: reduce the attacked target armor by 1 and rate by 1 for the battle
 
 ### Barrage
 
@@ -444,13 +444,13 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 
 - passive
 - When a Champion kills an enemy, the Champion and touching allies gain 1 stack of Zeal
-- Zeal gives allies +10% damage, +10% speed, and +10% max HP per stack
+- Zeal gives allies +10% damage, +10% rate, and +10% max HP per stack
 
 ### Hunter's Zeal
 
 - passive
 - When a Ranger kills an enemy, the Ranger and allies adjacent to the killed enemy gain 1 stack of Zeal
-- At end of turn, allies gain 5 initiative per Zeal stack
+- At end of turn, allies gain 5 readiness per Zeal stack
 
 ### Martyr's Zeal
 
@@ -462,7 +462,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 
 - passive
 - Enemies who kill Militia gain 1 stack of Hex
-- Enemies lose 30% speed per Hex stack
+- Enemies lose 30% rate per Hex stack
 
 ### Vulnerability Hex
 
@@ -553,7 +553,7 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `trigger modifier: fallen: { allegiance: ally, radius: 0 }`
 - `target: self`
-- Effect: gain +1 speed and +1 damage
+- Effect: gain +1 rate and +1 damage
 
 ### Vengeance 3
 
@@ -561,4 +561,4 @@ The authoritative catalog lives in `src/engine/unitCatalog.ts`. Unit-facing and 
 - battle
 - `trigger modifier: fallen: { allegiance: ally, radius: 0 }`
 - `target: self`
-- Effect: gain +3 speed and +3 damage
+- Effect: gain +3 rate and +3 damage

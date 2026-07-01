@@ -15,18 +15,18 @@ The button text differs between multiplayer ("Submit" / "Ready") and single play
 
 ---
 
-## 4. Ability Descriptions: Include Stat Icons Inline
+## 4. Remove user-facing Role, Size and Capacity
+They should remain as back-end only. Do not change the Event Log as it's intentionally information-dense, but remove all UI elements indicating Role, Size and Capacity from all locations: the overworld, the battle replays and the Faction select screens.
+
+---
+
+## 5. Ability Descriptions: Include Stat Icons Inline
 Whenever an ability description references gaining, losing, increasing, or decreasing a stat, include the icon for that stat inline in the text. This is a sweeping change across all ability/effect descriptions.
 
 ---
 
-## 5. Speed and Initiative Icons: Differentiate but Show Relationship
-The icons for Speed and Initiative should be visually distinct from each other, but the relationship (Speed generates Initiative each beat) should be visually obvious from the icons. May also require renaming one or both terms for clarity.
-
----
-
-## 6. Haze Ability Text: Use "Speed" Not "Initiative"
-The Haze ability currently describes its effect using "initiative." It should instead say "all units lose 5 speed." (Speed and initiative are only equivalent when no percentage-based speed effects are involved; using "speed" is the correct and consistent term here.)
+## 6. Haze Ability Text: Use "Rate" Not "Readiness"
+The Haze ability currently describes its effect using "readiness." It should instead say "all units lose 5 rate." (Rate and readiness are only equivalent when no percentage-based rate effects are involved; using "rate" is the cleaner term here.)
 
 ---
 
@@ -55,7 +55,7 @@ Move the replay control panel to the top-left of the central hex map panel. Remo
 - **Play**: standard right-pointing triangle (▶)
 - **Reset**: looping/circular arrow
 - **Previous/Next step**: left and right arrows
-- **Speed**: dropdown selector showing the multiplier (e.g., "4×") — no "Speed" label, self-explanatory
+- **Rate**: dropdown selector showing the multiplier (e.g., "4×") — no "Rate" label, self-explanatory
 
 ---
 
@@ -69,10 +69,5 @@ Move the debug log button in the battle replay view to the top right, visually m
 
 ---
 
-## 14. Post-Battle Result Popup: Fix Button Alignment
-The continue/action button in the post-battle result popup is positioned on the left when it should be on the right. Fix the layout so the button aligns to the right side.
-
----
-
-## 15. Contest vs AI: Fix Defeat Display When Fighting Enemy Forces
+## 14. Contest vs AI: Fix Defeat Display When Fighting Enemy Forces
 When the player's forces fight the enemy forces directly (after both sides clear the neutral creatures) and the player is defeated, a red remaining health bar is incorrectly shown on the left-hand side. This display issue occurs even in single player and needs to be fixed.

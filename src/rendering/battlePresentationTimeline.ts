@@ -15,8 +15,8 @@ export interface BattlePresentationTimeline {
   durationMs: number;
 }
 
-function playbackScale(speedMs: number): number {
-  return Number.isFinite(speedMs) && speedMs > 0 ? speedMs / BASE_STEP_MS : 1;
+function playbackScale(rateMs: number): number {
+  return Number.isFinite(rateMs) && rateMs > 0 ? rateMs / BASE_STEP_MS : 1;
 }
 
 function cueTiming(step: BattleStep): { durationMs: number; spacingMs: number } | null {
@@ -38,8 +38,8 @@ function cueTiming(step: BattleStep): { durationMs: number; spacingMs: number } 
   }
 }
 
-export function buildBattlePresentationTimeline(replay: BattleReplay, speedMs = BASE_STEP_MS): BattlePresentationTimeline {
-  const scale = playbackScale(speedMs);
+export function buildBattlePresentationTimeline(replay: BattleReplay, rateMs = BASE_STEP_MS): BattlePresentationTimeline {
+  const scale = playbackScale(rateMs);
   const cues: BattlePresentationCue[] = [];
   let cursorMs = 0;
   let lastEndMs = 0;

@@ -29,17 +29,17 @@ describe('tutorial progress', () => {
 
   it('rewinds to the previous step with cleared signals', () => {
     const progressed = continueTutorial({
-      step: 'initiative',
+      step: 'readiness',
       ready: false,
       signals: [],
       completed: false,
     });
 
-    expect(progressed.step).toBe('initiative');
-    const advanced = recordTutorialAction(progressed, 'initiative-hover');
+    expect(progressed.step).toBe('readiness');
+    const advanced = recordTutorialAction(progressed, 'readiness-hover');
     expect(advanced.step).toBe('play');
     expect(rewindTutorial(advanced)).toEqual({
-      step: 'initiative',
+      step: 'readiness',
       ready: false,
       signals: [],
       completed: false,

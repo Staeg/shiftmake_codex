@@ -1,7 +1,7 @@
 import { formatFixed } from '../engine/fixed';
 import { getAbility } from '../engine/unitCatalog';
-import type { BattleStep, BattleStepExplanation, RoleIntentId } from '../engine/types';
-import { formatAbilityDescription, formatRoleExact } from './inspectText';
+import type { BattleStep, BattleStepExplanation } from '../engine/types';
+import { formatAbilityDescription } from './inspectText';
 
 export type ReplayStepExplanationSection = {
   title: string;
@@ -31,34 +31,11 @@ function getAbilityDetails(explanation: NonNullable<BattleStepExplanation['abili
   }
 }
 
-function roleIntentLabel(roleIntent: RoleIntentId): string {
-  return {
-    'screen-frontline': 'Screen the frontline threat.',
-    'fallback-backline': 'Fall through to the backline.',
-    'breach-backline': 'Break into the enemy backline.',
-    'hold-backline': 'Maintain an existing backline commitment.',
-    'retreat-range': 'Retreat to keep distance.',
-    'advance-range': 'Advance without collapsing range control.',
-  }[roleIntent];
-}
-
-function reasonLabel(reasonCode: string): string {
-  return {
-    'block-access': 'The unit found a frontline or Pusher target that was blocking access to allied backliners.',
-    'no-frontline-target': 'No frontline screen target remained, so the unit switched to a backline objective.',
-    'maintain-backline-commitment': 'The unit had already committed to the enemy backline and stayed on that plan.',
-    'opened-backline-lane': 'A lane into the enemy backline was open, so the unit pushed through.',
-    'no-backline-target': 'No enemy backliner was available, so the unit fell back to screening the closest threat.',
-    'increase-threat-distance': 'The unit chose the legal retreat hex that pushed threats furthest away.',
-    'maintain-firing-lane': 'The unit advanced only if it could still preserve a ranged firing lane.',
-  }[reasonCode] ?? 'The engine chose this branch of the role logic for the current board state.';
-}
-
 function buildBeatSection(explanation: NonNullable<BattleStepExplanation['beat']>): ReplayStepExplanationSection {
   const lines = [
-    'At the start of each beat, every alive unit gains initiative equal to its speed plus any battle-wide initiative bonus.',
-    explanation.initiativePurposeHint ?? 'Initiative determines when a unit gets to act.',
-    `This beat: speed + ${formatFixed(explanation.initiativeBonus)} bonus.`,
+    'At the start of each beat, every alive unit gains readiness equal to its rate plus any battle-wide readiness bonus.',
+    explanation.readinessPurposeHint ?? 'Readiness determines when a unit gets to act.',
+    `This beat: rate + ${formatFixed(explanation.readinessBonus)} bonus.`,
     `Beat number: ${explanation.beat}.`,
   ];
 
@@ -84,22 +61,9 @@ function buildMovementSection(explanation: NonNullable<BattleStepExplanation['mo
     lines.push('This step explains why the unit committed to footprint contact instead of only repositioning.');
   }
 
-  if (explanation.unitRole) {
-    lines.push(formatRoleExact(explanation.unitRole));
-  }
-
-  if (explanation.roleIntent) {
-    lines.push(`Decision: ${roleIntentLabel(explanation.roleIntent)}`);
-  }
-
-  if (explanation.reasonCode) {
-    lines.push(`Why this branch: ${reasonLabel(explanation.reasonCode)}`);
-  }
-
-  if (explanation.targetRole || explanation.targetHex) {
-    const role = explanation.targetRole ? `${explanation.targetRole} target` : 'target';
+  if (explanation.targetHex) {
     const hex = explanation.targetHex ? ` at (${explanation.targetHex.q}, ${explanation.targetHex.r})` : '';
-    lines.push(explanation.stepKind === 'engage' ? `Commitment focus: ${role}${hex}.` : `Pressure focus: ${role}${hex}.`);
+    lines.push(explanation.stepKind === 'engage' ? `Commitment focus: target${hex}.` : `Pressure focus: target${hex}.`);
   }
 
   if (explanation.destination) {

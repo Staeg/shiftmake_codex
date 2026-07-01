@@ -14,10 +14,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: one random unit from each troop has speed set to 1 at the start of combat.",
+    "mechanic": "Passive: one random unit from each troop has rate set to 1 at the start of combat.",
     "gameplayTags": [
       "base-ability",
-      "speed"
+      "rate"
     ]
   },
   {
@@ -30,7 +30,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "healing",
       "summon",
       "corpse",
@@ -90,7 +90,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "corpse",
       "defense"
     ]
@@ -114,10 +114,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "When a touching ally dies: set initiative to 100.",
+    "mechanic": "When a touching ally dies: set readiness to 100.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "corpse"
     ]
   },
@@ -127,12 +127,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: Priest heals that bring a target to full HP give the target and Priest +1 speed and +1 damage; other Priest heals give both 40 initiative.",
+    "mechanic": "Passive: Priest heals that bring a target to full HP give the target and Priest +1 rate and +1 damage; other Priest heals give both 40 readiness.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
-      "initiative",
+      "rate",
+      "readiness",
       "healing"
     ]
   },
@@ -160,7 +160,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "melee",
       "defense"
     ]
@@ -171,11 +171,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: each shapeshift empowers this unit so its melee attacks reduce target speed by 2 for the battle.",
+    "mechanic": "Passive: each shapeshift empowers this unit so its melee attacks reduce target rate by 2 for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "melee",
       "debuff",
       "transformation"
@@ -192,7 +192,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "debuff",
@@ -209,7 +209,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: after beat 12, one random enemy from each enemy troop changes sides.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "summon",
       "transformation"
     ]
@@ -223,7 +223,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Every 4 turns: summon 1 elemental on this unit or an adjacent hex.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "summon"
     ]
   },
@@ -237,7 +237,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "ranged",
@@ -250,11 +250,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On attack: set the target initiative to 0.",
+    "mechanic": "On attack: set the target readiness to 0.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "ranged",
@@ -284,7 +284,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "healing",
       "summon",
       "corpse",
@@ -315,11 +315,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: enemies who kill this Militia gain Hex. Hex reduces enemy speed.",
+    "mechanic": "Passive: enemies who kill this Militia gain Hex. Hex reduces enemy rate.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "debuff"
     ]
   },
@@ -329,10 +329,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 initiative.",
+    "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "movement"
     ]
   },
@@ -359,7 +359,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "corpse"
     ]
   },
@@ -369,12 +369,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: skeletons this unit summons spawn with +100 initiative.",
+    "mechanic": "Passive: skeletons this unit summons spawn with +100 readiness.",
     "gameplayTags": [
       "base-ability",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "debuff",
@@ -406,12 +406,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: a random allied non-caster within this unit's range gains +1 speed and +1 damage for the battle.",
+    "mechanic": "End of turn: a random allied non-caster within this unit's range gains +1 rate and +1 damage for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
-      "initiative",
+      "rate",
+      "readiness",
       "ranged",
       "synergy"
     ]
@@ -490,7 +490,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: end of turn, heal self and all units Bonded to this unit for 20; whenever this unit shapeshifts, summon 2 wolves.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "healing",
       "summon",
       "transformation"
@@ -502,11 +502,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of battle: if this is the only troop on its side, gain 80% health, damage, and speed.",
+    "mechanic": "Start of battle: if this is the only troop on its side, gain 80% health, damage, and rate.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "healing"
     ]
   },
@@ -563,7 +563,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "corpse",
       "debuff"
     ]
@@ -659,7 +659,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "synergy"
     ]
   },
@@ -669,11 +669,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants initiative at end of turn.",
+    "mechanic": "Passive: on kill, this Ranger and allies adjacent to the killed enemy gain Zeal. Zeal grants readiness at end of turn.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "ranged"
     ]
   },
@@ -687,7 +687,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "corpse"
     ]
   },
@@ -712,10 +712,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: end of turn, gain 15 initiative once if any allied elemental is in range, and all allied elementals in range gain 15 initiative.",
+    "mechanic": "Passive: end of turn, gain 15 readiness once if any allied elemental is in range, and all allied elementals in range gain 15 readiness.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "summon",
       "ranged",
       "synergy"
@@ -727,11 +727,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: ranged and caster attacks gain +1 damage and +2 initiative per hex of distance.",
+    "mechanic": "Passive: ranged and caster attacks gain +1 damage and +2 readiness per hex of distance.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "ranged",
       "debuff"
     ]
@@ -745,7 +745,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "healing",
       "corpse"
     ]
@@ -759,7 +759,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "End of turn: heal allies within this unit's range for 4.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "healing",
       "ranged"
     ]
@@ -801,7 +801,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Passive: when a Goblin is present, one random unit from each enemy troop gains Hex at battle start. Hex drains health at end of turn.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "healing",
       "debuff"
     ]
@@ -816,7 +816,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "synergy"
     ]
   },
@@ -826,12 +826,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On attack: reduce the target speed by 1 for the battle.",
+    "mechanic": "On attack: reduce the target rate by 1 for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
       "armor",
-      "speed",
+      "rate",
       "ranged",
       "debuff",
       "defense"
@@ -843,11 +843,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% speed for each other friendly troop on this side.",
+    "mechanic": "Start of battle: gain +20% health, +20% damage, and +20% rate for each other friendly troop on this side.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "healing",
       "synergy"
     ]
@@ -858,10 +858,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Start of turn: gain +10 initiative per other touching Militia. Overworld: Militia troops may enter the same Rift together.",
+    "mechanic": "Start of turn: gain +10 readiness per other touching Militia. Overworld: Militia troops may enter the same Rift together.",
     "gameplayTags": [
       "base-ability",
-      "initiative"
+      "readiness"
     ]
   },
   {
@@ -873,7 +873,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "End of turn: heal self for 5.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "healing"
     ]
   },
@@ -888,7 +888,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "melee",
       "defense"
     ]
@@ -899,11 +899,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: whenever this unit is healed, gain 20 initiative and +1 damage.",
+    "mechanic": "Passive: whenever this unit is healed, gain 20 readiness and +1 damage.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "healing"
     ]
   },
@@ -932,7 +932,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "ranged"
@@ -944,12 +944,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On kill: lose 1 armor for the battle and gain 75 initiative.",
+    "mechanic": "On kill: lose 1 armor for the battle and gain 75 readiness.",
     "gameplayTags": [
       "base-ability",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "debuff",
       "defense"
     ]
@@ -960,11 +960,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: gain +2 speed for the battle.",
+    "mechanic": "End of turn: gain +2 rate for the battle.",
     "gameplayTags": [
       "base-ability",
-      "speed",
-      "initiative"
+      "rate",
+      "readiness"
     ]
   },
   {
@@ -1003,11 +1003,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "After 5 turns, once: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.",
+    "mechanic": "After 5 turns, once: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "healing",
       "ranged",
       "transformation"
@@ -1019,11 +1019,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "After every 5 turns, twice: gain +100 health, +5 speed, +20 damage, set range to 0, and become a frontline unit.",
+    "mechanic": "After every 5 turns, twice: gain +100 health, +5 rate, +20 damage, set range to 0, and become a frontline unit.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "healing",
       "ranged",
       "transformation"
@@ -1056,7 +1056,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "armor",
-      "speed",
+      "rate",
       "ranged",
       "debuff",
       "defense"
@@ -1068,11 +1068,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: ranged and caster attacks made from max range make the target lose 30 initiative.",
+    "mechanic": "Passive: ranged and caster attacks made from max range make the target lose 30 readiness.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "ranged",
       "debuff"
     ]
@@ -1098,11 +1098,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: on kill, all enemies lose 10 initiative.",
+    "mechanic": "Passive: on kill, all enemies lose 10 readiness.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "corpse",
       "debuff"
     ]
@@ -1126,11 +1126,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: after being hit by normal attacks, gain +1 armor and lose 1 speed for the battle.",
+    "mechanic": "Passive: after being hit by normal attacks, gain +1 armor and lose 1 rate for the battle.",
     "gameplayTags": [
       "base-ability",
       "armor",
-      "speed",
+      "rate",
       "debuff",
       "defense"
     ]
@@ -1145,7 +1145,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "corpse"
     ]
@@ -1176,7 +1176,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "ranged",
       "synergy"
@@ -1244,7 +1244,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "End of turn: engage unengaged enemies in footprint contact up to Capacity.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "melee",
       "defense"
     ]
@@ -1259,7 +1259,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "melee",
       "transformation"
     ]
@@ -1298,11 +1298,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% speed, and +10% max health.",
+    "mechanic": "Passive: on kill, this unit and touching allies gain Zeal. Zeal grants +10% damage, +10% rate, and +10% max health.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "healing"
     ]
   },
@@ -1312,11 +1312,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: effects that would reduce this unit damage or speed instead increase it by 1.",
+    "mechanic": "Passive: effects that would reduce this unit damage or rate instead increase it by 1.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "debuff"
     ]
   },
@@ -1330,7 +1330,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "debuff",
       "synergy"
     ]
@@ -1368,11 +1368,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "When a touching ally dies, gain +3 speed and +3 damage for the battle.",
+    "mechanic": "When a touching ally dies, gain +3 rate and +3 damage for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "speed",
+      "rate",
       "corpse"
     ]
   },
@@ -1412,7 +1412,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "End of turn: pick a random allied non-caster in range; enhance it and all allies touching it.",
     "gameplayTags": [
       "base-ability",
-      "initiative",
+      "readiness",
       "ranged",
       "synergy"
     ]
@@ -1447,11 +1447,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 1,
-    "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 initiative.",
+    "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.",
     "gameplayTags": [
       "race-upgrade",
       "dwarves",
-      "initiative",
+      "readiness",
       "movement"
     ]
   },
@@ -1461,11 +1461,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 2,
-    "mechanic": "Dwarven troops gain +60% speed. One random unit from each Dwarven troop has its speed set to 1 at the start of combat.",
+    "mechanic": "Dwarven troops gain +60% rate. One random unit from each Dwarven troop has its rate set to 1 at the start of combat.",
     "gameplayTags": [
       "race-upgrade",
       "dwarves",
-      "speed"
+      "rate"
     ]
   },
   {
@@ -1474,12 +1474,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 3,
-    "mechanic": "Dwarven troops gain +1 armor and lose 1 speed for the rest of the battle after they are hit by normal attacks.",
+    "mechanic": "Dwarven troops gain +1 armor and lose 1 rate for the rest of the battle after they are hit by normal attacks.",
     "gameplayTags": [
       "race-upgrade",
       "dwarves",
       "armor",
-      "speed",
+      "rate",
       "debuff",
       "defense"
     ]
@@ -1516,12 +1516,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Elves",
     "tier": 2,
-    "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 initiative per hex of distance to the target. Attacks made from max range make the target lose 30 initiative.",
+    "mechanic": "Elven ranged and caster attacks gain +1 damage and +2 readiness per hex of distance to the target. Attacks made from max range make the target lose 30 readiness.",
     "gameplayTags": [
       "race-upgrade",
       "elves",
       "damage",
-      "initiative",
+      "readiness",
       "ranged",
       "debuff"
     ]
@@ -1532,12 +1532,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Elves",
     "tier": 3,
-    "mechanic": "Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% speed.",
+    "mechanic": "Start of battle: if an elven unit is the only troop on its side, it gains +80% health, +80% damage, and +80% rate.",
     "gameplayTags": [
       "race-upgrade",
       "elves",
       "damage",
-      "speed",
+      "rate",
       "healing"
     ]
   }
@@ -1577,7 +1577,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "race-upgrade",
       "fae",
-      "initiative",
+      "readiness",
       "summon",
       "transformation"
     ]
@@ -1613,12 +1613,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Goblins",
     "tier": 1,
-    "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 initiative.",
+    "mechanic": "On death: each goblin unit makes 1 extra strike against a random enemy touching it. When a goblin gets a kill, all enemies lose 10 readiness.",
     "gameplayTags": [
       "race-upgrade",
       "goblins",
       "damage",
-      "initiative",
+      "readiness",
       "corpse",
       "debuff"
     ]
@@ -1633,7 +1633,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "race-upgrade",
       "goblins",
-      "initiative",
+      "readiness",
       "healing",
       "debuff"
     ]
@@ -1649,7 +1649,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "race-upgrade",
       "goblins",
       "damage",
-      "initiative",
+      "readiness",
       "synergy"
     ]
   }
@@ -1670,12 +1670,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Humans",
     "tier": 1,
-    "mechanic": "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit speed or damage instead increase it by 1.",
+    "mechanic": "Overworld: human troops may enter the same Rift together. Effects that would reduce a Human unit rate or damage instead increase it by 1.",
     "gameplayTags": [
       "race-upgrade",
       "humans",
       "damage",
-      "speed",
+      "rate",
       "debuff",
       "synergy"
     ]
@@ -1686,12 +1686,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Humans",
     "tier": 2,
-    "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% speed for each other friendly troop on its side.",
+    "mechanic": "Start of battle: each human unit gains +20% health, +20% damage, and +20% rate for each other friendly troop on its side.",
     "gameplayTags": [
       "race-upgrade",
       "humans",
       "damage",
-      "speed",
+      "rate",
       "healing",
       "synergy"
     ]
@@ -1727,13 +1727,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Orcs",
     "tier": 1,
-    "mechanic": "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 initiative.",
+    "mechanic": "Whenever an Orc unit kills an enemy unit, it loses 1 armor for the battle and gains 75 readiness.",
     "gameplayTags": [
       "race-upgrade",
       "orcs",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "debuff",
       "defense"
     ]
@@ -1758,12 +1758,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Orcs",
     "tier": 3,
-    "mechanic": "When an Orc unit would die from damage, its initiative is set to 0, it stops taking damage, and it dies at the end of its next turn.",
+    "mechanic": "When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.",
     "gameplayTags": [
       "race-upgrade",
       "orcs",
       "damage",
-      "initiative",
+      "readiness",
       "corpse",
       "defense"
     ]
@@ -1816,12 +1816,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Trolls",
     "tier": 2,
-    "mechanic": "Whenever a Troll regains health, it gains 20 initiative and +1 damage.",
+    "mechanic": "Whenever a Troll regains health, it gains 20 readiness and +1 damage.",
     "gameplayTags": [
       "race-upgrade",
       "trolls",
       "damage",
-      "initiative",
+      "readiness",
       "healing"
     ]
   }
@@ -1859,7 +1859,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "rift-mutator",
       "armor",
-      "initiative",
+      "readiness",
       "debuff",
       "defense"
     ]
@@ -1870,10 +1870,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "rift_mutator",
     "owner": "Rift",
     "tier": null,
-    "mechanic": "All units lose 5 initiative every beat.",
+    "mechanic": "All units lose 5 readiness every beat.",
     "gameplayTags": [
       "rift-mutator",
-      "initiative",
+      "readiness",
       "debuff"
     ]
   },
@@ -1897,10 +1897,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "rift_mutator",
     "owner": "Rift",
     "tier": null,
-    "mechanic": "All units gain +10 initiative every beat.",
+    "mechanic": "All units gain +10 readiness every beat.",
     "gameplayTags": [
       "rift-mutator",
-      "initiative"
+      "readiness"
     ]
   },
   {
@@ -1947,13 +1947,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Archer",
     "tier": 3,
-    "mechanic": "On attack: each Archer reduces its target armor by 1 and speed by 1 for the rest of the battle.",
+    "mechanic": "On attack: each Archer reduces its target armor by 1 and rate by 1 for the rest of the battle.",
     "gameplayTags": [
       "troop-class-upgrade",
       "archer",
       "damage",
       "armor",
-      "speed",
+      "rate",
       "ranged",
       "debuff",
       "defense"
@@ -2019,11 +2019,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Avenger",
     "tier": 3,
-    "mechanic": "When a nearby ally falls, set this Avenger initiative to 100. When a touching ally dies, it strikes the killer if still in contact.",
+    "mechanic": "When a nearby ally falls, set this Avenger readiness to 100. When a touching ally dies, it strikes the killer if still in contact.",
     "gameplayTags": [
       "troop-class-upgrade",
       "avenger",
-      "initiative",
+      "readiness",
       "corpse"
     ]
   }
@@ -2125,12 +2125,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Champion",
     "tier": 3,
-    "mechanic": "On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% speed, and +10% max health for each stack of Zeal they have.",
+    "mechanic": "On kill, Champions and touching allies gain a stack of Zeal. Allies gain +10% damage, +10% rate, and +10% max health for each stack of Zeal they have.",
     "gameplayTags": [
       "troop-class-upgrade",
       "champion",
       "damage",
-      "speed",
+      "rate",
       "healing"
     ]
   }
@@ -2156,7 +2156,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "troop-class-upgrade",
       "druid",
       "damage",
-      "speed",
+      "rate",
       "healing",
       "ranged",
       "transformation"
@@ -2168,12 +2168,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Druid",
     "tier": 3,
-    "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 speed debuff on hit.",
+    "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.",
     "gameplayTags": [
       "troop-class-upgrade",
       "druid",
       "damage",
-      "speed",
+      "rate",
       "melee",
       "transformation"
     ]
@@ -2188,7 +2188,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "troop-class-upgrade",
       "druid",
-      "initiative",
+      "readiness",
       "healing",
       "summon",
       "transformation"
@@ -2247,11 +2247,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Elementalist",
     "tier": 3,
-    "mechanic": "End of turn: if any allied elemental is in range, this Elementalist gains 15 initiative once and all allied elementals in range gain 15 initiative.",
+    "mechanic": "End of turn: if any allied elemental is in range, this Elementalist gains 15 readiness once and all allied elementals in range gain 15 readiness.",
     "gameplayTags": [
       "troop-class-upgrade",
       "elementalist",
-      "initiative",
+      "readiness",
       "summon",
       "ranged",
       "synergy"
@@ -2280,7 +2280,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "knight",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "melee",
       "defense"
     ]
@@ -2334,12 +2334,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Militia",
     "tier": 3,
-    "mechanic": "Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% speed for each stack of Hex.",
+    "mechanic": "Enemies who kill Militia gain 1 stack of Hex. Enemies get -30% rate for each stack of Hex.",
     "gameplayTags": [
       "troop-class-upgrade",
       "militia",
       "damage",
-      "speed",
+      "rate",
       "debuff"
     ]
   },
@@ -2363,11 +2363,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Militia",
     "tier": 3,
-    "mechanic": "Start of turn: Militia gain +10 initiative for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.",
+    "mechanic": "Start of turn: Militia gain +10 readiness for each other Militia touching them. Overworld: multiple Militia troops may enter the same Rift together.",
     "gameplayTags": [
       "troop-class-upgrade",
       "militia",
-      "initiative"
+      "readiness"
     ]
   }
 ]
@@ -2387,13 +2387,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Necromancer",
     "tier": 3,
-    "mechanic": "Skeletons summoned by Necromancers spawn with +100 initiative. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
+    "mechanic": "Skeletons summoned by Necromancers spawn with +100 readiness. Whenever this Necromancer consumes a corpse, enemies adjacent to that corpse lose 1 armor and 1 damage for the battle.",
     "gameplayTags": [
       "troop-class-upgrade",
       "necromancer",
       "damage",
       "armor",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "debuff",
@@ -2412,7 +2412,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "troop-class-upgrade",
       "necromancer",
       "damage",
-      "initiative",
+      "readiness",
       "healing",
       "summon",
       "corpse",
@@ -2452,13 +2452,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Priest",
     "tier": 3,
-    "mechanic": "When a Priest heal brings its target to full HP, that target and the Priest gain +1 speed and +1 damage for the battle. Otherwise, that target and the Priest gain 40 initiative.",
+    "mechanic": "When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.",
     "gameplayTags": [
       "troop-class-upgrade",
       "priest",
       "damage",
-      "speed",
-      "initiative",
+      "rate",
+      "readiness",
       "healing"
     ]
   },
@@ -2511,12 +2511,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Ranger",
     "tier": 3,
-    "mechanic": "On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 initiative for each stack of Zeal they have at the end of their turns.",
+    "mechanic": "On kill, Rangers and allies adjacent to the killed enemy gain a stack of Zeal. Allies gain 5 readiness for each stack of Zeal they have at the end of their turns.",
     "gameplayTags": [
       "troop-class-upgrade",
       "ranger",
       "damage",
-      "initiative",
+      "readiness",
       "ranged"
     ]
   },
@@ -2526,12 +2526,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Ranger",
     "tier": 3,
-    "mechanic": "On attack: each Ranger sets its target initiative to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
+    "mechanic": "On attack: each Ranger sets its target readiness to 0. The first 2 times a Ranger kills a non-Fading enemy, consume the corpse and summon 1 wolf there.",
     "gameplayTags": [
       "troop-class-upgrade",
       "ranger",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "corpse",
       "ranged",
@@ -2575,7 +2575,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "troop-class-upgrade",
       "shaman",
-      "initiative",
+      "readiness",
       "ranged",
       "synergy"
     ]
@@ -2630,7 +2630,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "troop-class-upgrade",
       "soldier",
       "damage",
-      "initiative",
+      "readiness",
       "corpse"
     ]
   },
@@ -2644,7 +2644,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "gameplayTags": [
       "troop-class-upgrade",
       "soldier",
-      "initiative",
+      "readiness",
       "healing",
       "corpse"
     ]
@@ -2702,7 +2702,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "troop-class-upgrade",
       "wizard",
       "damage",
-      "initiative",
+      "readiness",
       "summon",
       "ranged",
       "synergy"

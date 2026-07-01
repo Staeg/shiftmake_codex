@@ -64,7 +64,7 @@ Shiftmake is a browser-based, singleplayer turn-based strategy game with light p
 - Damage: sharp angles, sparks, red or hot accents.
 - Armor and defense: shields, stone, plates, blue-steel or gray accents.
 - Healing: warm light, green or gold accents.
-- Speed and initiative: wind streaks, clock-like arcs, lightning, cyan or yellow accents.
+- Rate and readiness: wind streaks, clock-like arcs, lightning, cyan or yellow accents.
 - Summons: emerging silhouettes, portal glow, spectral doubles.
 - Corpses and death triggers: bones, fading silhouettes, dark violet or sickly green accents.
 - Range and precision: arrows, crosshair shapes, long sight lines.
@@ -87,7 +87,7 @@ Use this after generating each batch.
 - Still communicates the broad mechanic at 32x32.
 - Contains no text, letters, numbers, captions, or watermarking.
 - Has a strong central silhouette.
-- Has one obvious gameplay category: damage, healing, summon, defense, mobility, initiative, corpse, debuff, race synergy, or Rift environment.
+- Has one obvious gameplay category: damage, healing, summon, defense, mobility, readiness, corpse, debuff, race synergy, or Rift environment.
 - Is distinct from nearby mechanics in the same unit or race family.
 - Does not depend on tiny detail to make sense.
 
@@ -171,10 +171,10 @@ function formatEffect(effect: AbilityEffectDefinition): string {
       return `set range to ${effect.value}`;
     case 'roleset':
       return `set role to ${effect.role}`;
-    case 'initiativeSet':
-      return `set initiative to ${effect.value}`;
-    case 'initiativeDelta':
-      return `initiative ${effect.amount > 0 ? '+' : ''}${effect.amount}`;
+    case 'readinessSet':
+      return `set readiness to ${effect.value}`;
+    case 'readinessDelta':
+      return `readiness ${effect.amount > 0 ? '+' : ''}${effect.amount}`;
     case 'grantAbility':
       return `grant ${effect.abilityId}`;
     case 'strike':
@@ -195,14 +195,14 @@ function abilityTags(ability: AbilityDefinition | null, mechanic: string, effect
 
   addIf('damage', /\bdamage\b|\bblast\b|\bstrike\b|\battack\b|\bkill\b|\bramp\b/);
   addIf('armor', /\barmor\b|\bshield\b|\bbrace\b/);
-  addIf('speed', /\bspeed\b|\bhaste\b/);
-  addIf('initiative', /\binitiative\b|\bturn\b|\bbeat\b|\bcharge\b/);
+  addIf('rate', /\brate\b|\bhaste\b/);
+  addIf('readiness', /\breadiness\b|\bturn\b|\bbeat\b|\bcharge\b/);
   addIf('healing', /\bheal|regen|mend|mercy|grace|growth|regrowth/);
   addIf('summon', /\bsummon|wolf|skeleton|elemental|changeling/);
   addIf('corpse', /\bcorpse|fallen|death|dies|die|fading|carrion/);
   addIf('ranged', /\branged|range|arrow|shot|volley|blast|wizard/);
   addIf('melee', /\bmelee|engage|retaliate|taunt|capacity/);
-  addIf('debuff', /\breduce|lose|loss|set initiative to 0|harmful|snare|concussive|ensorcel/);
+  addIf('debuff', /\breduce|lose|loss|set readiness to 0|harmful|snare|concussive|ensorcel/);
   addIf('movement', /\bmove|retreat|spawn|relocate|diggy|step|quakes/);
   addIf('synergy', /\ballied|friendly|same hex|troop class|pack|combined|united|warcry/);
   addIf('transformation', /\bshapeshift|bear|form|changes sides|changeling/);

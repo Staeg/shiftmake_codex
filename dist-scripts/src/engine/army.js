@@ -13,7 +13,7 @@ import {
 } from "./unitCatalog";
 const VICTORY_RECOVERY = 1;
 const DEFEAT_RECOVERY = 1;
-const EXPLAINED_STAT_KEYS = ["health", "damage", "speed", "move", "armor", "range", "capacity", "size"];
+const EXPLAINED_STAT_KEYS = ["health", "damage", "rate", "move", "armor", "range", "capacity", "size"];
 function createTroopInstance(raceId, unitClassId) {
   return {
     id: getTroopUnlockId(raceId, unitClassId),
@@ -45,7 +45,7 @@ function applyTierScaling(stats, tier) {
     ...stats,
     health: fixed(stats.health * multiplier),
     damage: fixed(stats.damage * multiplier),
-    speed: fixedClamp(fixed(stats.speed * multiplier), 1, 100)
+    rate: fixedClamp(fixed(stats.rate * multiplier), 1, 100)
   };
 }
 function canRaceUpgradeAbilityApply(abilityId, role, attributes) {
@@ -230,7 +230,7 @@ function getResolvedStatBreakdowns(state, troop, side, enemyTier = null) {
   const baseUnitStats = {
     health: clampStat("health", unitClass.stats.health),
     damage: clampStat("damage", unitClass.stats.damage),
-    speed: clampStat("speed", unitClass.stats.speed),
+    rate: clampStat("rate", unitClass.stats.rate),
     move: clampStat("move", unitClass.stats.move),
     armor: clampStat("armor", unitClass.stats.armor),
     range: clampStat("range", unitClass.stats.range),

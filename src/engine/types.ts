@@ -14,7 +14,7 @@ export type RoleIntentId =
   | 'advance-range';
 export type SideId = 'player' | 'enemy';
 export type TroopUnlockId = string;
-export type TroopStatKey = 'health' | 'damage' | 'speed' | 'move' | 'armor' | 'range' | 'capacity';
+export type TroopStatKey = 'health' | 'damage' | 'rate' | 'move' | 'armor' | 'range' | 'capacity';
 export type ExplainedStatKey = TroopStatKey | 'size';
 export type AbilityTiming =
   | 'startOfBattle'
@@ -46,7 +46,7 @@ export interface HexCoord {
 export interface UnitStats {
   health: number;
   damage: number;
-  speed: number;
+  rate: number;
   move: number;
   range: number;
   armor: number;
@@ -129,11 +129,11 @@ export type AbilityEffectDefinition =
       role: RoleId;
     }>
   | EffectWithDisposition<{
-      kind: 'initiativeSet';
+      kind: 'readinessSet';
       value: number;
     }>
   | EffectWithDisposition<{
-      kind: 'initiativeDelta';
+      kind: 'readinessDelta';
       amount: number;
     }>
   | EffectWithDisposition<{
@@ -150,7 +150,7 @@ export type AbilityEffectDefinition =
       count: number;
       consumeFallenUnitCorpse?: boolean;
       grantedAbilityIds?: AbilityId[];
-      initialInitiative?: number;
+      initialReadiness?: number;
     }>
   | EffectWithDisposition<{
       kind: 'redirect';
@@ -330,7 +330,7 @@ export interface BattleUnit {
   stats: UnitStats;
   hp: number;
   maxHp: number;
-  initiative: number;
+  readiness: number;
   alive: boolean;
   engagedWithIds: string[];
 }
@@ -343,8 +343,8 @@ export type BattleStepKind = 'beat' | 'move' | 'engage' | 'attack' | 'death' | '
 
 export interface BattleBeatExplanation {
   beat: number;
-  initiativeBonus: number;
-  initiativePurposeHint?: string;
+  readinessBonus: number;
+  readinessPurposeHint?: string;
 }
 
 export interface BattleMovementExplanation {
@@ -410,7 +410,7 @@ export interface BattleStepMetadata {
   mode?: 'melee' | 'ranged' | 'blast';
   category?: 'normal' | 'retaliation' | 'strike';
   beat?: number;
-  initiativeBonus?: number;
+  readinessBonus?: number;
   effect?: string;
   sourceAbilityId?: string;
   sourceAbilityLabel?: string;
@@ -865,7 +865,7 @@ export interface MutatorDefinition {
   id: MutatorId;
   label: string;
   description: string;
-  initiativeBonusPerBeat?: number;
+  readinessBonusPerBeat?: number;
   rangedDamageMultiplier?: number;
   armorCap?: number;
   randomMoveEveryBeats?: number;

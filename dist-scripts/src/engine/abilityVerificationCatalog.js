@@ -43,14 +43,14 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     enemyRaceUpgradeIds: [],
     enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ["pinning-volley"],
-    signals: [{ id: "slow", label: "Speed reduction applied", match: "loses 1 speed" }],
-    manualChecks: ["Confirm the speed loss persists on later turns rather than expiring immediately."]
+    signals: [{ id: "slow", label: "Rate reduction applied", match: "loses 1 rate" }],
+    manualChecks: ["Confirm the rate loss persists on later turns rather than expiring immediately."]
   },
   {
     id: "human-tubthumping",
     group: "Attack Modifiers",
     label: "Tubthumping",
-    summary: "Human units should flip harmful speed reductions into +1 speed.",
+    summary: "Human units should flip harmful rate reductions into +1 rate.",
     seed: 48,
     player: selection({ "human/archer": startCount("human/archer") }),
     enemy: selection({ "human/archer": startCount("human/archer") }),
@@ -59,8 +59,8 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     enemyRaceUpgradeIds: [],
     enemyTroopClassUpgradeIds: ["archer-pinning-volley"],
     coveredAbilityIds: ["tubthumping"],
-    signals: [{ id: "flip", label: "Debuff inverted into buff", match: "Human Archer gains +1 speed." }],
-    manualChecks: ['Confirm the protected Human unit never receives the matching "loses 1 speed" event.']
+    signals: [{ id: "flip", label: "Debuff inverted into buff", match: "Human Archer gains +1 rate." }],
+    manualChecks: ['Confirm the protected Human unit never receives the matching "loses 1 rate" event.']
   },
   {
     id: "soldier-shield-drill",
@@ -88,7 +88,7 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     id: "avenger-blood-oath",
     group: "Death Responses",
     label: "Blood Oath",
-    summary: "The Avenger should spike to 100 initiative after a nearby ally falls.",
+    summary: "The Avenger should spike to 100 readiness after a nearby ally falls.",
     seed: 72,
     player: selection({
       "troll/avenger": startCount("troll/avenger"),
@@ -100,7 +100,7 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     enemyRaceUpgradeIds: [],
     enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ["blood-oath"],
-    signals: [{ id: "spike", label: "Initiative set to 100", match: "initiative to 100" }],
+    signals: [{ id: "spike", label: "Readiness set to 100", match: "readiness to 100" }],
     manualChecks: ["Confirm the Avenger acts immediately after the allied death instead of waiting for the next normal beat."]
   },
   {
@@ -191,9 +191,9 @@ const ABILITY_VERIFICATION_SCENARIOS = [
   },
   {
     id: "militia-rabble-rush",
-    group: "Initiative And Formation",
+    group: "Readiness And Formation",
     label: "Rabble Rush",
-    summary: "Touching Militia should gain initiative from each other Militia.",
+    summary: "Touching Militia should gain readiness from each other Militia.",
     seed: 25,
     player: selection({ "human/militia": startCount("human/militia", 2) }),
     enemy: selection({ "human/knight": startCount("human/knight") }),
@@ -202,7 +202,7 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     enemyRaceUpgradeIds: [],
     enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ["rabble-rush"],
-    signals: [{ id: "initiative", label: "Militia gains initiative", match: "gains 1 initiative" }],
+    signals: [{ id: "readiness", label: "Militia gains readiness", match: "gains 1 readiness" }],
     manualChecks: ["Confirm the bonus scales from other touching Militia, not from all allies globally."]
   },
   {
@@ -270,7 +270,7 @@ const ABILITY_VERIFICATION_SCENARIOS = [
   },
   {
     id: "shaman-war-drums",
-    group: "Initiative And Formation",
+    group: "Readiness And Formation",
     label: "War Drums",
     summary: "Enhance should hit every ally on the chosen hex instead of only one ally.",
     seed: 97,
@@ -285,7 +285,7 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ["war-drums"],
     signals: [
-      { id: "speed", label: "Enhance grants speed", match: "gains +1 speed" },
+      { id: "rate", label: "Enhance grants rate", match: "gains +1 rate" },
       { id: "damage", label: "Enhance grants damage", match: "gains +1 damage" }
     ],
     manualChecks: ["Confirm multiple allies on the buffed hex receive the same Enhance pulse."]
@@ -294,7 +294,7 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     id: "wizard-spell-echo-and-goblin-kill",
     group: "AoE And Kill Chains",
     label: "Spell Echo + Goblin Behavior",
-    summary: "Wizard Blast should chain into fresh adjacent hexes, and goblin kills should drain initiative on the kill hex.",
+    summary: "Wizard Blast should chain into fresh adjacent hexes, and goblin kills should drain readiness on the kill hex.",
     seed: 101,
     player: selection({
       "goblin/wizard": startCount("goblin/wizard"),
@@ -306,10 +306,10 @@ const ABILITY_VERIFICATION_SCENARIOS = [
     enemyRaceUpgradeIds: [],
     enemyTroopClassUpgradeIds: [],
     coveredAbilityIds: ["spell-echo", "snatch-the-moment"],
-    signals: [{ id: "drain", label: "Kill drains initiative", match: "loses 20 initiative" }],
+    signals: [{ id: "drain", label: "Kill drains readiness", match: "loses 20 readiness" }],
     manualChecks: [
       "Confirm the Blast chain produces multiple successive blast steps from one Wizard action without revisiting the same map cell.",
-      "Confirm the initiative drain stays on the kill hex rather than affecting remote enemies."
+      "Confirm the readiness drain stays on the kill hex rather than affecting remote enemies."
     ]
   },
   {

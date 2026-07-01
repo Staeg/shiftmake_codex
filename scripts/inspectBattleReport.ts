@@ -53,7 +53,7 @@ function describeUnit(unit: BattleUnit): string {
     `hp=${unit.hp}/${unit.maxHp}`,
     `alive=${unit.alive}`,
     `pos=${unit.position.q},${unit.position.r}`,
-    `initiative=${unit.initiative}`,
+    `readiness=${unit.readiness}`,
   ].join(' | ');
 }
 
