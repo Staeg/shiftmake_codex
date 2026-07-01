@@ -6850,33 +6850,27 @@
     padding: 0;
   }
 
-  .menu-icon-button span,
-  .menu-icon-button span::before,
-  .menu-icon-button span::after {
-    display: block;
-    width: 1.15rem;
-    height: 2px;
-    border-radius: 999px;
-    background: currentColor;
-    content: '';
-  }
-
   .menu-icon-button span {
     position: relative;
-  }
-
-  .menu-icon-button span::before,
-  .menu-icon-button span::after {
-    position: absolute;
-    left: 0;
+    display: block;
+    width: 0.88rem;
+    height: 0.88rem;
+    transform: translateX(0.1rem) rotate(45deg);
+    border-bottom: 2px solid currentColor;
+    border-left: 2px solid currentColor;
   }
 
   .menu-icon-button span::before {
-    top: -0.38rem;
-  }
-
-  .menu-icon-button span::after {
-    top: 0.38rem;
+    content: '';
+    position: absolute;
+    left: -0.05rem;
+    bottom: -2px;
+    width: 1.05rem;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    transform-origin: left center;
+    transform: rotate(-45deg);
   }
 
   .mode-toggle button.rifts-attention {
@@ -10162,10 +10156,10 @@
   @keyframes available-unit-bob {
     0%,
     100% {
-      transform: translateY(0);
+      translate: 0 0;
     }
     50% {
-      transform: translateY(-5px);
+      translate: 0 -5px;
     }
   }
 
