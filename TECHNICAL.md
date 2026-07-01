@@ -130,7 +130,7 @@ Important current catalog rules:
 - off-roster `race/unitClass` combinations defeated in Rifts are recorded as latent future unlocks, and become claimable only after their race is unlocked
 - enemies can still roll any non-summoned `race/unitClass` combination
 - stat upgrades, blueprints, and race-unlock purchases no longer exist
-- Rift mutators are currently `momentum`, `haze`, `heavy-air`, `animated`, `corrosion`, `quakes`, and `decay`
+- Rift mutators are currently `momentum`, `haze`, `heavy-air`, `corrosion`, `quakes`, and `decay`
 
 ### Campaign state
 
@@ -242,7 +242,6 @@ If a bucket is empty, the picker falls back to any remaining unowned option.
 - `momentum`
 - `heavy-air`
 - `haze`
-- `animated`
 - `corrosion`
 - `quakes`
 - `decay`
@@ -270,7 +269,7 @@ Each beat:
 
 1. All alive units gain initiative equal to speed plus mutator bonus.
 2. A `beat` replay step is recorded.
-3. Beat-timed mutators then resolve, such as `Quakes` displacement and `Decay` HP loss.
+3. Beat-timed mutators then resolve, such as `Quakes` displacement and direct `Decay` HP loss.
 4. Units with initiative `>= 100` act in shuffled order.
 5. Each acting unit spends `100` initiative.
 
@@ -529,7 +528,7 @@ For internet deployment, serve the Vite app over HTTPS and set `VITE_MULTIPLAYER
 
 ### Multiplayer Room Lifecycle
 
-Contest multiplayer rooms are authoritative in the WebSocket server process. A room snapshot keeps the shared game state, submitted player states, reconnect tokens, connected sockets, player names, and archived replay payload inputs in memory so short disconnects do not destroy an active game.
+Contest multiplayer rooms are authoritative in the WebSocket server process. A room snapshot keeps the shared game state, submitted player states, reconnect tokens, connected sockets, player names, and archived replay payload inputs in memory so short disconnects do not destroy an active game. Clients first try token-based reconnects from browser session storage. If the token is missing, entering the same room code with the same player name reclaims that remembered seat, rotates the reconnect token, and preserves submitted readiness.
 
 Rooms track `createdAt`, `updatedAt`, and `lastEmptyAt`. Empty rooms are removed after the server TTL; rooms with at least one connected player are kept. Server restarts are currently allowed to lose active rooms, which matches the private-room target and avoids adding a disk or hosted key-value dependency before the protocol is hardened.
 

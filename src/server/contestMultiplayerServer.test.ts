@@ -169,6 +169,42 @@ describe('Contest multiplayer reconnect rooms', () => {
     expect(snapshot.connectedPlayers).toEqual({ playerOne: true, playerTwo: true });
   });
 
+  it('lets a disconnected player rejoin by room and player name without their token', () => {
+    const playerOne = new FakeSocket();
+    sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM18', seed: 18, playerName: 'Ada' });
+    const room = contestMultiplayerServerInternals.rooms.get('ROOM18')!;
+    sendClientMessage(playerOne, {
+      kind: 'submit-ready',
+      submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room.game, 'playerOne'))),
+    });
+    const waiting = latestSnapshot(playerOne);
+    contestMultiplayerServerInternals.handleSocketClose(playerOne as never);
+
+    const rejoin = new FakeSocket();
+    sendClientMessage(rejoin, { kind: 'join-room', roomId: 'room18', playerName: 'ada' });
+
+    const snapshot = latestSnapshot(rejoin);
+    expect(snapshot.playerId).toBe('playerOne');
+    expect(snapshot.playerNames.playerOne).toBe('ada');
+    expect(snapshot.playerToken).not.toBe(waiting.playerToken);
+    expect(snapshot.readiness.playerOne).toBe(true);
+    expect(snapshot.connectedPlayers.playerOne).toBe(true);
+  });
+
+  it('lets a same-name rejoin replace a stale socket that still looks connected', () => {
+    const playerOne = new FakeSocket();
+    sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM19', seed: 19, playerName: 'Ada' });
+
+    const rejoin = new FakeSocket();
+    sendClientMessage(rejoin, { kind: 'join-room', roomId: 'ROOM19', playerName: 'Ada' });
+
+    const snapshot = latestSnapshot(rejoin);
+    expect(snapshot.playerId).toBe('playerOne');
+    expect(snapshot.playerNames.playerOne).toBe('Ada');
+    expect(playerOne.closeCalls.at(-1)).toEqual({ code: 1000, reason: 'Replaced by a same-name rejoin.' });
+    expect(contestMultiplayerServerInternals.rooms.get('ROOM19')?.clients.playerOne?.socket).toBe(rejoin);
+  });
+
   it('allows a normal join to claim the host seat after a pre-start host disconnect', () => {
     const playerOne = new FakeSocket();
     sendClientMessage(playerOne, { kind: 'create-room', roomId: 'ROOM15', seed: 15, playerName: 'One' });

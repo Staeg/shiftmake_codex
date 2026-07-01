@@ -82,10 +82,9 @@ Current mutator-specific battle rules include:
 
 - `Momentum`: all units gain +10 initiative each beat
 - `Haze`: all units lose 5 initiative each beat
-- `Animated`: `Fading` is removed from all units, including summons and future granted effects
 - `Corrosion`: all units start at 0 armor and cannot have positive armor during that battle
 - `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor if its full footprint fits
-- `Decay`: every beat, each unit loses 1 HP ignoring armor
+- `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to taking damage
 
 If a target reaches `0` HP:
 

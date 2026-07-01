@@ -1888,12 +1888,6 @@ export const MUTATORS: Record<string, MutatorDefinition> = {
     description: 'Ranged attack damage is reduced by 50%.',
     rangedDamageMultiplier: 0.5,
   },
-  animated: {
-    id: 'animated',
-    label: 'Animated',
-    description: 'All units lose Fading.',
-    removeFading: true,
-  },
   corrosion: {
     id: 'corrosion',
     label: 'Corrosion',
@@ -1910,7 +1904,7 @@ export const MUTATORS: Record<string, MutatorDefinition> = {
     id: 'decay',
     label: 'Decay',
     description: 'Every beat, each unit loses 1 HP ignoring armor.',
-    decayDamagePerBeat: 1,
+    hpLossPerBeat: 1,
   },
 };
 

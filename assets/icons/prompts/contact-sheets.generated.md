@@ -1837,19 +1837,6 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
 ```json
 [
   {
-    "id": "animated",
-    "name": "Animated",
-    "kind": "rift_mutator",
-    "owner": "Rift",
-    "tier": null,
-    "mechanic": "All units lose Fading.",
-    "gameplayTags": [
-      "rift-mutator",
-      "corpse",
-      "debuff"
-    ]
-  },
-  {
     "id": "corrosion",
     "name": "Corrosion",
     "kind": "rift_mutator",

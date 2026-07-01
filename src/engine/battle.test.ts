@@ -224,22 +224,6 @@ describe('resolveDebugBattle', () => {
     expect(replay.steps[0]?.metadata?.initiativeBonus).toBe(-5);
   });
 
-  it('animated removes fading from summoned units and suppresses new fading grants', () => {
-    const input = makeBattleInput(
-      [makeBattleCombatant('goblin/beastmaster', 'player'), makeBattleCombatant('troll/shaman', 'player')],
-      [makeBattleCombatant('human/soldier', 'enemy')],
-      18,
-    );
-    input.mutatorIds = ['animated'];
-
-    const replay = resolveBattle(input);
-    const wolfProfile = replay.troopProfiles.find((profile) => profile.troopLabel === 'Wolf');
-
-    expect(wolfProfile).toBeDefined();
-    expect(wolfProfile?.abilities.map((ability) => ability.id)).not.toContain('fading');
-    expect(replay.steps.some((step) => step.message.includes('gains Fading'))).toBe(false);
-  });
-
   it('corrosion zeroes starting armor and still allows armor to go negative', () => {
     const input = makeBattleInput(
       [makeBattleCombatant('elf/archer', 'player', [getAbility('shredding-arrows')])],
@@ -273,7 +257,7 @@ describe('resolveDebugBattle', () => {
     expect(quakeStep?.kind).toBe('move');
   });
 
-  it('decay damages and can kill units without using armor', () => {
+  it('decay makes units lose HP from the mutator without dealing damage', () => {
     const player = makeBattleCombatant('human/knight', 'player');
     player.stats = { ...player.stats, health: 1, armor: 50 };
     const enemy = makeBattleCombatant('human/knight', 'enemy');
@@ -285,9 +269,27 @@ describe('resolveDebugBattle', () => {
     const decayHit = replay.steps.find((step) => step.metadata?.sourceAbilityId === 'decay' && step.kind === 'attack');
     const decayDeaths = replay.steps.filter((step) => step.metadata?.sourceAbilityId === 'decay' && step.kind === 'death');
 
-    expect(decayHit?.metadata?.armorIgnored).toBe(true);
+    expect(decayHit?.metadata?.sourceKind).toBe('mutator');
+    expect(decayHit?.metadata?.hpLoss).toBe(1);
+    expect(decayHit?.metadata?.damage).toBeUndefined();
+    expect(decayHit?.metadata?.explanation?.hpLoss).toEqual(expect.objectContaining({ amount: 1, triggersOnDamaged: false }));
+    expect(decayHit?.message).toContain('from the Decay mutator');
     expect(decayDeaths).toHaveLength(2);
     expect(replay.outcome).toBe('draw');
+  });
+
+  it('decay HP loss does not trigger on-damaged abilities', () => {
+    const player = makeBattleCombatant('troll/champion', 'player');
+    player.stats = { ...player.stats, health: 3, damage: 0, speed: 1 };
+    const enemy = makeBattleCombatant('human/knight', 'enemy');
+    enemy.stats = { ...enemy.stats, health: 3, damage: 0, speed: 1 };
+    const input = makeBattleInput([player], [enemy], 22);
+    input.mutatorIds = ['decay'];
+
+    const replay = resolveBattle(input);
+
+    expect(replay.steps.some((step) => step.metadata?.sourceAbilityId === 'frenzy-ramp-1')).toBe(false);
+    expect(replay.steps.some((step) => step.message.includes('Frenzy'))).toBe(false);
   });
 
   it('includes source ability metadata on ordinary heal steps', () => {

@@ -177,10 +177,9 @@ interface InternalState {
   effects: {
     initiativeBonusPerBeat: number;
     rangedDamageMultiplier: number;
-    removeFading: boolean;
     armorCap: number | null;
     randomMoveEveryBeats: number | null;
-    decayDamagePerBeat: number;
+    hpLossPerBeat: number;
   };
   replayId: string;
   input: BattleInput;
@@ -630,7 +629,6 @@ function buildEffects(mutatorIds: string[]): InternalState['effects'] {
       return {
         initiativeBonusPerBeat: effects.initiativeBonusPerBeat + (definition.initiativeBonusPerBeat ?? 0),
         rangedDamageMultiplier: effects.rangedDamageMultiplier * (definition.rangedDamageMultiplier ?? 1),
-        removeFading: effects.removeFading || Boolean(definition.removeFading),
         armorCap:
           typeof definition.armorCap === 'number'
             ? effects.armorCap === null
@@ -643,21 +641,11 @@ function buildEffects(mutatorIds: string[]): InternalState['effects'] {
               ? definition.randomMoveEveryBeats
               : Math.min(effects.randomMoveEveryBeats, definition.randomMoveEveryBeats)
             : effects.randomMoveEveryBeats,
-        decayDamagePerBeat: effects.decayDamagePerBeat + (definition.decayDamagePerBeat ?? 0),
+        hpLossPerBeat: effects.hpLossPerBeat + (definition.hpLossPerBeat ?? 0),
       };
     },
-    { initiativeBonusPerBeat: 0, rangedDamageMultiplier: 1, removeFading: false, armorCap: null, randomMoveEveryBeats: null, decayDamagePerBeat: 0 },
+    { initiativeBonusPerBeat: 0, rangedDamageMultiplier: 1, armorCap: null, randomMoveEveryBeats: null, hpLossPerBeat: 0 },
   );
-}
-
-function filterMutatorBlockedAbilities<T extends AbilityDefinition | RuntimeAbilityState>(
-  abilities: T[],
-  effects: InternalState['effects'],
-): T[] {
-  if (!effects.removeFading) {
-    return abilities;
-  }
-  return abilities.filter((entry) => ('definition' in entry ? entry.definition.id : entry.id) !== 'fading');
 }
 
 function applyArmorCap(value: number, effects: InternalState['effects']): number {
@@ -668,7 +656,6 @@ function applyArmorCap(value: number, effects: InternalState['effects']): number
 }
 
 function applyMutatorAdjustmentsToUnit(unit: InternalUnit, effects: InternalState['effects']): void {
-  unit.resolvedAbilities = filterMutatorBlockedAbilities(unit.resolvedAbilities, effects);
   unit.resolvedStats.armor = applyArmorCap(unit.resolvedStats.armor, effects);
 }
 
@@ -833,7 +820,7 @@ function buildTroopProfiles(
     }
     seen.add(key);
     const stats = { ...combatant.stats, armor: applyArmorCap(combatant.stats.armor, effects) };
-    const abilities = filterMutatorBlockedAbilities(combatant.abilities, effects).map(cloneAbilityDefinition);
+    const abilities = combatant.abilities.map(cloneAbilityDefinition);
     const statBreakdowns =
       combatant.statBreakdowns
         ? {
@@ -1011,6 +998,9 @@ function rebuildBatchedMessage(state: InternalState, step: Pick<BattleStep, 'act
     const actor = step.actorIds.length === 1 ? state.units.get(step.actorIds[0]!) ?? null : null;
     return finish(`${actor?.troopLabel ?? 'A unit'} heals ${targetSubject} for ${formatFixed(metadata.amount)}`);
   }
+  if (kindIsAttackStep(step) && metadata.effect === 'hpLoss' && typeof metadata.hpLoss === 'number') {
+    return finish(`${targetSubject} ${subjectVerb(targetSubject, 'loses', 'lose')} ${formatFixed(metadata.hpLoss)} HP`);
+  }
   if (kindIsAttackStep(step) && typeof metadata.damage === 'number') {
     const actor = step.actorIds.length === 1 ? state.units.get(step.actorIds[0]!) ?? null : null;
     const mode = metadata.mode === 'blast' ? 'blast damage to' : 'damage to';
@@ -1132,6 +1122,19 @@ function buildDamageExplanation(metadata: BattleStepMetadata): BattleDamageExpla
   };
 }
 
+function buildHpLossExplanation(metadata: BattleStepMetadata): BattleStepExplanation['hpLoss'] {
+  if (typeof metadata.hpLoss !== 'number') {
+    return undefined;
+  }
+
+  return {
+    amount: metadata.hpLoss,
+    reason: metadata.sourceAbilityLabel ?? metadata.sourceAbilityId ?? 'HP loss',
+    bypassesArmor: true,
+    triggersOnDamaged: false,
+  };
+}
+
 function enrichStepMetadata(
   state: InternalState,
   kind: BattleStepKind,
@@ -1177,6 +1180,10 @@ function enrichStepMetadata(
     const damage = buildDamageExplanation(metadata);
     if (damage) {
       explanation.damage = damage;
+    }
+    const hpLoss = buildHpLossExplanation(metadata);
+    if (hpLoss) {
+      explanation.hpLoss = hpLoss;
     }
   }
 
@@ -1511,6 +1518,12 @@ function sourceLabelForStep(state: InternalState, actorIds: string[], metadata?:
   const sourceAbilityId = metadata?.sourceAbilityId;
   if (!sourceAbilityId) {
     return null;
+  }
+  if (metadata?.sourceKind === 'mutator') {
+    return `${metadata.sourceAbilityLabel ?? getMutator(sourceAbilityId).label} mutator`;
+  }
+  if (metadata?.sourceKind === 'battle') {
+    return metadata.sourceAbilityLabel ?? 'Battle resolution';
   }
   if (sourceAbilityId === 'battle-resolution') {
     return metadata?.sourceAbilityLabel ?? 'Battle resolution';
@@ -2116,9 +2129,6 @@ function applyGrantAbility(
   runtime: RuntimeAbilityState,
   effect: Extract<AbilityEffectDefinition, { kind: 'grantAbility' }>,
 ): boolean {
-  if (state.effects.removeFading && effect.abilityId === 'fading') {
-    return false;
-  }
   if (target.resolvedAbilities.some((entry) => entry.definition.id === effect.abilityId)) {
     return false;
   }
@@ -3675,6 +3685,7 @@ function handleEnvironmentalDeath(
   effectLabel: string,
   message: string,
   bypassPrevention = false,
+  sourceKind: BattleStepMetadata['sourceKind'] = 'ability',
 ): void {
   if (!target.alive) {
     return;
@@ -3693,6 +3704,7 @@ function handleEnvironmentalDeath(
     effect: effectId,
     sourceAbilityId: effectId,
     sourceAbilityLabel: effectLabel,
+    sourceKind,
   });
 
   if (hasAbility(target, 'sentinel-runes') && !target.sentinelRunesTriggered) {
@@ -3718,6 +3730,29 @@ function handleEnvironmentalDeath(
   bondedDependents.forEach((unit) =>
     handleEnvironmentalDeath(state, unit, 'bonded', getAbility('bonded').label, `${unit.troopLabel} is destroyed when its summoner falls.`, true),
   );
+}
+
+function loseHp(
+  state: InternalState,
+  target: InternalUnit,
+  amount: number,
+  effectId: string,
+  effectLabel: string,
+  sourceKind: BattleStepMetadata['sourceKind'],
+  message: string,
+): number {
+  const hpLoss = fixedMax(amount, 0);
+  if (hpLoss > 0) {
+    target.hp = fixedSub(target.hp, hpLoss);
+  }
+  buildStep(state, 'attack', [], [target.id], message, {
+    hpLoss,
+    effect: 'hpLoss',
+    sourceAbilityId: effectId,
+    sourceAbilityLabel: effectLabel,
+    sourceKind,
+  });
+  return hpLoss;
 }
 
 function chooseAttackTarget(state: InternalState, actor: InternalUnit, candidates: InternalUnit[]): InternalUnit {
@@ -4823,6 +4858,7 @@ function applyQuakes(state: InternalState): void {
       effect: 'quakes',
       sourceAbilityId: 'quakes',
       sourceAbilityLabel: getMutator('quakes').label,
+      sourceKind: 'mutator',
       toQ: unit.position.q,
       toR: unit.position.r,
     });
@@ -4830,33 +4866,22 @@ function applyQuakes(state: InternalState): void {
 }
 
 function applyDecay(state: InternalState): void {
-  if (state.effects.decayDamagePerBeat <= 0) {
+  if (state.effects.hpLossPerBeat <= 0) {
     return;
   }
 
   getAliveUnits(state).forEach((unit) => {
-    const damage = canTakeDamage(unit) ? state.effects.decayDamagePerBeat : 0;
-    if (damage > 0) {
-      unit.hp = fixedSub(unit.hp, damage);
-    }
-    buildStep(state, 'attack', [], [unit.id], `${unit.troopLabel} loses ${formatFixed(damage)} HP to Decay.`, {
-      damage,
-      mode: 'blast',
-      category: 'strike',
-      baseDamage: state.effects.decayDamagePerBeat,
-      attackDamageBeforeArmor: state.effects.decayDamagePerBeat,
-      armorIgnored: true,
-      effect: 'decay',
-      sourceAbilityId: 'decay',
-      sourceAbilityLabel: getMutator('decay').label,
-    });
+    loseHp(
+      state,
+      unit,
+      state.effects.hpLossPerBeat,
+      'decay',
+      getMutator('decay').label,
+      'mutator',
+      `${unit.troopLabel} loses ${formatFixed(state.effects.hpLossPerBeat)} HP to Decay.`,
+    );
     if (unit.hp <= 0 && unit.alive) {
-      handleEnvironmentalDeath(state, unit, 'decay', getMutator('decay').label, `${unit.troopLabel} is consumed by Decay.`);
-    } else if (unit.alive && canTakeDamage(unit)) {
-      triggerUnitAbilities(state, unit, { timing: 'onDamaged' });
-      if (damage > 0) {
-        applyWhimsy(state, unit);
-      }
+      handleEnvironmentalDeath(state, unit, 'decay', getMutator('decay').label, `${unit.troopLabel} is consumed by Decay.`, true, 'mutator');
     }
   });
 }

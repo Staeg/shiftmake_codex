@@ -11,11 +11,14 @@
 
   $: clampedLeft = Math.max(0, Math.min(100, leftPercent));
   $: clampedRight = Math.max(0, Math.min(100, rightPercent));
+  $: leftLabel = leftTone === 'player' ? 'You' : leftTone === 'opponent' ? 'Rival' : 'Neutral';
+  $: rightLabel = rightTone === 'player' ? 'You' : rightTone === 'opponent' ? 'Rival' : 'Neutral';
 </script>
 
 <span class="battle-log-token" aria-hidden="true">
   <span class={`battle-log-health ${leftTone}`}>
-    <span style={`width:${clampedLeft}%`}></span>
+    <em>{leftLabel}</em>
+    <span style={`--health-width:${clampedLeft}%`}></span>
   </span>
   <span class="battle-log-result">
     {#if opponentOutcome}
@@ -39,7 +42,8 @@
     {/if}
   </span>
   <span class={`battle-log-health ${rightTone}`}>
-    <span style={`width:${clampedRight}%`}></span>
+    <em>{rightLabel}</em>
+    <span style={`--health-width:${clampedRight}%`}></span>
   </span>
 </span>
 
@@ -62,31 +66,54 @@
   }
 
   .battle-log-health {
+    display: grid;
+    gap: 0.18rem;
+    height: auto;
+    min-width: 0;
+    overflow: hidden;
+    color: #9fb0bf;
+    font-size: 0.56rem;
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .battle-log-health em {
+    overflow: hidden;
+    color: inherit;
+    font-style: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .battle-log-health > span {
     display: block;
     height: 0.42rem;
-    min-width: 0;
+    min-width: 0.18rem;
     overflow: hidden;
     border: 1px solid rgba(185, 205, 216, 0.22);
     border-radius: 999px;
     background: rgba(4, 7, 10, 0.72);
   }
 
-  .battle-log-health span {
+  .battle-log-health > span::before {
     display: block;
+    width: var(--health-width, 0%);
     height: 100%;
-    min-width: 0;
     border-radius: inherit;
+    content: '';
   }
 
-  .battle-log-health.player span {
+  .battle-log-health.player > span::before {
     background: linear-gradient(90deg, #4fa666, #a7dd6d);
   }
 
-  .battle-log-health.opponent span {
+  .battle-log-health.opponent > span::before {
     background: linear-gradient(90deg, #c84f5b, #f2a06d);
   }
 
-  .battle-log-health.neutral span {
+  .battle-log-health.neutral > span::before {
     background: linear-gradient(90deg, #68727c, #b6c0c8);
   }
 

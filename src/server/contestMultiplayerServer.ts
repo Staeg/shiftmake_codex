@@ -429,6 +429,24 @@ function sanitizePlayerName(name: string | undefined, fallback: string): string 
   return trimmed.slice(0, 24) || fallback;
 }
 
+function playerNameMatches(room: ContestRoom, playerId: ContestPlayerId, playerName: string | undefined): boolean {
+  const currentName = room.playerNames[playerId];
+  if (!currentName) {
+    return false;
+  }
+  return sanitizePlayerName(playerName, '').toLowerCase() === currentName.toLowerCase();
+}
+
+function findRejoinPlayerIdByName(room: ContestRoom, playerName: string | undefined): ContestPlayerId | null {
+  if (!playerName?.trim()) {
+    return null;
+  }
+  const matchingPlayerIds = (['playerOne', 'playerTwo'] as ContestPlayerId[]).filter(
+    (playerId) => room.playerTokens[playerId] && playerNameMatches(room, playerId, playerName),
+  );
+  return matchingPlayerIds.length === 1 ? matchingPlayerIds[0] : null;
+}
+
 function messageForPlayer(message: RoomMessage, playerId: ContestPlayerId): string | null {
   return typeof message === 'object' && message !== null ? (message[playerId] ?? null) : message;
 }
@@ -564,6 +582,17 @@ function reconnectClient(socket: WebSocket, room: ContestRoom, playerId: Contest
   broadcast(room, `${room.playerNames[playerId]} reconnected to room ${room.id}.`);
 }
 
+function rejoinClientByName(socket: WebSocket, room: ContestRoom, playerId: ContestPlayerId, playerName?: string): void {
+  room.clients[playerId]?.socket.close(1000, 'Replaced by a same-name rejoin.');
+  room.playerTokens[playerId] = makePlayerToken();
+  room.playerNames[playerId] = sanitizePlayerName(playerName, room.playerNames[playerId] ?? DEFAULT_CONTEST_PLAYER_NAMES[playerId]);
+  room.clients[playerId] = { socket, playerId };
+  room.lastEmptyAt = null;
+  touchRoom(room);
+  socketRooms.set(socket, { roomId: room.id, playerId });
+  broadcast(room, `${room.playerNames[playerId]} rejoined room ${room.id}.`);
+}
+
 function maybeAdvanceRoom(room: ContestRoom): void {
   if (!room.submissions.playerOne || !room.submissions.playerTwo) {
     broadcast(room, {
@@ -573,6 +602,7 @@ function maybeAdvanceRoom(room: ContestRoom): void {
     return;
   }
 
+  broadcast(room, 'Both players submitted. Resolving...');
   const result = advanceContestMultiplayerRoom(room.game, {
     playerOne: room.submissions.playerOne,
     playerTwo: room.submissions.playerTwo,
@@ -619,6 +649,11 @@ function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
     const room = rooms.get(roomId);
     if (!room) {
       send(socket, { kind: 'room-error', message: `Room ${roomId || message.roomId} was not found or has expired. Ask the host for a fresh room code.` });
+      return;
+    }
+    const rejoinPlayerId = findRejoinPlayerIdByName(room, message.playerName);
+    if (rejoinPlayerId) {
+      rejoinClientByName(socket, room, rejoinPlayerId, message.playerName);
       return;
     }
     attachClient(socket, room, undefined, message.playerName);
@@ -758,6 +793,7 @@ export const contestMultiplayerServerInternals = {
   normalizeRoomId,
   parseClientMessage,
   reconnectClient,
+  rejoinClientByName,
   rooms,
   socketRooms,
   socketRemoteAddresses,

@@ -382,11 +382,19 @@ export interface BattleDamageExplanation {
   rangedMultiplier?: number;
 }
 
+export interface BattleHpLossExplanation {
+  amount: number;
+  reason: string;
+  bypassesArmor: boolean;
+  triggersOnDamaged: boolean;
+}
+
 export interface BattleStepExplanation {
   beat?: BattleBeatExplanation;
   movement?: BattleMovementExplanation;
   ability?: BattleAbilityExplanation;
   damage?: BattleDamageExplanation;
+  hpLoss?: BattleHpLossExplanation;
 }
 
 export interface BattleStepMetadata {
@@ -398,6 +406,7 @@ export interface BattleStepMetadata {
   targetHexQ?: number;
   targetHexR?: number;
   damage?: number;
+  hpLoss?: number;
   mode?: 'melee' | 'ranged' | 'blast';
   category?: 'normal' | 'retaliation' | 'strike';
   beat?: number;
@@ -405,7 +414,28 @@ export interface BattleStepMetadata {
   effect?: string;
   sourceAbilityId?: string;
   sourceAbilityLabel?: string;
+  sourceKind?: 'ability' | 'mutator' | 'battle';
   value?: number;
+  amount?: number;
+  baseDamage?: number;
+  attackDamageBeforeArmor?: number;
+  armorIgnored?: boolean;
+  armorBefore?: number;
+  armorReduction?: number;
+  armorApplied?: number;
+  heartseekerMultiplier?: number;
+  distanceBonus?: number;
+  rangedMultiplier?: number;
+  damageMultiplier?: number;
+  throwingAxesDamage?: number;
+  hexingShotsDamage?: number;
+  stat?: string;
+  temporary?: boolean;
+  expired?: boolean;
+  abilityId?: string;
+  role?: RoleId;
+  unitClassId?: UnitClassId;
+  batchCount?: number;
   toQ?: number;
   toR?: number;
   routedAroundBlockedQ?: number;
@@ -837,8 +867,7 @@ export interface MutatorDefinition {
   description: string;
   initiativeBonusPerBeat?: number;
   rangedDamageMultiplier?: number;
-  removeFading?: boolean;
   armorCap?: number;
   randomMoveEveryBeats?: number;
-  decayDamagePerBeat?: number;
+  hpLossPerBeat?: number;
 }

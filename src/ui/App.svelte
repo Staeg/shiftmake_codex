@@ -208,6 +208,7 @@
     maxHp: number;
     hpPercent: string;
     hpLabel: string;
+    hpTooltip: string;
     unitsMinHeight: string;
     units: ReplayHealthUnit[];
   };
@@ -1417,6 +1418,9 @@
     if (!$gameStore.multiplayer || !playerId) {
       return 'Submit Ready';
     }
+    if ($gameStore.multiplayer.readiness.playerOne && $gameStore.multiplayer.readiness.playerTwo) {
+      return 'Resolving';
+    }
     return $gameStore.multiplayer.readiness[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'Submit Ready';
   }
 
@@ -2050,6 +2054,7 @@
       maxHp,
       hpPercent: getHpPercent(currentHp, maxHp),
       hpLabel: formatHpLabel(currentHp, maxHp),
+      hpTooltip: `${side === 'player' ? 'Player' : 'Enemy'} total health ${formatHpLabel(currentHp, maxHp)}`,
       unitsMinHeight: `${sideUnits.length * 1.9 + Math.max(0, sideUnits.length - 1) * 0.28}rem`,
       units,
     };
@@ -3081,9 +3086,9 @@
   $: primaryCycleActionLabel = $gameStore.cycleAnimation
     ? 'Battles Resolving'
     : mustSpendEssenceBeforeCycleEnd
-      ? 'Spend Essence'
+      ? 'Open Draft'
       : mustAssignTroopsBeforeCycleEnd
-        ? 'Assign Troops'
+        ? 'Review Rifts'
         : $gameStore.multiplayer
           ? multiplayerReadyLabel()
           : $gameStore.cycleEndConfirmationPending
@@ -3653,7 +3658,7 @@
                 <span>Room Code</span>
                 <input bind:value={multiplayerRoomCode} aria-label="Multiplayer room code" on:input={() => (multiplayerRoomCode = multiplayerRoomCode.toUpperCase())} />
               </label>
-              <button class="ui-debug-target" data-ui-name="Join multiplayer Contest room" on:click={joinMultiplayerContest} disabled={!multiplayerRoomCode.trim()}>Join Room</button>
+              <button class="ui-debug-target" data-ui-name="Join multiplayer Contest room" on:click={joinMultiplayerContest} disabled={!multiplayerRoomCode.trim()}>Join / Rejoin Room</button>
             </div>
           </div>
         </section>
@@ -3942,7 +3947,7 @@
       <div class="draft-screen-header">
         <p class="eyebrow">Cycle {$gameStore.game.cycleNumber} Muster</p>
         <h1>Choose a Race</h1>
-        <p class="scheduled-unlock-instructions">Each candidate joins with its shown upgrades and included troop classes already unlocked. Other troops show what can be unlocked later.</p>
+        <p class="scheduled-unlock-instructions">Shown upgrades and included troops unlock immediately. The roster below shows what this race can unlock later.</p>
         {#if multiplayerStatus}
           <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer race unlock status">{multiplayerStatus}</p>
           <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer race unlock room tools">
@@ -4050,6 +4055,7 @@
                 class:selected={selectedScheduledRaceId === raceId}
                 aria-label={`Select ${race.label}`}
                 aria-pressed={selectedScheduledRaceId === raceId}
+                disabled={multiplayerReadySubmitted}
                 on:click={() => selectScheduledRaceUnlock(raceId)}
               ></button>
               <header class="draft-card-header">
@@ -4165,8 +4171,8 @@
         </div>
       </div>
       <div class="opening-actions">
-        <button class="primary large" disabled={!selectedScheduledRaceId} on:click={confirmScheduledRaceUnlock}>
-          Confirm {selectedScheduledRaceId ? getRace(selectedScheduledRaceId).label : 'Race'}
+        <button class="primary large" disabled={!selectedScheduledRaceId || multiplayerReadySubmitted} on:click={confirmScheduledRaceUnlock}>
+          {$gameStore.multiplayer && multiplayerReadySubmitted ? multiplayerReadyLabel() : `Confirm ${selectedScheduledRaceId ? getRace(selectedScheduledRaceId).label : 'Race'}`}
         </button>
       </div>
     </section>
@@ -4334,7 +4340,7 @@
 
       <div class="mode-toggle ui-debug-target" data-ui-name="Top bar actions">
         <button
-          class="ui-debug-target"
+          class="ui-debug-target secondary-mode-button"
           class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'rifts' && !tutorialCanSwitchCenterMode('rifts')}
           data-ui-name="Show rifts view"
           class:selected={$gameStore.centerMode === 'rifts'}
@@ -4352,7 +4358,7 @@
         >Races & Troops</button>
         {#if $gameStore.game.gameMode === 'contest'}
           <button
-            class="ui-debug-target"
+            class="ui-debug-target secondary-mode-button"
             class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'contest' && !tutorialCanSwitchCenterMode('contest')}
             data-ui-name="Show opponent info view"
             class:selected={$gameStore.centerMode === 'contest'}
@@ -4363,11 +4369,13 @@
           </button>
         {/if}
         <button
-          class="ui-debug-target"
+          class="ui-debug-target menu-icon-button"
           class:tutorial-scene-locked={tutorialSceneLockActive()}
           data-ui-name="Return to main menu"
+          aria-label="Main menu"
+          title="Main menu"
           on:click={() => guardTutorialSceneChange(returnToMainMenu)}
-        >Main Menu</button>
+        ><span aria-hidden="true"></span></button>
         {#if $gameStore.multiplayer}
           <div class="topbar-room-card ui-debug-target" data-ui-name="Multiplayer room link">
             <span>{$gameStore.multiplayer.roomId ?? '...'}</span>
@@ -5757,7 +5765,7 @@
         {/if}
         {#if $gameStore.centerMode === 'rifts'}
           <div
-            class="panel ready-troops-panel footer-ready-troops-panel ui-debug-target"
+            class="ready-troops-panel footer-ready-troops-panel ui-debug-target"
             data-ui-name="Ready troops panel"
             class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'ready')}
             role="region"
@@ -6188,9 +6196,8 @@
             {#each replayHealthOverview as side}
               <section class="replay-health-side" class:enemy={side.side === 'enemy'} style={`--replay-health-units-min-height: ${side.unitsMinHeight};`}>
                 <div class="replay-health-total">
-                  <div class="replay-health-total-label">
+                  <div class="replay-health-total-label" title={side.hpTooltip} aria-label={side.hpTooltip}>
                     <span>{side.label}</span>
-                    <strong>{side.hpLabel}</strong>
                   </div>
                   <div class="replay-health-bar total" aria-hidden="true">
                     <span style={`width: ${side.hpPercent}`}></span>
@@ -6698,6 +6705,55 @@
     background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
     color: #111;
     border-color: rgba(213, 178, 116, 0.6);
+  }
+
+  .mode-toggle button.secondary-mode-button {
+    border-color: rgba(126, 157, 181, 0.16);
+    background: rgba(17, 26, 36, 0.58);
+    color: #b6c6d4;
+  }
+
+  .mode-toggle button.secondary-mode-button.selected {
+    border-color: rgba(134, 188, 218, 0.42);
+    background: rgba(41, 62, 72, 0.86);
+    color: #edf7fb;
+  }
+
+  .mode-toggle button.menu-icon-button {
+    display: inline-grid;
+    place-items: center;
+    width: 2.45rem;
+    height: 2.45rem;
+    padding: 0;
+  }
+
+  .menu-icon-button span,
+  .menu-icon-button span::before,
+  .menu-icon-button span::after {
+    display: block;
+    width: 1.15rem;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    content: '';
+  }
+
+  .menu-icon-button span {
+    position: relative;
+  }
+
+  .menu-icon-button span::before,
+  .menu-icon-button span::after {
+    position: absolute;
+    left: 0;
+  }
+
+  .menu-icon-button span::before {
+    top: -0.38rem;
+  }
+
+  .menu-icon-button span::after {
+    top: 0.38rem;
   }
 
   .mode-toggle button.rifts-attention {
@@ -8760,8 +8816,10 @@
 
   .draft-screen-header .scheduled-unlock-instructions {
     max-width: none;
-    font-size: clamp(0.68rem, 0.62vw, 0.78rem);
-    white-space: nowrap;
+    color: #c8d5df;
+    font-size: clamp(0.95rem, 0.9vw, 1.08rem);
+    line-height: 1.45;
+    white-space: normal;
   }
 
   .scheduled-race-shell {
@@ -8786,9 +8844,10 @@
   .race-unlock-card {
     position: relative;
     display: grid;
-    gap: var(--ui-space-sm);
+    gap: 0.9rem;
     align-content: start;
     cursor: pointer;
+    overflow: hidden;
   }
 
   .race-unlock-card > :not(.race-card-select-button) {
@@ -8833,6 +8892,12 @@
     box-shadow:
       0 18px 42px rgba(0, 0, 0, 0.34),
       inset 0 0 0 2px rgba(237, 197, 111, 0.38);
+  }
+
+  .race-unlock-card .draft-section {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
   }
 
   .troop-preview-row {
@@ -8895,6 +8960,8 @@
   .upgrade-grant {
     border-color: rgba(213, 178, 116, 0.48);
     background: rgba(45, 34, 18, 0.78);
+    min-height: 2.35rem;
+    padding-block: 0.45rem;
   }
 
   .troop-class-unlock-grid {
@@ -9930,7 +9997,10 @@
 
   .ready-troops-panel {
     gap: 0.55rem;
-    padding-block: 0.9rem;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .footer-ready-troops-panel {
@@ -9942,16 +10012,16 @@
 
   .ready-troops-grid {
     display: grid;
-    gap: 0.55rem;
-    grid-template-columns: repeat(auto-fit, minmax(3.6rem, 4.35rem));
+    gap: 0.72rem;
+    grid-template-columns: repeat(auto-fit, minmax(5.1rem, 6.3rem));
     align-items: start;
     justify-content: center;
     padding-bottom: 0.15rem;
   }
 
   .ready-troop-tile {
-    width: 4.35rem;
-    height: 4.35rem;
+    width: 6.3rem;
+    height: 6.3rem;
     min-height: 0;
     padding: 0.55rem;
   }
@@ -9984,32 +10054,32 @@
   }
 
   .ready-troops-grid.roster-count-8 {
-    grid-template-columns: repeat(auto-fit, minmax(3.25rem, 3.85rem));
+    grid-template-columns: repeat(auto-fit, minmax(4.6rem, 5.55rem));
   }
 
   .ready-troops-grid.roster-count-8 .ready-troop-tile {
-    width: 3.85rem;
-    height: 3.85rem;
+    width: 5.55rem;
+    height: 5.55rem;
     padding: 0.45rem;
   }
 
   .ready-troops-grid.roster-count-12 {
-    grid-template-columns: repeat(auto-fit, minmax(2.95rem, 3.35rem));
+    grid-template-columns: repeat(auto-fit, minmax(4rem, 4.85rem));
   }
 
   .ready-troops-grid.roster-count-12 .ready-troop-tile {
-    width: 3.35rem;
-    height: 3.35rem;
+    width: 4.85rem;
+    height: 4.85rem;
     padding: 0.35rem;
   }
 
   .ready-troops-grid.roster-count-16 {
-    grid-template-columns: repeat(auto-fit, minmax(2.65rem, 2.95rem));
+    grid-template-columns: repeat(auto-fit, minmax(3.45rem, 4.15rem));
   }
 
   .ready-troops-grid.roster-count-16 .ready-troop-tile {
-    width: 2.95rem;
-    height: 2.95rem;
+    width: 4.15rem;
+    height: 4.15rem;
     padding: 0.26rem;
   }
 
@@ -10731,7 +10801,7 @@
 
   .replay-health-total-label {
     display: grid;
-    grid-template-columns: minmax(1.8rem, auto) minmax(6.7rem, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: baseline;
     gap: 0.5rem;
     min-width: 0;
@@ -10748,16 +10818,6 @@
     white-space: nowrap;
   }
 
-  .replay-health-total-label strong {
-    color: #f3ead0;
-    font-family: var(--ui-font-mono);
-    font-size: 0.78rem;
-    font-weight: 500;
-    line-height: 1.2;
-    text-align: right;
-    white-space: nowrap;
-  }
-
   @container (max-width: 230px) {
     .replay-health-total-label {
       gap: 0.25rem;
@@ -10768,13 +10828,6 @@
       letter-spacing: 0.02em;
     }
 
-    .replay-health-total-label strong {
-      font-size: clamp(0.64rem, 9cqw, 0.78rem);
-    }
-  }
-
-  .replay-health-side.enemy .replay-health-total-label strong {
-    color: #ffd1d1;
   }
 
   .replay-health-bar {

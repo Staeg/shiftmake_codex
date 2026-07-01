@@ -53,10 +53,9 @@ Implemented mutators:
 - `Momentum`: all units gain +10 initiative each beat
 - `Haze`: all units lose 5 initiative each beat
 - `Heavy Air`: ranged attacks deal 50% damage
-- `Animated`: all units lose `Fading`
 - `Corrosion`: all units start with 0 armor and cannot have positive armor during that battle
 - `Quakes`: every 10 beats, each unit is displaced to a random adjacent anchor position if its full footprint fits
-- `Decay`: every beat, each unit loses 1 HP ignoring armor
+- `Decay`: every beat, each unit directly loses 1 HP; this ignores armor and does not trigger effects that respond to taking damage
 
 ## Enemy generation
 

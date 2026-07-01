@@ -1182,13 +1182,13 @@ describe('campaign progression', () => {
     const aiRecord = resolution.records.find((record) => record.contest?.attackerId === 'playerTwo');
     const result = applyCycleOutcomes(state, resolution);
 
-    expect(aiRecord?.riftId).toBe('contest-cycle-1-rift-2');
-    expect(aiRecord?.assignedTroopIds).toEqual(['dwarf/elementalist', 'orc/militia']);
+    expect(aiRecord?.riftId).toBe('contest-cycle-1-rift-3');
+    expect(aiRecord?.assignedTroopIds).toEqual(['orc/militia']);
     expect(aiRecord?.outcome).toBe('victory');
     expect(
       result.nextState.replayIndex.some(
         (entry) =>
-          entry.riftId === 'contest-cycle-1-rift-2' &&
+          entry.riftId === 'contest-cycle-1-rift-3' &&
           entry.encounterLabel === 'Rival vs Neutral Guardians' &&
           entry.outcome === 'victory' &&
           entry.summary.startsWith('VICTORY'),

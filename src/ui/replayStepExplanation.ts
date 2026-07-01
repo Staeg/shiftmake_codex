@@ -177,6 +177,18 @@ function buildDamageSection(explanation: NonNullable<BattleStepExplanation['dama
   };
 }
 
+function buildHpLossSection(explanation: NonNullable<BattleStepExplanation['hpLoss']>): ReplayStepExplanationSection {
+  return {
+    title: 'HP Loss',
+    lines: [
+      `HP lost: ${formatFixed(explanation.amount)}.`,
+      `Source: ${explanation.reason}.`,
+      explanation.bypassesArmor ? 'Armor is bypassed.' : 'Armor can apply.',
+      explanation.triggersOnDamaged ? 'On-damaged effects can trigger.' : 'On-damaged effects do not trigger.',
+    ],
+  };
+}
+
 export function buildReplayStepExplanationView(step: BattleStep): ReplayStepExplanationView {
   const explanation = step.metadata?.explanation;
   const sections: ReplayStepExplanationSection[] = [];
@@ -192,6 +204,9 @@ export function buildReplayStepExplanationView(step: BattleStep): ReplayStepExpl
   }
   if (explanation?.damage) {
     sections.push(buildDamageSection(explanation.damage));
+  }
+  if (explanation?.hpLoss) {
+    sections.push(buildHpLossSection(explanation.hpLoss));
   }
 
   if (sections.length === 0) {

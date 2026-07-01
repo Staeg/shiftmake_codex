@@ -198,6 +198,54 @@ describe('multiplayer Contest rooms', () => {
     );
   });
 
+  it('accepts Player 2 scheduled race unlock submissions and advances both players after Player 1 submits', () => {
+    const room = startNewGame(789, 'contest');
+    let state = advanceContestMultiplayerRoom(room, {
+      playerOne: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'playerOne')),
+      playerTwo: chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'playerTwo')),
+    }).state;
+
+    state = { ...state, cycleNumber: 2 };
+    const cycleThree = advanceContestMultiplayerRoom(state, {
+      playerOne: projectContestStateForPlayer(state, 'playerOne'),
+      playerTwo: projectContestStateForPlayer(state, 'playerTwo'),
+    }).state;
+    const playerTwoProjection = projectContestStateForPlayer(cycleThree, 'playerTwo');
+    const playerTwoRaceId = playerTwoProjection.activeRaceUnlockOffer!.optionRaceIds[0]!;
+    const playerTwoChosen = {
+      ...playerTwoProjection,
+      unlockedRaceIds: [...playerTwoProjection.unlockedRaceIds, playerTwoRaceId],
+    };
+    const playerTwoResult = validateAndApplyContestSubmission(
+      cycleThree,
+      'playerTwo',
+      buildContestMultiplayerSubmission(playerTwoChosen),
+    );
+
+    expect(playerTwoResult.ok).toBe(true);
+    expect(playerTwoResult.projectedState?.phase).toBe('planning');
+    expect(playerTwoResult.projectedState?.unlockedRaceIds).toContain(playerTwoRaceId);
+    expect(projectContestRoomStateForPlayer(cycleThree, 'playerTwo', { playerTwo: playerTwoResult.projectedState! }).phase).toBe('planning');
+
+    const playerOneProjection = projectContestStateForPlayer(cycleThree, 'playerOne');
+    const playerOneRaceId = playerOneProjection.activeRaceUnlockOffer!.optionRaceIds[0]!;
+    const playerOneResult = validateAndApplyContestSubmission(
+      cycleThree,
+      'playerOne',
+      buildContestMultiplayerSubmission({
+        ...playerOneProjection,
+        unlockedRaceIds: [...playerOneProjection.unlockedRaceIds, playerOneRaceId],
+      }),
+    );
+    const advanced = advanceContestMultiplayerRoom(cycleThree, {
+      playerOne: playerOneResult.projectedState!,
+      playerTwo: playerTwoResult.projectedState!,
+    }).state;
+
+    expect(advanced.phase).toBe('planning');
+    expect(projectContestStateForPlayer(advanced, 'playerTwo').unlockedRaceIds).toContain(playerTwoRaceId);
+  });
+
   it('validates legal opening submissions into projected player progress', () => {
     const room = startNewGame(123, 'contest');
     const projected = chooseFirstTwoOpeningTroops(projectContestStateForPlayer(room, 'playerOne'));

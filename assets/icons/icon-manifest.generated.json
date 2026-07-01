@@ -3094,26 +3094,6 @@
       "outputPath": "assets/icons/final/race_upgrade/troll-rowdy-regrowth.png"
     },
     {
-      "id": "animated",
-      "slug": "animated",
-      "kind": "rift_mutator",
-      "name": "Animated",
-      "owner": "Rift",
-      "tier": null,
-      "mechanic": "All units lose Fading.",
-      "trigger": "battle-wide environmental rule",
-      "target": "all units or the whole battle",
-      "effects": [],
-      "gameplayTags": [
-        "rift-mutator",
-        "corpse",
-        "debuff"
-      ],
-      "relatedUpgradeContexts": [],
-      "sourceAbilityIds": [],
-      "outputPath": "assets/icons/final/rift_mutator/animated.png"
-    },
-    {
       "id": "corrosion",
       "slug": "corrosion",
       "kind": "rift_mutator",

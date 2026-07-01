@@ -3211,34 +3211,6 @@ Negative prompt:
 text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
 ```
 
-## Animated
-
-Save approved image as: `assets/icons/final/rift_mutator/animated.png`
-
-```text
-Create the next Shiftmake icon in the same style.
-
-Name: Animated
-Category: Rift mutator
-Owner: Rift
-Mechanic: All units lose Fading.
-Trigger: battle-wide environmental rule
-Target: all units or the whole battle
-Visual tags: corpse, debuff
-
-Requirements:
-- Output exactly one square icon image, not a contact sheet and not a rectangular card.
-- No text, letters, numbers, captions, UI labels, watermarks, or tiny runes that look like writing.
-- Design for 32x32 first. Use only a few chunky shapes.
-- Light pixel-art inspired fantasy strategy-game symbol.
-- Centered subject with a bold silhouette and simple composition.
-- Use the gameplay tags to choose the visual metaphor; do not require the exact mechanic name to be visible.
-- No ornate frame, no character portrait, no full scene, no banner.
-
-Negative prompt:
-text, letters, numbers, caption, logo, watermark, photorealistic, card art, trading card, ornate frame, rectangular panel, banner scene, character portrait, full character, landscape, cluttered background, realistic gore, low contrast, cropped subject, tiny detail
-```
-
 ## Corrosion
 
 Save approved image as: `assets/icons/final/rift_mutator/corrosion.png`
