@@ -631,6 +631,8 @@ export interface UpgradeDraftOffer {
   optionUpgradeIds: UpgradeId[];
 }
 
+export type EssenceDraftRerollSide = 'troop' | 'upgrade';
+
 export interface RaceUnlockOffer {
   kind: 'race_unlock';
   cycleNumber: number;
@@ -740,6 +742,9 @@ export interface ContestPlayerState {
   activeTroopClassUnlockOffer: TroopClassUnlockOffer | null;
   troopOfferRolls: number;
   upgradeOfferRolls: number;
+  essenceDraftRerollUsed: EssenceDraftRerollSide | null;
+  seenTroopOfferOptionIds: TroopUnlockId[];
+  seenUpgradeOfferOptionIds: UpgradeId[];
 }
 
 export interface ContestState {
@@ -775,6 +780,9 @@ export interface GameState {
   activeTroopClassUnlockOffer: TroopClassUnlockOffer | null;
   troopOfferRolls: number;
   upgradeOfferRolls: number;
+  essenceDraftRerollUsed: EssenceDraftRerollSide | null;
+  seenTroopOfferOptionIds: TroopUnlockId[];
+  seenUpgradeOfferOptionIds: UpgradeId[];
   postgameDismissed: boolean;
   openRifts: RiftInstance[];
   replayIndex: ReplayIndexEntry[];

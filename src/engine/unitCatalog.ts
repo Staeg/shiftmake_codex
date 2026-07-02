@@ -200,7 +200,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness.',
+    shortText: 'Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.',
   }),
   'ale-and-hearty': makeAbility({
     id: 'ale-and-hearty',
@@ -771,7 +771,7 @@ export const ABILITIES: Record<AbilityId, AbilityDefinition> = {
     trigger: { timing: 'passive' },
     duration: instantDuration(),
     effects: [],
-    shortText: 'Passive: start of turn, if engaged at full capacity, gain +5 armor until next turn.',
+    shortText: 'Passive: start of turn, if engaged at full capacity, gain +10 armor until next turn.',
   }),
   dogpile: makeAbility({
     id: 'dogpile',
@@ -1064,7 +1064,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'frontline',
     unitClassTag: 'soldier',
     attributes: ['melee'],
-    stats: { health: 100, damage: 10, rate: 10, move: 3, range: 0, armor: 2, size: 2, capacity: 4 },
+    stats: { health: 90, damage: 10, rate: 10, move: 3, range: 0, armor: 4, size: 2, capacity: 4 },
     quantity: 1,
     cost: 24,
     abilityIds: [],
@@ -1196,7 +1196,7 @@ export const UNIT_CLASSES: Record<UnitClassId, UnitClassDefinition> = {
     role: 'backline',
     unitClassTag: 'ranger',
     attributes: ['ranged'],
-    stats: { health: 50, damage: 16, rate: 13, move: 4, range: 7, armor: 0, size: 2, capacity: 0 },
+    stats: { health: 50, damage: 16, rate: 12, move: 4, range: 7, armor: 0, size: 2, capacity: 0 },
     quantity: 1,
     cost: 60,
     abilityIds: ['self-haste-2'],
@@ -1452,7 +1452,7 @@ export const RACE_UPGRADES: Record<string, RaceUpgradeDefinition> = {
     raceId: 'dwarf',
     label: 'Diggy Hole',
     tier: 1,
-    description: 'Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.',
+    description: 'Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.',
     effects: [{ kind: 'addAbility', abilityId: 'diggy-hole' }],
   },
   'dwarf-ale-and-hearty': {
@@ -1656,7 +1656,7 @@ export const TROOP_CLASS_UPGRADES: Record<string, TroopClassUpgradeDefinition> =
     unitClassId: 'knight',
     label: 'Dine in Hell',
     tier: 3,
-    description: 'Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.',
+    description: 'Start of turn: if a Knight is engaged at full capacity, it gains +10 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.',
     effects: [{ kind: 'addAbility', abilityId: 'brace' }, { kind: 'addAbility', abilityId: 'retaliate' }],
   },
   'knight-sentinel-runes': {

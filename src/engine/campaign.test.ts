@@ -13,6 +13,8 @@ import {
   deserializeGameState,
   getOpeningRaceStarterTroopUnlockIds,
   getOpeningRaceOptionIds,
+  rerollTroopOffer,
+  rerollUpgradeOffer,
   revealEssenceDraft,
   resolveAssignedRifts,
   serializeGameState,
@@ -231,6 +233,36 @@ describe('campaign progression', () => {
     expect(claimedBoth.essence).toBe(0);
     expect(claimedBoth.activeUpgradeOffer).toBeNull();
     expect([...claimedBoth.raceUpgradeIds, ...claimedBoth.troopClassUpgradeIds]).toContain(claimedUpgradeId);
+  });
+
+  it('rerolls only one side of an Essence draft and keeps the other side unchanged', () => {
+    const offered = revealEssenceDraft(finishOpening(9, 'human/soldier'));
+    const originalTroops = offered.activeTroopOffer!.optionTroopUnlockIds;
+    const originalUpgrades = offered.activeUpgradeOffer!.optionUpgradeIds;
+    const rerolledTroops = rerollTroopOffer(offered);
+    const attemptedUpgradeReroll = rerollUpgradeOffer(rerolledTroops);
+
+    expect(rerolledTroops.essence).toBe(offered.essence);
+    expect(rerolledTroops.essenceDraftRerollUsed).toBe('troop');
+    expect(rerolledTroops.activeTroopOffer?.optionTroopUnlockIds).not.toEqual(originalTroops);
+    expect(rerolledTroops.activeUpgradeOffer?.optionUpgradeIds).toEqual(originalUpgrades);
+    expect(attemptedUpgradeReroll.activeUpgradeOffer?.optionUpgradeIds).toEqual(originalUpgrades);
+  });
+
+  it('avoids previously offered options on reroll when enough alternatives exist', () => {
+    const opened = {
+      ...finishOpening(9, 'human/soldier'),
+      unlockedRaceIds: ['human', 'elf', 'goblin', 'troll', 'dwarf', 'orc', 'fae'] as RaceId[],
+      troops: [createTroopInstance('human', 'soldier'), createTroopInstance('elf', 'archer')],
+    };
+    const offered = revealEssenceDraft(opened);
+    const originalTroops = offered.activeTroopOffer!.optionTroopUnlockIds;
+    const originalUpgrades = offered.activeUpgradeOffer!.optionUpgradeIds;
+    const troopReroll = rerollTroopOffer(offered);
+    const upgradeReroll = rerollUpgradeOffer(offered);
+
+    expect(troopReroll.activeTroopOffer?.optionTroopUnlockIds.every((troopUnlockId) => !originalTroops.includes(troopUnlockId))).toBe(true);
+    expect(upgradeReroll.activeUpgradeOffer?.optionUpgradeIds.every((upgradeId) => !originalUpgrades.includes(upgradeId))).toBe(true);
   });
 
   it('builds upgrade offers from owned troop class, owned race, and off-bucket options', () => {

@@ -35,6 +35,7 @@ import type {
   BattleSideParticipants,
   GameMode,
   GameState,
+  EssenceDraftRerollSide,
   ReplayIndexEntry,
   ResolvedCombatantDefinition,
   RiftResolutionRecord,
@@ -90,6 +91,9 @@ function buildEmptyContestPlayerState(): ContestPlayerState {
     activeTroopClassUnlockOffer: null,
     troopOfferRolls: 0,
     upgradeOfferRolls: 0,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: [],
+    seenUpgradeOfferOptionIds: [],
   };
 }
 
@@ -114,6 +118,9 @@ function buildInitialState(seed: number, gameMode: GameMode = 'campaign'): GameS
     activeTroopClassUnlockOffer: null,
     troopOfferRolls: 0,
     upgradeOfferRolls: 0,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: [],
+    seenUpgradeOfferOptionIds: [],
     postgameDismissed: false,
     openRifts: [],
     replayIndex: [],
@@ -220,6 +227,9 @@ type ProgressState = Pick<
   | 'activeTroopClassUnlockOffer'
   | 'troopOfferRolls'
   | 'upgradeOfferRolls'
+  | 'essenceDraftRerollUsed'
+  | 'seenTroopOfferOptionIds'
+  | 'seenUpgradeOfferOptionIds'
 >;
 
 function addTroopToRoster<T extends ProgressState>(state: T, troopUnlockId: TroopUnlockId): T {
@@ -441,6 +451,9 @@ export function withRootProgress(state: GameState, progress: ContestPlayerState)
     activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
     troopOfferRolls: progress.troopOfferRolls,
     upgradeOfferRolls: progress.upgradeOfferRolls,
+    essenceDraftRerollUsed: progress.essenceDraftRerollUsed,
+    seenTroopOfferOptionIds: progress.seenTroopOfferOptionIds,
+    seenUpgradeOfferOptionIds: progress.seenUpgradeOfferOptionIds,
   };
 }
 
@@ -559,13 +572,22 @@ function getAvailableUpgradeIds(state: GameState): UpgradeId[] {
   );
 }
 
-function pickOfferOptions(seed: number, bucketOptions: string[][][], allOptions: string[]): string[] {
+function candidatePoolWithSeenFallback(bucket: string[], selected: Set<string>, seenOptionIds: Set<string>, allOptions: string[]): string[] {
+  const unselected = bucket.filter((optionId) => !selected.has(optionId));
+  if (allOptions.some((optionId) => !selected.has(optionId) && !seenOptionIds.has(optionId))) {
+    return unselected.filter((optionId) => !seenOptionIds.has(optionId));
+  }
+  return unselected;
+}
+
+function pickOfferOptions(seed: number, bucketOptions: string[][][], allOptions: string[], seenOptionIds: string[] = []): string[] {
   const rng = createRng(seed);
   const selected = new Set<string>();
+  const seen = new Set(seenOptionIds);
 
   bucketOptions.forEach((buckets) => {
     const prioritizedSources = [...buckets, allOptions];
-    const source = prioritizedSources.map((bucket) => bucket.filter((optionId) => !selected.has(optionId))).find((bucket) => bucket.length > 0) ?? [];
+    const source = prioritizedSources.map((bucket) => candidatePoolWithSeenFallback(bucket, selected, seen, allOptions)).find((bucket) => bucket.length > 0) ?? [];
     if (source.length === 0) {
       return;
     }
@@ -575,12 +597,18 @@ function pickOfferOptions(seed: number, bucketOptions: string[][][], allOptions:
   return [...selected];
 }
 
-function pickUnselectedOption(rng: ReturnType<typeof createRng>, bucket: string[], selected: Set<string>): string | null {
-  const candidates = bucket.filter((optionId) => !selected.has(optionId));
+function pickUnselectedOption(
+  rng: ReturnType<typeof createRng>,
+  bucket: string[],
+  selected: Set<string>,
+  seenOptionIds: Set<string> = new Set(),
+  allOptions: string[] = bucket,
+): string | null {
+  const candidates = candidatePoolWithSeenFallback(bucket, selected, seenOptionIds, allOptions);
   return candidates.length > 0 ? rng.pick(candidates) : null;
 }
 
-function buildTroopOffer(state: GameState): TroopDraftOffer | null {
+function buildTroopOffer(state: GameState, seenOptionIds: TroopUnlockId[] = []): TroopDraftOffer | null {
   const availableTroopUnlockIds = getAvailableTroopUnlockIds(state).filter((troopUnlockId) =>
     rosterCanFitOpenRifts(state, troopUnlockId),
   );
@@ -600,6 +628,7 @@ function buildTroopOffer(state: GameState): TroopDraftOffer | null {
       [recentTroopUnlockIds, ownedRaceTroopUnlockIds],
     ],
     availableTroopUnlockIds,
+    seenOptionIds,
   );
 
   return options.length > 0 ? { kind: 'troop', optionTroopUnlockIds: options } : null;
@@ -644,7 +673,7 @@ function buildLeastUpgradedTroopUpgradeBucket(
   return shuffledTargetTroops[0]?.bucket ?? [];
 }
 
-function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
+function buildUpgradeOffer(state: GameState, seenOptionIds: UpgradeId[] = []): UpgradeDraftOffer | null {
   const ownedUnitClassIds = new Set(getOwnedUnitClassIds(state));
   const availableUpgradeIds = getAvailableUpgradeIds(state);
 
@@ -660,13 +689,18 @@ function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
   );
   const rng = createRng(deriveSeed(state.campaignSeed, state.cycleNumber * 20_003 + state.upgradeOfferRolls + 1));
   const selected = new Set<string>();
+  const seen = new Set(seenOptionIds);
 
-  const pickedTroopClassUpgrade = pickUnselectedOption(rng, troopUpgradeBucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
+  const pickedTroopClassUpgrade =
+    pickUnselectedOption(rng, troopUpgradeBucket, selected, seen, availableUpgradeIds) ??
+    pickUnselectedOption(rng, availableUpgradeIds, selected, seen, availableUpgradeIds);
   if (pickedTroopClassUpgrade) {
     selected.add(pickedTroopClassUpgrade);
   }
 
-  const pickedRaceUpgrade = pickUnselectedOption(rng, raceUpgradeBucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
+  const pickedRaceUpgrade =
+    pickUnselectedOption(rng, raceUpgradeBucket, selected, seen, availableUpgradeIds) ??
+    pickUnselectedOption(rng, availableUpgradeIds, selected, seen, availableUpgradeIds);
   if (pickedRaceUpgrade) {
     selected.add(pickedRaceUpgrade);
   }
@@ -683,7 +717,8 @@ function buildUpgradeOffer(state: GameState): UpgradeDraftOffer | null {
     excludedRaceId,
   );
   const pickedTargetedUpgrade =
-    pickUnselectedOption(rng, leastUpgradedTroopBucket, selected) ?? pickUnselectedOption(rng, availableUpgradeIds, selected);
+    pickUnselectedOption(rng, leastUpgradedTroopBucket, selected, seen, availableUpgradeIds) ??
+    pickUnselectedOption(rng, availableUpgradeIds, selected, seen, availableUpgradeIds);
   if (pickedTargetedUpgrade) {
     selected.add(pickedTargetedUpgrade);
   }
@@ -854,6 +889,9 @@ export function revealTroopOffer(state: GameState): GameState {
     essence: state.essence - 1,
     activeTroopOffer: offer,
     troopOfferRolls: state.troopOfferRolls + 1,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: offer.optionTroopUnlockIds,
+    seenUpgradeOfferOptionIds: [],
   };
 }
 
@@ -872,6 +910,9 @@ export function revealUpgradeOffer(state: GameState): GameState {
     essence: state.essence - 1,
     activeUpgradeOffer: offer,
     upgradeOfferRolls: state.upgradeOfferRolls + 1,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: [],
+    seenUpgradeOfferOptionIds: offer.optionUpgradeIds,
   };
 }
 
@@ -894,7 +935,67 @@ export function revealEssenceDraft(state: GameState): GameState {
     activeUpgradeOffer: upgradeOffer,
     troopOfferRolls: troopOffer ? state.troopOfferRolls + 1 : state.troopOfferRolls,
     upgradeOfferRolls: upgradeOffer ? state.upgradeOfferRolls + 1 : state.upgradeOfferRolls,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: troopOffer?.optionTroopUnlockIds ?? [],
+    seenUpgradeOfferOptionIds: upgradeOffer?.optionUpgradeIds ?? [],
   };
+}
+
+export function rerollEssenceDraftSide(state: GameState, side: EssenceDraftRerollSide): GameState {
+  if (state.phase !== 'planning' || state.essenceDraftRerollUsed) {
+    return state;
+  }
+
+  if (side === 'troop') {
+    if (!state.activeTroopOffer) {
+      return state;
+    }
+    const nextRollState = { ...state, troopOfferRolls: state.troopOfferRolls + 1 };
+    const offer = buildTroopOffer(nextRollState, state.seenTroopOfferOptionIds);
+    if (!offer) {
+      return state;
+    }
+    return {
+      ...nextRollState,
+      activeTroopOffer: offer,
+      essenceDraftRerollUsed: 'troop',
+      seenTroopOfferOptionIds: [...new Set([...state.seenTroopOfferOptionIds, ...offer.optionTroopUnlockIds])],
+    };
+  }
+
+  if (!state.activeUpgradeOffer) {
+    return state;
+  }
+  const nextRollState = { ...state, upgradeOfferRolls: state.upgradeOfferRolls + 1 };
+  const offer = buildUpgradeOffer(nextRollState, state.seenUpgradeOfferOptionIds);
+  if (!offer) {
+    return state;
+  }
+  return {
+    ...nextRollState,
+    activeUpgradeOffer: offer,
+    essenceDraftRerollUsed: 'upgrade',
+    seenUpgradeOfferOptionIds: [...new Set([...state.seenUpgradeOfferOptionIds, ...offer.optionUpgradeIds])],
+  };
+}
+
+export function rerollTroopOffer(state: GameState): GameState {
+  return rerollEssenceDraftSide(state, 'troop');
+}
+
+export function rerollUpgradeOffer(state: GameState): GameState {
+  return rerollEssenceDraftSide(state, 'upgrade');
+}
+
+function clearEssenceDraftTrackingIfComplete(state: GameState): GameState {
+  return state.activeTroopOffer || state.activeUpgradeOffer
+    ? state
+    : {
+        ...state,
+        essenceDraftRerollUsed: null,
+        seenTroopOfferOptionIds: [],
+        seenUpgradeOfferOptionIds: [],
+      };
 }
 
 export function claimTroopOffer(state: GameState, troopUnlockId: TroopUnlockId): GameState {
@@ -908,10 +1009,10 @@ export function claimTroopOffer(state: GameState, troopUnlockId: TroopUnlockId):
   }
 
   const unlocked = addTroopToRoster(grantTroopUnlock(state, troopUnlockId), troopUnlockId);
-  return {
+  return clearEssenceDraftTrackingIfComplete({
     ...unlocked,
     activeTroopOffer: null,
-  };
+  });
 }
 
 export function claimUpgradeOffer(state: GameState, upgradeId: UpgradeId): GameState {
@@ -920,10 +1021,10 @@ export function claimUpgradeOffer(state: GameState, upgradeId: UpgradeId): GameS
   }
 
   const unlocked = addUpgradeUnlock(state, upgradeId);
-  return {
+  return clearEssenceDraftTrackingIfComplete({
     ...unlocked,
     activeUpgradeOffer: null,
-  };
+  });
 }
 
 export function validateAssignments(state: GameState): ValidationResult {
@@ -1132,6 +1233,9 @@ function buildProgressPseudoState(state: GameState, progress: ContestPlayerState
     activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
     troopOfferRolls: progress.troopOfferRolls,
     upgradeOfferRolls: progress.upgradeOfferRolls,
+    essenceDraftRerollUsed: progress.essenceDraftRerollUsed,
+    seenTroopOfferOptionIds: progress.seenTroopOfferOptionIds,
+    seenUpgradeOfferOptionIds: progress.seenUpgradeOfferOptionIds,
     openRifts: state.openRifts,
     replayIndex: [],
     contest: undefined,
@@ -1154,6 +1258,9 @@ function progressFromPseudoState(state: GameState): ContestPlayerState {
     activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
     troopOfferRolls: state.troopOfferRolls,
     upgradeOfferRolls: state.upgradeOfferRolls,
+    essenceDraftRerollUsed: state.essenceDraftRerollUsed,
+    seenTroopOfferOptionIds: state.seenTroopOfferOptionIds,
+    seenUpgradeOfferOptionIds: state.seenUpgradeOfferOptionIds,
   };
 }
 
@@ -1793,6 +1900,9 @@ function clearContestTroopAssignments(progress: ContestPlayerState, occupiedByRi
     activeUpgradeOffer: null,
     activeRaceUnlockOffer: null,
     activeTroopClassUnlockOffer: null,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: [],
+    seenUpgradeOfferOptionIds: [],
   };
 }
 
@@ -1820,6 +1930,9 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
       activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
       troopOfferRolls: state.troopOfferRolls,
       upgradeOfferRolls: state.upgradeOfferRolls,
+      essenceDraftRerollUsed: state.essenceDraftRerollUsed,
+      seenTroopOfferOptionIds: state.seenTroopOfferOptionIds,
+      seenUpgradeOfferOptionIds: state.seenUpgradeOfferOptionIds,
     },
     humanUnlocks,
   );
@@ -1923,6 +2036,9 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
       activeUpgradeOffer: null,
       activeRaceUnlockOffer: null,
       activeTroopClassUnlockOffer: null,
+      essenceDraftRerollUsed: null,
+      seenTroopOfferOptionIds: [],
+      seenUpgradeOfferOptionIds: [],
       openRifts: [...nextRifts, ...generateContestCycleRifts({ ...state, cycleNumber })],
       replayIndex: [...state.replayIndex],
     },
@@ -1935,6 +2051,9 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
         activeUpgradeOffer: null,
         activeRaceUnlockOffer: null,
         activeTroopClassUnlockOffer: null,
+        essenceDraftRerollUsed: null,
+        seenTroopOfferOptionIds: [],
+        seenUpgradeOfferOptionIds: [],
       },
       playerTwo: {
         ...nextAiProgress,
@@ -1944,6 +2063,9 @@ function applyContestCycleOutcomes(state: GameState, resolution: CycleResolution
         activeUpgradeOffer: null,
         activeRaceUnlockOffer: null,
         activeTroopClassUnlockOffer: null,
+        essenceDraftRerollUsed: null,
+        seenTroopOfferOptionIds: [],
+        seenUpgradeOfferOptionIds: [],
       },
     },
   );
@@ -2120,6 +2242,9 @@ export function applyCycleOutcomes(state: GameState, resolution: CycleResolution
     activeUpgradeOffer: null,
     activeRaceUnlockOffer: null,
     activeTroopClassUnlockOffer: null,
+    essenceDraftRerollUsed: null,
+    seenTroopOfferOptionIds: [],
+    seenUpgradeOfferOptionIds: [],
   };
 
   const writes = resolution.records.map((record) => {

@@ -382,7 +382,7 @@ export function buildRoleScenarioBattleInput(scenarioId: RoleScenarioId, seed: n
             label: 'Human Soldier',
             side: 'enemy',
             attributes: ['melee', 'human'],
-            stats: { health: 110, damage: 11, rate: 1, move: 1, armor: 3, size: 1, capacity: 3 },
+            stats: { health: 99, damage: 11, rate: 1, move: 1, armor: 5, size: 1, capacity: 3 },
             quantity: 1,
           }),
           createUnitClassCombatant('archer', {

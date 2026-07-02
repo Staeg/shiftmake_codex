@@ -14,12 +14,12 @@ describe('troop composition', () => {
     expect(troop.unitClassTag).toBe('soldier');
     expect(troop.attributes).toEqual(['melee', 'human']);
     expect(troop.stats).toEqual({
-      health: 110,
+      health: 99,
       damage: 11,
       rate: 11,
       move: 3,
       range: 0,
-      armor: 3,
+      armor: 5,
       size: 2,
       capacity: 5,
     });
@@ -71,7 +71,7 @@ describe('troop composition', () => {
     expect(composeTroopDefinition('dwarf', 'avenger').attributes).toEqual(['melee', 'dwarf']);
     expect(composeTroopDefinition('dwarf', 'avenger').stats).toMatchObject({ health: 240, damage: 6, rate: 9, move: 1, armor: 3, size: 3, capacity: 7 });
     expect(composeTroopDefinition('orc', 'soldier').attributes).toEqual(['melee', 'orc']);
-    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 110, damage: 11, rate: 11, move: 3, armor: 1, size: 3, capacity: 3 });
+    expect(composeTroopDefinition('orc', 'soldier').stats).toMatchObject({ health: 99, damage: 11, rate: 11, move: 3, armor: 3, size: 3, capacity: 3 });
     expect(composeTroopDefinition('fae', 'wizard').attributes).toEqual(['caster', 'fae']);
     expect(composeTroopDefinition('fae', 'wizard').stats).toMatchObject({ health: 16, damage: 9, rate: 8.8, move: 3, range: 5, armor: -3, size: 1 });
     expect(composeTroopDefinition('elf', 'druid').abilities.map((ability) => ability.label)).toEqual(['Shapeshift - Bear']);
@@ -912,6 +912,31 @@ describe('ability mechanics', () => {
     expect(spawnedDwarf?.position.q).toBeGreaterThan(0);
   });
 
+  it('diggy hole makes all enemies lose 1 rate for each emerging Dwarf', () => {
+    const dwarf = resolveTroopCombatant(
+      { raceUpgradeIds: ['dwarf-diggy-hole'], troopClassUpgradeIds: [] },
+      createTroopInstance('dwarf', 'soldier'),
+      'player',
+    );
+    const enemy = makeBattleCombatant('human/soldier', 'enemy');
+    dwarf.quantity = 2;
+    dwarf.stats = { ...dwarf.stats, damage: 0, rate: 1 };
+    enemy.quantity = 2;
+    enemy.stats = { ...enemy.stats, damage: 0, rate: 10 };
+
+    const input = makeBattleInput([dwarf], [enemy], 611);
+    input.playerRaceUpgradeIds = ['dwarf-diggy-hole'];
+    const replay = resolveBattle(input);
+    const slowSteps = replay.steps.filter((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'diggy-hole' && step.metadata.stat === 'rate');
+    const targetCounts = slowSteps
+      .flatMap((step) => step.targetIds)
+      .reduce<Record<string, number>>((counts, targetId) => ({ ...counts, [targetId]: (counts[targetId] ?? 0) + 1 }), {});
+
+    expect(slowSteps).toHaveLength(2);
+    expect(slowSteps.every((step) => step.targetIds.length === 2 && step.metadata?.amount === -1)).toBe(true);
+    expect(Object.values(targetCounts)).toEqual([2, 2]);
+  });
+
   it('Ale and Hearty sets one random unit from each Dwarven troop to rate 1', () => {
     const dwarf = resolveTroopCombatant(
       { raceUpgradeIds: ['dwarf-ale-and-hearty'], troopClassUpgradeIds: [] },
@@ -951,7 +976,7 @@ describe('ability mechanics', () => {
     const rateStep = replay.steps.find((step) => step.kind === 'buff' && step.metadata?.sourceAbilityId === 'stall-warts' && step.metadata.stat === 'rate');
 
     expect(armorStep?.message).toContain('gains +1 armor');
-    expect(armorStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.armor).toBe(6);
+    expect(armorStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.armor).toBe(8);
     expect(rateStep?.message).toContain('loses 1 rate');
     expect(rateStep?.snapshot.units.find((unit) => unit.raceId === 'dwarf')?.stats.rate).toBe(8);
   });

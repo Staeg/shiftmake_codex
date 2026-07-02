@@ -106,6 +106,7 @@
   } from './detailCards';
 
   type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
+  type EssenceDraftRerollSide = 'troop' | 'upgrade';
   type MainMenuView = 'home' | 'singleplayer' | 'tutorial' | 'multiplayer' | 'debug' | 'settings';
   type CycleRecord = RiftResolutionRecord;
   type AbilityTooltipState = { label: string; description: string; ownerDetailKey: string | null };
@@ -292,6 +293,7 @@
   let confirmedTroopOfferUnlockId: TroopUnlockId | null = null;
   let confirmedUpgradeOfferId: UpgradeId | null = null;
   let hoveredUpgradeOfferId: UpgradeId | null = null;
+  let hoveredDraftRerollSide: EssenceDraftRerollSide | null = null;
   let assignmentConflict: { troopId?: TroopId; conflictTroopId?: TroopId; riftId?: string; message: string } | null = null;
   let archivePage = 0;
   let viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth;
@@ -1590,6 +1592,32 @@
     }
     gameStore.revealEssenceDraft();
     signalTutorial('reveal-draft');
+  }
+
+  function canRerollDraftSide(side: EssenceDraftRerollSide): boolean {
+    if ($gameStore.game.essenceDraftRerollUsed) {
+      return false;
+    }
+    return side === 'troop' ? !!$gameStore.game.activeTroopOffer : !!$gameStore.game.activeUpgradeOffer;
+  }
+
+  function rerollDraftSide(side: EssenceDraftRerollSide): void {
+    if (!canRerollDraftSide(side)) {
+      return;
+    }
+
+    if (side === 'troop') {
+      selectedTroopOfferUnlockId = null;
+      gameStore.rerollTroopOffer();
+    } else {
+      selectedUpgradeOfferId = null;
+      hoveredUpgradeOfferId = null;
+      gameStore.rerollUpgradeOffer();
+    }
+    hoveredDetail = null;
+    pinnedDetails = [];
+    hoveredAbilityTooltip = null;
+    pinnedAbilityTooltip = null;
   }
 
   function setContestCenterMode(): void {
@@ -3197,6 +3225,8 @@
   $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
   $: essenceDraftButtonLabel = essenceDraftCost === 1 ? 'Reveal One Unlock' : essenceDraftCost === 2 ? 'Reveal Unlock Draft' : 'Draft Unavailable';
   $: essenceDraftActive = !!($gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
+  $: canRerollTroopDraft = !$gameStore.game.essenceDraftRerollUsed && !!$gameStore.game.activeTroopOffer;
+  $: canRerollUpgradeDraft = !$gameStore.game.essenceDraftRerollUsed && !!$gameStore.game.activeUpgradeOffer;
   $: mustSpendEssenceBeforeCycleEnd =
     $gameStore.game.phase === 'planning' &&
     (($gameStore.game.essence > 0 && essenceDraftCost !== null) || $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
@@ -5330,6 +5360,27 @@
               </div>
               <button
                 type="button"
+                class="draft-reroll-button"
+                class:reroll-hovered={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}
+                class:reroll-other-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollTroopDraft}
+                disabled={!canRerollTroopDraft}
+                aria-label="Reroll troop draft options"
+                title="Reroll troop options"
+                on:mouseenter={() => (hoveredDraftRerollSide = 'troop')}
+                on:focus={() => (hoveredDraftRerollSide = 'troop')}
+                on:mouseleave={() => (hoveredDraftRerollSide = null)}
+                on:blur={() => (hoveredDraftRerollSide = null)}
+                on:click={() => rerollDraftSide('troop')}
+              >
+                <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
+                  <path d="M17.1 3.9v4.4h-4.4" />
+                  <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
+                  <path d="M6.9 20.1v-4.4h4.4" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="primary"
                 disabled={!selectedTroopOfferUnlockId}
                 on:click={confirmTroopOfferUnlock}
@@ -5366,6 +5417,27 @@
                   </button>
                 {/each}
               </div>
+              <button
+                type="button"
+                class="draft-reroll-button"
+                class:reroll-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}
+                class:reroll-other-hovered={hoveredDraftRerollSide === 'troop' && canRerollUpgradeDraft}
+                disabled={!canRerollUpgradeDraft}
+                aria-label="Reroll upgrade draft options"
+                title="Reroll upgrade options"
+                on:mouseenter={() => (hoveredDraftRerollSide = 'upgrade')}
+                on:focus={() => (hoveredDraftRerollSide = 'upgrade')}
+                on:mouseleave={() => (hoveredDraftRerollSide = null)}
+                on:blur={() => (hoveredDraftRerollSide = null)}
+                on:click={() => rerollDraftSide('upgrade')}
+              >
+                <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
+                  <path d="M17.1 3.9v4.4h-4.4" />
+                  <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
+                  <path d="M6.9 20.1v-4.4h4.4" />
+                </svg>
+              </button>
               <button
                 type="button"
                 class="primary"
@@ -5781,6 +5853,27 @@
                         </button>
                       {/each}
                     </div>
+                    <button
+                      type="button"
+                      class="draft-reroll-button"
+                      class:reroll-hovered={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}
+                      class:reroll-other-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollTroopDraft}
+                      disabled={!canRerollTroopDraft}
+                      aria-label="Reroll troop draft options"
+                      title="Reroll troop options"
+                      on:mouseenter={() => (hoveredDraftRerollSide = 'troop')}
+                      on:focus={() => (hoveredDraftRerollSide = 'troop')}
+                      on:mouseleave={() => (hoveredDraftRerollSide = null)}
+                      on:blur={() => (hoveredDraftRerollSide = null)}
+                      on:click={() => rerollDraftSide('troop')}
+                    >
+                      <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
+                        <path d="M17.1 3.9v4.4h-4.4" />
+                        <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
+                        <path d="M6.9 20.1v-4.4h4.4" />
+                      </svg>
+                    </button>
                     <button type="button" class="primary" data-tutorial-target="confirm-draft-troop" disabled={!selectedTroopOfferUnlockId} on:click={confirmTroopOfferUnlock}>Confirm Troop</button>
                   {:else if confirmedTroopOfferUnlockId}
                     {@const [raceId, unitClassId] = parseTroopUnlockId(confirmedTroopOfferUnlockId)}
@@ -5835,6 +5928,27 @@
                         </button>
                       {/each}
                     </div>
+                    <button
+                      type="button"
+                      class="draft-reroll-button"
+                      class:reroll-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}
+                      class:reroll-other-hovered={hoveredDraftRerollSide === 'troop' && canRerollUpgradeDraft}
+                      disabled={!canRerollUpgradeDraft}
+                      aria-label="Reroll upgrade draft options"
+                      title="Reroll upgrade options"
+                      on:mouseenter={() => (hoveredDraftRerollSide = 'upgrade')}
+                      on:focus={() => (hoveredDraftRerollSide = 'upgrade')}
+                      on:mouseleave={() => (hoveredDraftRerollSide = null)}
+                      on:blur={() => (hoveredDraftRerollSide = null)}
+                      on:click={() => rerollDraftSide('upgrade')}
+                    >
+                      <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
+                        <path d="M17.1 3.9v4.4h-4.4" />
+                        <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
+                        <path d="M6.9 20.1v-4.4h4.4" />
+                      </svg>
+                    </button>
                     <button type="button" class="primary" data-tutorial-target="confirm-draft-upgrade" disabled={!selectedUpgradeOfferId} on:click={confirmUpgradeOffer}>Confirm Upgrade</button>
                   {:else if confirmedUpgradeOfferId}
                     <div class="locked-draft-card">
@@ -6853,24 +6967,29 @@
   .menu-icon-button span {
     position: relative;
     display: block;
-    width: 0.88rem;
-    height: 0.88rem;
-    transform: translateX(0.1rem) rotate(45deg);
-    border-bottom: 2px solid currentColor;
-    border-left: 2px solid currentColor;
-  }
-
-  .menu-icon-button span::before {
-    content: '';
-    position: absolute;
-    left: -0.05rem;
-    bottom: -2px;
-    width: 1.05rem;
+    width: 1.15rem;
     height: 2px;
     border-radius: 999px;
     background: currentColor;
-    transform-origin: left center;
-    transform: rotate(-45deg);
+  }
+
+  .menu-icon-button span::before,
+  .menu-icon-button span::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 1.15rem;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .menu-icon-button span::before {
+    top: -0.38rem;
+  }
+
+  .menu-icon-button span::after {
+    top: 0.38rem;
   }
 
   .mode-toggle button.rifts-attention {
@@ -9240,6 +9359,103 @@
     padding: 0.35rem 0.55rem;
   }
 
+  .draft-reroll-button {
+    position: relative;
+    justify-self: center;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid rgba(124, 153, 176, 0.26);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(244, 205, 118, 0.12), transparent 58%),
+      rgba(11, 18, 27, 0.82);
+    color: #c6d5df;
+    cursor: pointer;
+    transition:
+      border-color 140ms ease,
+      color 140ms ease,
+      filter 140ms ease,
+      opacity 140ms ease,
+      transform 140ms ease;
+  }
+
+  .draft-reroll-button:hover,
+  .draft-reroll-button:focus-visible,
+  .draft-reroll-button.reroll-hovered {
+    border-color: rgba(244, 205, 118, 0.66);
+    color: #f4d886;
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+  .draft-reroll-button:disabled {
+    cursor: default;
+    opacity: 0.34;
+    transform: none;
+  }
+
+  .draft-reroll-button.reroll-other-hovered {
+    border-color: rgba(175, 83, 83, 0.56);
+    color: #78808a;
+    filter: grayscale(1) brightness(0.68);
+    opacity: 0.58;
+  }
+
+  .draft-reroll-button.reroll-other-hovered::before,
+  .draft-reroll-button.reroll-other-hovered::after {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1.55rem;
+    height: 0.18rem;
+    border-radius: 999px;
+    background: #d84646;
+    box-shadow: 0 0 8px rgba(216, 70, 70, 0.46);
+    content: '';
+    transform-origin: center;
+  }
+
+  .draft-reroll-button.reroll-other-hovered::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .draft-reroll-button.reroll-other-hovered::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  .recycle-icon {
+    width: 1.18rem;
+    height: 1.18rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .draft-reroll-button.reroll-hovered .recycle-icon,
+  .draft-reroll-button:hover:not(:disabled) .recycle-icon,
+  .draft-reroll-button:focus-visible:not(:disabled) .recycle-icon {
+    animation: recycle-spin 760ms linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .draft-reroll-button.reroll-hovered .recycle-icon,
+    .draft-reroll-button:hover:not(:disabled) .recycle-icon,
+    .draft-reroll-button:focus-visible:not(:disabled) .recycle-icon {
+      animation: none;
+    }
+  }
+
+  @keyframes recycle-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   .draft-offer-block.locked {
     border-color: rgba(111, 190, 146, 0.38);
     background: rgba(19, 42, 32, 0.58);
@@ -9528,11 +9744,11 @@
   .menu-back-button::before {
     content: '';
     display: block;
-    width: 0.66rem;
-    height: 0.66rem;
+    width: 0.72rem;
+    height: 0.72rem;
     border-left: 2px solid currentColor;
     border-bottom: 2px solid currentColor;
-    transform: translateX(0.1rem) rotate(45deg);
+    transform: translateX(0.12rem) rotate(45deg);
     transform-origin: center;
   }
 
@@ -11631,6 +11847,30 @@
 
     .footer-essence-draft-panel .essence-draft-groups {
       grid-template-columns: 1fr;
+    }
+
+    .footer-essence-draft-panel {
+      width: calc(100vw - 1.5rem);
+      max-width: calc(100vw - 1.5rem);
+      justify-self: stretch;
+    }
+
+    .footer-essence-draft-panel .draft-offer-block {
+      width: 100%;
+    }
+
+    .footer-essence-draft-panel .troop-draft-option-list {
+      grid-template-columns: repeat(3, minmax(2.75rem, 1fr));
+      width: 100%;
+    }
+
+    .footer-essence-draft-panel .unlock-row {
+      width: 100%;
+    }
+
+    .footer-essence-draft-panel .draft-upgrade-option {
+      width: 100%;
+      max-width: none;
     }
 
     .action-rail > button:only-child,

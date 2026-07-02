@@ -118,7 +118,7 @@ Footprint sizes:
 - Abilities: `Taunt`
 - Cost: 60
 - Troop upgrades:
-  - `Dine in Hell` (tier 3): start of turn, if engaged at full capacity, gain +5 armor until next turn; while engaged at full capacity, answer normal attacks with one normal attack
+  - `Dine in Hell` (tier 3): start of turn, if engaged at full capacity, gain +10 armor until next turn; while engaged at full capacity, answer normal attacks with one normal attack
   - `Sentinel Runes` (tier 3): the first enemy to move out of contact with the Knight causes 2 elementals to be summoned at its new position; they immediately engage and attack that unit. If unused, this triggers on death against the killer instead
   - `Sunder` (tier 3): Knights remove 20 armor on attack
 
@@ -161,7 +161,7 @@ Footprint sizes:
 ### Ranger
 
 - Attributes: `ranged`
-- Stats: health 50, damage 16, rate 13, move 4, range 7, armor 0, size 2, capacity 0
+- Stats: health 50, damage 16, rate 12, move 4, range 7, armor 0, size 2, capacity 0
 - Role: backline
 - Abilities: `Self Haste 2`
 - Cost: 60
@@ -193,7 +193,7 @@ Footprint sizes:
 ### Soldier
 
 - Attributes: `melee`
-- Stats: health 100, damage 10, rate 10, move 3, range 0, armor 2, size 2, capacity 4
+- Stats: health 90, damage 10, rate 10, move 3, range 0, armor 4, size 2, capacity 4
 - Role: frontline
 - Abilities: none
 - Cost: 24
@@ -250,7 +250,7 @@ Footprint sizes:
 
 ### Dwarves
 
-- `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board with 100 readiness
+- `Diggy Hole` (tier 1): Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate
 - `Ale and Hearty` (tier 2): Dwarven troops gain +60% rate, but one random unit from each Dwarven troop has rate set to 1 at combat start
 - `Stall Warts` (tier 3): Dwarven troops gain +1 armor and lose 1 rate for the battle after they are hit by normal attacks
 

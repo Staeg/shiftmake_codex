@@ -97,7 +97,7 @@ Race upgrades:
 
 Race upgrades:
 
-- Tier 1: `Diggy Hole` - Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board with 100 readiness
+- Tier 1: `Diggy Hole` - Dwarven units do not spawn at battle start; after 10 beats, they spawn on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate
 - Tier 2: `Ale and Hearty` - Dwarven troops gain +60% rate, but one random unit from each Dwarven troop has rate set to 1 at combat start
 - Tier 3: `Stall Warts` - Dwarven troops gain +1 armor and lose 1 rate for the battle after they are hit by normal attacks
 

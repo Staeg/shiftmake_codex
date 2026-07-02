@@ -130,7 +130,7 @@ describe('simulationHarness builders', () => {
 
     expect(soldier.label).toBe('Human Soldier');
     expect(soldier.quantity).toBe(5);
-    expect(soldier.stats.armor).toBe(3);
+    expect(soldier.stats.armor).toBe(5);
   });
 });
 

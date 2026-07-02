@@ -3138,7 +3138,7 @@ function performBrace(state: InternalState, actor: InternalUnit): void {
   applyTemporaryEffect(state, actor, actor, createRuntimeAbilityState(getAbility('brace')), {
     kind: 'statDelta',
     stat: 'armor',
-    amount: 5,
+    amount: 10,
     mode: 'flat',
     disposition: 'beneficial',
   });
@@ -3881,6 +3881,22 @@ function applyStallWarts(state: InternalState, unit: InternalUnit): void {
     amount: -1,
     mode: 'flat',
     disposition: 'harmful',
+  });
+}
+
+function applyDiggyHoleEmergenceSlow(state: InternalState, dwarves: InternalUnit[]): void {
+  const runtime = createRuntimeAbilityState(getAbility('diggy-hole'));
+  dwarves.forEach((dwarf) => {
+    const enemySide: SideId = dwarf.side === 'player' ? 'enemy' : 'player';
+    getAliveUnits(state, enemySide).forEach((enemy) => {
+      applyStatDelta(state, dwarf, enemy, runtime, {
+        kind: 'statDelta',
+        stat: 'rate',
+        amount: -1,
+        mode: 'flat',
+        disposition: 'harmful',
+      });
+    });
   });
 }
 
@@ -4919,6 +4935,7 @@ function spawnPendingDiggyHoleUnits(state: InternalState): void {
         sourceAbilityLabel: getAbility('diggy-hole').label,
       },
     );
+    applyDiggyHoleEmergenceSlow(state, spawned);
   });
 
   applyCopiousAle(state);

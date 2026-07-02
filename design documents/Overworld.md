@@ -52,6 +52,7 @@ The campaign phases inside the overworld are:
 - The draft costs 2 Essence when both troop and upgrade options are available.
 - If only troop options or only upgrade options remain, the one-sided draft costs 1 Essence.
 - Claim one troop option and one upgrade option from a revealed draft without spending additional Essence.
+- Optionally reroll either the troop side or the upgrade side once per revealed draft. Rerolling one side removes the reroll from the other side, and previously shown options are avoided unless no unseen valid options remain.
 - Troop draft candidates are limited to unlocked races; defeating an enemy from a locked race records the combination latently until that race is later unlocked.
 - Troop draft options that would leave the roster with more troops of one race or troop class than current discovered Rifts are hidden.
 - Spendable Essence must be used before ending the cycle. If no draft can be revealed, leftover Essence carries over.

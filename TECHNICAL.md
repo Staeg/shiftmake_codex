@@ -155,6 +155,9 @@ Important current catalog rules:
 - `activeTroopClassUnlockOffer`
 - `troopOfferRolls`
 - `upgradeOfferRolls`
+- `essenceDraftRerollUsed`
+- `seenTroopOfferOptionIds`
+- `seenUpgradeOfferOptionIds`
 - `postgameDismissed`
 - `openRifts`
 - `replayIndex`
@@ -176,6 +179,8 @@ Troop size is not persisted on the instance. It is derived from the current reso
 Draft offers are persisted in `GameState` so save/load does not reroll them.
 
 Troop and upgrade offers are revealed together as one Essence draft in normal play. The draft costs `2` Essence when both sides still have options; if one side is fully exhausted, a one-sided fallback costs `1` Essence. Claiming an option from a revealed pack does not cost additional Essence.
+
+Each revealed Essence draft has one optional reroll. The player may reroll the troop side or the upgrade side, but not both. Rerolling costs no Essence, preserves the other side, and prefers options not shown earlier in that draft; previously shown options can repeat only when no unseen valid options remain.
 
 Troop offer candidates are limited to:
 

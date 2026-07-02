@@ -36,7 +36,7 @@ Create the next Shiftmake icon in the same style.
 Name: Alternate Fuel
 Category: Ability
 Mechanic: Passive: corpse-consuming abilities may spend 10 HP instead of requiring or consuming a corpse, if that would not kill this unit.
-Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
+Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons restore 7 health to allies on their own hex at the end of each turn.
 Visual tags: damage, readiness, healing, summon, corpse, synergy
 
 Requirements:
@@ -61,8 +61,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Anointed
 Category: Ability
-Mechanic: Passive: healing and positive stat gains affecting this unit are doubled.
-Upgrade context: Anointed Executioner (Champion, tier 3): Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.
+Mechanic: Passive: health restoration and positive stat gains affecting this unit are doubled.
+Upgrade context: Anointed Executioner (Champion, tier 3): Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion regains health or gains positive stats, it gains twice as much.
 Visual tags: damage, healing
 
 Requirements:
@@ -87,9 +87,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Arc Conductor
 Category: Ability
-Mechanic: Passive: when an allied elemental dies, blast all enemies within 2 hexes of its occupied hexes for 8.
-Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
-Visual tags: damage, summon, corpse, ranged, synergy
+Mechanic: Passive: when an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health.
+Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
+Visual tags: healing, summon, corpse, debuff, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -139,9 +139,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Berserk
 Category: Ability
-Mechanic: Passive: the first time this unit would die from damage, it becomes immune to damage and dies at the end of its next turn.
-Upgrade context: Berserk (Orcs, tier 3): When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.
-Visual tags: damage, readiness, corpse, defense
+Mechanic: Passive: the first time this unit would die from health loss, it stops losing health and dies at the end of its next turn.
+Upgrade context: Berserk (Orcs, tier 3): When an Orc unit would die from health loss, its readiness is set to 0, it stops losing health, and it dies at the end of its next turn.
+Visual tags: readiness, healing, corpse, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -165,10 +165,10 @@ Create the next Shiftmake icon in the same style.
 
 Name: Blast 5
 Category: Ability
-Mechanic: On attack: all enemies within 2 hexes of the target's occupied hexes take 5 damage.
+Mechanic: On attack: all enemies within 2 hexes of the target's occupied hexes lose 5 health.
 Trigger: onAttack
 Mechanical effects: blast 5 damage
-Visual tags: damage, ranged
+Visual tags: damage, healing, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -221,8 +221,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Bolstering Light
 Category: Ability
-Mechanic: Passive: Priest heals that bring a target to full HP give the target and Priest +1 rate and +1 damage; other Priest heals give both 40 readiness.
-Upgrade context: Bolstering Light (Priest, tier 3): When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.
+Mechanic: Passive: Priest health restoration that brings a target to full HP gives the target and Priest +1 rate and +1 damage; other Priest health restoration gives both 40 readiness.
+Upgrade context: Bolstering Light (Priest, tier 3): When Priest health restoration brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.
 Visual tags: damage, rate, readiness, healing
 
 Requirements:
@@ -272,8 +272,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Brace
 Category: Ability
-Mechanic: Passive: start of turn, if engaged at full capacity, gain +5 armor until next turn.
-Upgrade context: Dine in Hell (Knight, tier 3): Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
+Mechanic: Passive: start of turn, if engaged at full capacity, gain +10 armor until next turn.
+Upgrade context: Dine in Hell (Knight, tier 3): Start of turn: if a Knight is engaged at full capacity, it gains +10 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
 Visual tags: damage, armor, readiness, melee, defense
 
 Requirements:
@@ -299,8 +299,8 @@ Create the next Shiftmake icon in the same style.
 Name: Bramble Snare
 Category: Ability
 Mechanic: Passive: each shapeshift empowers this unit so its melee attacks reduce target rate by 2 for the battle.
-Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
-Visual tags: damage, rate, melee, debuff, transformation
+Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers lose 6 health whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
+Visual tags: damage, rate, healing, melee, debuff, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -405,11 +405,11 @@ Create the next Shiftmake icon in the same style.
 Name: Charge 4 Summon Elemental
 Category: Ability
 Mechanic: Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Each summoned elemental can do the same once.
-Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
+Upgrade context: Crackling Mitosis (Elementalist, tier 3): When an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
 Trigger: endOfTurn; charge every 4 turns
 Target: self
 Mechanical effects: summon 1 elemental
-Visual tags: damage, readiness, summon, corpse, ranged, synergy
+Visual tags: readiness, healing, summon, corpse, debuff, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -489,8 +489,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Corpse Summon Skeleton
 Category: Ability
-Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies touching them.
-Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
+Mechanic: When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons restore 7 health to allies touching them.
+Upgrade context: Hemomancy (Necromancer, tier 3): Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons restore 7 health to allies on their own hex at the end of each turn.
 Trigger: onFallen; near fallen all unit
 Mechanical effects: summon 1 skeleton
 Visual tags: damage, readiness, healing, summon, corpse, synergy
@@ -569,9 +569,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Diggy Hole
 Category: Ability
-Mechanic: Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness.
-Upgrade context: Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.
-Visual tags: readiness, movement
+Mechanic: Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.
+Upgrade context: Diggy Hole (Dwarves, tier 1): Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.
+Visual tags: rate, readiness, debuff, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -728,7 +728,7 @@ Create the next Shiftmake icon in the same style.
 Name: Executioner
 Category: Ability
 Mechanic: Passive: prioritize the lowest-HP legal attack target.
-Upgrade context: Anointed Executioner (Champion, tier 3): Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.
+Upgrade context: Anointed Executioner (Champion, tier 3): Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion regains health or gains positive stats, it gains twice as much.
 Visual tags: damage, healing
 
 Requirements:
@@ -856,8 +856,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Forest Friends
 Category: Ability
-Mechanic: Passive: end of turn, heal self and all units Bonded to this unit for 20; whenever this unit shapeshifts, summon 2 wolves.
-Upgrade context: Forest Friends (Druid, tier 3): End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.
+Mechanic: Passive: end of turn, restore 20 health to self and all units Bonded to this unit; whenever this unit shapeshifts, summon 2 wolves.
+Upgrade context: Forest Friends (Druid, tier 3): End of turn: each Druid restores 20 health to itself and all units Bonded to that specific Druid. Whenever a Druid shapeshifts, it summons 2 wolves.
 Visual tags: readiness, healing, summon, transformation
 
 Requirements:
@@ -911,8 +911,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Frenzy: Ramp 1
 Category: Ability
-Mechanic: After taking damage: gain +1 damage for the battle.
-Upgrade context: Mossblood (Trolls, tier 2): After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
+Mechanic: After losing health: gain +1 damage for the battle.
+Upgrade context: Mossblood (Trolls, tier 2): After losing health, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
 Trigger: onDamaged
 Target: self
 Mechanical effects: ramp 1
@@ -940,8 +940,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Gargantuan Zeal
 Category: Ability
-Mechanic: Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on size.
-Upgrade context: Gargantuan Zeal (Trolls, tier 1): When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.
+Mechanic: Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on the unit's bulk.
+Upgrade context: Gargantuan Zeal (Trolls, tier 1): When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage based on their bulk for each stack of Zeal they have.
 Visual tags: damage, synergy
 
 Requirements:
@@ -1099,8 +1099,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Hold the Standard
 Category: Ability
-Mechanic: Passive: whenever a non-Fading ally dies, heal each Human unit for 15.
-Upgrade context: Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies, each Human unit heals 15.
+Mechanic: Passive: whenever a non-Fading ally dies, restore 15 health to each Human unit.
+Upgrade context: Hold the Standard (Humans, tier 2): Whenever a non-Fading ally dies, each Human unit restores 15 health.
 Visual tags: healing, corpse
 
 Requirements:
@@ -1125,8 +1125,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Holy Constructs
 Category: Ability
-Mechanic: Passive: while a Priest is present, the first time each non-Fading ally is healed, summon an Elemental adjacent to them. Elementals heal adjacent allies on death.
-Upgrade context: Holy Constructs (Priest, tier 3): While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.
+Mechanic: Passive: while a Priest is present, the first time each non-Fading ally regains health, summon an Elemental adjacent to them. Elementals restore 20 health to adjacent allies on death.
+Upgrade context: Holy Constructs (Priest, tier 3): While a Priest is present in a battle: the first time each non-Fading ally regains health, an Elemental is summoned adjacent to them. Elementals now restore 20 health to adjacent allies on death.
 Visual tags: healing, summon, corpse
 
 Requirements:
@@ -1336,8 +1336,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Martyr's Zeal
 Category: Ability
-Mechanic: Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.
-Upgrade context: Martyr's Zeal (Soldier, tier 3): When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.
+Mechanic: Passive: when this Soldier dies, all allies gain Zeal. Zeal restores health at end of turn.
+Upgrade context: Martyr's Zeal (Soldier, tier 3): When a Soldier dies, all allies gain a stack of Zeal. Allies restore 5 health for each stack of Zeal they have at the end of their turns.
 Visual tags: readiness, healing, corpse
 
 Requirements:
@@ -1362,7 +1362,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Mend 4
 Category: Ability
-Mechanic: End of turn: heal allies within this unit's range for 4.
+Mechanic: End of turn: restore 4 health to allies within this unit's range.
 Trigger: endOfTurn
 Target: aoe; ally; radius from selfRange
 Mechanical effects: heal 4
@@ -1390,8 +1390,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Mercy Before Dawn
 Category: Ability
-Mechanic: Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest heals repeat on allies in range below 10% HP.
-Upgrade context: Mercy Before Dawn (Priest, tier 3): The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.
+Mechanic: Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest health restoration repeats on allies in range below 10% HP.
+Upgrade context: Mercy Before Dawn (Priest, tier 3): The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest restores health to an ally, that healing repeats on all allies in range under 10% health.
 Visual tags: healing, corpse, ranged, synergy, defense
 
 Requirements:
@@ -1583,7 +1583,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Regen 5
 Category: Ability
-Mechanic: End of turn: heal self for 5.
+Mechanic: End of turn: restore 5 health to self.
 Trigger: endOfTurn
 Target: self
 Mechanical effects: heal 5
@@ -1612,7 +1612,7 @@ Create the next Shiftmake icon in the same style.
 Name: Retaliate
 Category: Ability
 Mechanic: Passive: when hit by a normal attack, make a normal attack back once.
-Upgrade context: Dine in Hell (Knight, tier 3): Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
+Upgrade context: Dine in Hell (Knight, tier 3): Start of turn: if a Knight is engaged at full capacity, it gains +10 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
 Visual tags: damage, armor, readiness, melee, defense
 
 Requirements:
@@ -1637,7 +1637,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Rowdy Regrowth
 Category: Ability
-Mechanic: Passive: whenever this unit is healed, gain 20 readiness and +1 damage.
+Mechanic: Passive: whenever this unit regains health, gain 20 readiness and +1 damage.
 Upgrade context: Rowdy Regrowth (Trolls, tier 2): Whenever a Troll regains health, it gains 20 readiness and +1 damage.
 Visual tags: damage, readiness, healing
 
@@ -1663,8 +1663,8 @@ Create the next Shiftmake icon in the same style.
 
 Name: Saintbane
 Category: Ability
-Mechanic: Passive: when an enemy heals or gains stats, raise adjacent corpses as Skeletons.
-Upgrade context: Saintbane (Necromancer, tier 3): Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.
+Mechanic: Passive: when an enemy regains health or gains stats, raise adjacent corpses as Skeletons.
+Upgrade context: Saintbane (Necromancer, tier 3): Whenever an enemy gains stats or regains health, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.
 Visual tags: healing, summon, corpse, synergy
 
 Requirements:
@@ -1884,9 +1884,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Shield Drill
 Category: Ability
-Mechanic: Passive: ranged attacks can deal at most 1 damage to this unit after all modifiers.
-Upgrade context: Shield Drill (Soldier, tier 3): Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers. Direct upgrade effects: armor -4.
-Visual tags: damage, armor, corpse, ranged, defense
+Mechanic: Passive: ranged attacks can make this unit lose at most 1 health after all modifiers.
+Upgrade context: Shield Drill (Soldier, tier 3): Soldiers have -4 armor, but each ranged attack can make a Soldier lose at most 1 health after all modifiers. Direct upgrade effects: armor -4.
+Visual tags: damage, armor, healing, corpse, ranged, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2096,7 +2096,7 @@ Create the next Shiftmake icon in the same style.
 Name: Stoneblood
 Category: Ability
 Mechanic: Passive: the first time this unit would die, it survives at 25 HP and loses Regen.
-Upgrade context: Mossblood (Trolls, tier 2): After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
+Upgrade context: Mossblood (Trolls, tier 2): After losing health, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
 Visual tags: damage, healing, corpse, debuff, defense
 
 Requirements:
@@ -2292,9 +2292,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Thornhide
 Category: Ability
-Mechanic: Passive: after shapeshifting, normal attackers take 6 damage when they hit this unit.
-Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
-Visual tags: damage, rate, melee, transformation
+Mechanic: Passive: after shapeshifting, normal attackers lose 6 health when they hit this unit.
+Upgrade context: Ent's Visage (Druid, tier 3): After shapeshifting, attackers lose 6 health whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
+Visual tags: damage, rate, healing, melee, debuff, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2476,7 +2476,7 @@ Create the next Shiftmake icon in the same style.
 
 Name: Valor 20
 Category: Ability
-Mechanic: On kill: heal allies touching the fallen unit for 20.
+Mechanic: On kill: restore 20 health to allies touching the fallen unit.
 Trigger: onKill
 Target: aoe; ally; radius 0
 Mechanical effects: heal 20
@@ -2532,9 +2532,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Vulnerability Hex
 Category: Ability
-Mechanic: Passive: if a Wizard is present, enemies damaged by Blast can gain Hex. Hex makes enemies take more Blast damage.
-Upgrade context: Vulnerability Hex (Wizard, tier 3): If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.
-Visual tags: damage, ranged
+Mechanic: Passive: if a Wizard is present, enemies hit by Blast can gain Hex. Hex makes enemies lose more health from Blast.
+Upgrade context: Vulnerability Hex (Wizard, tier 3): If a Wizard is present in a battle, enemies hit by Blast have a 20% chance of gaining a stack of Hex. Each enemy loses 100% more health from Blast for each stack of Hex they have.
+Visual tags: damage, healing, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2558,9 +2558,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Wages of Virtue
 Category: Ability
-Mechanic: Passive: redirect incoming attack damage to a touching ally if possible. When a touching ally is healed, this unit is also healed.
-Upgrade context: Wages of Virtue (Avenger, tier 3): Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.
-Visual tags: damage, healing, defense
+Mechanic: Passive: redirect incoming normal attacks to a touching ally if possible. When a touching ally regains health, this unit regains the same amount.
+Upgrade context: Wages of Virtue (Avenger, tier 3): Avengers redirect incoming normal attacks to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger regains health, that Avenger regains the same amount.
+Visual tags: healing, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2610,9 +2610,9 @@ Create the next Shiftmake icon in the same style.
 
 Name: Whimsy
 Category: Ability
-Mechanic: Passive: after taking damage, relocate to a random legal hex.
-Upgrade context: Whimsy (Fae, tier 3): Whenever a Fae unit takes damage, it is relocated to a random hex.
-Visual tags: damage, movement
+Mechanic: Passive: after losing health, relocate to a random legal hex.
+Upgrade context: Whimsy (Fae, tier 3): Whenever a Fae unit loses health, it is relocated to a random hex.
+Visual tags: healing, debuff, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2638,8 +2638,8 @@ Name: Diggy Hole
 Category: Race upgrade
 Owner: Dwarves
 Tier: 1
-Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.
-Visual tags: dwarves, readiness, movement
+Mechanic: Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.
+Visual tags: dwarves, rate, readiness, debuff, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -2859,8 +2859,8 @@ Name: Whimsy
 Category: Race upgrade
 Owner: Fae
 Tier: 3
-Mechanic: Whenever a Fae unit takes damage, it is relocated to a random hex.
-Visual tags: fae, damage, movement
+Mechanic: Whenever a Fae unit loses health, it is relocated to a random hex.
+Visual tags: fae, healing, debuff, movement
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3030,7 +3030,7 @@ Name: Hold the Standard
 Category: Race upgrade
 Owner: Humans
 Tier: 2
-Mechanic: Whenever a non-Fading ally dies, each Human unit heals 15.
+Mechanic: Whenever a non-Fading ally dies, each Human unit restores 15 health.
 Visual tags: humans, healing, corpse
 
 Requirements:
@@ -3114,8 +3114,8 @@ Name: Berserk
 Category: Race upgrade
 Owner: Orcs
 Tier: 3
-Mechanic: When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.
-Visual tags: orcs, damage, readiness, corpse, defense
+Mechanic: When an Orc unit would die from health loss, its readiness is set to 0, it stops losing health, and it dies at the end of its next turn.
+Visual tags: orcs, readiness, healing, corpse, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3141,7 +3141,7 @@ Name: Gargantuan Zeal
 Category: Race upgrade
 Owner: Trolls
 Tier: 1
-Mechanic: When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.
+Mechanic: When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage based on their bulk for each stack of Zeal they have.
 Visual tags: trolls, damage, synergy
 
 Requirements:
@@ -3168,7 +3168,7 @@ Name: Mossblood
 Category: Race upgrade
 Owner: Trolls
 Tier: 2
-Mechanic: After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
+Mechanic: After losing health, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.
 Visual tags: trolls, damage, healing, corpse, debuff, defense
 
 Requirements:
@@ -3277,10 +3277,10 @@ Create the next Shiftmake icon in the same style.
 Name: Haze
 Category: Rift mutator
 Owner: Rift
-Mechanic: All units lose 5 readiness every beat.
+Mechanic: All units lose 5 rate.
 Trigger: battle-wide environmental rule
 Target: all units or the whole battle
-Visual tags: readiness, debuff
+Visual tags: rate, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3305,10 +3305,10 @@ Create the next Shiftmake icon in the same style.
 Name: Heavy Air
 Category: Rift mutator
 Owner: Rift
-Mechanic: Ranged attack damage is reduced by 50%.
+Mechanic: Ranged attacks deal 50% less damage.
 Trigger: battle-wide environmental rule
 Target: all units or the whole battle
-Visual tags: damage, ranged, debuff
+Visual tags: damage, ranged
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3503,8 +3503,8 @@ Name: Wages of Virtue
 Category: Troop-class upgrade
 Owner: Avenger
 Tier: 3
-Mechanic: Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.
-Visual tags: avenger, damage, healing, defense
+Mechanic: Avengers redirect incoming normal attacks to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger regains health, that Avenger regains the same amount.
+Visual tags: avenger, healing, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3642,7 +3642,7 @@ Name: Anointed Executioner
 Category: Troop-class upgrade
 Owner: Champion
 Tier: 3
-Mechanic: Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.
+Mechanic: Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion regains health or gains positive stats, it gains twice as much.
 Visual tags: champion, damage, healing
 
 Requirements:
@@ -3753,8 +3753,8 @@ Name: Ent's Visage
 Category: Troop-class upgrade
 Owner: Druid
 Tier: 3
-Mechanic: After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
-Visual tags: druid, damage, rate, melee, transformation
+Mechanic: After shapeshifting, attackers lose 6 health whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.
+Visual tags: druid, damage, rate, healing, melee, debuff, transformation
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3780,7 +3780,7 @@ Name: Forest Friends
 Category: Troop-class upgrade
 Owner: Druid
 Tier: 3
-Mechanic: End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.
+Mechanic: End of turn: each Druid restores 20 health to itself and all units Bonded to that specific Druid. Whenever a Druid shapeshifts, it summons 2 wolves.
 Visual tags: druid, readiness, healing, summon, transformation
 
 Requirements:
@@ -3835,8 +3835,8 @@ Name: Crackling Mitosis
 Category: Troop-class upgrade
 Owner: Elementalist
 Tier: 3
-Mechanic: When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
-Visual tags: elementalist, damage, summon, corpse, ranged, synergy
+Mechanic: When an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health. Elementals summoned by Elementalists can repeat that summon once after 4 turns.
+Visual tags: elementalist, healing, summon, corpse, debuff, synergy
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -3889,7 +3889,7 @@ Name: Dine in Hell
 Category: Troop-class upgrade
 Owner: Knight
 Tier: 3
-Mechanic: Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
+Mechanic: Start of turn: if a Knight is engaged at full capacity, it gains +10 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.
 Visual tags: knight, damage, armor, readiness, melee, defense
 
 Requirements:
@@ -4084,7 +4084,7 @@ Name: Hemomancy
 Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
-Mechanic: Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.
+Mechanic: Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons restore 7 health to allies on their own hex at the end of each turn.
 Visual tags: necromancer, damage, readiness, healing, summon, corpse, synergy
 
 Requirements:
@@ -4111,7 +4111,7 @@ Name: Saintbane
 Category: Troop-class upgrade
 Owner: Necromancer
 Tier: 3
-Mechanic: Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.
+Mechanic: Whenever an enemy gains stats or regains health, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.
 Visual tags: necromancer, healing, summon, corpse, synergy
 
 Requirements:
@@ -4138,7 +4138,7 @@ Name: Bolstering Light
 Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
-Mechanic: When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.
+Mechanic: When Priest health restoration brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.
 Visual tags: priest, damage, rate, readiness, healing
 
 Requirements:
@@ -4165,7 +4165,7 @@ Name: Holy Constructs
 Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
-Mechanic: While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.
+Mechanic: While a Priest is present in a battle: the first time each non-Fading ally regains health, an Elemental is summoned adjacent to them. Elementals now restore 20 health to adjacent allies on death.
 Visual tags: priest, healing, summon, corpse
 
 Requirements:
@@ -4192,7 +4192,7 @@ Name: Mercy Before Dawn
 Category: Troop-class upgrade
 Owner: Priest
 Tier: 3
-Mechanic: The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.
+Mechanic: The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest restores health to an ally, that healing repeats on all allies in range under 10% health.
 Visual tags: priest, healing, corpse, ranged, synergy, defense
 
 Requirements:
@@ -4414,7 +4414,7 @@ Name: Martyr's Zeal
 Category: Troop-class upgrade
 Owner: Soldier
 Tier: 3
-Mechanic: When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.
+Mechanic: When a Soldier dies, all allies gain a stack of Zeal. Allies restore 5 health for each stack of Zeal they have at the end of their turns.
 Visual tags: soldier, readiness, healing, corpse
 
 Requirements:
@@ -4441,9 +4441,9 @@ Name: Shield Drill
 Category: Troop-class upgrade
 Owner: Soldier
 Tier: 3
-Mechanic: Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers.
+Mechanic: Soldiers have -4 armor, but each ranged attack can make a Soldier lose at most 1 health after all modifiers.
 Mechanical effects: armor -4
-Visual tags: soldier, damage, armor, corpse, ranged, defense
+Visual tags: soldier, damage, armor, healing, corpse, ranged, debuff, defense
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.
@@ -4526,8 +4526,8 @@ Name: Vulnerability Hex
 Category: Troop-class upgrade
 Owner: Wizard
 Tier: 3
-Mechanic: If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.
-Visual tags: wizard, damage, ranged
+Mechanic: If a Wizard is present in a battle, enemies hit by Blast have a 20% chance of gaining a stack of Hex. Each enemy loses 100% more health from Blast for each stack of Hex they have.
+Visual tags: wizard, damage, healing, ranged, debuff
 
 Requirements:
 - Output exactly one square icon image, not a contact sheet and not a rectangular card.

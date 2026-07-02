@@ -43,7 +43,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: healing and positive stat gains affecting this unit are doubled.",
+    "mechanic": "Passive: health restoration and positive stat gains affecting this unit are doubled.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -56,13 +56,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when an allied elemental dies, blast all enemies within 2 hexes of its occupied hexes for 8.",
+    "mechanic": "Passive: when an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health.",
     "gameplayTags": [
       "base-ability",
-      "damage",
+      "healing",
       "summon",
       "corpse",
-      "ranged",
+      "debuff",
       "synergy"
     ]
   },
@@ -86,13 +86,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: the first time this unit would die from damage, it becomes immune to damage and dies at the end of its next turn.",
+    "mechanic": "Passive: the first time this unit would die from health loss, it stops losing health and dies at the end of its next turn.",
     "gameplayTags": [
       "base-ability",
-      "damage",
       "readiness",
+      "healing",
       "corpse",
-      "defense"
+      "debuff"
     ]
   },
   {
@@ -101,11 +101,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On attack: all enemies within 2 hexes of the target's occupied hexes take 5 damage.",
+    "mechanic": "On attack: all enemies within 2 hexes of the target's occupied hexes lose 5 health.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "ranged"
+      "healing",
+      "ranged",
+      "debuff"
     ]
   },
   {
@@ -127,7 +129,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: Priest heals that bring a target to full HP give the target and Priest +1 rate and +1 damage; other Priest heals give both 40 readiness.",
+    "mechanic": "Passive: Priest health restoration that brings a target to full HP gives the target and Priest +1 rate and +1 damage; other Priest health restoration gives both 40 readiness.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -155,7 +157,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: start of turn, if engaged at full capacity, gain +5 armor until next turn.",
+    "mechanic": "Passive: start of turn, if engaged at full capacity, gain +10 armor until next turn.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -176,6 +178,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
       "base-ability",
       "damage",
       "rate",
+      "healing",
       "melee",
       "debuff",
       "transformation"
@@ -236,11 +239,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "mechanic": "Every 4 turns: summon 1 elemental on this unit or an adjacent hex. Each summoned elemental can do the same once.",
     "gameplayTags": [
       "base-ability",
-      "damage",
       "readiness",
+      "healing",
       "summon",
       "corpse",
-      "ranged",
+      "debuff",
       "synergy"
     ]
   },
@@ -280,7 +283,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons heal allies touching them.",
+    "mechanic": "When a nearby unit leaves a corpse, consume it to summon a skeleton there. Summoned skeletons restore 7 health to allies touching them.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -329,10 +332,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness.",
+    "mechanic": "Passive: does not spawn at battle start. After 10 beats, spawns on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.",
     "gameplayTags": [
       "base-ability",
+      "rate",
       "readiness",
+      "debuff",
       "movement"
     ]
   },
@@ -487,7 +492,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: end of turn, heal self and all units Bonded to this unit for 20; whenever this unit shapeshifts, summon 2 wolves.",
+    "mechanic": "Passive: end of turn, restore 20 health to self and all units Bonded to this unit; whenever this unit shapeshifts, summon 2 wolves.",
     "gameplayTags": [
       "base-ability",
       "readiness",
@@ -516,7 +521,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "After taking damage: gain +1 damage for the battle.",
+    "mechanic": "After losing health: gain +1 damage for the battle.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -532,7 +537,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on size.",
+    "mechanic": "Passive: when a Troll is present, one random unit from each allied troop gains Zeal at battle start. Zeal grants damage based on the unit's bulk.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -616,7 +621,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: whenever a non-Fading ally dies, heal each Human unit for 15.",
+    "mechanic": "Passive: whenever a non-Fading ally dies, restore 15 health to each Human unit.",
     "gameplayTags": [
       "base-ability",
       "healing",
@@ -629,7 +634,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: while a Priest is present, the first time each non-Fading ally is healed, summon an Elemental adjacent to them. Elementals heal adjacent allies on death.",
+    "mechanic": "Passive: while a Priest is present, the first time each non-Fading ally regains health, summon an Elemental adjacent to them. Elementals restore 20 health to adjacent allies on death.",
     "gameplayTags": [
       "base-ability",
       "healing",
@@ -742,7 +747,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when this Soldier dies, all allies gain Zeal. Zeal heals at end of turn.",
+    "mechanic": "Passive: when this Soldier dies, all allies gain Zeal. Zeal restores health at end of turn.",
     "gameplayTags": [
       "base-ability",
       "readiness",
@@ -756,7 +761,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: heal allies within this unit's range for 4.",
+    "mechanic": "End of turn: restore 4 health to allies within this unit's range.",
     "gameplayTags": [
       "base-ability",
       "readiness",
@@ -770,7 +775,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest heals repeat on allies in range below 10% HP.",
+    "mechanic": "Passive: the first time each battle an ally in this unit's range would die, it survives at 1 HP. Priest health restoration repeats on allies in range below 10% HP.",
     "gameplayTags": [
       "base-ability",
       "healing",
@@ -870,7 +875,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "End of turn: heal self for 5.",
+    "mechanic": "End of turn: restore 5 health to self.",
     "gameplayTags": [
       "base-ability",
       "readiness",
@@ -899,7 +904,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: whenever this unit is healed, gain 20 readiness and +1 damage.",
+    "mechanic": "Passive: whenever this unit regains health, gain 20 readiness and +1 damage.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -913,7 +918,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: when an enemy heals or gains stats, raise adjacent corpses as Skeletons.",
+    "mechanic": "Passive: when an enemy regains health or gains stats, raise adjacent corpses as Skeletons.",
     "gameplayTags": [
       "base-ability",
       "healing",
@@ -1035,13 +1040,15 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: ranged attacks can deal at most 1 damage to this unit after all modifiers.",
+    "mechanic": "Passive: ranged attacks can make this unit lose at most 1 health after all modifiers.",
     "gameplayTags": [
       "base-ability",
       "damage",
       "armor",
+      "healing",
       "corpse",
       "ranged",
+      "debuff",
       "defense"
     ]
   },
@@ -1255,12 +1262,14 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: after shapeshifting, normal attackers take 6 damage when they hit this unit.",
+    "mechanic": "Passive: after shapeshifting, normal attackers lose 6 health when they hit this unit.",
     "gameplayTags": [
       "base-ability",
       "damage",
       "rate",
+      "healing",
       "melee",
+      "debuff",
       "transformation"
     ]
   },
@@ -1354,7 +1363,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "On kill: heal allies touching the fallen unit for 20.",
+    "mechanic": "On kill: restore 20 health to allies touching the fallen unit.",
     "gameplayTags": [
       "base-ability",
       "damage",
@@ -1382,11 +1391,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: if a Wizard is present, enemies damaged by Blast can gain Hex. Hex makes enemies take more Blast damage.",
+    "mechanic": "Passive: if a Wizard is present, enemies hit by Blast can gain Hex. Hex makes enemies lose more health from Blast.",
     "gameplayTags": [
       "base-ability",
       "damage",
-      "ranged"
+      "healing",
+      "ranged",
+      "debuff"
     ]
   },
   {
@@ -1395,10 +1406,9 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: redirect incoming attack damage to a touching ally if possible. When a touching ally is healed, this unit is also healed.",
+    "mechanic": "Passive: redirect incoming normal attacks to a touching ally if possible. When a touching ally regains health, this unit regains the same amount.",
     "gameplayTags": [
       "base-ability",
-      "damage",
       "healing",
       "defense"
     ]
@@ -1423,10 +1433,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "ability",
     "owner": null,
     "tier": null,
-    "mechanic": "Passive: after taking damage, relocate to a random legal hex.",
+    "mechanic": "Passive: after losing health, relocate to a random legal hex.",
     "gameplayTags": [
       "base-ability",
-      "damage",
+      "healing",
+      "debuff",
       "movement"
     ]
   }
@@ -1447,11 +1458,13 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Dwarves",
     "tier": 1,
-    "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness.",
+    "mechanic": "Dwarven units do not spawn at battle start. After 10 beats, they spawn on the enemy side of the board with 100 readiness, and each emerging Dwarf makes all enemies lose 1 rate.",
     "gameplayTags": [
       "race-upgrade",
       "dwarves",
+      "rate",
       "readiness",
+      "debuff",
       "movement"
     ]
   },
@@ -1588,11 +1601,12 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Fae",
     "tier": 3,
-    "mechanic": "Whenever a Fae unit takes damage, it is relocated to a random hex.",
+    "mechanic": "Whenever a Fae unit loses health, it is relocated to a random hex.",
     "gameplayTags": [
       "race-upgrade",
       "fae",
-      "damage",
+      "healing",
+      "debuff",
       "movement"
     ]
   }
@@ -1702,7 +1716,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Humans",
     "tier": 2,
-    "mechanic": "Whenever a non-Fading ally dies, each Human unit heals 15.",
+    "mechanic": "Whenever a non-Fading ally dies, each Human unit restores 15 health.",
     "gameplayTags": [
       "race-upgrade",
       "humans",
@@ -1758,14 +1772,14 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Orcs",
     "tier": 3,
-    "mechanic": "When an Orc unit would die from damage, its readiness is set to 0, it stops taking damage, and it dies at the end of its next turn.",
+    "mechanic": "When an Orc unit would die from health loss, its readiness is set to 0, it stops losing health, and it dies at the end of its next turn.",
     "gameplayTags": [
       "race-upgrade",
       "orcs",
-      "damage",
       "readiness",
+      "healing",
       "corpse",
-      "defense"
+      "debuff"
     ]
   }
 ]
@@ -1785,7 +1799,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Trolls",
     "tier": 1,
-    "mechanic": "When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage equal to 5x their size for each stack of Zeal they have.",
+    "mechanic": "When a Troll is present, a random unit from each allied troop gains 1 stack of Zeal at the start of the battle. Allies gain damage based on their bulk for each stack of Zeal they have.",
     "gameplayTags": [
       "race-upgrade",
       "trolls",
@@ -1799,7 +1813,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "race_upgrade",
     "owner": "Trolls",
     "tier": 2,
-    "mechanic": "After taking damage, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.",
+    "mechanic": "After losing health, each troll unit gains +1 damage for the rest of the battle. The first time each troll would die in a battle, it survives at 25 HP and loses Regen for the rest of that battle.",
     "gameplayTags": [
       "race-upgrade",
       "trolls",
@@ -1870,10 +1884,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "rift_mutator",
     "owner": "Rift",
     "tier": null,
-    "mechanic": "All units lose 5 readiness every beat.",
+    "mechanic": "All units lose 5 rate.",
     "gameplayTags": [
       "rift-mutator",
-      "readiness",
+      "rate",
       "debuff"
     ]
   },
@@ -1883,12 +1897,11 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "rift_mutator",
     "owner": "Rift",
     "tier": null,
-    "mechanic": "Ranged attack damage is reduced by 50%.",
+    "mechanic": "Ranged attacks deal 50% less damage.",
     "gameplayTags": [
       "rift-mutator",
       "damage",
-      "ranged",
-      "debuff"
+      "ranged"
     ]
   },
   {
@@ -2004,11 +2017,10 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Avenger",
     "tier": 3,
-    "mechanic": "Avengers redirect damage taken to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger is healed, that Avenger is also healed.",
+    "mechanic": "Avengers redirect incoming normal attacks to a random adjacent ally if possible. Whenever an ally adjacent to an Avenger regains health, that Avenger regains the same amount.",
     "gameplayTags": [
       "troop-class-upgrade",
       "avenger",
-      "damage",
       "healing",
       "defense"
     ]
@@ -2098,7 +2110,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Champion",
     "tier": 3,
-    "mechanic": "Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion is healed or gains positive stats, it gains twice as much.",
+    "mechanic": "Champions target the lowest-health enemy they are allowed to attack. Whenever a Champion regains health or gains positive stats, it gains twice as much.",
     "gameplayTags": [
       "troop-class-upgrade",
       "champion",
@@ -2168,13 +2180,15 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Druid",
     "tier": 3,
-    "mechanic": "After shapeshifting, attackers take 6 damage whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.",
+    "mechanic": "After shapeshifting, attackers lose 6 health whenever they hit the Druid with a normal attack. Each time a Druid shapeshifts, its melee attacks gain an additional battle-long -2 rate debuff on hit.",
     "gameplayTags": [
       "troop-class-upgrade",
       "druid",
       "damage",
       "rate",
+      "healing",
       "melee",
+      "debuff",
       "transformation"
     ]
   },
@@ -2184,7 +2198,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Druid",
     "tier": 3,
-    "mechanic": "End of turn: each Druid heals itself and all units Bonded to that specific Druid for 20. Whenever a Druid shapeshifts, it summons 2 wolves.",
+    "mechanic": "End of turn: each Druid restores 20 health to itself and all units Bonded to that specific Druid. Whenever a Druid shapeshifts, it summons 2 wolves.",
     "gameplayTags": [
       "troop-class-upgrade",
       "druid",
@@ -2230,14 +2244,14 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Elementalist",
     "tier": 3,
-    "mechanic": "When an allied elemental dies, blast enemies within 2 hexes of its occupied hexes for 8. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
+    "mechanic": "When an allied elemental dies, enemies within 2 hexes of its occupied hexes lose 8 health. Elementals summoned by Elementalists can repeat that summon once after 4 turns.",
     "gameplayTags": [
       "troop-class-upgrade",
       "elementalist",
-      "damage",
+      "healing",
       "summon",
       "corpse",
-      "ranged",
+      "debuff",
       "synergy"
     ]
   },
@@ -2274,7 +2288,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Knight",
     "tier": 3,
-    "mechanic": "Start of turn: if a Knight is engaged at full capacity, it gains +5 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.",
+    "mechanic": "Start of turn: if a Knight is engaged at full capacity, it gains +10 armor until next turn. Whenever a Knight is hit by a normal attack while engaged at full capacity, it makes 1 normal attack back.",
     "gameplayTags": [
       "troop-class-upgrade",
       "knight",
@@ -2407,7 +2421,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Necromancer",
     "tier": 3,
-    "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons heal allies on their own hex for 7 at the end of each turn.",
+    "mechanic": "Necromancers may spend 10 health instead of requiring or consuming a corpse for corpse-consuming abilities, as long as that would not kill them. Allied summoned Skeletons restore 7 health to allies on their own hex at the end of each turn.",
     "gameplayTags": [
       "troop-class-upgrade",
       "necromancer",
@@ -2425,7 +2439,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Necromancer",
     "tier": 3,
-    "mechanic": "Whenever an enemy gains stats or heals, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.",
+    "mechanic": "Whenever an enemy gains stats or regains health, all corpses adjacent to them are raised as Skeletons as though an allied Necromancer had summoned them.",
     "gameplayTags": [
       "troop-class-upgrade",
       "necromancer",
@@ -2452,7 +2466,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Priest",
     "tier": 3,
-    "mechanic": "When a Priest heal brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.",
+    "mechanic": "When Priest health restoration brings its target to full HP, that target and the Priest gain +1 rate and +1 damage for the battle. Otherwise, that target and the Priest gain 40 readiness.",
     "gameplayTags": [
       "troop-class-upgrade",
       "priest",
@@ -2468,7 +2482,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Priest",
     "tier": 3,
-    "mechanic": "While a Priest is present in a battle: the first time each non-Fading ally is healed, an Elemental is summoned adjacent to them. Elementals now heal adjacent allies by 20 on death.",
+    "mechanic": "While a Priest is present in a battle: the first time each non-Fading ally regains health, an Elemental is summoned adjacent to them. Elementals now restore 20 health to adjacent allies on death.",
     "gameplayTags": [
       "troop-class-upgrade",
       "priest",
@@ -2483,7 +2497,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Priest",
     "tier": 3,
-    "mechanic": "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest heals an ally, the heal repeats on all allies in range under 10% health.",
+    "mechanic": "The first time each battle each allied unit within this Priest's range would die, it survives at 1 HP. Whenever a Priest restores health to an ally, that healing repeats on all allies in range under 10% health.",
     "gameplayTags": [
       "troop-class-upgrade",
       "priest",
@@ -2640,7 +2654,7 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Soldier",
     "tier": 3,
-    "mechanic": "When a Soldier dies, all allies gain a stack of Zeal. Allies heal 5 health for each stack of Zeal they have at the end of their turns.",
+    "mechanic": "When a Soldier dies, all allies gain a stack of Zeal. Allies restore 5 health for each stack of Zeal they have at the end of their turns.",
     "gameplayTags": [
       "troop-class-upgrade",
       "soldier",
@@ -2655,14 +2669,16 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Soldier",
     "tier": 3,
-    "mechanic": "Soldiers have -4 armor, but each ranged attack can deal at most 1 damage to a Soldier after all modifiers.",
+    "mechanic": "Soldiers have -4 armor, but each ranged attack can make a Soldier lose at most 1 health after all modifiers.",
     "gameplayTags": [
       "troop-class-upgrade",
       "soldier",
       "damage",
       "armor",
+      "healing",
       "corpse",
       "ranged",
+      "debuff",
       "defense"
     ]
   }
@@ -2714,12 +2730,14 @@ Strict layout: make a simple grid of equal square cells, one icon per cell. Each
     "kind": "troop_class_upgrade",
     "owner": "Wizard",
     "tier": 3,
-    "mechanic": "If a Wizard is present in a battle, enemies damaged by Blast have a 20% chance of gaining a stack of Hex. Each enemy takes an additional 100% damage from Blast for each stack of Hex they have.",
+    "mechanic": "If a Wizard is present in a battle, enemies hit by Blast have a 20% chance of gaining a stack of Hex. Each enemy loses 100% more health from Blast for each stack of Hex they have.",
     "gameplayTags": [
       "troop-class-upgrade",
       "wizard",
       "damage",
-      "ranged"
+      "healing",
+      "ranged",
+      "debuff"
     ]
   }
 ]

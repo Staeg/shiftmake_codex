@@ -14,6 +14,8 @@ import {
   getEssenceDraftCost,
   resolveAssignedRifts,
   revealEssenceDraft,
+  rerollTroopOffer,
+  rerollUpgradeOffer,
   deserializeGameState,
   serializeGameState,
   startOpeningCampaign,
@@ -1123,6 +1125,26 @@ export const gameStore = (() => {
           : saveActiveCampaign({
               ...clearCycleEndConfirmation(state),
               game: claimUpgradeOffer(state.game, upgradeId),
+            }),
+      );
+    },
+    rerollTroopOffer() {
+      update((state) =>
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: rerollTroopOffer(state.game),
+            }),
+      );
+    },
+    rerollUpgradeOffer() {
+      update((state) =>
+        !canEditGame(state)
+          ? state
+          : saveActiveCampaign({
+              ...clearCycleEndConfirmation(state),
+              game: rerollUpgradeOffer(state.game),
             }),
       );
     },

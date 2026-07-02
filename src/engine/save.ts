@@ -9,6 +9,7 @@ import type {
   LadderState,
   LoadGameResult,
   LoadGameRepairReport,
+  EssenceDraftRerollSide,
   ReplayIndexEntry,
   ResolvedCombatantDefinition,
   RiftInstance,
@@ -269,6 +270,10 @@ function normalizeTroopClassUnlockOffer(value: unknown, repairs: LoadGameRepairR
     : null;
 }
 
+function normalizeEssenceDraftRerollSide(value: unknown): EssenceDraftRerollSide | null {
+  return value === 'troop' || value === 'upgrade' ? value : null;
+}
+
 function normalizeReplayIndexEntry(entry: ReplayIndexEntry): ReplayIndexEntry {
   return {
     ...entry,
@@ -298,6 +303,9 @@ function normalizeContestPlayerState(value: unknown, repairs: LoadGameRepairRepo
     activeTroopClassUnlockOffer: normalizeTroopClassUnlockOffer(player.activeTroopClassUnlockOffer, repairs),
     troopOfferRolls: numberOr(player.troopOfferRolls, 0),
     upgradeOfferRolls: numberOr(player.upgradeOfferRolls, 0),
+    essenceDraftRerollUsed: normalizeEssenceDraftRerollSide(player.essenceDraftRerollUsed),
+    seenTroopOfferOptionIds: filterKnownTroopUnlocks(arrayOrEmpty(player.seenTroopOfferOptionIds), repairs, 'missingDraftOptionIds'),
+    seenUpgradeOfferOptionIds: filterKnownUpgrades(arrayOrEmpty(player.seenUpgradeOfferOptionIds), repairs, 'missingDraftOptionIds'),
   };
 }
 
@@ -363,6 +371,9 @@ function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairR
     activeTroopClassUnlockOffer,
     troopOfferRolls: numberOr(parsed.troopOfferRolls, 0),
     upgradeOfferRolls: numberOr(parsed.upgradeOfferRolls, 0),
+    essenceDraftRerollUsed: normalizeEssenceDraftRerollSide(parsed.essenceDraftRerollUsed),
+    seenTroopOfferOptionIds: filterKnownTroopUnlocks(arrayOrEmpty(parsed.seenTroopOfferOptionIds), repairs, 'missingDraftOptionIds'),
+    seenUpgradeOfferOptionIds: filterKnownUpgrades(arrayOrEmpty(parsed.seenUpgradeOfferOptionIds), repairs, 'missingDraftOptionIds'),
     postgameDismissed: parsed.postgameDismissed === true,
     openRifts: arrayOrEmpty<RiftInstance>(parsed.openRifts).map((rift) => normalizeRift(rift, repairs)),
     replayIndex: arrayOrEmpty<ReplayIndexEntry>(parsed.replayIndex).map(normalizeReplayIndexEntry),
@@ -383,6 +394,9 @@ function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairR
     activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
     troopOfferRolls: state.troopOfferRolls,
     upgradeOfferRolls: state.upgradeOfferRolls,
+    essenceDraftRerollUsed: state.essenceDraftRerollUsed,
+    seenTroopOfferOptionIds: state.seenTroopOfferOptionIds,
+    seenUpgradeOfferOptionIds: state.seenUpgradeOfferOptionIds,
   };
   return gameMode === 'contest'
     ? { ...state, contest: normalizeContestState(parsed.contest, repairs, rootProgress) }

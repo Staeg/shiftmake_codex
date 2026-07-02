@@ -13,6 +13,7 @@ Current rules:
 - revealing a combined troop-and-upgrade draft costs `2` Essence when both sides still have options
 - a one-sided draft fallback costs `1` Essence if only troop unlocks or only upgrade unlocks remain
 - claiming options from a revealed draft costs no additional Essence
+- each revealed draft has one optional no-cost reroll for either its troop side or its upgrade side, not both
 - spendable Essence must be used before ending a cycle; leftover Essence only carries over when no Essence draft can be revealed
 
 Removed from the progression model:
@@ -52,6 +53,8 @@ Buckets are filled in this order:
 If any bucket cannot be satisfied, that slot falls back to a random unowned troop unlock from the remaining claimable pool.
 
 Generated offers persist in save data until they are claimed or the cycle advances.
+
+When rerolled, troop offers keep the same bucket constraints and avoid options already shown in the current draft unless no unseen valid troop options remain.
 
 Troop options that would make the current roster impossible to fully assign are filtered out. In practice, a draft option is hidden if taking it would leave the player with more troops of one race or one troop class than there are currently discovered Rifts.
 
@@ -113,6 +116,8 @@ Buckets are filled in this order:
 If any bucket cannot be satisfied, that slot falls back to a random unowned upgrade from the remaining pool.
 
 Generated offers persist in save data until they are claimed or the cycle advances.
+
+When rerolled, upgrade offers keep the same bucket constraints and avoid options already shown in the current draft unless no unseen valid upgrade options remain.
 
 ## Implemented race upgrades
 

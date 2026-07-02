@@ -38,6 +38,7 @@ Ladder follows the same 10-cycle progression, unlock, assignment, Essence, VP, r
 - At the start of cycle 3, choose a new race from the scheduled race unlock offer. The chosen race arrives with 1 preselected race upgrade and 2 preselected troop classes already unlocked. Other native and latent troop classes for that race are still shown as later unlock potential.
 - At the start of cycle 7, choose another new race from the scheduled race unlock offer. The chosen race arrives with 2 preselected race upgrades and 3 preselected troop classes already unlocked. Other native and latent troop classes for that race are still shown as later unlock potential.
 - Spend 2 Essence to reveal a combined troop-and-upgrade draft, then claim one troop option and one upgrade option at no additional cost. If one side of the draft is exhausted, a one-sided fallback costs 1 Essence.
+- Each revealed draft can optionally reroll either its troop options or its upgrade options once, avoiding previously shown options unless the valid pool is exhausted.
 - Use owned races and owned troop classes to bias future draft buckets.
 - Troop drafts hide options that would make the roster impossible to assign under current Rift count limits.
 - Winning a Rift can make unusual race-and-troop combinations from that Rift's enemy army latent future unlocks; those combinations become draftable only once their race is unlocked.
