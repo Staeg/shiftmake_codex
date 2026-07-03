@@ -82,11 +82,12 @@ Merry Bunch and Urgent Care taken together double up on the rate increase, but a
 - Troop upgrades:
   - `Zappy Reaction` (tier 2): When a Battlemage takes 0 damage from a normal attack, the attacker and all enemies adjacent to them lose 20 health.
   - `Hubris` (tier 3): Battlemages lose 13 armor and gain Ward 6.
-  - `Mark of the Paper Hand` (tier 2): Battlemages place a Mark on enemies they attack. Enemies with a Mark have their damage reduced to 0. Mark is removed at the end of the Marked unit's turn.
+  - `Mark of Shackles` (tier 2): Battlemages place a Mark on enemies they attack. Enemies with a Mark have their damage reduced to 0 and take double damage from non-attack effects. Mark is removed at the end of the Marked unit's turn.
 
 ### Notes
 
-Tricky duelist.
+Tricky duelist. Aesthetics: floating hair, sword in one hand and orb in the other.
 Ward should apply after other effects including armor. It shouldn't prevent other effects from attacks like Blast or Shredding Arrows.
-Zappy Reaction should also trigger in cases where they have gained armor from allies or enemy damage has been lowered sufficiently.
+Zappy Reaction should also trigger in cases where they have gained armor from allies or enemy damage has been lowered sufficiently. The implementation should use the existing Blast code aimed at the attacker.
 Hubris causes them to go up to Ward 7, which neuters 7 normal attacks after each of their turns.
+Mark of Shackles amplifies damage dealing effects like Blast, but not effects which directly reduce health like the Decay mutator or effects which route through attacks like Strike.

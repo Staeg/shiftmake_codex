@@ -253,7 +253,6 @@
   let hoveredAbilityTooltip: AbilityTooltipState | null = null;
   let pinnedAbilityTooltip: AbilityTooltipState | null = null;
   let highlightedDetailKeys = new Set<string>();
-  let validAbilityOwnerKeys = new Set<string>();
   let replayAbilityTooltip: ReplayAbilityTooltipState | null = null;
   let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
@@ -888,6 +887,17 @@
 
   function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): void {
     hoveredAbilityTooltip = buildAbilityTooltip(ability, ownerDetailKey);
+  }
+
+  function openAbilityDisclosure(event: MouseEvent | FocusEvent, ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey: string | null): void {
+    const target = event.currentTarget;
+    if (target instanceof HTMLElement) {
+      const disclosure = target.closest('details');
+      if (disclosure instanceof HTMLDetailsElement) {
+        disclosure.open = true;
+      }
+    }
+    showAbilityTooltip(ability, ownerDetailKey);
   }
 
   function togglePinnedAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): void {
@@ -3209,14 +3219,6 @@
       : selectedTroop && selectedTroopDefinition
         ? `selected-troop:${selectedTroop.id}`
         : null;
-  $: validAbilityOwnerKeys = new Set([
-    ...pinnedDetails.filter((detail) => detail.kind === 'unit').map((detail) => detail.detailKey),
-    ...(hoveredDetail?.kind === 'unit' ? [hoveredDetail.detailKey] : []),
-    ...(selectedTroop && selectedTroopDefinition ? [`selected-troop:${selectedTroop.id}`] : []),
-  ]);
-  $: if (pinnedAbilityTooltip && (!pinnedAbilityTooltip.ownerDetailKey || !validAbilityOwnerKeys.has(pinnedAbilityTooltip.ownerDetailKey))) {
-    pinnedAbilityTooltip = null;
-  }
   $: if (renderer && $gameStore.screen === 'replay') {
     activeDetail;
     pinnedReplayExplanationIndex;
@@ -3884,6 +3886,7 @@
               {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
+                {@const abilityOwnerKey = activeDetail.detailKey}
                 <div class="unit-overview-strip">
                   <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
@@ -3899,16 +3902,20 @@
                       <span class="mutator-chip empty">None</span>
                     {:else}
                       {#each activeDetail.abilities as ability}
-                        <button
-                          class="mutator-chip ability-chip"
-                          on:mouseenter={() => showAbilityTooltip(ability)}
-                          on:focus={() => showAbilityTooltip(ability)}
-                          on:mouseleave={clearAbilityTooltip}
-                          on:blur={clearAbilityTooltip}
-                          on:click={() => togglePinnedAbilityTooltip(ability)}
-                        >
-                          <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                        </button>
+                        <details class="ability-disclosure">
+                          <summary
+                            class="mutator-chip ability-chip"
+                            on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                            on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                          >
+                            <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
+                          </summary>
+                          <div class="ability-hover-tooltip">
+                            <strong>{ability.label}</strong>
+                            <p><InlineStatText text={ability.description} /></p>
+                          </div>
+                        </details>
                       {/each}
                     {/if}
                   </div>
@@ -4124,6 +4131,7 @@
               {/if}
               <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
               {#if activeDetail.kind === 'unit'}
+                {@const abilityOwnerKey = activeDetail.detailKey}
                 <div class="unit-overview-strip">
                   <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                     {#each unitIconCopies(activeDetail.quantity) as copy}
@@ -4139,16 +4147,20 @@
                       <span class="mutator-chip empty">None</span>
                     {:else}
                       {#each activeDetail.abilities as ability}
-                        <button
-                          class="mutator-chip ability-chip"
-                          on:mouseenter={() => showAbilityTooltip(ability)}
-                          on:focus={() => showAbilityTooltip(ability)}
-                          on:mouseleave={clearAbilityTooltip}
-                          on:blur={clearAbilityTooltip}
-                          on:click={() => togglePinnedAbilityTooltip(ability)}
-                        >
-                          <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                        </button>
+                        <details class="ability-disclosure">
+                          <summary
+                            class="mutator-chip ability-chip"
+                            on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                            on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                          >
+                            <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
+                          </summary>
+                          <div class="ability-hover-tooltip">
+                            <strong>{ability.label}</strong>
+                            <p><InlineStatText text={ability.description} /></p>
+                          </div>
+                        </details>
                       {/each}
                     {/if}
                   </div>
@@ -4526,6 +4538,7 @@
             {/if}
             <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
             {#if activeDetail.kind === 'unit'}
+              {@const abilityOwnerKey = activeDetail.detailKey}
               <div class="unit-overview-strip">
                 <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                   {#each unitIconCopies(activeDetail.quantity) as copy}
@@ -4541,16 +4554,20 @@
                     <span class="mutator-chip empty">None</span>
                   {:else}
                     {#each activeDetail.abilities as ability}
-                      <button
-                        class="mutator-chip ability-chip"
-                        on:mouseenter={() => showAbilityTooltip(ability)}
-                        on:focus={() => showAbilityTooltip(ability)}
-                        on:mouseleave={clearAbilityTooltip}
-                        on:blur={clearAbilityTooltip}
-                        on:click={() => togglePinnedAbilityTooltip(ability)}
-                      >
-                        <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                      </button>
+                      <details class="ability-disclosure">
+                        <summary
+                          class="mutator-chip ability-chip"
+                          on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                          on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                        >
+                          <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
+                        </summary>
+                        <div class="ability-hover-tooltip">
+                          <strong>{ability.label}</strong>
+                          <p><InlineStatText text={ability.description} /></p>
+                        </div>
+                      </details>
                       {#each ability.summoned as summon}
                         <button
                           type="button"
@@ -5324,7 +5341,7 @@
           {/if}
 
           {#if $gameStore.game.activeTroopOffer}
-            <div class="draft-offer-block">
+            <div class="draft-offer-block" class:reroll-replace-preview={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}>
               <span class="assignment-label">Choose one troop</span>
               <div class="option-list troop-draft-option-list">
                 {#each $gameStore.game.activeTroopOffer.optionTroopUnlockIds as troopUnlockId}
@@ -5391,7 +5408,7 @@
           {/if}
 
           {#if $gameStore.game.activeUpgradeOffer}
-            <div class="draft-offer-block">
+            <div class="draft-offer-block" class:reroll-replace-preview={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}>
               <span class="assignment-label">Choose one upgrade</span>
               <div class="unlock-row">
                 {#each $gameStore.game.activeUpgradeOffer.optionUpgradeIds as upgradeId}
@@ -5459,6 +5476,7 @@
           </p>
           <h2>{activeDetail.label}</h2>
           {#if activeDetail.kind === 'unit'}
+            {@const abilityOwnerKey = activeDetail.detailKey}
             <div class="unit-overview-strip">
               <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
                 {#each unitIconCopies(activeDetail.quantity) as copy}
@@ -5474,16 +5492,20 @@
                   <span class="mutator-chip empty">None</span>
                 {:else}
                   {#each activeDetail.abilities as ability}
-                    <button
-                      class="mutator-chip ability-chip"
-                      on:mouseenter={() => showAbilityTooltip(ability)}
-                      on:focus={() => showAbilityTooltip(ability)}
-                      on:mouseleave={clearAbilityTooltip}
-                      on:blur={clearAbilityTooltip}
-                      on:click={() => togglePinnedAbilityTooltip(ability)}
-                    >
-                      <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                    </button>
+                    <details class="ability-disclosure">
+                      <summary
+                        class="mutator-chip ability-chip"
+                        on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                        on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
+                      >
+                        <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
+                      </summary>
+                      <div class="ability-hover-tooltip">
+                        <strong>{ability.label}</strong>
+                        <p><InlineStatText text={ability.description} /></p>
+                      </div>
+                    </details>
                   {/each}
                 {/if}
               </div>
@@ -5813,7 +5835,11 @@
               </div>
             {:else}
               <div class="essence-draft-groups" class:has-synergy={selectedDraftChoicesHaveSynergy()}>
-                <div class="draft-offer-block" class:locked={!$gameStore.game.activeTroopOffer && !!confirmedTroopOfferUnlockId}>
+                <div
+                  class="draft-offer-block"
+                  class:locked={!$gameStore.game.activeTroopOffer && !!confirmedTroopOfferUnlockId}
+                  class:reroll-replace-preview={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}
+                >
                   <span class="assignment-label">Choose one troop</span>
                   {#if $gameStore.game.activeTroopOffer}
                     <div class="option-list troop-draft-option-list">
@@ -5889,7 +5915,11 @@
                   {/if}
                 </div>
 
-                <div class="draft-offer-block" class:locked={!$gameStore.game.activeUpgradeOffer && !!confirmedUpgradeOfferId}>
+                <div
+                  class="draft-offer-block"
+                  class:locked={!$gameStore.game.activeUpgradeOffer && !!confirmedUpgradeOfferId}
+                  class:reroll-replace-preview={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}
+                >
                   <span class="assignment-label">Choose one upgrade</span>
                   {#if $gameStore.game.activeUpgradeOffer}
                     <div class="unlock-row">
@@ -7396,6 +7426,26 @@
 
   .ability-chip :global(.game-icon) {
     --game-icon-size: 1.58rem;
+  }
+
+  .ability-disclosure {
+    display: grid;
+    gap: 0.3rem;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .ability-disclosure > summary {
+    width: fit-content;
+    list-style: none;
+  }
+
+  .ability-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .ability-disclosure:not([open]):not(:hover):not(:focus-within) > .ability-hover-tooltip {
+    display: none;
   }
 
   .summon-preview-chip {
@@ -9361,6 +9411,7 @@
 
   .draft-reroll-button {
     position: relative;
+    z-index: 2;
     justify-self: center;
     display: grid;
     place-items: center;
@@ -9453,6 +9504,47 @@
   @keyframes recycle-spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  .draft-offer-block.reroll-replace-preview {
+    position: relative;
+  }
+
+  .draft-offer-block.reroll-replace-preview > :not(.assignment-label):not(.draft-reroll-button) {
+    animation: draft-replace-fade 900ms ease-in-out infinite;
+    filter: brightness(0.52) saturate(0.72);
+  }
+
+  .draft-offer-block.reroll-replace-preview > .assignment-label {
+    color: rgba(166, 176, 185, 0.72);
+  }
+
+  .draft-offer-block.reroll-replace-preview::after {
+    position: absolute;
+    inset: 1.55rem 0 2.25rem;
+    border-radius: var(--ui-panel-radius-tight);
+    background: rgba(3, 6, 10, 0.34);
+    box-shadow: inset 0 0 0 1px rgba(216, 70, 70, 0.14);
+    content: '';
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .draft-offer-block.reroll-replace-preview > :not(.assignment-label):not(.draft-reroll-button) {
+      animation: none;
+      opacity: 0.48;
+    }
+  }
+
+  @keyframes draft-replace-fade {
+    0%,
+    100% {
+      opacity: 0.58;
+    }
+
+    50% {
+      opacity: 0.34;
     }
   }
 
