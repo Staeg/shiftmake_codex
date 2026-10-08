@@ -1,5 +1,5 @@
 import type { AbilityId, MutatorId, UpgradeId } from '../engine/types';
-import { ABILITIES } from '../engine/unitCatalog';
+import { ABILITIES, RACE_UPGRADES, TROOP_CLASS_UPGRADES } from '../engine/unitCatalog';
 
 type IconKind = 'ability' | 'race_upgrade' | 'troop_class_upgrade' | 'rift_mutator';
 export type AbilityFallbackIconShape = 'heart' | 'self' | 'single' | 'aoe' | 'plus';
@@ -115,6 +115,27 @@ export function getUpgradeIconUrl(upgradeId: UpgradeId): string {
     (upgradeIconAliases[upgradeId] ?? []).map((id) => iconUrl('troop_class_upgrade', id)).find(Boolean) ||
     ''
   );
+}
+
+function upgradeFallbackAbilityId(upgradeId: UpgradeId): AbilityId | null {
+  const upgrade = RACE_UPGRADES[upgradeId] ?? TROOP_CLASS_UPGRADES[upgradeId];
+  if (!upgrade) {
+    return null;
+  }
+  const abilityEffect = upgrade.effects.find(
+    (effect) =>
+      (effect.kind === 'addAbility' || effect.kind === 'replaceAbility') &&
+      ('abilityId' in effect || 'addAbilityId' in effect),
+  );
+  if (!abilityEffect) {
+    return null;
+  }
+  return 'abilityId' in abilityEffect ? abilityEffect.abilityId : abilityEffect.addAbilityId;
+}
+
+export function getUpgradeFallbackIcon(upgradeId: UpgradeId): AbilityFallbackIcon {
+  const abilityId = upgradeFallbackAbilityId(upgradeId);
+  return abilityId ? getAbilityFallbackIcon(abilityId) : { shape: 'single', tone: 'neutral' };
 }
 
 export function getMutatorIconUrl(mutatorId: MutatorId): string {

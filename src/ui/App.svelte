@@ -1466,18 +1466,6 @@
     assignmentHintArrow = null;
   }
 
-  function getCycleActionTooltip(): string | null {
-    if (mustSpendEssenceBeforeCycleEnd) {
-      return $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer
-        ? 'Finish the active Essence draft before ending the cycle.'
-        : 'Spend your available Essence before ending the cycle.';
-    }
-    if (mustAssignTroopsBeforeCycleEnd) {
-      return 'Assign each ready troop to a valid Rift before ending the cycle.';
-    }
-    return null;
-  }
-
   function hashAssignmentHintSeed(seed: string): number {
     let hash = 0;
     for (let index = 0; index < seed.length; index += 1) {
@@ -2027,6 +2015,13 @@
       gameStore.openReplay(replayId);
       signalTutorial('watch-battle');
     });
+  }
+
+  function openTutorialArchiveReplay(): void {
+    const replayId = selectedReplayEntry?.replayId ?? getTutorialReplayId();
+    if (replayId) {
+      openReplayFromArchive(replayId);
+    }
   }
 
   function closeReplayToArchive(): void {
@@ -3231,13 +3226,19 @@
   $: canRerollUpgradeDraft = !$gameStore.game.essenceDraftRerollUsed && !!$gameStore.game.activeUpgradeOffer;
   $: mustSpendEssenceBeforeCycleEnd =
     $gameStore.game.phase === 'planning' &&
-    (($gameStore.game.essence > 0 && essenceDraftCost !== null) || $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
+    (($gameStore.game.essence > 0 && essenceDraftCost !== null) || !!$gameStore.game.activeTroopOffer || !!$gameStore.game.activeUpgradeOffer);
   $: assignmentBlockingIssues = validateAssignments($gameStore.game).issues.filter((issue) => issue.kind !== 'holding_only_no_new_attack');
   $: mustAssignTroopsBeforeCycleEnd = $gameStore.game.phase === 'planning' && !mustSpendEssenceBeforeCycleEnd && assignmentBlockingIssues.length > 0;
   $: cycleActionBlocked = mustSpendEssenceBeforeCycleEnd || mustAssignTroopsBeforeCycleEnd;
   $: cycleHoverEssenceAttention = cycleActionHovered && mustSpendEssenceBeforeCycleEnd;
   $: cycleHoverAssignmentAttention = cycleActionHovered && mustAssignTroopsBeforeCycleEnd;
-  $: cycleActionTooltip = getCycleActionTooltip();
+  $: cycleActionTooltip = mustSpendEssenceBeforeCycleEnd
+    ? $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer
+      ? 'Finish the active Essence draft before ending the cycle.'
+      : 'Spend your available Essence before ending the cycle.'
+    : mustAssignTroopsBeforeCycleEnd
+      ? 'Assign each ready troop to a valid Rift before ending the cycle.'
+      : null;
   $: primaryCycleActionLabel =
     cycleResolvePending || $gameStore.cycleAnimation
       ? 'Resolving...'
@@ -3757,7 +3758,7 @@
                 {#each SINGLEPLAYER_GAME_MODES as gameMode}
                   <button
                     type="button"
-                    class="new-game-option ui-debug-target"
+                    class="new-game-option primary ui-debug-target"
                     class:tutorial-scene-locked={tutorialSceneLockActive() && !(gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest')}
                     data-ui-name={`${newGameActionLabel(newGameSlot, gameMode)} for save slot ${newGameSlot.slotId}`}
                     on:click={() => chooseNewGameMode(newGameSlot, gameMode)}
@@ -4472,7 +4473,7 @@
           on:click={() => ($gameStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialCenterMode('rifts', setRiftCenterMode))}
         >Rifts</button>
         <button
-          class="ui-debug-target"
+          class="ui-debug-target secondary-mode-button"
           class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'troops' && !tutorialCanSwitchCenterMode('troops')}
           data-ui-name="Show races and troops view"
           class:selected={$gameStore.centerMode === 'troops'}
@@ -5903,14 +5904,13 @@
                     <button type="button" class="primary" data-tutorial-target="confirm-draft-troop" disabled={!selectedTroopOfferUnlockId} on:click={confirmTroopOfferUnlock}>Confirm Troop</button>
                   {:else if confirmedTroopOfferUnlockId}
                     {@const [raceId, unitClassId] = parseTroopUnlockId(confirmedTroopOfferUnlockId)}
-                    <div class="locked-draft-card">
+                    <div class="locked-draft-card locked-draft-icon-card" aria-label={`Confirmed troop ${TROOP_CATALOG[confirmedTroopOfferUnlockId].label}`}>
                       <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity)}`} aria-label={`${TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity} ${TROOP_CATALOG[confirmedTroopOfferUnlockId].label} units`}>
                         {#each unitIconCopies(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity) as copy}
                           <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
                         {/each}
                       </span>
-                      <strong>{TROOP_CATALOG[confirmedTroopOfferUnlockId].label}</strong>
-                      <span>Confirmed</span>
+                      <span class="confirmed-check" aria-hidden="true"></span>
                     </div>
                   {/if}
                 </div>
@@ -5981,10 +5981,9 @@
                     </button>
                     <button type="button" class="primary" data-tutorial-target="confirm-draft-upgrade" disabled={!selectedUpgradeOfferId} on:click={confirmUpgradeOffer}>Confirm Upgrade</button>
                   {:else if confirmedUpgradeOfferId}
-                    <div class="locked-draft-card">
+                    <div class="locked-draft-card locked-draft-icon-card" aria-label={`Confirmed upgrade ${getUpgradeDetails(confirmedUpgradeOfferId).label}`}>
                       <GameIcon kind="upgrade" id={confirmedUpgradeOfferId} label={getUpgradeDetails(confirmedUpgradeOfferId).label} />
-                      <strong>{getUpgradeDetails(confirmedUpgradeOfferId).label}</strong>
-                      <span>Confirmed</span>
+                      <span class="confirmed-check" aria-hidden="true"></span>
                     </div>
                   {/if}
                 </div>
@@ -6088,6 +6087,23 @@
             {/if}
           </div>
         {/if}
+        {#if $gameStore.tutorialProgress?.step === 'watch-battle' && (selectedReplayEntry?.replayId ?? getTutorialReplayId())}
+          {@const tutorialArchiveReplayId = selectedReplayEntry?.replayId ?? getTutorialReplayId()}
+          {@const tutorialArchiveEntry = tutorialArchiveReplayId ? $gameStore.game.replayIndex.find((entry) => entry.replayId === tutorialArchiveReplayId) : null}
+          {@const tutorialArchiveAvailable = !!tutorialArchiveReplayId && !!tutorialArchiveEntry && !tutorialArchiveEntry.summaryOnly && gameStore.hasReplay(tutorialArchiveReplayId)}
+          <div class="archive-actions-stack tutorial-archive-actions ui-debug-target" data-ui-name="Tutorial archive actions">
+            <button
+              type="button"
+              class="primary large tutorial-watch-battle-button"
+              aria-label={tutorialArchiveAvailable ? 'Watch Battle' : 'Replay unavailable'}
+              title={tutorialArchiveAvailable ? 'Watch Battle' : 'Replay unavailable'}
+              disabled={!tutorialArchiveAvailable}
+              on:click={openTutorialArchiveReplay}
+            >
+              Watch Battle
+            </button>
+          </div>
+        {/if}
         {#if $gameStore.game.phase === 'planning'}
           <div
             class="end-cycle-action"
@@ -6103,14 +6119,16 @@
               class:blocking={cycleActionBlocked}
               data-ui-name="End cycle button"
               data-tutorial-target="end-cycle-button"
-              aria-disabled={cycleActionBlocked}
+              aria-disabled={cycleActionBlocked ? 'true' : 'false'}
+              aria-describedby={cycleActionTooltip ? 'end-cycle-tooltip' : undefined}
+              title={cycleActionTooltip ?? undefined}
               on:click={handleEndCycle}
               disabled={multiplayerCycleEnded || !!$gameStore.cycleAnimation || cycleResolvePending}
             >
               {primaryCycleActionLabel}
             </button>
-            {#if cycleActionTooltip && cycleActionHovered}
-              <div class="end-cycle-tooltip" role="tooltip">{cycleActionTooltip}</div>
+            {#if cycleActionTooltip}
+              <div id="end-cycle-tooltip" class="end-cycle-tooltip" class:visible={cycleActionBlocked || cycleActionHovered} role="tooltip">{cycleActionTooltip}</div>
             {/if}
           </div>
         {/if}
@@ -9565,6 +9583,36 @@
     color: #d8f4df;
   }
 
+  .locked-draft-icon-card {
+    grid-template-columns: auto auto;
+    width: fit-content;
+    min-height: 2.35rem;
+    justify-content: start;
+  }
+
+  .confirmed-check {
+    position: relative;
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: rgba(64, 190, 112, 0.2);
+    border: 1px solid rgba(133, 240, 168, 0.72);
+    box-shadow: 0 0 10px rgba(64, 190, 112, 0.28);
+  }
+
+  .confirmed-check::after {
+    position: absolute;
+    left: 0.28rem;
+    top: 0.15rem;
+    width: 0.32rem;
+    height: 0.56rem;
+    border-right: 2px solid #9cf4b0;
+    border-bottom: 2px solid #9cf4b0;
+    content: '';
+    transform: rotate(45deg);
+  }
+
   .draft-option.upgrade-affected,
   .ready-troop-tile.upgrade-affected {
     position: relative;
@@ -9689,6 +9737,14 @@
     justify-items: end;
   }
 
+  .tutorial-archive-actions {
+    justify-self: end;
+  }
+
+  .tutorial-watch-battle-button {
+    min-width: 220px;
+  }
+
   .end-cycle-action {
     grid-column: 3;
     grid-row: 2;
@@ -9733,6 +9789,21 @@
     font-size: 0.78rem;
     line-height: 1.35;
     pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(0.18rem);
+    transition:
+      opacity 0.14s ease,
+      transform 0.14s ease,
+      visibility 0.14s ease;
+  }
+
+  .end-cycle-action.blocking:hover .end-cycle-tooltip,
+  .end-cycle-action.blocking:focus-within .end-cycle-tooltip,
+  .end-cycle-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
   }
 
   .large {
@@ -9973,17 +10044,31 @@
     text-align: left;
   }
 
+  .new-game-option.primary {
+    border-color: rgba(213, 178, 116, 0.6);
+    background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
+    color: #111;
+  }
+
   .new-game-option:hover,
   .new-game-option:focus,
   .new-game-option:focus-visible {
     border-color: rgba(213, 178, 116, 0.58);
-    background: rgba(25, 36, 49, 0.96);
     outline: none;
   }
 
+  .new-game-option.primary:hover,
+  .new-game-option.primary:focus,
+  .new-game-option.primary:focus-visible {
+    border-color: rgba(244, 205, 118, 0.78);
+    background: linear-gradient(135deg, #e0bd79, var(--ui-color-accent-strong));
+    box-shadow: 0 0 18px rgba(244, 205, 118, 0.24);
+  }
+
   .new-game-option span {
-    color: #f4f7fb;
+    color: inherit;
     font-size: 0.9rem;
+    font-weight: 700;
     line-height: 1.15;
     text-transform: uppercase;
   }

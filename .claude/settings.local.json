@@ -56,7 +56,9 @@
       "Bash(node \"C:\\\\Users\\\\staeg\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-staeg-shiftmake---Codex\\\\b9c09504-8d43-45a8-963c-66368e8db26e\\\\scratchpad\\\\shot3.mjs\")",
       "Bash(node \"C:\\\\Users\\\\staeg\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-staeg-shiftmake---Codex\\\\b9c09504-8d43-45a8-963c-66368e8db26e\\\\scratchpad\\\\shot4.mjs\")",
       "Bash(node \"C:\\\\Users\\\\staeg\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-staeg-shiftmake---Codex\\\\b9c09504-8d43-45a8-963c-66368e8db26e\\\\scratchpad\\\\shot5.mjs\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(git check-ignore *)",
+      "Bash(npm.cmd test *)"
     ]
   }
 }
