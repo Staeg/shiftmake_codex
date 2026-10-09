@@ -1,5 +1,7 @@
-import type { GameState, StoredReplayPayload } from '../engine/types';
+import type { StoredReplayPayload } from '../engine/types';
 import type { ContestPlayerNames } from '../engine/multiplayerContest';
+import type { MultiplayerServerMessage } from '../shared/multiplayerProtocol';
+export type { MultiplayerServerMessage } from '../shared/multiplayerProtocol';
 
 export interface MultiplayerSession {
   connected: boolean;
@@ -12,21 +14,6 @@ export interface MultiplayerSession {
   playerNames: ContestPlayerNames;
   message: string | null;
 }
-
-export type MultiplayerServerMessage =
-  | {
-      kind: 'room-snapshot';
-      roomId: string;
-      playerId: 'playerOne' | 'playerTwo';
-      playerToken: string;
-      game: GameState;
-      cycleEnded: { playerOne: boolean; playerTwo: boolean };
-      connectedPlayers?: { playerOne: boolean; playerTwo: boolean };
-      playerNames: ContestPlayerNames;
-      replayPayloads: Record<string, StoredReplayPayload>;
-      message: string | null;
-    }
-  | { kind: 'room-error'; message: string };
 
 export interface StoredMultiplayerIdentity {
   serverUrl: string;

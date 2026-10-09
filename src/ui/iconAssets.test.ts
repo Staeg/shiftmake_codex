@@ -3,6 +3,14 @@ import { RACE_UPGRADES, TROOP_CLASS_UPGRADES } from '../engine/unitCatalog';
 import { getAbilityFallbackIcon, getAbilityIconUrl, getUpgradeFallbackIcon, getUpgradeIconUrl } from '../presentation/iconAssets';
 
 describe('ability icon fallback rules', () => {
+  it.each([
+    ['wizard-storm-rods', 'wizard-storm'],
+    ['militia-rat-behavior', 'militia-rabble-rush'],
+    ['knight-dine-in-hell', 'knight-retaliate'],
+  ])('keeps the %s artwork bridge to %s', (currentId, artworkId) => {
+    expect(getUpgradeIconUrl(currentId)).toContain(`/troop_class_upgrade/${artworkId}.svg`);
+  });
+
   it('uses rule-based icons instead of generated placeholder SVGs', () => {
     expect(getAbilityIconUrl('valor-20')).toBe('');
     expect(getAbilityFallbackIcon('valor-20')).toEqual({ shape: 'heart', tone: 'positive' });

@@ -19,6 +19,7 @@ import type {
   UpgradeDraftOffer,
 } from './types';
 import { ALL_TROOP_UNLOCK_IDS, RACES, UNIT_CLASSES, isKnownRaceUpgradeId, isKnownTroopClassUpgradeId, normalizeRaceUpgradeId } from './unitCatalog';
+import { pickPlayerProgress } from './playerProgress';
 
 export function serializeGameState(state: GameState): string {
   return JSON.stringify(state);
@@ -379,25 +380,7 @@ function normalizeGameState(parsed: Partial<GameState>, repairs: LoadGameRepairR
     replayIndex: arrayOrEmpty<ReplayIndexEntry>(parsed.replayIndex).map(normalizeReplayIndexEntry),
     ...(gameMode === 'ladder' ? { ladder: normalizeLadderState(parsed.ladder) } : {}),
   };
-  const rootProgress: ContestPlayerState = {
-    victoryPoints: state.victoryPoints,
-    essence: state.essence,
-    unlockedRaceIds: state.unlockedRaceIds,
-    unlockedTroopUnlockIds: state.unlockedTroopUnlockIds,
-    recentTroopUnlockIds: state.recentTroopUnlockIds,
-    troops: state.troops,
-    raceUpgradeIds: state.raceUpgradeIds,
-    troopClassUpgradeIds: state.troopClassUpgradeIds,
-    activeTroopOffer: state.activeTroopOffer,
-    activeUpgradeOffer: state.activeUpgradeOffer,
-    activeRaceUnlockOffer: state.activeRaceUnlockOffer,
-    activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
-    troopOfferRolls: state.troopOfferRolls,
-    upgradeOfferRolls: state.upgradeOfferRolls,
-    essenceDraftRerollUsed: state.essenceDraftRerollUsed,
-    seenTroopOfferOptionIds: state.seenTroopOfferOptionIds,
-    seenUpgradeOfferOptionIds: state.seenUpgradeOfferOptionIds,
-  };
+  const rootProgress = pickPlayerProgress(state);
   return gameMode === 'contest'
     ? { ...state, contest: normalizeContestState(parsed.contest, repairs, rootProgress) }
     : state;

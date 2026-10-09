@@ -18,6 +18,7 @@ import {
   type ContestPlayerNames,
 } from '../engine/multiplayerContest';
 import type { ContestPlayerId, GameState, StoredReplayPayload } from '../engine/types';
+import type { MultiplayerServerMessage, MultiplayerStatusCode } from '../shared/multiplayerProtocol';
 
 type ClientMessage =
   | { kind: 'create-room'; roomId?: string; seed?: number; playerName?: string }
@@ -27,20 +28,7 @@ type ClientMessage =
   | { kind: 'cancel-cycle-ended' }
   | { kind: 'leave-room' };
 
-type ServerMessage =
-  | {
-      kind: 'room-snapshot';
-      roomId: string;
-      playerId: ContestPlayerId;
-      playerToken: string;
-      game: GameState;
-      cycleEnded: Record<ContestPlayerId, boolean>;
-      connectedPlayers: Record<ContestPlayerId, boolean>;
-      playerNames: ContestPlayerNames;
-      replayPayloads: Record<string, StoredReplayPayload>;
-      message: string | null;
-    }
-  | { kind: 'room-error'; message: string };
+type ServerMessage = MultiplayerServerMessage;
 
 interface RoomClient {
   socket: WebSocket;
@@ -125,7 +113,7 @@ function makePlayerToken(): string {
 
 function send(socket: WebSocket, message: ServerMessage): void {
   if (socket.readyState === socket.OPEN) {
-    socket.send(JSON.stringify(message));
+    socket.send(JSON.stringify(message.kind === 'room-error' ? { ...message, statusCode: 'error' } : message));
   }
 }
 
@@ -480,7 +468,11 @@ function cleanupEmptyRooms(now = Date.now(), ttlMs = EMPTY_ROOM_TTL_MS): string[
   return removedRoomIds;
 }
 
-function broadcast(room: ContestRoom, message: RoomMessage = null): void {
+function broadcast(
+  room: ContestRoom,
+  message: RoomMessage = null,
+  status: MultiplayerStatusCode | Partial<Record<ContestPlayerId, MultiplayerStatusCode>> = 'notice',
+): void {
   (Object.keys(room.clients) as ContestPlayerId[]).forEach((playerId) => {
     const client = room.clients[playerId];
     if (!client) {
@@ -499,6 +491,7 @@ function broadcast(room: ContestRoom, message: RoomMessage = null): void {
       playerNames: room.playerNames,
       replayPayloads,
       message: messageForPlayer(message, playerId),
+      statusCode: typeof status === 'string' ? status : status[playerId] ?? 'idle',
     });
   });
 }
@@ -598,11 +591,14 @@ function maybeAdvanceRoom(room: ContestRoom): void {
     broadcast(room, {
       playerOne: room.submissions.playerOne ? 'Cycle ended. Waiting for the other player.' : null,
       playerTwo: room.submissions.playerTwo ? 'Cycle ended. Waiting for the other player.' : null,
+    }, {
+      playerOne: room.submissions.playerOne ? 'cycle-submitted' : 'idle',
+      playerTwo: room.submissions.playerTwo ? 'cycle-submitted' : 'idle',
     });
     return;
   }
 
-  broadcast(room, 'Both players submitted. Resolving...');
+  broadcast(room, 'Both players submitted. Resolving...', 'resolving');
   const result = advanceContestMultiplayerRoom(room.game, {
     playerOne: room.submissions.playerOne,
     playerTwo: room.submissions.playerTwo,
@@ -614,7 +610,7 @@ function maybeAdvanceRoom(room: ContestRoom): void {
     ...buildStoredReplayPayloadMap(result.replayPayloadWrites),
   };
   touchRoom(room);
-  broadcast(room, result.resolvedCycle ? 'Both players submitted. Cycle resolved.' : 'Both players submitted. Contest updated.');
+  broadcast(room, result.resolvedCycle ? 'Both players submitted. Cycle resolved.' : 'Both players submitted. Contest updated.', result.resolvedCycle ? 'cycle-resolved' : 'contest-updated');
 }
 
 function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
@@ -692,7 +688,7 @@ function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
     if (!validation.ok || !validation.projectedState) {
       const error = validation.error ?? 'That multiplayer submission is not legal.';
       send(socket, { kind: 'room-error', message: error });
-      broadcast(room, { [membership.playerId]: error });
+      broadcast(room, { [membership.playerId]: error }, { [membership.playerId]: 'error' });
       return;
     }
     room.submissions[membership.playerId] = validation.projectedState;
@@ -704,7 +700,7 @@ function handleMessage(socket: WebSocket, raw: WebSocket.RawData): void {
   if (message.kind === 'cancel-cycle-ended') {
     delete room.submissions[membership.playerId];
     touchRoom(room);
-    broadcast(room, 'Cycle end canceled.');
+    broadcast(room, 'Cycle end canceled.', 'cycle-canceled');
     return;
   }
 

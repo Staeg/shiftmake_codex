@@ -411,7 +411,7 @@ describe('resolveDebugBattle', () => {
 
     if (laterUnit) {
       const originalQ = laterUnit.occupiedHexes[0]!.q;
-      initialUnit.occupiedHexes[0]!.q = 999;
+      expect(() => { initialUnit.occupiedHexes[0]!.q = 999; }).toThrow(TypeError);
       expect(laterUnit.occupiedHexes[0]!.q).toBe(originalQ);
     }
   });

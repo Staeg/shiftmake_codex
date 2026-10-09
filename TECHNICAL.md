@@ -57,6 +57,32 @@ src/
 
   ui/
     App.svelte
+    MainMenuNavigation.svelte
+    SaveSlotMenu.svelte
+    GameOverDialog.svelte
+    OpeningUnlockScreen.svelte
+    ScheduledUnlockScreen.svelte
+    EssenceDraftPanel.svelte
+    essenceDraftSession.ts
+    PlanningInspector.svelte
+    TroopRosterBoard.svelte
+    RivalInfoBoard.svelte
+    RiftBoard.svelte
+    ReadyTroopsPanel.svelte
+    PlanningActionRail.svelte
+    overworldPrimitives.css
+    unitPortraitClusters.css
+    planningInspection.ts
+    planningAttentionSession.ts
+    troopAssignmentInteraction.ts
+    cyclePresentationSession.ts
+    riftBattlePresentation.ts
+    ArchivePanel.svelte
+    archiveSession.ts
+    archiveDetails.ts
+    ReplayViewer.svelte
+    ReplayViewport.svelte
+    ReplayRecap.svelte
     BattleControls.svelte
     detailCards.ts
     EventLog.svelte
@@ -133,6 +159,17 @@ Important current catalog rules:
 - Rift mutators are currently `momentum`, `haze`, `heavy-air`, `corrosion`, `quakes`, and `decay`
 
 ### Campaign state
+
+`PlayerProgress` is the shared structural type for root game progression and
+`ContestPlayerState`. `GameState` extends it while retaining the flat version-3
+JSON shape. `src/engine/playerProgress.ts` contains the explicit, compiler-checked
+projection used by root/contest conversions, AI pseudo-state construction, and
+the save loader's root fallback. The projection returns a new outer object and
+preserves nested array/object references; it excludes game-only and extra fields.
+New progress fields must be supplied by the projection, default constructor, and
+save normalization return types. Initial game and both player seats receive
+independent default arrays. Save repair logic and its ordering remain separate
+from the projection.
 
 `GameState` stores plain JSON only:
 
@@ -268,6 +305,18 @@ Important properties:
 - finalized battle maps use row-contiguous hexes with visual-column-aligned zig-zag ends, so each row start/end remains within half a horizontal hex of the others
 - mutator side effects are resolved inside the engine, including battle-wide ability suppression, armor caps, random displacement, and environmental damage
 
+### Number quantization
+
+`fixed.ts` uses JavaScript `number` values rounded to two decimal places. It is
+not scaled-integer fixed-point arithmetic and does not make decimal fractions
+exact in binary floating point. `fixed` preserves the existing
+`Math.round((value + Number.EPSILON) * 100) / 100` expression, including negative
+tie behavior. Arithmetic helpers quantize each result; `fixedSum` rounds each
+addition, so it can differ from rounding the final total. Clamp/minimum helpers
+quantize the value but do not round the supplied bounds. `formatFixed` quantizes
+before removing unnecessary trailing decimal zeroes. No arithmetic, RNG or save
+format change was made. Boundary tests are in `fixed.test.ts`.
+
 ### Turn flow
 
 Each beat:
@@ -344,6 +393,21 @@ All remaining `startOfBattle` abilities, including summons. Newly summoned units
 
 Rule: any future ability that reads army composition at battle start must use `condition` or `repeatPerDistinctFriendlyTroopClass` on its trigger so it lands in Phase 1 automatically.
 
+### Battle-local ability state
+
+Each source unit has independent runtime ability instances with trigger counts
+and remaining-use budgets. Recipient-owned once-per-battle usage is separate:
+`unitOnceEffects.ts` defines typed keys and a fresh-record factory for Mercy Before
+Dawn protection, Stoneblood, Fade Into Shadow and Glamour. Placement and summoning
+each allocate new records. Ability grants, role changes and side changes do not
+reset recipient usage. Mercy protection does not replace the protecting priest's
+source budget. Consumption order remains mechanic-specific.
+
+Timed effects, delayed death, side blocking, successful-placement flags, counters
+and execution queues retain dedicated state with their existing semantics. See
+`docs/ability-state-ownership.md` for the ownership inventory. Runtime records are
+not added to visible replay snapshots or persisted battle inputs.
+
 ### Replay payload
 
 `BattleReplay` includes:
@@ -358,6 +422,21 @@ Rule: any future ability that reads army composition at battle start must use `c
 - summary info for archive UI
 
 The replay UI always reads resolved replay data and never reconstructs combat state from catalog assumptions. The Pixi renderer draws the replay's explicit map, places icons and effects at footprint centers, and treats `position` as a legacy anchor only.
+
+Replay delta recording uses `battleUnitComparison.ts`, not JSON serialization,
+to compare snapshot units. Required mapped comparator keys cover `BattleUnit`,
+`UnitStats`, and `HexCoord`, so adding fields requires an explicit comparison.
+String and footprint arrays compare in order; scalar values compare by value,
+including nullable troop-instance identity. Object insertion order is irrelevant.
+Delta ordering and the materialized replay API remain unchanged. During final
+materialization, unchanged unit records are shared across snapshots; every unit
+record and its nested stats, coordinates, footprints and string arrays are frozen.
+Changed records are cloned before freezing, separate from mutable resolver state.
+Snapshot arrays remain independently owned. Consumers must copy a unit before
+editing it; the existing mutable TypeScript shape is retained for construction
+and compatibility. No lazy cursor or cross-replay cache is introduced. See
+`docs/replay-memory.md` for measurements and ownership acceptance.
+Mutation-site dirty marking is still deferred.
 
 Battle report and campaign report modules build and validate report payloads in `src/engine/battleReport.ts` and `src/engine/campaignReport.ts`. Their shared base64url and stable-hash helpers come from `src/shared/reportEncoding.ts`, keeping the report format logic consistent without duplicating browser/Node fallbacks in engine modules.
 
@@ -387,6 +466,11 @@ The battle engine uses this for side-wide rules that must keep working for futur
 Assignment rule: no more than one troop of a given race can enter the same Rift unless that race has `United`, and no more than one troop of a given troop class can enter the same Rift.
 
 Important current rule: every available troop that is not already occupying a Contest Rift must be assigned before ending the cycle. If any Essence draft can still be revealed, or a revealed draft has unclaimed choices, the UI routes the player to Spend Essence before cycle end or multiplayer cycle end can be submitted.
+
+Opening recruitment and its UI availability share `canClaimOpeningTroop()` in
+`src/engine/game.ts`. It checks phase, native starter identity, seeded race
+options, the two-pick limit, and race/class conflicts without mutating state.
+`claimOpeningTroop()` uses that query before adding a troop.
 
 ### Recovery
 
@@ -424,6 +508,23 @@ The engine remains pure TypeScript. It does not import fetch, Svelte stores, DOM
 
 ## Store and UI Responsibilities
 
+`MainMenuNavigation.svelte` owns home-menu presentation, destination buttons, and
+their tutorial lock styling. It has no store subscription or local routing state.
+`App.svelte` owns the selected menu view and its routing callback because tutorial
+steps and multiplayer exit paths can select those views. Tutorial guards and
+action recording remain in that callback. UI debug/design selectors intentionally
+cross component boundaries beneath their App-owned surface classes.
+
+`SaveSlotMenu.svelte` owns save-slot presentation and the selected slot for its
+new-game picker. Its transient picker state is discarded when the surface leaves
+the menu. It receives slot summaries and load/start/blocked callbacks, with no
+additional store subscription. `gameModeLabels.ts` supplies shared display labels
+and picker descriptions. App retains asset preloading, final tutorial guards,
+the fixed tutorial opening transition, and existing game-store save actions.
+Start and replacement actions use the same callback; their previous implementations
+were identical. Tutorial entry/resume/restart and menu selection remain App-owned.
+No gameplay or save data is moved into these components.
+
 `src/store/gameStore.ts` owns:
 
 - save-slot loading and saving
@@ -434,14 +535,213 @@ The engine remains pure TypeScript. It does not import fetch, Svelte stores, DOM
 - Ladder draw and harvest orchestration through `src/store/ladderClient.ts`
 - high-level multiplayer state transitions, while WebSocket lifecycle, reconnect token storage, last-used room preferences, and multiplayer replay payload cache live in `src/store/contestMultiplayerClient.ts`
 
-`src/ui/App.svelte` is intentionally thin:
+`ReplayPlaybackState` in `src/store/replayPlaybackState.ts` defines loaded replay,
+input/report provenance, position, selected event, play state and rate. Its
+navigation helper owns beat-skipping steps, clamped seeks and event selection.
+The game store remains the atomic snapshot owner and retains its flat public
+subscription and methods. Read-only `gameSessionStore` and `replayPlaybackStore`
+views notify only when their respective field values/references change. App uses
+these separate subscriptions so playback does not invalidate unrelated game
+reactivity. Views do not duplicate writable state, resolve battles or persist
+data. `src/rendering/replayPlaybackController.ts` owns the single scheduled frame,
+presentation timeline cursor and one-entry replay/rate cache. Pause cancels frames;
+scene exit/disposal also releases the cache. Replay identity, rate and position
+guards prevent stale callbacks from advancing replaced or paused replays.
+`src/rendering/replayRendererLifecycle.ts` coalesces asynchronous import/init work
+and releases pending or ready renderers exactly once on host/scene changes. Late
+completion cannot publish a stale renderer. `ReplayViewport.svelte` wires these
+owners to store actions and renderer callbacks, owns the canvas host, playback
+controls and zoom, and disposes both owners on unmount. It reads the distinct
+session/playback views without duplicating state. `ReplayViewer.svelte` supplies
+the synchronous inspection contract and binds navigation kind so event seeks
+retain their presentation semantics. Renderer effect frames and delayed timers
+are canceled on teardown. See `docs/replay-playback-ownership.md` for coverage.
 
-- renders opening unlock choices
-- renders planning state, rifts, troops, draft offers, VP, and archive
-- renders the cycle-10 game-over overlay
-- renders Ladder start and replace buttons in the singleplayer save-slot UI
-- delegates replay playback to the renderer and replay store actions
+`ReplayRecap.svelte` owns the mounted recap modal's aggregates, side scaling,
+profile/current-unit lookup, expansion state and styles. It receives resolved
+replay and snapshot data with portrait/close/inspect callbacks, without a store
+subscription. Expansion resets on unmount or replay reference replacement.
+`ReplayViewer.svelte` owns modal visibility and the pause/rewind/unit-lock action.
+`battleRecap.ts` continues to
+derive presentation totals from authoritative replay events, not combat rules.
+
+`ReplayViewer.svelte` also owns hover/lock/profile selection, event pinning,
+focus/health presentation, event-log visibility, mutator and ability overlays, and
+viewer-local caches. Caches and inspection reset by replay reference, not only ID.
+It receives portrait lookup, exit routing, shared diagnostics and a cohesive
+tutorial request/action contract from App. Tutorial orchestration remains App-owned;
+view requests reset local inspection and choose the requested event-log surface.
+No selection state is mirrored back to App. App's display-contents wrapper keeps
+debug/design selectors reaching the extracted elements. See
+`docs/replay-viewer-extraction.md` for acceptance evidence.
+
+`src/ui/App.svelte` integrates the screen surfaces:
+
+- delegates opening choices and inspection to `OpeningUnlockScreen.svelte`
+- delegates scheduled race and legacy troop unlocks to `ScheduledUnlockScreen.svelte`
+- delegates Essence draft presentation to `EssenceDraftPanel.svelte`
+- delegates archive presentation to `ArchivePanel.svelte`
+- delegates shared planning inspection to `PlanningInspector.svelte`
+- delegates the owned-race and troop roster to `TroopRosterBoard.svelte`
+- delegates revealed rival information to `RivalInfoBoard.svelte`
+- delegates Rift board presentation and styles to `RiftBoard.svelte`
+- delegates ready troops and footer controls to `ReadyTroopsPanel.svelte` and `PlanningActionRail.svelte`
+- renders VP and archive arrival animation
+- mounts `GameOverDialog.svelte` for the cycle-10 game-over phase
+- delegates singleplayer save-slot and new-game controls to `SaveSlotMenu.svelte`
+- delegates replay presentation and interaction to `ReplayViewer.svelte`
 - delegates reusable inspector/detail-card construction to `src/ui/detailCards.ts`
+
+`GameOverDialog.svelte` owns scored-run overlay presentation and scoped styles.
+It receives victory points and continue/menu callbacks without subscribing to a
+store or owning phase state. App retains the phase-based mount and guarded menu
+routing; the existing game-store action owns continuation and persistence.
+Debug/design selectors continue to reach its dialog and action targets.
+
+`OpeningUnlockScreen.svelte` receives authoritative game data, portrait lookups,
+and a cohesive opening-action contract. It owns hover/pin inspection, ability
+disclosures, and opening-specific presentation/CSS, with no store subscription
+or local copy of selected troops. Eligibility comes from the engine query. App
+retains recruitment commands, tutorial action recording, guarded Begin routing,
+and the room-session header passed through a slot. App can reset the component's
+inspection when orchestrating tutorial/scene changes. The display-contents
+overworld wrapper preserves debug/design target access. Existing responsive
+rules move with the screen; no mobile redesign is introduced.
+
+`ScheduledUnlockScreen.svelte` owns scheduled unlock markup, scoped styles,
+transient race selection and inspection. It previews granted upgrades using the
+engine's combatant resolver, without duplicating grant rules. App retains claim
+callbacks and room-session controls through a slot. Game/offer data comes from
+the store; the component neither subscribes nor persists state. Offer replacement
+clears transient race selection, and App can reset inspection when changing scenes.
+
+`essenceDraftSession.ts` owns draft selection, hover/reroll presentation and
+confirmed-card state in one read-only subscribable session. App and
+`EssenceDraftPanel.svelte` read that same owner; neither mirrors its writable
+state. Synchronization receives current game/offer data and session/cycle identity,
+without copying authoritative offers. Context changes clear local state; new
+offers clear confirmed cards; inspection resets clear selections but retain
+confirmed cards for the current cycle. App supplies store command/tutorial
+callbacks and shared planning inspection. Upgrade highlights consume explicit
+session dependencies in Svelte, including the ready troop and Rift surfaces.
+The draft component owns presentation and scoped styles. It has no gameplay-store
+subscription. Auto-reveal and tutorial routing remain App-owned; planning
+attention has a separate lifecycle owner. The Essence tutorial targets Races & Troops rather than the removed
+counter; the reveal lesson advances when an authoritative draft is already open.
+
+`archiveSession.ts` owns archive selection and viewport-based pagination through
+a read-only subscription shared by App and `ArchivePanel.svelte`. It retains no
+gameplay data and clears stale selections when entries disappear. The panel owns
+list/detail presentation and scoped styles; `archiveDetails.ts` derives stored
+combatants, relevant upgrades and replay performance without mutating sources.
+App supplies replay access, commands, tutorial guards and shared inspection.
+Arrival flight markup is passed through a slot because its geometry and timing
+remain coupled to Rift animation. Replay exit restores archive selection after
+the route-change inspection reset. Footer empty space passes pointer events
+through, and the archive reserves room above the End Cycle controls.
+
+`planningInspection.ts` owns hovered/pinned detail cards, comparison selection,
+highlight keys and owner-scoped ability tooltips in one read-only subscribable
+session. App and `PlanningInspector.svelte` share that owner without writable
+copies. The first pin is retained while a second is replaced; two pinned units
+suppress further unit hover previews. Draft selections replace inspection
+atomically. Scene/context changes reset the session through App's existing
+orchestration. App retains tutorial signal callbacks for enemy/mutator inspection.
+The sidebar component owns presentation, ability disclosure DOM behavior and
+scoped styles. It receives resolved selected-troop data for the existing roster
+fallback; game rules and assignment commands remain engine/store owned. The
+unreachable selected-Rift sidebar and its unused derived queries were removed.
+
+`troopAssignmentInteraction.ts` owns pointer/mouse/native drag state, click
+suppression and assignment conflict presentation through a read-only subscription.
+It tracks and removes document/window listeners on completion, cancellation,
+context reset and App teardown. Native payloads are structurally validated before
+calling App. App retains engine eligibility queries, assignment/store commands,
+selection and tutorial signals; the interaction owner contains no gameplay rules.
+`cyclePresentationSession.ts` owns cycle handoff timers and archive-arrival render
+and frame scheduling through a read-only subscription. Timing constants are
+shared with App's mini-replay and flight markup and preserve the existing timeline,
+PvP phase delay and stagger. Animation identity guards reject stale callbacks;
+replacement, cancellation and teardown release pending timers/frames. A completed
+identity is retained until the store changes it, preventing restart during delayed
+Ladder finalization. App retains the finish-cycle command, scene routing, flight
+geometry and tutorial signals. An App integration test renders real resolved data
+and checks exact handoff delays. The session has no gameplay or persistence state.
+
+`planningAttentionSession.ts` owns End Cycle hover/focus state and the 2400 ms
+Essence focus pulse through a read-only subscription. Repeated pulses replace
+their timer; stale callbacks, context replacement and teardown cannot leave
+attention behind. App synchronizes campaign/session, cycle, phase and screen
+identity, intentionally excluding center mode so the Spend Essence command can
+switch boards without canceling its pulse. App keeps eligibility/blocking queries,
+focus commands, tutorial signals and assignment-arrow geometry. Assignment
+attention is hover/focus driven; the unused assignment pulse path was removed.
+
+`riftBattlePresentation.ts` derives phase orientation, participant/result
+perspective, force grouping, loss classes and visible Rift defenders from explicit
+game/record inputs. It is shared by the Rift board and archive-arrival visuals,
+with no store subscription or lifecycle state. Combatant stats come from engine
+queries; outcomes and phase order come from resolved records. Existing legacy
+human/ai participant identities and no-guardian PvP sequencing remain supported.
+The health-tone type is shared here rather than exported from a Svelte component.
+
+`RiftBoard.svelte` owns Rift markup, applicable scoped styles and mini-replay phase
+mounts. It receives authoritative game/resolution data, the existing assignment
+interaction owner, shared inspection, and a cohesive planning contract. It has
+no gameplay-store subscription or local selection copy. Engine queries supply
+assignment eligibility and upgrade applicability. App retains assignment commands,
+selection/click suppression, tutorial signals, holding identities and hint/arrival
+geometry. Debug/tutorial/drop/flight selectors remain unchanged. Parent layout
+selectors cross the component boundary with `:global(.rift-grid)`; board-specific
+responsive rules and force keyframes move with the markup. Shared primitives
+remain a consolidation target.
+
+`ReadyTroopsPanel.svelte` presents authoritative ready troops and engine-resolved
+stats. It receives the existing assignment interaction and planning inspection
+owners; App retains selection commands, click suppression and tutorial signals.
+Ready drop targets, attention/hint attributes and density breakpoints are unchanged.
+
+`PlanningActionRail.svelte` owns footer layout, system notices and cycle controls.
+App supplies cycle/notice callbacks and draft, ready and tutorial slots, retaining
+phase guards and submission authority. Blocked `aria-disabled` feedback remains
+separate from actual disabled controls. Slot-sensitive layout selectors explicitly
+cross component boundaries. Neither component subscribes to the gameplay store
+or maintains a second gameplay state.
+
+`overworldPrimitives.css`, imported once in `main.ts`, supplies shared button,
+panel, label and margin defaults to the overworld surface/shell. Ten extracted
+surfaces no longer duplicate these canonical declarations; component-specific
+variants and responsive rules stay scoped. App retains its own defaults for
+App-owned controls outside the overworld, and remains the owner of body and
+global debug/design styles. The shared portrait stylesheet owns cluster layering
+and density separately. Shared defaults are not applied to replay/menu surfaces.
+
+`TroopRosterBoard.svelte` derives owned races, resolved troop presentations and
+future draft classes from authoritative game data and engine queries. It owns
+roster markup and applicable scoped styles, with no store subscription or local
+selection copy. App supplies selected race/troop identities, portrait lookups,
+selection callbacks and the shared inspection contract. Highlight keys and game
+inputs are explicit template dependencies. App retains selection/reset behavior,
+tutorial commands and routing. The component preserves existing debug selectors
+and high-density portrait clusters. Other shared scoped CSS remains a consolidation
+target while the other planning boards are extracted.
+
+`RivalInfoBoard.svelte` owns revealed rival roster/upgrade presentation and
+scoped styles. It reads the last completed-cycle `opponentInfo` snapshot for
+troops and upgrades, not the current live rival roster. Current Rift occupation
+determines which revealed troops receive mobile-threat styling. Combatant stats
+and abilities come from the engine resolver; the shared planning inspector owns
+selection. The board has no store subscription or local gameplay state. App keeps
+view routing and tutorial signals. Empty/unrevealed intel and debug selectors
+retain their existing behavior.
+
+`unitPortraitClusters.css`, imported once by `main.ts`, owns identical portrait
+density, foreground layering and background positioning rules across planning,
+draft, unlock, roster, rival and archive surfaces. Rules are confined to
+`.overworld-surface` and `.overworld-shell`; the common `.unit-icon-cluster` class
+on variant selectors keeps their specificity above retained Svelte-scoped base
+rules. Surface layout, responsive rules and differing detail-art declarations
+remain local. This stylesheet contains presentation only, not quantity decisions.
 
 ## Persistence
 
@@ -532,6 +832,22 @@ The WebSocket server listens on all interfaces by default. Set `SHIFTMAKE_MULTIP
 For internet deployment, serve the Vite app over HTTPS and set `VITE_MULTIPLAYER_SERVER_URL` to a `wss://` endpoint routed to the room server behind a reverse proxy.
 
 ### Multiplayer Room Lifecycle
+
+Server and browser share the message contract in `src/shared/multiplayerProtocol.ts`.
+Room snapshots include a `statusCode` independently of their readable `message`:
+`idle`, `notice`, `cycle-submitted`, `cycle-canceled`, `resolving`,
+`cycle-resolved`, `contest-updated`, or `error`. Room errors also carry `error`.
+The store uses codes to classify routine notices and new-battle animation;
+resolving, error, and unknown notices remain visible. Waiting status is projected
+per player: the submitted player receives `cycle-submitted`, the other `idle`.
+
+Display text remains on the wire for existing clients. New clients support servers
+without codes through the isolated legacy-message adapter in the shared protocol
+module. Remove that adapter when deployment requires code-capable servers. An
+explicit unknown/invalid code never falls back to message wording. Room lifecycle
+notices use `notice`; rejected submissions use `error`, including their subsequent
+per-player snapshot. Connection feedback and optimistic local submission messages
+remain client-owned and are not used to classify server behavior.
 
 Contest multiplayer rooms are authoritative in the WebSocket server process. A room snapshot keeps the shared game state, submitted player states, reconnect tokens, connected sockets, player names, and archived replay payload inputs in memory so short disconnects do not destroy an active game. Clients first try token-based reconnects from browser session storage. If the token is missing, entering the same room code with the same player name reclaims that remembered seat, rotates the reconnect token, and preserves submitted readiness.
 

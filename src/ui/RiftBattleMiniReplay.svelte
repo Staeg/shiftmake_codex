@@ -5,11 +5,11 @@
   import { UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
   import { buildBattlePresentationTimeline } from '../rendering/battlePresentationTimeline';
   import { BASE_STEP_MS } from '../rendering/renderingConstants';
+  import type { MiniReplayHealthTone } from './riftBattlePresentation';
 
   type Point = { x: number; y: number };
   type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
   type HealthSide = { current: number; max: number; percent: number };
-  export type MiniReplayHealthTone = 'player' | 'neutral' | 'opponent';
   type EffectView =
     | { kind: 'attack'; mode: 'melee' | 'ranged' | 'blast' | null; from: Point | null; to: Point | null; progress: number }
     | { kind: 'buff'; point: Point | null; progress: number; tone: 'positive' | 'negative' | 'neutral' }

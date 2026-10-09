@@ -423,3 +423,19 @@ export function unitIconDensityClass(quantity: number): string {
   }
   return 'density-1';
 }
+
+export function getDetailInspectLabel(detail: DetailCard): string {
+  if (detail.kind === 'mutator') {
+    return 'Mutator Effect';
+  }
+  if (detail.kind === 'race') {
+    return 'Race Modifiers';
+  }
+  if (detail.kind === 'upgrade') {
+    return detail.inspectLabel ?? 'Upgrade Effects';
+  }
+  if (detail.kind === 'rift') {
+    return 'Rift Rule';
+  }
+  return detail.inspectLabel;
+}

@@ -1,0 +1,366 @@
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster {
+    --unit-cluster-hero-size: 76%;
+    --unit-cluster-bg-size: 23%;
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    justify-self: stretch;
+    align-self: stretch;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art {
+    position: absolute;
+    width: var(--unit-cluster-bg-size) !important;
+    height: var(--unit-cluster-bg-size) !important;
+    margin: 0 !important;
+    opacity: 0.72;
+    transform: translate(-50%, -50%);
+    transform-origin: center bottom;
+    z-index: 1;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:first-child,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:first-child,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:first-child {
+    left: 50%;
+    top: 59%;
+    width: var(--unit-cluster-hero-size) !important;
+    height: var(--unit-cluster-hero-size) !important;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+    filter:
+      drop-shadow(0 0 9px rgba(0, 0, 0, 0.48))
+      drop-shadow(0 3px 1px rgba(0, 0, 0, 0.3));
+    z-index: 5;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:not(:first-child),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:not(:first-child),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:not(:first-child) {
+    filter:
+      saturate(0.9)
+      brightness(0.78)
+      drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 2),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 2),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 2) {
+    left: 24%;
+    top: 25%;
+    transform: translate(-50%, -50%) rotate(-9deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 3),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 3),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 3) {
+    left: 74%;
+    top: 27%;
+    transform: translate(-50%, -50%) rotate(8deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 4),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 4),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 4) {
+    left: 41%;
+    top: 18%;
+    transform: translate(-50%, -50%) rotate(3deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 5),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 5),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 5) {
+    left: 60%;
+    top: 19%;
+    transform: translate(-50%, -50%) rotate(-4deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 6),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 6),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 6) {
+    left: 18%;
+    top: 47%;
+    transform: translate(-50%, -50%) rotate(7deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 7),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 7),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 7) {
+    left: 83%;
+    top: 49%;
+    transform: translate(-50%, -50%) rotate(-8deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 8),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 8),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 8) {
+    left: 31%;
+    top: 64%;
+    transform: translate(-50%, -50%) rotate(5deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 9),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 9),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 9) {
+    left: 69%;
+    top: 65%;
+    transform: translate(-50%, -50%) rotate(-5deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 10),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 10),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 10) {
+    left: 47%;
+    top: 77%;
+    transform: translate(-50%, -50%) rotate(-2deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 11),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 11),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 11) {
+    left: 14%;
+    top: 73%;
+    transform: translate(-50%, -50%) rotate(-7deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 12),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 12),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 12),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster .unit-tile-art:nth-child(12n + 13),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster .unit-button-art:nth-child(12n + 13),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster .hover-unit-art:nth-child(12n + 13) {
+    left: 88%;
+    top: 76%;
+    transform: translate(-50%, -50%) rotate(6deg);
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-1,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-1,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-1 {
+    --unit-cluster-hero-size: 82%;
+    --unit-cluster-bg-size: 0%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-4,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-4,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-4 {
+    --unit-cluster-hero-size: 77%;
+    --unit-cluster-bg-size: 24%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-6,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-6,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-6 {
+    --unit-cluster-hero-size: 76%;
+    --unit-cluster-bg-size: 21%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-9,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-9,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-9 {
+    --unit-cluster-hero-size: 75%;
+    --unit-cluster-bg-size: 18%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-12,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-12,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-12 {
+    --unit-cluster-hero-size: 74%;
+    --unit-cluster-bg-size: 15.5%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-20,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-20,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-20 {
+    --unit-cluster-hero-size: 73%;
+    --unit-cluster-bg-size: 13%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24,
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 {
+    --unit-cluster-hero-size: 72%;
+    --unit-cluster-bg-size: 9.8%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:not(:first-child),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:not(:first-child),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:not(:first-child) {
+    opacity: 0.82;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(2),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(2),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(2) {
+    left: 13%;
+    top: 20%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(3),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(3),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(3) {
+    left: 26%;
+    top: 14%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(4),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(4),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(4) {
+    left: 40%;
+    top: 10%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(5),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(5),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(5) {
+    left: 55%;
+    top: 10%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(6),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(6),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(6) {
+    left: 70%;
+    top: 14%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(7),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(7),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(7) {
+    left: 84%;
+    top: 22%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(8),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(8),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(8) {
+    left: 8%;
+    top: 38%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(9),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(9),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(9) {
+    left: 20%;
+    top: 33%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(10),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(10),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(10) {
+    left: 32%;
+    top: 27%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(11),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(11),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(11) {
+    left: 66%;
+    top: 27%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(12),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(12),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(12) {
+    left: 79%;
+    top: 34%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(13),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(13),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(13) {
+    left: 92%;
+    top: 41%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(14),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(14),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(14) {
+    left: 9%;
+    top: 57%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(15),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(15),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(15) {
+    left: 21%;
+    top: 66%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(16),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(16),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(16) {
+    left: 33%;
+    top: 75%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(17),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(17),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(17) {
+    left: 48%;
+    top: 82%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(18),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(18),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(18) {
+    left: 63%;
+    top: 76%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(19),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(19),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(19) {
+    left: 76%;
+    top: 67%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(20),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(20),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(20) {
+    left: 89%;
+    top: 59%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(21),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(21),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(21) {
+    left: 25%;
+    top: 49%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(22),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(22),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(22) {
+    left: 37%;
+    top: 39%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(23),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(23),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(23) {
+    left: 61%;
+    top: 40%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.tile-unit-cluster.density-24 .unit-tile-art:nth-child(24),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.chip-unit-cluster.density-24 .unit-button-art:nth-child(24),
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster.density-24 .hover-unit-art:nth-child(24) {
+    left: 73%;
+    top: 50%;
+  }
+
+:is(.overworld-surface, .overworld-shell) .unit-icon-cluster.detail-unit-cluster {
+    width: 5.4rem;
+    height: 5.4rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }

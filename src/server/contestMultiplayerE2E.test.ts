@@ -5,6 +5,7 @@ import { assignTroopToRift, claimOpeningTroop, claimTroopOffer, claimUpgradeOffe
 import { buildContestMultiplayerSubmission } from '../engine/multiplayerContest';
 import type { ContestPlayerId, GameState, StoredReplayPayload, TroopUnlockId } from '../engine/types';
 import { contestMultiplayerServerInternals, startContestMultiplayerServer } from './contestMultiplayerServer';
+import type { MultiplayerStatusCode } from '../shared/multiplayerProtocol';
 
 type SnapshotMessage = {
   kind: 'room-snapshot';
@@ -16,11 +17,13 @@ type SnapshotMessage = {
   playerNames: Record<ContestPlayerId, string>;
   replayPayloads: Record<string, StoredReplayPayload>;
   message: string | null;
+  statusCode: MultiplayerStatusCode;
 };
 
 type ErrorMessage = {
   kind: 'room-error';
   message: string;
+  statusCode: 'error';
 };
 
 type ServerMessage = SnapshotMessage | ErrorMessage;
@@ -54,6 +57,10 @@ class TestClient {
 
   waitForSnapshot(predicate: (message: SnapshotMessage) => boolean): Promise<SnapshotMessage> {
     return this.waitFor((message): message is SnapshotMessage => message.kind === 'room-snapshot' && predicate(message));
+  }
+
+  waitForError(): Promise<ErrorMessage> {
+    return this.waitFor((message): message is ErrorMessage => message.kind === 'room-error');
   }
 
   close(): void {
@@ -205,7 +212,15 @@ describe('Contest multiplayer two-client smoke suite', () => {
 
     expect(hostJoined.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
     expect(guestJoined.playerNames).toEqual({ playerOne: 'Ada', playerTwo: 'Byron' });
+    expect(created.statusCode).toBe('notice');
 
+    host.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(hostJoined.game)) });
+    const hostWaiting = await host.waitForSnapshot((message) => message.statusCode === 'cycle-submitted');
+    const guestWaiting = await guest.waitForSnapshot((message) => message.statusCode === 'idle');
+    expect(hostWaiting.cycleEnded.playerOne).toBe(true);
+    expect(guestWaiting.cycleEnded.playerTwo).toBe(false);
+    host.send({ kind: 'cancel-cycle-ended' });
+    await host.waitForSnapshot((message) => message.statusCode === 'cycle-canceled');
     host.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(hostJoined.game)) });
     guest.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(chooseFirstTwoOpeningTroops(guestJoined.game)) });
 
@@ -216,6 +231,9 @@ describe('Contest multiplayer two-client smoke suite', () => {
     expect(guestPlanning.game.troops).toHaveLength(2);
     expect(hostPlanning.playerId).toBe('playerOne');
     expect(guestPlanning.playerId).toBe('playerTwo');
+    expect(hostPlanning.statusCode).toBe('contest-updated');
+    expect(guestPlanning.statusCode).toBe('contest-updated');
+    expect(host.messages.some((message) => message.statusCode === 'resolving')).toBe(true);
 
     host.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(hostPlanning.game))) });
     guest.send({ kind: 'submit-cycle-ended', submission: buildContestMultiplayerSubmission(assignFirstTroopToFirstRift(spendEssenceDraft(guestPlanning.game))) });
@@ -227,6 +245,8 @@ describe('Contest multiplayer two-client smoke suite', () => {
 
     expect(hostResolved.game.phase).toBe('planning');
     expect(guestResolved.game.phase).toBe('planning');
+    expect(hostResolved.statusCode).toBe('cycle-resolved');
+    expect(guestResolved.statusCode).toBe('cycle-resolved');
     expect(hostResolved.game.replayIndex.length).toBeGreaterThan(0);
     expect(guestResolved.game.replayIndex.length).toBeGreaterThan(0);
     expect(hostLocalReplay?.input.sideParticipants?.enemy.kind).toBe('neutral');
@@ -252,5 +272,14 @@ describe('Contest multiplayer two-client smoke suite', () => {
     expect(joined.roomId).toBe('E2E2');
     expect(joined.playerToken).not.toBe(waiting.playerToken);
     expect(joined.cycleEnded.playerOne).toBe(false);
+  });
+
+  it('sends an explicit error status while retaining legacy display text', async () => {
+    const client = await connectClient(serverUrl());
+    clients.push(client);
+    client.send({ kind: 'join-room', roomId: 'MISSING' });
+    const error = await client.waitForError();
+    expect(error.statusCode).toBe('error');
+    expect(error.message).toContain('not found');
   });
 });

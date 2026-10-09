@@ -335,6 +335,8 @@ export interface BattleUnit {
   engagedWithIds: string[];
 }
 
+// Resolver snapshots share deeply frozen unit records. Copy before editing a unit;
+// each snapshot's units array remains independently owned for API compatibility.
 export interface BattleStateSnapshot {
   units: BattleUnit[];
 }
@@ -727,7 +729,7 @@ export interface LadderState {
   currentSourceCycleNumber: number | null;
 }
 
-export interface ContestPlayerState {
+export interface PlayerProgress {
   victoryPoints: number;
   essence: number;
   unlockedRaceIds: RaceId[];
@@ -746,6 +748,8 @@ export interface ContestPlayerState {
   seenTroopOfferOptionIds: TroopUnlockId[];
   seenUpgradeOfferOptionIds: UpgradeId[];
 }
+
+export type ContestPlayerState = PlayerProgress;
 
 export interface ContestState {
   players: {
@@ -760,29 +764,12 @@ export interface ContestOpponentInfoSnapshot {
   playerTwo: ContestPlayerState;
 }
 
-export interface GameState {
+export interface GameState extends PlayerProgress {
   version: 3;
   gameMode: GameMode;
   campaignSeed: number;
   cycleNumber: number;
   phase: CampaignPhase;
-  essence: number;
-  victoryPoints: number;
-  unlockedRaceIds: RaceId[];
-  unlockedTroopUnlockIds: TroopUnlockId[];
-  recentTroopUnlockIds: TroopUnlockId[];
-  troops: TroopInstance[];
-  raceUpgradeIds: UpgradeId[];
-  troopClassUpgradeIds: UpgradeId[];
-  activeTroopOffer: TroopDraftOffer | null;
-  activeUpgradeOffer: UpgradeDraftOffer | null;
-  activeRaceUnlockOffer: RaceUnlockOffer | null;
-  activeTroopClassUnlockOffer: TroopClassUnlockOffer | null;
-  troopOfferRolls: number;
-  upgradeOfferRolls: number;
-  essenceDraftRerollUsed: EssenceDraftRerollSide | null;
-  seenTroopOfferOptionIds: TroopUnlockId[];
-  seenUpgradeOfferOptionIds: UpgradeId[];
   postgameDismissed: boolean;
   openRifts: RiftInstance[];
   replayIndex: ReplayIndexEntry[];

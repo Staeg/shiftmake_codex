@@ -1,5 +1,7 @@
 ﻿export const FIXED_PRECISION = 100;
 
+// Two-decimal quantization of JavaScript numbers, not integer fixed-point storage.
+// Preserve Math.round's tie behavior and the existing epsilon adjustment.
 export function fixed(value: number): number {
   return Math.round((value + Number.EPSILON) * FIXED_PRECISION) / FIXED_PRECISION;
 }

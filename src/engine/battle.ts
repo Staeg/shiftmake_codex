@@ -17,6 +17,8 @@ import { fixed, fixedAdd, fixedClamp, fixedMax, fixedMul, fixedSub, fixedSum, fo
 import { createRng, randomSeed, type Rng } from './rng';
 import { normalizeBattleInput, normalizeRoleId, normalizeUnitStats } from './compat';
 import { clampStat, composeSummonedTroopDefinition, getAbility, getMutator } from './unitCatalog';
+import { battleUnitChanged } from './battleUnitComparison';
+import { createUnitOnceEffectUsage, hasUsedUnitOnceEffect, markUnitOnceEffectUsed, type UnitOnceEffectUsage } from './unitOnceEffects';
 import {
   effectDisposition,
   filterTargetCandidates,
@@ -123,10 +125,7 @@ type InternalUnit = {
   activeTimedEffects: ActiveTimedEffect[];
   committedBacklineTargetId: string | null;
   graveVigorBlockedSides: Set<SideId>;
-  mercyBeforeDawnUsed: boolean;
-  stonebloodUsed: boolean;
-  fadeIntoShadowUsed: boolean;
-  glamourUsed: boolean;
+  onceEffectUsage: UnitOnceEffectUsage;
   brambleSnareStacks: number;
   bonusStrikeCharges: number;
   scavengersHungerKills: number;
@@ -359,10 +358,7 @@ function createPlacedUnit(
     activeTimedEffects: [],
     committedBacklineTargetId: null,
     graveVigorBlockedSides: new Set<SideId>(),
-    mercyBeforeDawnUsed: false,
-    stonebloodUsed: false,
-    fadeIntoShadowUsed: false,
-    glamourUsed: false,
+    onceEffectUsage: createUnitOnceEffectUsage(),
     brambleSnareStacks: 0,
     bonusStrikeCharges: 0,
     scavengersHungerKills: 0,
@@ -720,8 +716,14 @@ function cloneSnapshot(units: Map<string, InternalUnit>): BattleStateSnapshot {
   };
 }
 
-function battleUnitChanged(left: BattleUnit | undefined, right: BattleUnit): boolean {
-  return !left || JSON.stringify(left) !== JSON.stringify(right);
+function freezeReplayUnit(unit: BattleUnit): BattleUnit {
+  Object.freeze(unit.attributes);
+  Object.freeze(unit.position);
+  unit.occupiedHexes.forEach((hex) => Object.freeze(hex));
+  Object.freeze(unit.occupiedHexes);
+  Object.freeze(unit.stats);
+  Object.freeze(unit.engagedWithIds);
+  return Object.freeze(unit);
 }
 
 function recordStepDeltas(state: InternalState): BattleUnit[] {
@@ -740,17 +742,18 @@ function recordStepDeltas(state: InternalState): BattleUnit[] {
 }
 
 function materializeRecordedSteps(initial: BattleStateSnapshot, recordedSteps: RecordedBattleStep[]): BattleStep[] {
-  const cache = new Map(initial.units.map((unit) => [unit.id, cloneBattleUnit(unit)]));
+  // Only changed unit records need a new owner; snapshot arrays stay independent.
+  const cache = new Map(initial.units.map((unit) => [unit.id, freezeReplayUnit(unit)]));
   return recordedSteps.map(({ unitDeltas, ...step }) => {
     unitDeltas.forEach((unit) => {
-      cache.set(unit.id, cloneBattleUnit(unit));
+      cache.set(unit.id, freezeReplayUnit(cloneBattleUnit(unit)));
     });
     return {
       ...step,
       actorIds: [...step.actorIds],
       targetIds: [...step.targetIds],
       metadata: step.metadata ? { ...step.metadata } : undefined,
-      snapshot: { units: [...cache.values()].map(cloneBattleUnit) },
+      snapshot: { units: [...cache.values()] },
     };
   });
 }
@@ -1437,12 +1440,12 @@ function createEngagement(state: InternalState, actor: InternalUnit, target: Int
   actor.engagedWith.add(target.id);
   target.engagedWith.add(actor.id);
   if (
-    !target.fadeIntoShadowUsed &&
+    !hasUsedUnitOnceEffect(target.onceEffectUsage, 'fade-into-shadow') &&
     hasAbility(target, 'fade-into-shadow') &&
     target.role === 'backline' &&
     target.attributes.includes('elf')
   ) {
-    target.fadeIntoShadowUsed = true;
+    markUnitOnceEffectUsed(target.onceEffectUsage, 'fade-into-shadow');
     retreatFromEngagement(state, target, actor, `${target.troopLabel} fades into shadow.`, 'fadeIntoShadow');
   }
   if (actor.alive && target.alive && actor.engagedWith.has(target.id) && hasAbility(actor, 'first-blood')) {
@@ -1649,13 +1652,14 @@ function healUnitToHp(
 }
 
 function preventDeath(state: InternalState, actor: InternalUnit, target: InternalUnit): boolean {
-  const protectingPriest = !target.mercyBeforeDawnUsed ? findProtectingPriest(state, target) : null;
+  const protectingPriest = !hasUsedUnitOnceEffect(target.onceEffectUsage, 'mercy-before-dawn-protection') ? findProtectingPriest(state, target) : null;
   if (protectingPriest) {
     const runtime = protectingPriest.resolvedAbilities.find((entry) => entry.definition.id === 'mercy-before-dawn');
     if (!runtime || (runtime.usesRemaining !== null && runtime.usesRemaining <= 0)) {
       return false;
     }
-    target.mercyBeforeDawnUsed = true;
+    // Protection belongs to the recipient; the priest's ability budget remains separate.
+    markUnitOnceEffectUsed(target.onceEffectUsage, 'mercy-before-dawn-protection');
     const applied = healUnitToHp(
       state,
       protectingPriest,
@@ -1674,8 +1678,8 @@ function preventDeath(state: InternalState, actor: InternalUnit, target: Interna
     return applied;
   }
 
-  if (!target.stonebloodUsed && hasAbility(target, 'stoneblood')) {
-    target.stonebloodUsed = true;
+  if (!hasUsedUnitOnceEffect(target.onceEffectUsage, 'stoneblood') && hasAbility(target, 'stoneblood')) {
+    markUnitOnceEffectUsed(target.onceEffectUsage, 'stoneblood');
     target.resolvedAbilities = target.resolvedAbilities.filter((runtime) => runtime.definition.id !== 'regen-5');
     return saveUnitFromDeath(state, target, target, 25, 'stoneblood', `${target.troopLabel} refuses to fall and stays at 25 HP.`, 'stoneblood');
   }
@@ -2705,10 +2709,7 @@ function summonUnit(
     activeTimedEffects: [],
     committedBacklineTargetId: null,
     graveVigorBlockedSides: new Set<SideId>(),
-    mercyBeforeDawnUsed: false,
-    stonebloodUsed: false,
-    fadeIntoShadowUsed: false,
-    glamourUsed: false,
+    onceEffectUsage: createUnitOnceEffectUsage(),
     brambleSnareStacks: 0,
     bonusStrikeCharges: 0,
     scavengersHungerKills: 0,
@@ -3775,7 +3776,7 @@ function filterLegalNormalAttackTargets(actor: InternalUnit, candidates: Interna
 }
 
 function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: InternalUnit, mode: 'melee' | 'ranged', category: AttackCategory): boolean {
-  if (category !== 'normal' || target.glamourUsed || !hasAbility(target, 'glamour') || !isFae(target)) {
+  if (category !== 'normal' || hasUsedUnitOnceEffect(target.onceEffectUsage, 'glamour') || !hasAbility(target, 'glamour') || !isFae(target)) {
     return false;
   }
   const candidates = getAliveUnits(state)
@@ -3784,7 +3785,7 @@ function tryApplyGlamour(state: InternalState, actor: InternalUnit, target: Inte
   if (candidates.length === 0) {
     return false;
   }
-  target.glamourUsed = true;
+  markUnitOnceEffectUsed(target.onceEffectUsage, 'glamour');
   const redirectedTarget = state.rng.pick(candidates);
   buildStep(state, 'buff', [target.id], [redirectedTarget.id], `${target.troopLabel} glamours the attack toward ${redirectedTarget.troopLabel}.`, {
     effect: 'glamour',

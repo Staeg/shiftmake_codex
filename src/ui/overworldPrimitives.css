@@ -1,0 +1,66 @@
+/* Shared defaults; component-specific variants remain Svelte-scoped. */
+:is(.overworld-surface, .overworld-shell) button {
+    cursor: pointer;
+  }
+
+:is(.overworld-surface, .overworld-shell) button:not(:disabled):active {
+    transform: translateY(1px) scale(0.985);
+    filter: brightness(0.9);
+  }
+
+:is(.overworld-surface, .overworld-shell) h2,
+:is(.overworld-surface, .overworld-shell) p,
+:is(.overworld-surface, .overworld-shell) h1 {
+    margin: 0;
+  }
+
+:is(.overworld-surface, .overworld-shell) .eyebrow {
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ui-color-accent);
+    font-size: var(--ui-text-label);
+    line-height: var(--ui-line-label);
+  }
+
+:is(.overworld-surface, .overworld-shell) .primary,
+:is(.overworld-surface, .overworld-shell) .list-button,
+:is(.overworld-surface, .overworld-shell) .troop-chip,
+:is(.overworld-surface, .overworld-shell) .title-button {
+    border: 1px solid rgba(126, 157, 181, 0.2);
+    border-radius: var(--ui-panel-radius-tight);
+    background: var(--ui-color-surface-interactive);
+    color: var(--ui-color-text);
+    padding: var(--ui-space-sm);
+    font: inherit;
+  }
+
+:is(.overworld-surface, .overworld-shell) button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+:is(.overworld-surface, .overworld-shell) .panel,
+:is(.overworld-surface, .overworld-shell) .draft-panel {
+    box-sizing: border-box;
+    min-width: 0;
+    display: grid;
+    gap: var(--ui-panel-gap);
+    padding: var(--ui-panel-padding);
+    border-radius: var(--ui-panel-radius);
+    border: var(--ui-border-subtle);
+    background:
+      linear-gradient(160deg, var(--ui-color-surface-strong), rgba(10, 15, 24, 0.94)),
+      radial-gradient(circle at top right, rgba(95, 135, 170, 0.12), transparent 35%);
+    box-shadow: var(--ui-shadow-panel);
+  }
+
+:is(.overworld-surface, .overworld-shell) .panel *,
+:is(.overworld-surface, .overworld-shell) .draft-panel * {
+    min-width: 0;
+  }
+
+:is(.overworld-surface, .overworld-shell) .primary {
+    background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
+    color: #111;
+    border-color: rgba(213, 178, 116, 0.6);
+  }

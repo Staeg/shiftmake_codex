@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { isRoutineMultiplayerStatus, multiplayerStatusCode } from '../shared/multiplayerProtocol';
 import {
   applyCycleOutcomes,
   applyScheduledCycleUnlock,
@@ -75,7 +76,7 @@ import {
   verifyReplayIndexAgainstStoredPayloads,
   writeSlotReplay,
 } from './saveSlots';
-import { nextPlayableStep, previousPlayableStep } from './replayNavigation';
+import { createReplayPlaybackState, createReplayStateViews, navigateReplay, type ReplayPlaybackState } from './replayPlaybackState';
 import { buildContestMultiplayerSubmission, DEFAULT_CONTEST_PLAYER_NAMES } from '../engine/multiplayerContest';
 import { buildContestAiPlanKey, type ContestAiWorkerResponse } from './contestAiPlanner';
 import {
@@ -118,7 +119,7 @@ interface CycleAnimationState {
   activeSlotId: SaveSlotId | null;
 }
 
-interface StoreState {
+interface StoreState extends ReplayPlaybackState {
   game: GameState;
   screen: ScreenMode;
   activeSlotId: SaveSlotId | null;
@@ -126,13 +127,6 @@ interface StoreState {
   tutorialProgress: TutorialProgress | null;
   multiplayer: MultiplayerSession | null;
   centerMode: CenterMode;
-  loadedReplay: BattleReplay | null;
-  loadedReplayPayload: StoredReplayPayload | null;
-  loadedBattleReport: BattleReportPayload | null;
-  currentStep: number;
-  selectedEvent: number | null;
-  autoPlay: boolean;
-  rateMs: number;
   validationMessages: string[];
   systemMessage: string | null;
   cycleEndConfirmationPending: boolean;
@@ -157,15 +151,6 @@ let multiplayerReconnectAttempts = 0;
 function isMultiplayerSubmitted(state: StoreState): boolean {
   const playerId = state.multiplayer?.playerId;
   return !!playerId && !!state.multiplayer?.cycleEnded[playerId];
-}
-
-function isBenignMultiplayerStatusMessage(message: string | null): boolean {
-  return (
-    message === 'Cycle ended. Waiting for the other player.' ||
-    message === 'Cycle end canceled.' ||
-    message === 'Both players submitted. Cycle resolved.' ||
-    message === 'Both players submitted. Contest updated.'
-  );
 }
 
 function canEditGame(state: StoreState): boolean {
@@ -275,13 +260,7 @@ function makeInitialState(): StoreState {
     tutorialProgress: null,
     multiplayer: null,
     centerMode: 'rifts',
-    loadedReplay: null,
-    loadedReplayPayload: null,
-    loadedBattleReport: null,
-    currentStep: -1,
-    selectedEvent: null,
-    autoPlay: false,
-    rateMs: 125,
+    ...createReplayPlaybackState(),
     validationMessages: [],
     systemMessage: null,
     cycleEndConfirmationPending: false,
@@ -677,8 +656,9 @@ export const gameStore = (() => {
         multiplayerReconnectAttempts = 0;
         update((state) => {
           const nextGame = shouldPreserveUnsubmittedMultiplayerGame(state, message) ? state.game : message.game;
+          const routineStatus = isRoutineMultiplayerStatus(multiplayerStatusCode(message));
           const multiplayerAnimation =
-            state.screen !== 'main_menu' && isBenignMultiplayerStatusMessage(message.message)
+            state.screen !== 'main_menu' && routineStatus
               ? buildMultiplayerCycleAnimation(nextGame, message.replayPayloads, previousMultiplayerReplayPayloads)
               : null;
           return {
@@ -698,7 +678,7 @@ export const gameStore = (() => {
               playerNames: message.playerNames,
               message: message.message,
             },
-            systemMessage: isBenignMultiplayerStatusMessage(message.message) ? null : message.message,
+            systemMessage: routineStatus ? null : message.message,
             cycleEndConfirmationPending: false,
             cycleAnimation: multiplayerAnimation ? { sourceGame: nextGame, resolution: multiplayerAnimation, activeSlotId: null } : state.cycleAnimation,
           };
@@ -1559,49 +1539,16 @@ export const gameStore = (() => {
       }));
     },
     stepForward() {
-      update((state) => {
-        if (!state.loadedReplay) {
-          return state;
-        }
-        const currentStep = nextPlayableStep(state.currentStep, state.loadedReplay);
-        return {
-          ...state,
-          currentStep,
-          selectedEvent: currentStep >= 0 ? currentStep : null,
-        };
-      });
+      update((state) => navigateReplay(state, { kind: 'forward' }));
     },
     stepBackward() {
-      update((state) => {
-        if (!state.loadedReplay) {
-          return state;
-        }
-        const currentStep = previousPlayableStep(state.currentStep, state.loadedReplay);
-        return {
-          ...state,
-          currentStep,
-          selectedEvent: currentStep >= 0 ? currentStep : null,
-        };
-      });
+      update((state) => navigateReplay(state, { kind: 'backward' }));
     },
     jumpTo(step: number) {
-      update((state) => ({
-        ...state,
-        currentStep: state.loadedReplay ? Math.max(-1, Math.min(step, state.loadedReplay.steps.length - 1)) : -1,
-        selectedEvent: null,
-      }));
+      update((state) => navigateReplay(state, { kind: 'seek', step }));
     },
     selectEvent(step: number | null) {
-      update((state) => {
-        if (!state.loadedReplay) {
-          return state;
-        }
-        if (step === null) {
-          return { ...state, selectedEvent: null };
-        }
-        const clamped = Math.max(0, Math.min(step, state.loadedReplay.steps.length - 1));
-        return { ...state, selectedEvent: clamped, currentStep: clamped };
-      });
+      update((state) => navigateReplay(state, { kind: 'event', step }));
     },
     setAutoPlay(value: boolean) {
       update((state) => ({ ...state, autoPlay: value }));
@@ -1614,3 +1561,5 @@ export const gameStore = (() => {
     },
   };
 })();
+
+export const { session: gameSessionStore, playback: replayPlaybackStore } = createReplayStateViews(gameStore);

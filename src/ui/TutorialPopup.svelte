@@ -146,9 +146,9 @@
     essence: {
       title: 'Essence',
       body: ['Essence is the primary progress resource. Spending Essence is necessary to grow your roster; it usually reveals a linked Troop and Upgrade draft for 2 Essence.'],
-      task: 'Click Essence.',
+      task: 'Click Races & Troops.',
       placement: 'overworld-left',
-      targets: ['[data-tutorial-target="essence-counter"]'],
+      targets: ['[data-tutorial-target="troops-view-button"]'],
     },
     'reveal-draft': {
       title: 'Unlock Draft',

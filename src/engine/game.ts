@@ -12,6 +12,7 @@ import {
 import { fixed } from './fixed';
 import { createRng } from './rng';
 import { deserializeGameState, serializeGameState } from './save';
+import { pickPlayerProgress } from './playerProgress';
 import { LADDER_FINAL_CYCLE } from './ladder';
 import { deriveSeed, generateContestCycleRifts, generateCycleRifts } from './rift';
 import {
@@ -104,23 +105,7 @@ function buildInitialState(seed: number, gameMode: GameMode = 'campaign'): GameS
     campaignSeed: seed,
     cycleNumber: 1,
     phase: 'opening_unlock',
-    essence: 0,
-    victoryPoints: 0,
-    unlockedRaceIds: [],
-    unlockedTroopUnlockIds: [],
-    recentTroopUnlockIds: [],
-    troops: [],
-    raceUpgradeIds: [],
-    troopClassUpgradeIds: [],
-    activeTroopOffer: null,
-    activeUpgradeOffer: null,
-    activeRaceUnlockOffer: null,
-    activeTroopClassUnlockOffer: null,
-    troopOfferRolls: 0,
-    upgradeOfferRolls: 0,
-    essenceDraftRerollUsed: null,
-    seenTroopOfferOptionIds: [],
-    seenUpgradeOfferOptionIds: [],
+    ...buildEmptyContestPlayerState(),
     postgameDismissed: false,
     openRifts: [],
     replayIndex: [],
@@ -437,23 +422,7 @@ export function getRootProgress(state: GameState): ContestPlayerState {
 export function withRootProgress(state: GameState, progress: ContestPlayerState): GameState {
   return {
     ...state,
-    victoryPoints: progress.victoryPoints,
-    essence: progress.essence,
-    unlockedRaceIds: progress.unlockedRaceIds,
-    unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
-    recentTroopUnlockIds: progress.recentTroopUnlockIds,
-    troops: progress.troops,
-    raceUpgradeIds: progress.raceUpgradeIds,
-    troopClassUpgradeIds: progress.troopClassUpgradeIds,
-    activeTroopOffer: progress.activeTroopOffer,
-    activeUpgradeOffer: progress.activeUpgradeOffer,
-    activeRaceUnlockOffer: progress.activeRaceUnlockOffer,
-    activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
-    troopOfferRolls: progress.troopOfferRolls,
-    upgradeOfferRolls: progress.upgradeOfferRolls,
-    essenceDraftRerollUsed: progress.essenceDraftRerollUsed,
-    seenTroopOfferOptionIds: progress.seenTroopOfferOptionIds,
-    seenUpgradeOfferOptionIds: progress.seenUpgradeOfferOptionIds,
+    ...pickPlayerProgress(progress),
   };
 }
 
@@ -748,9 +717,9 @@ export function startNewGame(seed = Date.now() >>> 0, gameMode: GameMode = 'camp
   return buildInitialState(seed, gameMode);
 }
 
-export function claimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId): GameState {
+export function canClaimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId): boolean {
   if (state.phase !== 'opening_unlock' || !NATIVE_TROOP_UNLOCK_IDS.includes(troopUnlockId)) {
-    return state;
+    return false;
   }
 
   const [raceId, unitClassId] = splitTroopUnlockId(troopUnlockId);
@@ -761,9 +730,16 @@ export function claimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId
     starterTroopUnlockId !== troopUnlockId ||
     state.troops.some((troop) => troop.raceId === raceId || troop.unitClassId === unitClassId)
   ) {
-    return state;
+    return false;
   }
 
+  return true;
+}
+
+export function claimOpeningTroop(state: GameState, troopUnlockId: TroopUnlockId): GameState {
+  if (!canClaimOpeningTroop(state, troopUnlockId)) {
+    return state;
+  }
   return addTroopToRoster(state, troopUnlockId);
 }
 
@@ -1217,25 +1193,8 @@ export function clearTroopAssignment(state: GameState, troopId: TroopId): GameSt
 
 function buildProgressPseudoState(state: GameState, progress: ContestPlayerState): GameState {
   return {
-    ...state,
+    ...withRootProgress(state, progress),
     gameMode: 'campaign',
-    victoryPoints: progress.victoryPoints,
-    essence: progress.essence,
-    unlockedRaceIds: progress.unlockedRaceIds,
-    unlockedTroopUnlockIds: progress.unlockedTroopUnlockIds,
-    recentTroopUnlockIds: progress.recentTroopUnlockIds,
-    troops: progress.troops,
-    raceUpgradeIds: progress.raceUpgradeIds,
-    troopClassUpgradeIds: progress.troopClassUpgradeIds,
-    activeTroopOffer: progress.activeTroopOffer,
-    activeUpgradeOffer: progress.activeUpgradeOffer,
-    activeRaceUnlockOffer: progress.activeRaceUnlockOffer,
-    activeTroopClassUnlockOffer: progress.activeTroopClassUnlockOffer,
-    troopOfferRolls: progress.troopOfferRolls,
-    upgradeOfferRolls: progress.upgradeOfferRolls,
-    essenceDraftRerollUsed: progress.essenceDraftRerollUsed,
-    seenTroopOfferOptionIds: progress.seenTroopOfferOptionIds,
-    seenUpgradeOfferOptionIds: progress.seenUpgradeOfferOptionIds,
     openRifts: state.openRifts,
     replayIndex: [],
     contest: undefined,
@@ -1243,25 +1202,7 @@ function buildProgressPseudoState(state: GameState, progress: ContestPlayerState
 }
 
 function progressFromPseudoState(state: GameState): ContestPlayerState {
-  return {
-    victoryPoints: state.victoryPoints,
-    essence: state.essence,
-    unlockedRaceIds: state.unlockedRaceIds,
-    unlockedTroopUnlockIds: state.unlockedTroopUnlockIds,
-    recentTroopUnlockIds: state.recentTroopUnlockIds,
-    troops: state.troops,
-    raceUpgradeIds: state.raceUpgradeIds,
-    troopClassUpgradeIds: state.troopClassUpgradeIds,
-    activeTroopOffer: state.activeTroopOffer,
-    activeUpgradeOffer: state.activeUpgradeOffer,
-    activeRaceUnlockOffer: state.activeRaceUnlockOffer,
-    activeTroopClassUnlockOffer: state.activeTroopClassUnlockOffer,
-    troopOfferRolls: state.troopOfferRolls,
-    upgradeOfferRolls: state.upgradeOfferRolls,
-    essenceDraftRerollUsed: state.essenceDraftRerollUsed,
-    seenTroopOfferOptionIds: state.seenTroopOfferOptionIds,
-    seenUpgradeOfferOptionIds: state.seenUpgradeOfferOptionIds,
-  };
+  return pickPlayerProgress(state);
 }
 
 function randomlyAdvanceAiUnlocks(state: GameState): GameState {

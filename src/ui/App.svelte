@@ -4,9 +4,10 @@
 
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { createCyclePresentationSession,
+    BATTLE_LOG_ARRIVAL_STAGGER_MS, BATTLE_LOG_ARRIVAL_FLIGHT_MS } from './cyclePresentationSession';
   import {
     createTroopInstance,
-    getRaceTroops,
     getTroopEffectiveDefinition,
     getTroopsAssignedToRift,
     resolveTroopCombatant,
@@ -14,27 +15,17 @@
   import { formatFixed } from '../engine/fixed';
   import {
     RACES,
-    RACE_UPGRADES,
-    TROOP_CATALOG,
-    TROOP_CLASS_UPGRADES,
     getRaceNativeTroopUnlockIds,
-    getRace,
-    getMutator,
-    getSummonedUnitPreviews,
     getUnitClass,
     isNativeTroopUnlockId,
   } from '../engine/unitCatalog';
   import type {
-    AbilityDefinition,
     BattleReportDiagnostic,
     BattleParticipantKind,
     BattleReplay,
-    BattleStep,
     BattleUnit,
     BattleOutcome,
-    ContestPlayerState,
     ContestPlayerId,
-    ExplainedStatKey,
     RaceId,
     GameMode,
     StoredReplayPayload,
@@ -43,97 +34,63 @@
     RiftInstance,
     RiftResolutionRecord,
     SideId,
-    StatBreakdown,
-    StatBreakdownLine,
     TroopId,
     TroopUnlockId,
     UnitClassId,
-    UpgradeId,
   } from '../engine/types';
-  import { describeTroopUnlock, getAvailableTroopUnlockIds, upgradeAffectsTroop } from '../engine/upgrades';
-  import type { BattleRenderer as BattleRendererType, ReplayStepNavigationKind, UnitPointerInfo } from '../rendering/BattleRenderer';
-  import { buildBattlePresentationTimeline, type BattlePresentationTimeline } from '../rendering/battlePresentationTimeline';
+  import { describeTroopUnlock } from '../engine/upgrades';
   import { getRaceSpriteUrl, UNIT_SPRITE_URLS } from '../rendering/unitVisualAssets';
   import { getConfiguredMultiplayerServerUrl, hasConfiguredMultiplayerServerUrl, inferShareableMultiplayerServerUrl, normalizeMultiplayerServerUrl } from '../config/multiplayer';
-  import { gameStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
+  import { gameStore, gameSessionStore, replayPlaybackStore, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from '../store/gameStore';
   import { getTutorialStepCenterMode, getTutorialStepSurface, type TutorialStepId } from '../store/tutorial';
   import type { SaveSlotSummary } from '../store/saveSlots';
-  import BattleControls from './BattleControls.svelte';
+  import ReplayViewer, { type ReplayViewerTutorial } from './ReplayViewer.svelte';
   import DebugToolsMenu from './DebugToolsMenu.svelte';
+  import MainMenuNavigation, { type MainMenuView } from './MainMenuNavigation.svelte';
+  import SaveSlotMenu from './SaveSlotMenu.svelte';
+  import GameOverDialog from './GameOverDialog.svelte';
+  import OpeningUnlockScreen from './OpeningUnlockScreen.svelte';
+  import ScheduledUnlockScreen from './ScheduledUnlockScreen.svelte';
+  import EssenceDraftPanel from './EssenceDraftPanel.svelte';
+  import ArchivePanel from './ArchivePanel.svelte';
+  import { createArchiveSession } from './archiveSession';
+  import { ARCHIVE_PARTICIPANT_FALLBACK, healthPercent } from './archiveDetails';
+  import { createEssenceDraftSession } from './essenceDraftSession';
+  import { gameModeLabel } from './gameModeLabels';
   import DesignModePanel, { type DesignTweakField, type DesignTweaks } from './DesignModePanel.svelte';
-  import EventLog from './EventLog.svelte';
   import GameIcon from './GameIcon.svelte';
-  import InlineStatText from './InlineStatText.svelte';
-  import { formatAbilityDescription, statIcon } from './inspectText';
-  import ReplayStepExplanation from './ReplayStepExplanation.svelte';
-  import { buildReplayStepExplanationView } from './replayStepExplanation';
+  import PlanningInspector from './PlanningInspector.svelte';
+  import TroopRosterBoard from './TroopRosterBoard.svelte';
+  import RivalInfoBoard from './RivalInfoBoard.svelte';
+  import RiftBoard from './RiftBoard.svelte';
+  import ReadyTroopsPanel from './ReadyTroopsPanel.svelte';
+  import PlanningActionRail from './PlanningActionRail.svelte';
+  import { createPlanningInspection } from './planningInspection';
+  import { buildRecordBattlePhase, resultForBattleSource,
+    healthToneForAnimationSide, phaseResultSource, type MiniReplayHealthTone } from './riftBattlePresentation';
+  import { createPlanningAttentionSession } from './planningAttentionSession';
+  import { createTroopAssignmentInteraction, type TroopDropTarget } from './troopAssignmentInteraction';
+  import { statIcon } from './inspectText';
   import { getRiftVisual } from './riftVisuals';
   import { preloadGameAssets, type GameAssetPreloadProgress } from './gameAssetPreloader';
-  import StatBreakdownGrid from './StatBreakdownGrid.svelte';
-  import UnitTooltip from './UnitTooltip.svelte';
   import TutorialPopup from './TutorialPopup.svelte';
   import BattleLogResultToken from './BattleLogResultToken.svelte';
-  import RiftBattleMiniReplay, { type MiniReplayHealthTone } from './RiftBattleMiniReplay.svelte';
-  import { buildBattleRecap, findLastAliveStep, isUnitAliveAtStep, type BattleRecapTroopEntry } from './battleRecap';
+  import RiftBattleMiniReplay from './RiftBattleMiniReplay.svelte';
   import {
     CAMPAIGN_FINAL_CYCLE,
     CONTEST_FINAL_CYCLE,
     canAssignTroopToRift,
     getEssenceDraftCost,
-    getOpeningRaceOptionIds,
-    getOpeningRaceStarterTroopUnlockIds,
     validateAssignments,
   } from '../engine/game';
   import { LADDER_FINAL_CYCLE } from '../engine/ladder';
   import {
-    buildRaceDetail,
-    buildMutatorDetail,
-    buildResolvedUnitDetail as buildResolvedUnitDetailModel,
-    buildRiftTierDetail as buildRiftTierDetailModel,
-    buildStatEntries,
-    buildUpgradeDetail,
     describeRaceModifiers,
-    formatRiftDisplayId,
-    formatRiftTierLabel,
     getUpgradeDetails,
-    parseTroopUnlockId,
-    riftTierTooltip as buildRiftTierTooltip,
-    slotPhaseLabel,
-    unitIconColumns,
-    unitIconCopies,
-    unitIconDensityClass,
     type DetailCard,
   } from './detailCards';
 
-  type TroopDropTarget = { kind: 'rift'; riftId: string } | { kind: 'ready' };
-  type EssenceDraftRerollSide = 'troop' | 'upgrade';
-  type MainMenuView = 'home' | 'singleplayer' | 'tutorial' | 'multiplayer' | 'debug' | 'settings';
   type CycleRecord = RiftResolutionRecord;
-  type AbilityTooltipState = { label: string; description: string; ownerDetailKey: string | null };
-  type ReplayAbilityTooltipState = { side: SideId; label: string; description: string };
-  type ReplaySideAbility = {
-    ability: AbilityDefinition;
-    side: SideId;
-    ownerLabels: string[];
-    active: boolean;
-  };
-
-  function getDetailInspectLabel(detail: DetailCard): string {
-    if (detail.kind === 'mutator') {
-      return 'Mutator Effect';
-    }
-    if (detail.kind === 'race') {
-      return 'Race Modifiers';
-    }
-    if (detail.kind === 'upgrade') {
-      return detail.inspectLabel ?? 'Upgrade Effects';
-    }
-    if (detail.kind === 'rift') {
-      return 'Rift Rule';
-    }
-    return detail.inspectLabel;
-  }
-
   type BattleLogVisual = {
     key: string;
     replay: BattleReplay | null;
@@ -150,94 +107,11 @@
     riftVisualSource: RiftInstance | null;
   };
 
-  type RiftBattleAnimationSide = {
-    label: string;
-    kind: BattleParticipantKind;
-    playerId?: ContestPlayerId;
-    loses: boolean;
-  };
-
-  type RiftBattleAnimationPhase = {
-    key: string;
-    replayId: string;
-    delayClass: 'phase-now' | 'phase-late';
-    left: RiftBattleAnimationSide;
-    leftSource: SideId;
-    right: RiftBattleAnimationSide;
-    rightSource: SideId;
-  };
-
-  type RiftBattleAnimationView = {
-    riftId: string;
-    phases: RiftBattleAnimationPhase[];
-  };
-
-  type RiftAnimationCombatantGroup = {
-    key: string;
-    phaseClass: 'phase-now' | 'phase-late' | 'phase-static';
-    combatants: ResolvedCombatantDefinition[];
-    participant: RiftBattleAnimationSide | null;
-    lossClass: 'force-loses-now' | 'force-loses-late' | null;
-  };
-
-  type TroopDragState = {
-    troopId: TroopId;
-    sourceRiftId: string | null;
-    pointerId: number | null;
-    startX: number;
-    startY: number;
-    x: number;
-    y: number;
-    active: boolean;
-    label: string;
-    portraitUrl: string;
-    dropTarget: TroopDropTarget | null;
-  };
-
-  type ReplayHealthUnit = {
-    unit: BattleUnit;
-    hpPercent: string;
-    hpLabel: string;
-    readinessPercent: string;
-    readinessReady: boolean;
-    portraitUrl: string;
-  };
-
-  type ReplayHealthSide = {
-    side: SideId;
-    label: string;
-    currentHp: number;
-    maxHp: number;
-    hpPercent: string;
-    hpLabel: string;
-    hpTooltip: string;
-    unitsMinHeight: string;
-    units: ReplayHealthUnit[];
-  };
-
-  type ArchiveCombatantPerformance = {
-    healthPercent: number;
-    damagePercent: number;
-    damageDone: number;
-  };
-
   type LoadingProgressState = GameAssetPreloadProgress;
 
-  const ARCHIVE_PARTICIPANT_FALLBACK: Record<SideId, { kind: BattleParticipantKind; label: string }> = {
-    player: { kind: 'player', label: 'Player' },
-    enemy: { kind: 'neutral', label: 'Neutral Guardians' },
-  };
-  const SINGLEPLAYER_GAME_MODES: GameMode[] = ['campaign', 'ladder', 'contest'];
-  const RIFT_BATTLE_LATE_PHASE_DELAY_MS = 925;
-  const RIFT_BATTLE_STEP_MS = 500 / 64;
-  const RIFT_BATTLE_RESULT_HANDOFF_MS = 420;
-  const BATTLE_LOG_ARRIVAL_STAGGER_MS = 460;
-  const BATTLE_LOG_ARRIVAL_FLIGHT_MS = 1160;
   const BATTLE_LOG_ROW_HEIGHT_REM = 3.35;
 
   const RACE_IDS = Object.keys(RACES) as RaceId[];
-  const replayProfileKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
-  const archivePerformanceKey = (side: SideId, troopLabel: string): string => `${side}:${troopLabel}`;
   const debugToolsEnabled = import.meta.env.DEV;
   const verificationLabMode =
     debugToolsEnabled && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lab') === 'ability-verification';
@@ -247,61 +121,38 @@
   let selectedRiftId: string | null = null;
   let selectedTroopId: TroopId | null = null;
   let selectedRaceId: RaceId | null = null;
-  let selectedReplayId: string | null = null;
-  let hoveredDetail: DetailCard | null = null;
-  let pinnedDetails: DetailCard[] = [];
-  let hoveredAbilityTooltip: AbilityTooltipState | null = null;
-  let pinnedAbilityTooltip: AbilityTooltipState | null = null;
+  const archiveSession = createArchiveSession();
+  let replayViewer: ReplayViewer | null = null;
+  let openingUnlockScreen: OpeningUnlockScreen | null = null;
+  let scheduledUnlockScreen: ScheduledUnlockScreen | null = null;
+  let tutorialReplayView: ReplayViewerTutorial['view'] = null;
+  const planningInspection = createPlanningInspection();
+  const draftSession = createEssenceDraftSession({
+    claimTroop: id => { gameStore.claimTroopOffer(id); signalTutorial('draft-troop'); },
+    claimUpgrade: id => { gameStore.claimUpgradeOffer(id); signalTutorial('draft-upgrade'); },
+    reroll: side => { if (side === 'troop') gameStore.rerollTroopOffer(); else gameStore.rerollUpgradeOffer(); },
+    pin: planningInspection.replacePin,
+  });
   let highlightedDetailKeys = new Set<string>();
-  let replayAbilityTooltip: ReplayAbilityTooltipState | null = null;
-  let currentAbilityOwnerKey: string | null = null;
   let topbarTooltip: { label: string; description: string } | null = null;
-  let readinessTooltip: { label: string; description: string; x: number; y: number } | null = null;
-  let battleHost: HTMLDivElement | null = null;
-  let renderer: BattleRendererType | null = null;
-  let rendererInitPromise: Promise<void> | null = null;
   let gameAssetProgress: LoadingProgressState = { active: false, completed: 0, total: 1, label: 'Preparing game images' };
-  let renderedReplayId: string | null = null;
-  let renderedStep = Number.NaN;
-  let renderedHighlightKey = '';
-  let replayStepNavigationKind: ReplayStepNavigationKind = 'manual-step';
-  let autoTimelineFrame: number | null = null;
-  let autoTimelineReplayId: string | null = null;
-  let autoTimelineRateMs = 0;
-  let autoTimelineStartedAt = 0;
-  let autoTimelineCueIndex = 0;
-  let replayTimelineCache: { replayId: string; rateMs: number; timeline: BattlePresentationTimeline } | null = null;
-  let hoverInfo: UnitPointerInfo | null = null;
-  let lockedUnitId: string | null = null;
-  let hoveredReplayProfileKey: string | null = null;
-  let selectedReplayProfileKey: string | null = null;
-  let replayAliveCountsExpanded = false;
-  let replayEventLogCollapsed = true;
-  let replayRecapOpen = false;
-  let expandedReplayRecapTroopKey: string | null = null;
-  let pinnedReplayExplanationIndex: number | null = null;
-  let lastReplayExplanationReplayId: string | null = null;
-  let replayHealthRosterCache: { replayId: string; roster: BattleUnit[] } | null = null;
-  let replayRecapCache: { replayId: string; recap: BattleRecapTroopEntry[] } | null = null;
-  let replayProfilesByKeyCache: { replayId: string; profiles: Map<string, BattleReplay['troopProfiles'][number]> } | null = null;
-  let troopDrag: TroopDragState | null = null;
-  let suppressTroopClickId: TroopId | null = null;
-  let selectedTroopOfferUnlockId: TroopUnlockId | null = null;
-  let selectedUpgradeOfferId: UpgradeId | null = null;
-  let selectedScheduledRaceId: RaceId | null = null;
-  let confirmedTroopOfferUnlockId: TroopUnlockId | null = null;
-  let confirmedUpgradeOfferId: UpgradeId | null = null;
-  let hoveredUpgradeOfferId: UpgradeId | null = null;
-  let hoveredDraftRerollSide: EssenceDraftRerollSide | null = null;
-  let assignmentConflict: { troopId?: TroopId; conflictTroopId?: TroopId; riftId?: string; message: string } | null = null;
-  let archivePage = 0;
+  const assignmentInteraction = createTroopAssignmentInteraction({
+    runtime: () => ({ window, document }),
+    isBlocked: isHoldingTroop,
+    describeTroop: troopId => {
+      const troop = $gameSessionStore.game.troops.find(entry => entry.id === troopId);
+      return troop ? { label: getTroopEffectiveDefinition($gameSessionStore.game, troopId).label,
+        portraitUrl: getRaceUnitPortrait(troop.raceId, troop.unitClassId) } : null;
+    },
+    onDragComplete: troopId => { selectedTroopId = troopId; },
+    onDrop: completeTroopDrop,
+  });
   let viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth;
   let viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
-  let essenceDraftHighlighted = false;
-  let essenceDraftHighlightTimer: ReturnType<typeof window.setTimeout> | null = null;
-  let troopAssignmentHighlighted = false;
-  let troopAssignmentHighlightTimer: ReturnType<typeof window.setTimeout> | null = null;
-  let cycleActionHovered = false;
+  const planningAttention = createPlanningAttentionSession(() => ({
+    setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+    clearTimeout: handle => window.clearTimeout(handle),
+  }));
   let cycleResolvePending = false;
   let cycleResolvePendingCycle: number | null = null;
   let assignmentHintArrow: { x1: number; y1: number; cx1: number; cy1: number; cx2: number; cy2: number; x2: number; y2: number } | null = null;
@@ -321,25 +172,30 @@
   let multiplayerCycleEnded = false;
   let multiplayerStatus: string | null = null;
   let mainMenuView: MainMenuView = 'home';
-  let newGameSlot: SaveSlotSummary | null = null;
-  let cycleAnimationFinishTimer: ReturnType<typeof window.setTimeout> | null = null;
-  let cycleLogArrivalTimer: ReturnType<typeof window.setTimeout> | null = null;
-  let cycleLogArrivalActive = false;
-  let cycleLogArrivalReady = false;
-  let lastDraftGameKey = '';
+  const cyclePresentation = createCyclePresentationSession({
+    runtime: () => ({
+      setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimeout: handle => window.clearTimeout(handle),
+      requestAnimationFrame: callback => window.requestAnimationFrame(callback),
+      cancelAnimationFrame: handle => window.cancelAnimationFrame(handle),
+    }),
+    afterRender: tick,
+    isCurrent: animation => $gameSessionStore.cycleAnimation === animation,
+    finish: () => { void gameStore.finishCycleAnimation(); },
+  });
   let tutorialScenePrompt = false;
   let tutorialScenePromptMessage = 'Follow the tutorial!';
   let tutorialScenePromptTimer: ReturnType<typeof window.setTimeout> | null = null;
   const multiplayerDefaultServerConfigured = hasConfiguredMultiplayerServerUrl();
 
   function signalTutorial(action: Parameters<typeof gameStore.recordTutorialAction>[0]): void {
-    if ($gameStore.tutorialProgress) {
+    if ($gameSessionStore.tutorialProgress) {
       gameStore.recordTutorialAction(action);
     }
   }
 
   function getTutorialReplayId(): string | null {
-    return $gameStore.game.replayIndex[0]?.replayId ?? null;
+    return $gameSessionStore.game.replayIndex[0]?.replayId ?? null;
   }
 
   function navigateToTutorialStepView(step: TutorialStepId): void {
@@ -349,25 +205,23 @@
     tutorialScenePrompt = false;
 
     if (surface === 'archive') {
-      if ($gameStore.screen === 'replay') {
+      if ($gameSessionStore.screen === 'replay') {
         gameStore.closeReplay();
       }
       gameStore.setCenterMode('rifts');
-      selectedReplayId = replayId;
-      replayEventLogCollapsed = true;
+      archiveSession.select(replayId);
       mainMenuView = 'home';
       return;
     }
 
     if (surface === 'replay') {
-      if (replayId && $gameStore.loadedReplay?.id !== replayId) {
+      if (replayId && $replayPlaybackStore.loadedReplay?.id !== replayId) {
         gameStore.openReplay(replayId);
       }
       if (step === 'finish-replay') {
-        replayStepNavigationKind = 'event-select';
         gameStore.jumpTo(Number.MAX_SAFE_INTEGER);
       }
-      replayEventLogCollapsed = !['timeline-event', 'unit-actions', 'ability'].includes(step);
+      tutorialReplayView = { step, revision: (tutorialReplayView?.revision ?? 0) + 1 };
       return;
     }
 
@@ -399,17 +253,17 @@
     await prepareGameAssets();
     gameStore.resumeTutorial();
     await tick();
-    const step = $gameStore.tutorialProgress?.step;
+    const step = $gameSessionStore.tutorialProgress?.step;
     if (step) {
       navigateToTutorialStepView(step);
     }
   }
 
   async function previousTutorialStep(): Promise<void> {
-    const currentStep = $gameStore.tutorialProgress?.step;
+    const currentStep = $gameSessionStore.tutorialProgress?.step;
     gameStore.previousTutorialStep();
     await tick();
-    const step = $gameStore.tutorialProgress?.step;
+    const step = $gameSessionStore.tutorialProgress?.step;
     if (step) {
       navigateToTutorialStepView(step);
     }
@@ -432,7 +286,7 @@
   }
 
   function tutorialSceneLockActive(): boolean {
-    return $gameStore.activeSlotId === 'tutorial' && !!$gameStore.tutorialProgress && !$gameStore.tutorialProgress.completed;
+    return $gameSessionStore.activeSlotId === 'tutorial' && !!$gameSessionStore.tutorialProgress && !$gameSessionStore.tutorialProgress.completed;
   }
 
   function exitTutorial(): void {
@@ -466,7 +320,7 @@
   }
 
   function tutorialCanUseAction(step: string): boolean {
-    return $gameStore.tutorialProgress?.step === step;
+    return $gameSessionStore.tutorialProgress?.step === step;
   }
 
   function guardTutorialStep(step: string, action: () => void): void {
@@ -478,7 +332,8 @@
   }
 
   function tutorialCanSwitchCenterMode(mode: 'rifts' | 'troops' | 'contest'): boolean {
-    return !!$gameStore.tutorialProgress && getTutorialStepCenterMode($gameStore.tutorialProgress.step) === mode;
+    const step = $gameSessionStore.tutorialProgress?.step;
+    return !!step && (getTutorialStepCenterMode(step) === mode || (step === 'essence' && mode === 'troops'));
   }
 
   function guardTutorialCenterMode(mode: 'rifts' | 'troops' | 'contest', action: () => void): void {
@@ -594,7 +449,7 @@
     const normalized: BattleReportDiagnostic = {
       ...diagnostic,
       replayId: diagnostic.replayId ?? replay?.id ?? null,
-      step: typeof diagnostic.step === 'number' ? diagnostic.step : $gameStore.currentStep,
+      step: typeof diagnostic.step === 'number' ? diagnostic.step : $replayPlaybackStore.currentStep,
     };
     const key = [
       normalized.source,
@@ -620,162 +475,7 @@
   function handleCampaignReportImport(importedSelectedTroopId: TroopId | null, importedSelectedReplayId: string | null): void {
     selectedRiftId = null;
     selectedTroopId = importedSelectedTroopId;
-    selectedReplayId = importedSelectedReplayId;
-  }
-
-  function getReplayProfileKeyForUnit(unitId: string): string | null {
-    const unit =
-      replaySnapshot.find((entry) => entry.id === unitId) ??
-      replay?.initial.units.find((entry) => entry.id === unitId) ??
-      replay?.steps.find((step) => step.snapshot.units.some((entry) => entry.id === unitId))?.snapshot.units.find((entry) => entry.id === unitId);
-    return unit ? replayProfileKey(unit.side, unit.troopLabel) : null;
-  }
-
-  function getReplayStepPrimaryUnitId(step: BattleStep | null): string | null {
-    return step?.metadata?.activeUnitId ?? step?.actorIds[0] ?? step?.targetIds[0] ?? null;
-  }
-
-  function getReplayStepAffectedUnitIds(step: BattleStep | null): string[] {
-    if (!step) {
-      return [];
-    }
-
-    return [
-      step.metadata?.activeUnitId,
-      ...(step.metadata?.secondaryUnitIds ?? []),
-      ...step.actorIds,
-      ...step.targetIds,
-    ].filter((id, index, ids): id is string => Boolean(id) && ids.indexOf(id) === index);
-  }
-
-  function clearPinnedReplayEvent(): void {
-    pinnedReplayExplanationIndex = null;
-    if ($gameStore.selectedEvent !== null) {
-      gameStore.selectEvent(null);
-    }
-  }
-
-  function getReplayUnitPortraitUrl(unit: BattleUnit): string {
-    return getRaceUnitPortrait(unit.raceId, unit.unitClassId);
-  }
-
-  function findLockedUnitActorStep(unitId: string, fromStep: number, direction: 'prev' | 'next'): number | null {
-    if (!replay) {
-      return null;
-    }
-
-    if (direction === 'prev') {
-      for (let index = Math.min(fromStep - 1, replay.steps.length - 1); index >= 0; index -= 1) {
-        if (replay.steps[index]?.actorIds.includes(unitId)) {
-          return index;
-        }
-      }
-      return null;
-    }
-
-    for (let index = Math.max(fromStep + 1, 0); index < replay.steps.length; index += 1) {
-      if (replay.steps[index]?.actorIds.includes(unitId)) {
-        return index;
-      }
-    }
-
-    return null;
-  }
-
-  function setReplayUnitLock(unitId: string, options?: { toggle?: boolean; pointer?: UnitPointerInfo | null; profileKey?: string | null }): void {
-    clearPinnedReplayEvent();
-    const nextProfileKey = options?.profileKey ?? getReplayProfileKeyForUnit(unitId);
-    const sameUnitLocked = options?.toggle && lockedUnitId === unitId;
-
-    if (sameUnitLocked) {
-      lockedUnitId = null;
-      hoverInfo = options?.pointer ?? null;
-      if (nextProfileKey) {
-        selectedReplayProfileKey = nextProfileKey;
-      }
-      signalTutorial('unit-unlock');
-      syncRenderer();
-      return;
-    }
-
-    lockedUnitId = unitId;
-    hoverInfo = options?.pointer ?? { unitId, x: 0, y: 0 };
-    if (nextProfileKey) {
-      selectedReplayProfileKey = nextProfileKey;
-    }
-    signalTutorial('unit-lock');
-    syncRenderer();
-  }
-
-  function previewReplayUnit(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
-    if (pinnedReplayExplanationIndex !== null) {
-      return;
-    }
-    const target = event.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    hoverInfo = {
-      unitId: unit.id,
-      x: rect.left + rect.width / 2,
-      y: rect.top,
-    };
-    selectedReplayProfileKey = replayProfileKey(unit.side, unit.troopLabel);
-    signalTutorial('unit-hover');
-    syncRenderer();
-  }
-
-  function clearReplayUnitPreview(unitId: string): void {
-    if (pinnedReplayExplanationIndex !== null) {
-      return;
-    }
-    if (hoverInfo?.unitId === unitId) {
-      hoverInfo = null;
-      signalTutorial('unit-unhover');
-      syncRenderer();
-    }
-  }
-
-  function previewReplayProfile(side: SideId, troopLabel: string): void {
-    hoveredReplayProfileKey = replayProfileKey(side, troopLabel);
-  }
-
-  function clearReplayProfilePreview(): void {
-    hoveredReplayProfileKey = null;
-  }
-
-  function focusReplayProfileUnit(side: SideId, troopLabel: string, options?: { cycle?: boolean; toggle?: boolean }): void {
-    const profileKey = replayProfileKey(side, troopLabel);
-    const matchingUnits = replaySnapshot
-      .filter((unit) => unit.alive && unit.side === side && unit.troopLabel === troopLabel)
-      .sort((left, right) => left.id.localeCompare(right.id));
-
-    selectedReplayProfileKey = profileKey;
-    if (matchingUnits.length === 0) {
-      if (options?.toggle) {
-        lockedUnitId = null;
-        hoverInfo = null;
-        syncRenderer();
-      }
-      return;
-    }
-
-    const currentIndex = matchingUnits.findIndex((unit) => unit.id === lockedUnitId);
-    const nextUnit =
-      options?.cycle && currentIndex >= 0
-        ? matchingUnits[(currentIndex + 1) % matchingUnits.length] ?? null
-        : matchingUnits[currentIndex >= 0 ? currentIndex : 0] ?? null;
-
-    if (!nextUnit) {
-      return;
-    }
-
-    setReplayUnitLock(nextUnit.id, {
-      toggle: options?.toggle,
-      profileKey,
-    });
-  }
-
-  function riftTierTooltip(tier: number): string {
-    return buildRiftTierTooltip(tier, $gameStore.game.gameMode);
+    archiveSession.select(importedSelectedReplayId);
   }
 
   function getRaceUnitPortrait(raceId: RaceId, unitClassId: UnitClassId): string {
@@ -794,367 +494,46 @@
     topbarTooltip = null;
   }
 
-  function showReadinessTooltip(unit: BattleUnit, event: MouseEvent | FocusEvent): void {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    readinessTooltip = {
-      label: `${unit.troopLabel} Readiness`,
-      description: `${formatFixed(unit.readiness)} / 100. Units act when readiness reaches 100; Beats add Rate until someone is ready.`,
-      x: rect.left + rect.width / 2,
-      y: rect.top,
-    };
-    signalTutorial('readiness-hover');
-  }
-
-  function clearReadinessTooltip(): void {
-    readinessTooltip = null;
-  }
-
-  function buildRiftTierDetail(rift: RiftInstance): DetailCard {
-    return buildRiftTierDetailModel(rift, $gameStore.game.gameMode);
-  }
-
-  function buildResolvedUnitDetail(
-    detailKey: string,
-    label: string,
-    raceId: RaceId,
-    unitClassId: UnitClassId,
-    stats: { health: number; damage: number; rate: number; move: number; armor: number; range: number; capacity: number; size?: number },
-    quantity: number,
-    description: string,
-    abilities: AbilityDefinition[],
-    statBreakdowns?: Partial<Record<ExplainedStatKey | 'quantity', StatBreakdown>>,
-  ): DetailCard {
-    return buildResolvedUnitDetailModel({
-      detailKey,
-      label,
-      raceId,
-      unitClassId,
-      stats,
-      quantity,
-      description,
-      abilities,
-      statBreakdowns,
-      getRaceUnitPortrait,
-    });
-  }
-
   function previewDetail(detail: DetailCard): void {
-    if (detail.kind === 'unit' && pinnedDetails.filter((entry) => entry.kind === 'unit').length >= 2) {
-      return;
-    }
-    hoveredDetail = detail;
-    if (detail.kind === 'mutator') {
-      signalTutorial('mutator-hover');
-    }
-    if (detail.detailKey.startsWith('enemy:')) {
-      signalTutorial('rift-enemy-hover');
-    }
+    if (!planningInspection.preview(detail)) return;
+    if (detail.kind === 'mutator') signalTutorial('mutator-hover');
+    if (detail.detailKey.startsWith('enemy:')) signalTutorial('rift-enemy-hover');
   }
 
   function togglePinnedDetail(detail: DetailCard): void {
-    const existingIndex = pinnedDetails.findIndex((entry) => entry.detailKey === detail.detailKey);
-    if (existingIndex >= 0) {
-      pinnedDetails = pinnedDetails.filter((_, index) => index !== existingIndex);
-    } else if (pinnedDetails.length === 0) {
-      pinnedDetails = [detail];
-    } else {
-      pinnedDetails = [pinnedDetails[0]!, detail];
-    }
-    hoveredDetail = null;
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
-    if (detail.detailKey.startsWith('enemy:')) {
-      signalTutorial('rift-enemy-hover');
-    }
+    planningInspection.togglePin(detail);
+    if (detail.detailKey.startsWith('enemy:')) signalTutorial('rift-enemy-hover');
   }
 
-  function clearDetail(): void {
-    hoveredDetail = null;
-    hoveredAbilityTooltip = null;
-  }
-
-  function clearAbilityTooltip(): void {
-    hoveredAbilityTooltip = null;
-  }
-
-  function buildAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): AbilityTooltipState {
-    return {
-      label: ability.label,
-      description: 'shortText' in ability ? formatAbilityDescription(ability) : ability.description,
-      ownerDetailKey,
-    };
-  }
-
-  function showAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): void {
-    hoveredAbilityTooltip = buildAbilityTooltip(ability, ownerDetailKey);
-  }
-
-  function openAbilityDisclosure(event: MouseEvent | FocusEvent, ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey: string | null): void {
-    const target = event.currentTarget;
-    if (target instanceof HTMLElement) {
-      const disclosure = target.closest('details');
-      if (disclosure instanceof HTMLDetailsElement) {
-        disclosure.open = true;
-      }
-    }
-    showAbilityTooltip(ability, ownerDetailKey);
-  }
-
-  function togglePinnedAbilityTooltip(ability: AbilityDefinition | { label: string; description: string }, ownerDetailKey = currentAbilityOwnerKey): void {
-    const tooltip = buildAbilityTooltip(ability, ownerDetailKey);
-    pinnedAbilityTooltip =
-      pinnedAbilityTooltip?.ownerDetailKey === tooltip.ownerDetailKey && pinnedAbilityTooltip.label === tooltip.label
-        ? null
-        : tooltip;
-    hoveredAbilityTooltip = null;
-  }
-
-  function activeAbilityTooltipFor(ownerDetailKey: string | null): AbilityTooltipState | null {
-    const tooltip = pinnedAbilityTooltip ?? hoveredAbilityTooltip;
-    return tooltip?.ownerDetailKey === ownerDetailKey ? tooltip : null;
-  }
-
-  function detailIsHighlighted(detailKey: string): boolean {
-    return highlightedDetailKeys.has(detailKey);
-  }
-
-  function restoreOpeningRaceDetail(event: MouseEvent, raceDetail: DetailCard): void {
-    const card = (event.currentTarget as HTMLElement).closest('.opening-race-card');
-    const nextTarget = event.relatedTarget;
-    if (pinnedDetails.length === 0 && card && nextTarget instanceof Node && card.contains(nextTarget)) {
-      hoveredDetail = raceDetail;
-      hoveredAbilityTooltip = null;
-      return;
-    }
-    clearDetail();
-  }
+  const clearDetail = planningInspection.clearPreview;
 
   function resetOverworldInspect(): void {
-    hoveredDetail = null;
-    pinnedDetails = [];
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
-    selectedTroopOfferUnlockId = null;
-    selectedUpgradeOfferId = null;
-    selectedScheduledRaceId = null;
-    hoveredUpgradeOfferId = null;
-    assignmentConflict = null;
-  }
-
-  function resetReplayInspect(): void {
-    hoverInfo = null;
-    lockedUnitId = null;
-    hoveredReplayProfileKey = null;
-    selectedReplayProfileKey = null;
-    pinnedReplayExplanationIndex = null;
+    planningInspection.reset();
+    draftSession.resetSelections();
+    assignmentInteraction.setConflict(null);
   }
 
   function resetZoneSelections(): void {
     selectedRiftId = null;
     selectedTroopId = null;
     selectedRaceId = null;
-    selectedReplayId = null;
-    suppressTroopClickId = null;
+    archiveSession.select(null);
+    assignmentInteraction.clearSuppression();
   }
 
   function resetZoneState(): void {
+    openingUnlockScreen?.resetInspection();
+    scheduledUnlockScreen?.resetInspection();
     resetOverworldInspect();
-    resetReplayInspect();
+    replayViewer?.resetReplayInspect();
     resetZoneSelections();
-    clearTroopDragListeners();
-    troopDrag = null;
-  }
-
-  function clearAutoTimer(): void {
-    if (autoTimelineFrame !== null) {
-      window.cancelAnimationFrame(autoTimelineFrame);
-      autoTimelineFrame = null;
-    }
-    autoTimelineReplayId = null;
-    autoTimelineRateMs = 0;
-  }
-
-  function getReplayTimeline(replay: BattleReplay, rateMs: number): BattlePresentationTimeline {
-    if (replayTimelineCache?.replayId === replay.id && replayTimelineCache.rateMs === rateMs) {
-      return replayTimelineCache.timeline;
-    }
-    const timeline = buildBattlePresentationTimeline(replay, rateMs);
-    replayTimelineCache = { replayId: replay.id, rateMs, timeline };
-    return timeline;
-  }
-
-  function startAutoTimeline(replay: BattleReplay): void {
-    clearAutoTimer();
-
-    const timeline = getReplayTimeline(replay, $gameStore.rateMs);
-    const nextCueIndex = timeline.cues.findIndex((cue) => cue.stepIndex > $gameStore.currentStep);
-    if (nextCueIndex < 0) {
-      gameStore.setAutoPlay(false);
-      return;
-    }
-
-    autoTimelineReplayId = replay.id;
-    autoTimelineRateMs = $gameStore.rateMs;
-    autoTimelineCueIndex = nextCueIndex;
-    autoTimelineStartedAt = performance.now() - timeline.cues[nextCueIndex]!.startMs;
-
-    const tickAutoTimeline = () => {
-      const activeReplay = $gameStore.loadedReplay;
-      if (!$gameStore.autoPlay || !activeReplay || activeReplay.id !== autoTimelineReplayId) {
-        clearAutoTimer();
-        return;
-      }
-
-      const activeTimeline = getReplayTimeline(activeReplay, autoTimelineRateMs);
-      const elapsedMs = performance.now() - autoTimelineStartedAt;
-      let advanced = false;
-
-      while (autoTimelineCueIndex < activeTimeline.cues.length && activeTimeline.cues[autoTimelineCueIndex]!.startMs <= elapsedMs) {
-        const cue = activeTimeline.cues[autoTimelineCueIndex]!;
-        replayStepNavigationKind = 'auto';
-        gameStore.jumpTo(cue.stepIndex);
-        autoTimelineCueIndex += 1;
-        advanced = true;
-      }
-
-      if (autoTimelineCueIndex >= activeTimeline.cues.length) {
-        autoTimelineFrame = null;
-        gameStore.setAutoPlay(false);
-        return;
-      }
-
-      autoTimelineFrame = window.requestAnimationFrame(tickAutoTimeline);
-
-      if (!advanced) {
-        syncRenderer();
-      }
-    };
-
-    autoTimelineFrame = window.requestAnimationFrame(tickAutoTimeline);
-  }
-
-  function teardownRenderer(): void {
-    clearAutoTimer();
-    renderer?.destroy();
-    renderer = null;
-    rendererInitPromise = null;
-    renderedReplayId = null;
-    renderedStep = Number.NaN;
-    renderedHighlightKey = '';
-    replayTimelineCache = null;
-    replayStepNavigationKind = 'manual-step';
-    hoverInfo = null;
-    lockedUnitId = null;
-  }
-
-  async function ensureRenderer(): Promise<void> {
-    if (!battleHost || renderer) {
-      return;
-    }
-
-    if (rendererInitPromise) {
-      await rendererInitPromise;
-      return;
-    }
-
-    const { BattleRenderer } = await import('../rendering/BattleRenderer');
-    const host = battleHost;
-    if (!host || !host.isConnected || renderer) {
-      return;
-    }
-
-    const nextRenderer = new BattleRenderer(host);
-    nextRenderer.setDiagnosticHandler(rememberRendererDiagnostic);
-    nextRenderer.setInteractionHandlers({
-      onUnitHover: (info) => {
-        if (pinnedReplayExplanationIndex === null) {
-          hoverInfo = info;
-          signalTutorial(info ? 'unit-hover' : 'unit-unhover');
-          syncRenderer();
-        }
-      },
-      onUnitClick: (info) => {
-        setReplayUnitLock(info.unitId, {
-          toggle: true,
-          pointer: info,
-        });
-      },
-    });
-
-    rendererInitPromise = (async () => {
-      try {
-        await nextRenderer.init();
-        if (!battleHost || battleHost !== host || !host.isConnected || $gameStore.screen !== 'replay') {
-          nextRenderer.destroy();
-          return;
-        }
-        renderer = nextRenderer;
-        renderer.refreshViewport();
-        syncRenderer();
-      } catch (error) {
-        rememberRendererDiagnostic({
-          source: 'ui',
-          severity: 'error',
-          code: 'renderer_init_failed',
-          message: error instanceof Error ? error.message : 'Renderer failed to initialize.',
-        });
-        nextRenderer.destroy();
-      }
-    })();
-
-    try {
-      await rendererInitPromise;
-    } finally {
-      rendererInitPromise = null;
-    }
-  }
-
-  function syncRenderer(): void {
-    if (!renderer || !$gameStore.loadedReplay) {
-      return;
-    }
-
-    renderer.setPlaybackTiming($gameStore.autoPlay, $gameStore.rateMs);
-    renderer.setHexInspectionVisible(!replayEventLogCollapsed);
-    renderer.setTerrainVisible(replayEventLogCollapsed);
-
-    if (renderedReplayId !== $gameStore.loadedReplay.id) {
-      renderer.setReplay($gameStore.loadedReplay);
-      renderedReplayId = $gameStore.loadedReplay.id;
-      renderedStep = Number.NaN;
-      renderedHighlightKey = '';
-      replayTimelineCache = null;
-      lockedUnitId = null;
-      hoverInfo = null;
-    }
-
-    if (renderedStep !== $gameStore.currentStep) {
-      renderer.showStep($gameStore.currentStep, replayStepNavigationKind);
-      renderedStep = $gameStore.currentStep;
-      replayStepNavigationKind = 'manual-step';
-    }
-
-    const currentStep = $gameStore.currentStep >= 0 ? $gameStore.loadedReplay.steps[$gameStore.currentStep] ?? null : null;
-    const pinnedEventStep =
-      pinnedReplayExplanationIndex !== null ? $gameStore.loadedReplay.steps[pinnedReplayExplanationIndex] ?? null : null;
-    const strongIds = pinnedEventStep || activeDetail
-      ? []
-      : [lockedUnitId ?? hoverInfo?.unitId ?? (!$gameStore.autoPlay ? getReplayStepPrimaryUnitId(currentStep) : null)]
-          .filter((id): id is string => Boolean(id));
-    const eventMarkerIds = activeDetail ? [] : getReplayStepAffectedUnitIds(pinnedEventStep);
-
-    const highlightKey = `${$gameStore.autoPlay ? 'autoplay' : 'manual'}::${strongIds.join('|')}::${eventMarkerIds.join('|')}`;
-    if (highlightKey !== renderedHighlightKey) {
-      renderer.setHighlights(strongIds, eventMarkerIds);
-      renderedHighlightKey = highlightKey;
-    }
+    assignmentInteraction.reset();
   }
 
   function handleResize(): void {
     viewportWidth = window.innerWidth;
     viewportHeight = window.innerHeight;
     updateAssignmentHintArrow(assignmentHintPair);
-    renderer?.refreshViewport();
   }
 
   function loadingProgressPercent(progress: LoadingProgressState): number {
@@ -1182,37 +561,6 @@
     action();
   }
 
-  function runManualReplayAction(action: () => void, navigationKind: ReplayStepNavigationKind = 'manual-step'): void {
-    gameStore.setAutoPlay(false);
-    pinnedReplayExplanationIndex = null;
-    replayStepNavigationKind = navigationKind;
-    action();
-  }
-
-  function toggleReplayAutoPlay(): void {
-    const nextAutoPlay = !$gameStore.autoPlay;
-    gameStore.setAutoPlay(nextAutoPlay);
-    if ($gameStore.tutorialProgress?.step === 'play') {
-      signalTutorial(nextAutoPlay ? 'play' : 'pause');
-    }
-  }
-
-  function setReplayRate(rateMs: number): void {
-    gameStore.setRateMs(rateMs);
-  }
-
-  function zoomReplayIn(): void {
-    renderer?.zoomIn();
-  }
-
-  function zoomReplayOut(): void {
-    renderer?.zoomOut();
-  }
-
-  function resetReplayZoom(): void {
-    renderer?.resetZoom();
-  }
-
   function openSlot(slot: SaveSlotSummary): void {
     if (tutorialSceneLockActive()) {
       showTutorialScenePrompt();
@@ -1228,60 +576,8 @@
     });
   }
 
-  function openNewGameMenu(slot: SaveSlotSummary): void {
-    if (tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest') {
-      showTutorialScenePrompt();
-      return;
-    }
-    newGameSlot = slot;
-  }
-
-  function closeNewGameMenu(): void {
-    newGameSlot = null;
-  }
-
-  function chooseNewGameMode(slot: SaveSlotSummary, gameMode: GameMode): void {
-    closeNewGameMenu();
-    if (slot.status === 'occupied') {
-      restartSlot(slot, gameMode);
-      return;
-    }
-    startSlot(slot, gameMode);
-  }
-
-  function newGameActionLabel(slot: SaveSlotSummary, gameMode: GameMode): string {
-    const prefix = slot.status === 'occupied' ? 'Replace' : 'Start';
-    if (gameMode === 'campaign') return `${prefix} Campaign`;
-    if (gameMode === 'ladder') return `${prefix} Ladder`;
-    return `${prefix} Contest vs AI`;
-  }
-
-  function newGameModeDescription(gameMode: GameMode): string {
-    if (gameMode === 'campaign') {
-      return 'A standard local run with fresh Rifts generated from your save seed.';
-    }
-    if (gameMode === 'ladder') {
-      return 'A campaign that draws shared Rift-sets and feeds your completed sets back into the ladder pool.';
-    }
-    return 'A solo Contest run where an AI rival drafts and assigns troops against you.';
-  }
-
   function startSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
-    if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
-      resetZoneState();
-      void runAfterGameAssetPreload(() => gameStore.startTutorialOpening());
-      return;
-    }
-    if (tutorialSceneLockActive()) {
-      showTutorialScenePrompt();
-      return;
-    }
-    resetZoneState();
-    void runAfterGameAssetPreload(() => gameStore.startNewCampaign(slot.slotId, gameMode));
-  }
-
-  function restartSlot(slot: SaveSlotSummary, gameMode: GameMode): void {
-    if (gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest') {
+    if (gameMode === 'contest' && $gameSessionStore.tutorialProgress?.step === 'start-contest') {
       resetZoneState();
       void runAfterGameAssetPreload(() => gameStore.startTutorialOpening());
       return;
@@ -1325,12 +621,12 @@
   }
 
   function getShareRoomLink(): string {
-    if (typeof window === 'undefined' || !$gameStore.multiplayer?.roomId) {
+    if (typeof window === 'undefined' || !$gameSessionStore.multiplayer?.roomId) {
       return '';
     }
     const url = new URL(window.location.href);
-    url.searchParams.set('room', $gameStore.multiplayer.roomId);
-    url.searchParams.set('server', inferShareableMultiplayerServerUrl($gameStore.multiplayer.serverUrl, window.location.href));
+    url.searchParams.set('room', $gameSessionStore.multiplayer.roomId);
+    url.searchParams.set('server', inferShareableMultiplayerServerUrl($gameSessionStore.multiplayer.serverUrl, window.location.href));
     return url.toString();
   }
 
@@ -1373,7 +669,7 @@
   }
 
   function copyRoomCode(): void {
-    void copyTextToClipboard($gameStore.multiplayer?.roomId ?? '', 'Room code copied.');
+    void copyTextToClipboard($gameSessionStore.multiplayer?.roomId ?? '', 'Room code copied.');
   }
 
   function copyRoomLink(): void {
@@ -1388,7 +684,7 @@
 
   function showMainMenuView(view: MainMenuView): void {
     if (tutorialSceneLockActive()) {
-      if ($gameStore.tutorialProgress?.step === 'game-start' && view === 'singleplayer') {
+      if ($gameSessionStore.tutorialProgress?.step === 'game-start' && view === 'singleplayer') {
         mainMenuView = view;
         multiplayerCopyMessage = null;
         signalTutorial('singleplayer');
@@ -1404,7 +700,7 @@
   }
 
   function beginOpeningCampaign(): void {
-    if (tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'opening') {
+    if (tutorialSceneLockActive() && $gameSessionStore.tutorialProgress?.step !== 'opening') {
       showTutorialScenePrompt();
       return;
     }
@@ -1413,21 +709,19 @@
     signalTutorial('begin');
   }
 
+  function claimOpeningPick(troopUnlockId: TroopUnlockId): void {
+    gameStore.claimOpeningTroop(troopUnlockId);
+    signalTutorial($gameSessionStore.game.troops.length === 2 ? 'opening-confirmed' : 'race-select');
+  }
+
+  function unclaimOpeningPick(troopUnlockId: TroopUnlockId): void {
+    gameStore.unclaimOpeningTroop(troopUnlockId);
+    signalTutorial('race-deselect');
+  }
+
   function chooseRaceUnlock(raceId: RaceId): void {
     resetZoneState();
     gameStore.claimRaceUnlockOffer(raceId);
-  }
-
-  function selectScheduledRaceUnlock(raceId: RaceId): void {
-    selectedScheduledRaceId = selectedScheduledRaceId === raceId ? null : raceId;
-  }
-
-  function confirmScheduledRaceUnlock(): void {
-    if (!selectedScheduledRaceId) {
-      return;
-    }
-    chooseRaceUnlock(selectedScheduledRaceId);
-    selectedScheduledRaceId = null;
   }
 
   function chooseTroopClassUnlock(troopUnlockId: TroopUnlockId): void {
@@ -1442,15 +736,15 @@
     if (mustAssignTroopsBeforeCycleEnd) {
       return;
     }
-    if ($gameStore.centerMode !== 'rifts') {
+    if ($gameSessionStore.centerMode !== 'rifts') {
       gameStore.setCenterMode('rifts');
       await tick();
     }
     cycleResolvePending = true;
-    cycleResolvePendingCycle = $gameStore.game.cycleNumber;
+    cycleResolvePendingCycle = $gameSessionStore.game.cycleNumber;
     await tick();
-    gameStore.endCycle($gameStore.tutorialProgress?.step === 'end-cycle' || $gameStore.cycleEndConfirmationPending);
-    if (!$gameStore.cycleAnimation && cycleResolvePendingCycle === $gameStore.game.cycleNumber) {
+    gameStore.endCycle($gameSessionStore.tutorialProgress?.step === 'end-cycle' || $gameSessionStore.cycleEndConfirmationPending);
+    if (!$gameSessionStore.cycleAnimation && cycleResolvePendingCycle === $gameSessionStore.game.cycleNumber) {
       cycleResolvePending = false;
       cycleResolvePendingCycle = null;
     }
@@ -1458,11 +752,11 @@
   }
 
   function handleCycleActionEnter(): void {
-    cycleActionHovered = true;
+    planningAttention.setCycleHovered(true);
   }
 
   function handleCycleActionLeave(): void {
-    cycleActionHovered = false;
+    planningAttention.setCycleHovered(false);
     assignmentHintArrow = null;
   }
 
@@ -1478,20 +772,20 @@
     const candidates = readyTroops
       .map((troop) => ({
         troop,
-        rifts: discoveredRifts.filter((rift) => canAssignTroopToRift($gameStore.game, troop.id, rift.id).ok),
+        rifts: discoveredRifts.filter((rift) => canAssignTroopToRift($gameSessionStore.game, troop.id, rift.id).ok),
       }))
       .filter((candidate) => candidate.rifts.length > 0);
     if (candidates.length === 0) {
       return null;
     }
-    const pick = hashAssignmentHintSeed(`${$gameStore.game.campaignSeed}:${$gameStore.game.cycleNumber}`) % candidates.length;
+    const pick = hashAssignmentHintSeed(`${$gameSessionStore.game.campaignSeed}:${$gameSessionStore.game.cycleNumber}`) % candidates.length;
     const candidate = candidates[pick];
     const nearestRift = candidate.rifts[candidate.rifts.length - 1];
     return { troopId: candidate.troop.id, riftId: nearestRift.id };
   }
 
   function updateAssignmentHintArrow(pair: { troopId: TroopId; riftId: string } | null): void {
-    if (!pair || !cycleActionHovered || !mustAssignTroopsBeforeCycleEnd) {
+    if (!pair || !$planningAttention.cycleHovered || !mustAssignTroopsBeforeCycleEnd) {
       assignmentHintArrow = null;
       return;
     }
@@ -1521,25 +815,25 @@
   }
 
   function canEditMultiplayerPlan(): boolean {
-    return !multiplayerCycleEnded && !$gameStore.cycleAnimation;
+    return !multiplayerCycleEnded && !$gameSessionStore.cycleAnimation;
   }
 
   function multiplayerCycleEndLabel(): string {
-    const playerId = $gameStore.multiplayer?.playerId;
-    if (!$gameStore.multiplayer || !playerId) {
+    const playerId = $gameSessionStore.multiplayer?.playerId;
+    if (!$gameSessionStore.multiplayer || !playerId) {
       return 'End Cycle';
     }
-    if ($gameStore.multiplayer.cycleEnded.playerOne && $gameStore.multiplayer.cycleEnded.playerTwo) {
+    if ($gameSessionStore.multiplayer.cycleEnded.playerOne && $gameSessionStore.multiplayer.cycleEnded.playerTwo) {
       return 'Resolving';
     }
-    return $gameStore.multiplayer.cycleEnded[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'End Cycle';
+    return $gameSessionStore.multiplayer.cycleEnded[playerId] ? `Waiting For ${getOpponentPlayerName()}` : 'End Cycle';
   }
 
   function playerConnectionLabel(playerId: ContestPlayerId): string {
-    if (!$gameStore.multiplayer?.connectedPlayers[playerId]) {
+    if (!$gameSessionStore.multiplayer?.connectedPlayers[playerId]) {
       return 'Offline';
     }
-    return $gameStore.multiplayer.cycleEnded[playerId] ? 'Cycle Ended' : 'Planning';
+    return $gameSessionStore.multiplayer.cycleEnded[playerId] ? 'Cycle Ended' : 'Planning';
   }
 
   function setRiftCenterMode(): void {
@@ -1555,33 +849,11 @@
   }
 
   function focusEssenceDraft(): void {
-    if ($gameStore.centerMode !== 'rifts' && $gameStore.centerMode !== 'troops') {
+    if ($gameSessionStore.centerMode !== 'rifts' && $gameSessionStore.centerMode !== 'troops') {
       gameStore.setCenterMode('troops');
     }
     signalTutorial('essence-view');
-    essenceDraftHighlighted = true;
-    if (essenceDraftHighlightTimer) {
-      window.clearTimeout(essenceDraftHighlightTimer);
-    }
-    essenceDraftHighlightTimer = window.setTimeout(() => {
-      essenceDraftHighlighted = false;
-      essenceDraftHighlightTimer = null;
-    }, 2400);
-  }
-
-  function focusTroopAssignments(): void {
-    if ($gameStore.centerMode !== 'rifts') {
-      gameStore.setCenterMode('rifts');
-    }
-    selectedReplayId = null;
-    troopAssignmentHighlighted = true;
-    if (troopAssignmentHighlightTimer) {
-      window.clearTimeout(troopAssignmentHighlightTimer);
-    }
-    troopAssignmentHighlightTimer = window.setTimeout(() => {
-      troopAssignmentHighlighted = false;
-      troopAssignmentHighlightTimer = null;
-    }, 2400);
+    planningAttention.pulseEssenceDraft();
   }
 
   function revealEssenceDraft(): void {
@@ -1590,32 +862,6 @@
     }
     gameStore.revealEssenceDraft();
     signalTutorial('reveal-draft');
-  }
-
-  function canRerollDraftSide(side: EssenceDraftRerollSide): boolean {
-    if ($gameStore.game.essenceDraftRerollUsed) {
-      return false;
-    }
-    return side === 'troop' ? !!$gameStore.game.activeTroopOffer : !!$gameStore.game.activeUpgradeOffer;
-  }
-
-  function rerollDraftSide(side: EssenceDraftRerollSide): void {
-    if (!canRerollDraftSide(side)) {
-      return;
-    }
-
-    if (side === 'troop') {
-      selectedTroopOfferUnlockId = null;
-      gameStore.rerollTroopOffer();
-    } else {
-      selectedUpgradeOfferId = null;
-      hoveredUpgradeOfferId = null;
-      gameStore.rerollUpgradeOffer();
-    }
-    hoveredDetail = null;
-    pinnedDetails = [];
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
   }
 
   function setContestCenterMode(): void {
@@ -1629,7 +875,7 @@
     resetOverworldInspect();
     selectedRiftId = null;
     selectedTroopId = null;
-    selectedReplayId = null;
+    archiveSession.select(null);
     selectedRaceId = nextRaceId;
     gameStore.setCenterMode('troops');
   }
@@ -1639,8 +885,7 @@
     selectRace(raceId);
 
     if (wasSelected) {
-      pinnedDetails = [];
-      hoveredDetail = null;
+      planningInspection.clearDetails();
       return;
     }
 
@@ -1652,251 +897,33 @@
     togglePinnedDetail(detail);
   }
 
-  function getTroopDropTarget(clientX: number, clientY: number): TroopDropTarget | null {
-    const element = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-rift-drop-target], [data-ready-drop-target]');
-
-    if (!element) {
-      return null;
-    }
-
-    if (element.dataset.readyDropTarget === 'true') {
-      return { kind: 'ready' };
-    }
-
-    return element.dataset.riftDropTarget ? { kind: 'rift', riftId: element.dataset.riftDropTarget } : null;
-  }
-
-  function isCurrentDropTarget(target: TroopDropTarget | null, kind: 'ready' | 'rift', riftId?: string): boolean {
-    if (!target || target.kind !== kind) {
-      return false;
-    }
-
-    return kind === 'ready' || target.riftId === riftId;
-  }
-
   function isHoldingTroop(troopId: TroopId): boolean {
-    return $gameStore.game.gameMode === 'contest' &&
-      $gameStore.game.openRifts.some(
+    return $gameSessionStore.game.gameMode === 'contest' &&
+      $gameSessionStore.game.openRifts.some(
         (rift) =>
           (rift.controller === 'playerOne' || rift.controller === 'human') && (rift.occupyingTroopIds ?? []).includes(troopId),
       );
-  }
-
-  function isUpgradeAffectingTroop(troopId: TroopId): boolean {
-    const upgradeId = hoveredUpgradeOfferId ?? selectedUpgradeOfferId;
-    const troop = $gameStore.game.troops.find((entry) => entry.id === troopId);
-    return !!upgradeId && !!troop && upgradeAffectsTroop(upgradeId, troop);
   }
 
   function getDropValidationMessage(troopId: TroopId, target: TroopDropTarget | null): string | null {
     if (!target || target.kind === 'ready') {
       return null;
     }
-    const result = canAssignTroopToRift($gameStore.game, troopId, target.riftId);
+    const result = canAssignTroopToRift($gameSessionStore.game, troopId, target.riftId);
     return result.ok ? null : result.issues[0]?.message ?? 'This troop cannot be assigned here.';
   }
 
-  function getRiftDropValidationMessage(riftId: string): string | null {
-    return troopDrag?.active && troopDrag.dropTarget?.kind === 'rift' && troopDrag.dropTarget.riftId === riftId
-      ? getDropValidationMessage(troopDrag.troopId, troopDrag.dropTarget)
-      : null;
-  }
-
-  function clearTroopDragListeners(): void {
-    window.removeEventListener('pointermove', handleTroopDragMove);
-    window.removeEventListener('pointerup', handleTroopDragEnd);
-    window.removeEventListener('pointercancel', handleTroopDragCancel);
-    window.removeEventListener('mousemove', handleMouseTroopDragMove);
-    window.removeEventListener('mouseup', handleMouseTroopDragEnd);
-    document.removeEventListener('pointermove', handleTroopDragMove);
-    document.removeEventListener('pointerup', handleTroopDragEnd);
-    document.removeEventListener('pointercancel', handleTroopDragCancel);
-    document.removeEventListener('mousemove', handleMouseTroopDragMove);
-    document.removeEventListener('mouseup', handleMouseTroopDragEnd);
-  }
-
-  function beginTroopDrag(
-    pointerId: number | null,
-    clientX: number,
-    clientY: number,
-    troopId: TroopId,
-    sourceRiftId: string | null,
-    label: string,
-    portraitUrl: string,
-  ): void {
-    troopDrag = {
-      troopId,
-      sourceRiftId,
-      pointerId,
-      startX: clientX,
-      startY: clientY,
-      x: clientX,
-      y: clientY,
-      active: false,
-      label,
-      portraitUrl,
-      dropTarget: null,
-    };
-  }
-
-  function buildScheduledTroopDetail(troopUnlockId: TroopUnlockId, grantedUpgradeIds: UpgradeId[], description: string): DetailCard {
-    const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
-    const previewState = {
-      raceUpgradeIds: [...new Set([...$gameStore.game.raceUpgradeIds, ...grantedUpgradeIds])],
-      troopClassUpgradeIds: $gameStore.game.troopClassUpgradeIds,
-    };
-    const troopDef = resolveTroopCombatant(previewState, createTroopInstance(raceId, unitClassId), 'player');
-    return buildResolvedUnitDetail(
-      `scheduled-race:${troopUnlockId}:${grantedUpgradeIds.join(',')}`,
-      troopDef.label,
-      raceId,
-      unitClassId,
-      troopDef.stats,
-      troopDef.quantity,
-      description,
-      troopDef.abilities,
-      troopDef.statBreakdowns,
-    );
-  }
-
-  function startTroopDrag(event: PointerEvent, troopId: TroopId, sourceRiftId: string | null, label: string, portraitUrl: string): void {
-    if (troopDrag || isHoldingTroop(troopId) || (event.pointerType === 'mouse' && event.button !== 0)) {
-      return;
-    }
-
-    event.preventDefault();
-    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-    beginTroopDrag(event.pointerId, event.clientX, event.clientY, troopId, sourceRiftId, label, portraitUrl);
-    window.addEventListener('pointermove', handleTroopDragMove, { passive: false });
-    window.addEventListener('pointerup', handleTroopDragEnd);
-    window.addEventListener('pointercancel', handleTroopDragCancel);
-    document.addEventListener('pointermove', handleTroopDragMove, { passive: false });
-    document.addEventListener('pointerup', handleTroopDragEnd);
-    document.addEventListener('pointercancel', handleTroopDragCancel);
-    if (event.pointerType === 'mouse') {
-      window.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
-      window.addEventListener('mouseup', handleMouseTroopDragEnd);
-      document.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
-      document.addEventListener('mouseup', handleMouseTroopDragEnd);
-    }
-  }
-
-  function startMouseTroopDrag(event: MouseEvent, troopId: TroopId, sourceRiftId: string | null, label: string, portraitUrl: string): void {
-    if (troopDrag || isHoldingTroop(troopId) || event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    beginTroopDrag(null, event.clientX, event.clientY, troopId, sourceRiftId, label, portraitUrl);
-    window.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
-    window.addEventListener('mouseup', handleMouseTroopDragEnd);
-    document.addEventListener('mousemove', handleMouseTroopDragMove, { passive: false });
-    document.addEventListener('mouseup', handleMouseTroopDragEnd);
-  }
-
-  function updateTroopDragPosition(clientX: number, clientY: number): void {
-    if (!troopDrag) {
-      return;
-    }
-
-    const movedDistance = Math.hypot(clientX - troopDrag.startX, clientY - troopDrag.startY);
-    const active = troopDrag.active || movedDistance > 6;
-
-    troopDrag = {
-      ...troopDrag,
-      x: clientX,
-      y: clientY,
-      active,
-      dropTarget: active ? getTroopDropTarget(clientX, clientY) : null,
-    };
-  }
-
-  function handleTroopDragMove(event: PointerEvent): void {
-    if (!troopDrag || event.pointerId !== troopDrag.pointerId) {
-      return;
-    }
-
-    updateTroopDragPosition(event.clientX, event.clientY);
-    if (troopDrag.active) {
-      event.preventDefault();
-    }
-  }
-
-  function finishTroopDrag(clientX?: number, clientY?: number): void {
-    if (!troopDrag) {
-      return;
-    }
-
-    const completedDrag = troopDrag.active;
-    const finalDropTarget = typeof clientX === 'number' && typeof clientY === 'number' ? getTroopDropTarget(clientX, clientY) : null;
-    const { troopId, sourceRiftId } = troopDrag;
-    const dropTarget = finalDropTarget ?? troopDrag.dropTarget;
-
-    clearTroopDragListeners();
-    troopDrag = null;
-
-    if (completedDrag) {
-      suppressTroopClickId = troopId;
-      selectedTroopId = troopId;
-    }
-
-    if (!completedDrag) {
-      return;
-    }
-
-    completeTroopDrop(troopId, sourceRiftId, dropTarget);
-  }
-
-  function handleTroopDragEnd(event: PointerEvent): void {
-    if (!troopDrag || event.pointerId !== troopDrag.pointerId) {
-      return;
-    }
-
-    finishTroopDrag(event.clientX, event.clientY);
-  }
-
-  function handleMouseTroopDragMove(event: MouseEvent): void {
-    if (!troopDrag) {
-      return;
-    }
-
-    updateTroopDragPosition(event.clientX, event.clientY);
-    if (troopDrag.active) {
-      event.preventDefault();
-    }
-  }
-
-  function handleMouseTroopDragEnd(event: MouseEvent): void {
-    if (!troopDrag) {
-      return;
-    }
-
-    finishTroopDrag(event.clientX, event.clientY);
-  }
-
-  function handleTroopDragCancel(event: PointerEvent): void {
-    if (!troopDrag || event.pointerId !== troopDrag.pointerId) {
-      return;
-    }
-
-    clearTroopDragListeners();
-    troopDrag = null;
-  }
-
   function handleRiftTroopClick(troopId: TroopId, detail: DetailCard): void {
-    if (suppressTroopClickId === troopId) {
-      suppressTroopClickId = null;
-      return;
-    }
+    if (assignmentInteraction.consumeClick(troopId)) return;
 
-    selectedReplayId = null;
+    archiveSession.select(null);
     pinTroopDetail(troopId, detail);
   }
 
   function handleRosterTroopClick(troopId: TroopId, detail: DetailCard): void {
     selectedRiftId = null;
     selectedRaceId = null;
-    selectedReplayId = null;
+    archiveSession.select(null);
     gameStore.setCenterMode('troops');
     pinTroopDetail(troopId, detail);
   }
@@ -1912,102 +939,44 @@
       if (sourceRiftId) {
         gameStore.clearTroopAssignment(troopId);
       }
-      assignmentConflict = null;
+      assignmentInteraction.setConflict(null);
       return;
     }
 
     if (dropTarget.riftId !== sourceRiftId) {
-      const assignment = canAssignTroopToRift($gameStore.game, troopId, dropTarget.riftId);
+      const assignment = canAssignTroopToRift($gameSessionStore.game, troopId, dropTarget.riftId);
       if (!assignment.ok) {
         const issue = assignment.issues[0];
-        assignmentConflict = issue
+        assignmentInteraction.setConflict(issue
           ? {
               troopId: issue.troopId ?? troopId,
-              conflictTroopId: issue.conflictTroopId,
+              ...(issue.conflictTroopId ? { conflictTroopId: issue.conflictTroopId } : {}),
               riftId: issue.riftId ?? dropTarget.riftId,
               message: issue.message,
             }
-          : { troopId, riftId: dropTarget.riftId, message: 'This troop cannot be assigned here.' };
+          : { troopId, riftId: dropTarget.riftId, message: 'This troop cannot be assigned here.' });
         return;
       }
-      assignmentConflict = null;
+      assignmentInteraction.setConflict(null);
       gameStore.assignTroopToRift(troopId, dropTarget.riftId);
       signalTutorial('assign-troop');
     }
   }
 
-  function startNativeTroopDrag(event: DragEvent, troopId: TroopId, sourceRiftId: string | null): void {
-    if (!event.dataTransfer || isHoldingTroop(troopId)) {
-      event.preventDefault();
-      return;
-    }
-
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('application/x-shiftmake-troop', JSON.stringify({ troopId, sourceRiftId }));
-    const troop = $gameStore.game.troops.find((entry) => entry.id === troopId);
-    if (troop) {
-      const troopDef = getTroopEffectiveDefinition($gameStore.game, troopId);
-      beginTroopDrag(null, event.clientX, event.clientY, troopId, sourceRiftId, troopDef.label, getRaceUnitPortrait(troop.raceId, troop.unitClassId));
-      troopDrag = troopDrag ? { ...troopDrag, active: true, dropTarget: getTroopDropTarget(event.clientX, event.clientY) } : null;
-    }
-  }
-
-  function allowNativeTroopDrop(event: DragEvent): void {
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
-    }
-    if (troopDrag) {
-      troopDrag = {
-        ...troopDrag,
-        x: event.clientX,
-        y: event.clientY,
-        active: true,
-        dropTarget: getTroopDropTarget(event.clientX, event.clientY),
-      };
-    }
-  }
-
-  function endNativeTroopDrag(): void {
-    clearTroopDragListeners();
-    troopDrag = null;
-  }
-
-  function finishNativeTroopDrop(event: DragEvent, dropTarget: TroopDropTarget): void {
-    event.preventDefault();
-    const payload = event.dataTransfer?.getData('application/x-shiftmake-troop');
-
-    if (!payload) {
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(payload) as { troopId?: TroopId; sourceRiftId?: string | null };
-      if (parsed.troopId) {
-        completeTroopDrop(parsed.troopId, parsed.sourceRiftId ?? null, dropTarget);
-      }
-    } catch {
-      // Ignore malformed external drops; only Shiftmake troop payloads are valid.
-    }
-  }
-
   function selectReplay(replayId: string): void {
-    selectedReplayId = selectedReplayId === replayId ? null : replayId;
-    hoveredDetail = null;
-    pinnedDetails = [];
+    archiveSession.toggle(replayId);
+    planningInspection.clearDetails();
     signalTutorial('archive-inspect');
   }
 
-  function openSelectedReplay(): void {
-    if (selectedReplayEntry) {
-      if (tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'watch-battle') {
-        showTutorialScenePrompt();
-        return;
-      }
-      resetZoneState();
-      gameStore.openReplay(selectedReplayEntry.replayId);
-      signalTutorial('watch-battle');
+  function openSelectedReplay(replayId: string): void {
+    if (tutorialSceneLockActive() && $gameSessionStore.tutorialProgress?.step !== 'watch-battle') {
+      showTutorialScenePrompt();
+      return;
     }
+    resetZoneState();
+    gameStore.openReplay(replayId);
+    signalTutorial('watch-battle');
   }
 
   function openReplayFromArchive(replayId: string): void {
@@ -2018,319 +987,21 @@
   }
 
   function openTutorialArchiveReplay(): void {
-    const replayId = selectedReplayEntry?.replayId ?? getTutorialReplayId();
+    const replayId = $archiveSession.selectedId ?? getTutorialReplayId();
     if (replayId) {
       openReplayFromArchive(replayId);
     }
   }
 
-  function closeReplayToArchive(): void {
-    const replayId = $gameStore.loadedReplay?.id ?? null;
+  async function closeReplayToArchive(): Promise<void> {
+    const replayId = $replayPlaybackStore.loadedReplay?.id ?? null;
     gameStore.closeReplay();
     gameStore.setCenterMode('rifts');
-    if (replayId) {
-      selectedReplayId = replayId;
+    // The route change clears inspection before the archive selection is restored.
+    await tick();
+    if (replayId && $gameSessionStore.screen === 'overworld') {
+      archiveSession.select(replayId);
     }
-  }
-
-  function selectTroopOfferUnlock(troopUnlockId: TroopUnlockId, detail: DetailCard): void {
-    if (selectedTroopOfferUnlockId === troopUnlockId) {
-      selectedTroopOfferUnlockId = null;
-      pinnedDetails = [];
-      hoveredDetail = null;
-      hoveredAbilityTooltip = null;
-      pinnedAbilityTooltip = null;
-      return;
-    }
-
-    selectedTroopOfferUnlockId = troopUnlockId;
-    pinnedDetails = [detail];
-    hoveredDetail = null;
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
-  }
-
-  function confirmTroopOfferUnlock(): void {
-    if (!selectedTroopOfferUnlockId) {
-      return;
-    }
-
-    confirmedTroopOfferUnlockId = selectedTroopOfferUnlockId;
-    gameStore.claimTroopOffer(selectedTroopOfferUnlockId);
-    signalTutorial('draft-troop');
-    selectedTroopOfferUnlockId = null;
-    pinnedDetails = [];
-    hoveredDetail = null;
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
-  }
-
-  function selectUpgradeOffer(upgradeId: UpgradeId, detail: DetailCard): void {
-    if (selectedUpgradeOfferId === upgradeId) {
-      selectedUpgradeOfferId = null;
-      pinnedDetails = [];
-      hoveredDetail = null;
-      hoveredAbilityTooltip = null;
-      pinnedAbilityTooltip = null;
-      return;
-    }
-
-    selectedUpgradeOfferId = upgradeId;
-    pinnedDetails = [detail];
-    hoveredDetail = null;
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
-  }
-
-  function confirmUpgradeOffer(): void {
-    if (!selectedUpgradeOfferId) {
-      return;
-    }
-
-    confirmedUpgradeOfferId = selectedUpgradeOfferId;
-    gameStore.claimUpgradeOffer(selectedUpgradeOfferId);
-    signalTutorial('draft-upgrade');
-    selectedUpgradeOfferId = null;
-    pinnedDetails = [];
-    hoveredDetail = null;
-    hoveredAbilityTooltip = null;
-    pinnedAbilityTooltip = null;
-  }
-
-  function showMutatorDetail(mutatorId: string): void {
-    previewDetail(buildMutatorDetail(mutatorId));
-  }
-
-  function currentSnapshot(replay: BattleReplay): BattleUnit[] {
-    if ($gameStore.currentStep < 0) {
-      return replay.initial.units;
-    }
-
-    return replay.steps[Math.min($gameStore.currentStep, replay.steps.length - 1)]?.snapshot.units ?? replay.initial.units;
-  }
-
-  function formatHpLabel(currentHp: number, maxHp: number): string {
-    return `${Math.round(currentHp)} / ${Math.round(maxHp)}`;
-  }
-
-  function getHpPercent(currentHp: number, maxHp: number): string {
-    if (maxHp <= 0) {
-      return '0%';
-    }
-
-    return `${Math.max(0, Math.min(100, (currentHp / maxHp) * 100))}%`;
-  }
-
-  function buildReplayHealthRoster(replay: BattleReplay): BattleUnit[] {
-    const unitsById = new Map<string, BattleUnit>();
-    const rememberUnit = (unit: BattleUnit): void => {
-      if (!unitsById.has(unit.id)) {
-        unitsById.set(unit.id, unit);
-      }
-    };
-
-    replay.initial.units.forEach(rememberUnit);
-    replay.steps.forEach((step) => step.snapshot.units.forEach(rememberUnit));
-
-    return [...unitsById.values()].sort((left, right) => left.id.localeCompare(right.id));
-  }
-
-  function getReplayHealthRoster(replay: BattleReplay): BattleUnit[] {
-    if (replayHealthRosterCache?.replayId === replay.id) {
-      return replayHealthRosterCache.roster;
-    }
-    const roster = buildReplayHealthRoster(replay);
-    replayHealthRosterCache = { replayId: replay.id, roster };
-    return roster;
-  }
-
-  function getReplayRecap(replay: BattleReplay): BattleRecapTroopEntry[] {
-    if (replayRecapCache?.replayId === replay.id) {
-      return replayRecapCache.recap;
-    }
-    const recap = buildBattleRecap(replay);
-    replayRecapCache = { replayId: replay.id, recap };
-    return recap;
-  }
-
-  function getReplayProfilesByKey(replay: BattleReplay | null): Map<string, BattleReplay['troopProfiles'][number]> {
-    if (!replay) {
-      return new Map();
-    }
-    if (replayProfilesByKeyCache?.replayId === replay.id) {
-      return replayProfilesByKeyCache.profiles;
-    }
-    const profiles = new Map(replay.troopProfiles.map((profile) => [replayProfileKey(profile.side, profile.troopLabel), profile]));
-    replayProfilesByKeyCache = { replayId: replay.id, profiles };
-    return profiles;
-  }
-
-  function buildReplayHealthSide(roster: BattleUnit[], snapshot: BattleUnit[], side: SideId): ReplayHealthSide {
-    const currentUnitsById = new Map(snapshot.map((unit) => [unit.id, unit]));
-    const sideUnits = roster.filter((unit) => unit.side === side);
-    const currentSideUnits = sideUnits
-      .map((unit) => currentUnitsById.get(unit.id))
-      .filter((unit): unit is BattleUnit => !!unit);
-    const currentHp = currentSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0);
-    const maxHp = currentSideUnits.reduce((sum, unit) => sum + Math.max(0, unit.maxHp), 0);
-    const units = sideUnits.flatMap((unit) => {
-      const currentUnit = currentUnitsById.get(unit.id);
-      if (!currentUnit?.alive) {
-        return [];
-      }
-
-      return [{
-        unit: currentUnit,
-        hpPercent: getHpPercent(currentUnit.hp, currentUnit.maxHp),
-        hpLabel: formatHpLabel(currentUnit.hp, currentUnit.maxHp),
-        readinessPercent: `${Math.max(0, Math.min(100, currentUnit.readiness))}%`,
-        readinessReady: currentUnit.readiness >= 100,
-        portraitUrl: getReplayUnitPortraitUrl(currentUnit),
-      }];
-    });
-
-    return {
-      side,
-      label: side === 'player' ? 'Player' : 'Enemy',
-      currentHp,
-      maxHp,
-      hpPercent: getHpPercent(currentHp, maxHp),
-      hpLabel: formatHpLabel(currentHp, maxHp),
-      hpTooltip: `${side === 'player' ? 'Player' : 'Enemy'} total health ${formatHpLabel(currentHp, maxHp)}`,
-      unitsMinHeight: `${sideUnits.length * 1.9 + Math.max(0, sideUnits.length - 1) * 0.28}rem`,
-      units,
-    };
-  }
-
-  function statLineKey(line: StatBreakdownLine): string {
-    return `${line.kind}:${line.label}`;
-  }
-
-  function addLiveStatLine(
-    linesByStat: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>>,
-    stat: ExplainedStatKey,
-    line: StatBreakdownLine,
-  ): void {
-    const existing = linesByStat[stat] ?? [];
-    const existingIndex = existing.findIndex((entry) => statLineKey(entry) === statLineKey(line));
-    if (existingIndex >= 0) {
-      existing[existingIndex] = {
-        ...existing[existingIndex],
-        value: line.kind === 'set' ? line.value : existing[existingIndex]!.value + line.value,
-      };
-      return;
-    }
-    linesByStat[stat] = [...existing, line];
-  }
-
-  function getLiveStatLine(step: BattleStep): { stat: ExplainedStatKey; line: StatBreakdownLine } | null {
-    const metadata = step.metadata;
-    if (step.kind !== 'buff' || !metadata) {
-      return null;
-    }
-
-    const label = typeof metadata.sourceAbilityLabel === 'string'
-      ? metadata.sourceAbilityLabel
-      : typeof metadata.sourceAbilityId === 'string'
-        ? metadata.sourceAbilityId
-        : 'Battle effect';
-
-    if (metadata.effect === 'rangeset' && typeof metadata.value === 'number') {
-      return { stat: 'range', line: { label, value: metadata.value, kind: 'set' } };
-    }
-
-    const amount = typeof metadata.amount === 'number' ? metadata.amount : null;
-    if (amount === null || amount === 0) {
-      return null;
-    }
-
-    if (metadata.effect === 'bolster') {
-      return { stat: 'health', line: { label, value: amount, kind: 'delta' } };
-    }
-    if (metadata.effect === 'ramp') {
-      return { stat: 'damage', line: { label, value: amount, kind: 'delta' } };
-    }
-    if (metadata.effect === 'haste') {
-      return { stat: 'rate', line: { label, value: amount, kind: 'delta' } };
-    }
-    if (metadata.effect === 'statDelta') {
-      const stat = metadata.stat;
-      if (stat === 'damage' || stat === 'rate' || stat === 'armor' || stat === 'range' || stat === 'capacity') {
-        return { stat, line: { label, value: amount, kind: 'delta' } };
-      }
-    }
-    return null;
-  }
-
-  function buildLiveStatBreakdownLines(
-    replay: BattleReplay | null,
-    unitId: string | null,
-    currentStep: number,
-  ): Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> {
-    if (!replay || !unitId || currentStep < 0) {
-      return {};
-    }
-
-    const linesByStat: Partial<Record<ExplainedStatKey, StatBreakdownLine[]>> = {};
-    replay.steps.slice(0, currentStep + 1).forEach((step) => {
-      if (!step.targetIds.includes(unitId)) {
-        return;
-      }
-      const liveLine = getLiveStatLine(step);
-      if (liveLine) {
-        addLiveStatLine(linesByStat, liveLine.stat, liveLine.line);
-      }
-    });
-    return Object.fromEntries(
-      Object.entries(linesByStat).map(([stat, lines]) => [stat, lines.filter((line) => line.kind === 'set' || line.value !== 0)]),
-    ) as Partial<Record<ExplainedStatKey, StatBreakdownLine[]>>;
-  }
-
-  function decorateArchiveSummary(summary: string): string {
-    return summary.replace(/\s+\d+\s*-\s*\d+\b/g, '');
-  }
-
-  function getArchiveParticipant(side: SideId): { kind: BattleParticipantKind; label: string } {
-    return selectedArchivePayload?.input.sideParticipants?.[side] ?? selectedReplayEntry?.sideParticipants?.[side] ?? ARCHIVE_PARTICIPANT_FALLBACK[side];
-  }
-
-  function getArchiveSideLabel(side: SideId): string {
-    return getArchiveParticipant(side).label;
-  }
-
-  function getArchiveForcesLabel(side: SideId): string {
-    return `${getArchiveSideLabel(side)} Forces`;
-  }
-
-  function archiveResultLabel(entry: ReplayIndexEntry): string {
-    if (isArchiveOpponentBattle(entry) && entry.outcome === 'victory') {
-      return 'Rival victory';
-    }
-    if (entry.outcome === 'victory') {
-      return 'Player victory';
-    }
-    if (entry.outcome === 'defeat') {
-      return 'Player defeat';
-    }
-    return 'Draw';
-  }
-
-  function archiveResultGlyph(entry: ReplayIndexEntry): 'crown' | 'skull' | 'draw' {
-    if (entry.outcome === 'victory') {
-      return 'crown';
-    }
-    if (entry.outcome === 'defeat') {
-      return 'skull';
-    }
-    return 'draw';
-  }
-
-  function archiveResultShowsRivalArrow(entry: ReplayIndexEntry): boolean {
-    return isArchiveOpponentBattle(entry) && entry.outcome === 'victory';
-  }
-
-  function archiveParticipantClass(kind: BattleParticipantKind): string {
-    return `archive-${kind}`;
   }
 
   function isHumanParticipant(participant: { kind: BattleParticipantKind; playerId?: string }): boolean {
@@ -2366,16 +1037,6 @@
       return isArchiveOpponentBattle(entry);
     }
     return !isHumanParticipant(entry.sideParticipants.player) && !isHumanParticipant(entry.sideParticipants.enemy);
-  }
-
-  function healthPercent(current?: number, max?: number, alive?: number): number {
-    if (typeof current === 'number' && typeof max === 'number' && max > 0) {
-      return Math.max(0, Math.min(100, (current / max) * 100));
-    }
-    if (typeof alive === 'number') {
-      return alive > 0 ? 100 : 0;
-    }
-    return 0;
   }
 
   function finalReplayHealth(replay: BattleReplay, side: SideId): { current: number; max: number; percent: number } {
@@ -2452,19 +1113,8 @@
   }
 
   function incomingBattleLogVisuals(): BattleLogVisual[] {
-    const records = $gameStore.cycleAnimation?.resolution.records ?? [];
+    const records = $gameSessionStore.cycleAnimation?.resolution.records ?? [];
     return [...records].reverse().map(battleLogVisualFromCycleRecord);
-  }
-
-  function riftBattleHandoffDelay(records: CycleRecord[]): number {
-    if (records.length === 0) {
-      return 0;
-    }
-    const replayDuration = Math.max(
-      ...records.map((record) => buildBattlePresentationTimeline(record.replay, RIFT_BATTLE_STEP_MS).durationMs),
-    );
-    const hasLatePhase = records.some((record) => record.contest?.kind === 'pvp');
-    return replayDuration + (hasLatePhase ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0) + RIFT_BATTLE_RESULT_HANDOFF_MS;
   }
 
   function getIncomingBattleSourceElement(visual: BattleLogVisual): HTMLElement | null {
@@ -2529,7 +1179,7 @@
   }
 
   function getArchiveRiftVisual(entry: { riftId?: string | null; tier?: number; mutatorIds?: string[] }): RiftInstance | null {
-    const knownRift = $gameStore.game.openRifts.find((rift) => rift.id === entry.riftId);
+    const knownRift = $gameSessionStore.game.openRifts.find((rift) => rift.id === entry.riftId);
     if (knownRift) {
       return knownRift;
     }
@@ -2552,365 +1202,28 @@
     selectedRiftId = entry.riftId && discoveredRifts.some((rift) => rift.id === entry.riftId) ? entry.riftId : null;
   }
 
-  function buildArchiveCombatantDetail(combatant: ResolvedCombatantDefinition, side: SideId): DetailCard {
-    return buildResolvedUnitDetail(
-      `archive:${side}:${combatant.combatantId}`,
-      combatant.label,
-      combatant.raceId,
-      combatant.unitClassId,
-      combatant.stats,
-      combatant.quantity,
-      `${getArchiveSideLabel(side)} force at battle time.`,
-      combatant.abilities,
-      combatant.statBreakdowns,
-    );
-  }
-
-  function getArchiveCombatants(side: SideId): ResolvedCombatantDefinition[] {
-    const payloadCombatants =
-      side === 'player'
-        ? selectedArchivePayload?.input.playerCombatants ?? []
-        : selectedArchivePayload?.input.enemyCombatants ?? [];
-    return payloadCombatants.map((combatant) => ({
-      ...combatant,
-      quantity: Number.isFinite(combatant.quantity) && combatant.quantity > 0 ? combatant.quantity : 1,
-    }));
-  }
-
-  function buildArchivePerformanceMap(replay: BattleReplay | null): Map<string, ArchiveCombatantPerformance> {
-    const map = new Map<string, ArchiveCombatantPerformance>();
-    if (!replay) {
-      return map;
-    }
-
-    const finalUnits = replay.steps[replay.steps.length - 1]?.snapshot.units ?? replay.initial.units;
-    const damageByKey = new Map<string, number>();
-    buildBattleRecap(replay).forEach((troop) => {
-      damageByKey.set(archivePerformanceKey(troop.side, troop.troopLabel), troop.damageDone);
-    });
-    const maxDamage = Math.max(1, ...damageByKey.values());
-    const knownKeys = new Set<string>();
-
-    replay.initial.units.forEach((unit) => {
-      const key = archivePerformanceKey(unit.side, unit.troopLabel);
-      if (knownKeys.has(key)) {
-        return;
-      }
-      knownKeys.add(key);
-      const matchingFinalUnits = finalUnits.filter((entry) => entry.side === unit.side && entry.troopLabel === unit.troopLabel);
-      const currentHp = matchingFinalUnits.reduce((sum, entry) => sum + (entry.alive ? Math.max(0, entry.hp) : 0), 0);
-      const maxHp = matchingFinalUnits.reduce((sum, entry) => sum + entry.maxHp, 0);
-      const damageDone = damageByKey.get(key) ?? 0;
-      map.set(key, {
-        healthPercent: healthPercent(currentHp, maxHp),
-        damagePercent: damageDone > 0 ? Math.max(8, Math.min(100, (damageDone / maxDamage) * 100)) : 0,
-        damageDone,
-      });
-    });
-
-    return map;
-  }
-
-  function getArchiveCombatantPerformance(side: SideId, combatant: ResolvedCombatantDefinition): ArchiveCombatantPerformance | null {
-    return selectedArchivePerformance.get(archivePerformanceKey(side, combatant.label)) ?? null;
-  }
-
-  function archivePerformanceStyle(performance: ArchiveCombatantPerformance | null): string {
-    const healthScale = ((performance?.healthPercent ?? 0) / 100).toFixed(3);
-    const damageScale = ((performance?.damagePercent ?? 0) / 100).toFixed(3);
-    return `--archive-health-scale:${healthScale}; --archive-damage-scale:${damageScale};`;
-  }
-
-  function getRelevantArchiveUpgradeIds(payload: StoredReplayPayload | null, side: SideId): UpgradeId[] {
-    if (!payload) {
-      return [];
-    }
-
-    const raceUpgradeIds = side === 'player' ? payload.input.playerRaceUpgradeIds ?? [] : payload.input.enemyRaceUpgradeIds ?? [];
-    const troopClassUpgradeIds = side === 'player' ? payload.input.playerTroopClassUpgradeIds ?? [] : payload.input.enemyTroopClassUpgradeIds ?? [];
-    const fallbackCombatants = side === 'player' ? payload.input.playerCombatants : payload.input.enemyCombatants;
-    const relevantRaces = new Set(fallbackCombatants.map((entry) => entry.raceId));
-    const relevantTroopClasses = new Set(fallbackCombatants.map((entry) => entry.unitClassId));
-
-    return [...raceUpgradeIds, ...troopClassUpgradeIds].filter((upgradeId) => {
-      if (upgradeId in RACE_UPGRADES) {
-        return relevantRaces.has(RACE_UPGRADES[upgradeId]!.raceId);
-      }
-      const troopClassUpgrade = TROOP_CLASS_UPGRADES[upgradeId];
-      return troopClassUpgrade ? relevantTroopClasses.has(troopClassUpgrade.unitClassId) : false;
-    });
-  }
-
-  function gameModeLabel(mode: GameMode | null): string {
-    if (!mode) {
-      return 'Campaign';
-    }
-
-    return mode
-      .split(/[_-]+/)
-      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-      .join(' ');
-  }
-
-  function slotModeLabel(mode: GameMode | null): string {
-    return gameModeLabel(mode);
-  }
-
   function getLocalPlayerName(): string {
-    const playerId = $gameStore.multiplayer?.playerId;
-    return playerId ? $gameStore.multiplayer?.playerNames[playerId] ?? 'Player' : 'Player';
+    const playerId = $gameSessionStore.multiplayer?.playerId;
+    return playerId ? $gameSessionStore.multiplayer?.playerNames[playerId] ?? 'Player' : 'Player';
   }
 
   function getOpponentPlayerName(): string {
-    const playerId = $gameStore.multiplayer?.playerId;
-    if (!$gameStore.multiplayer || !playerId) {
+    const playerId = $gameSessionStore.multiplayer?.playerId;
+    if (!$gameSessionStore.multiplayer || !playerId) {
       return 'Rival';
     }
     const opponentId = playerId === 'playerOne' ? 'playerTwo' : 'playerOne';
-    return $gameStore.multiplayer.playerNames[opponentId] ?? 'Rival';
-  }
-
-  function getRiftControllerLabel(rift: { controller?: string }): string {
-    if ($gameStore.game.gameMode !== 'contest') {
-      return 'Guardians';
-    }
-    if (rift.controller === 'playerOne' || rift.controller === 'human') {
-      return 'Held By You';
-    }
-    if (rift.controller === 'playerTwo' || rift.controller === 'ai') {
-      return `Held By ${getOpponentPlayerName()}`;
-    }
-    return 'Neutral Guardians';
-  }
-
-  function getVisibleRiftDefenders(rift: { controller?: string; occupyingTroopIds?: TroopId[]; enemyArmy: ResolvedCombatantDefinition[] }): ResolvedCombatantDefinition[] {
-    if ($gameStore.game.gameMode !== 'contest') {
-      return rift.enemyArmy;
-    }
-    if (!rift.controller || rift.controller === 'neutral') {
-      return rift.enemyArmy;
-    }
-    if (rift.controller === 'playerOne' || rift.controller === 'human') {
-      return [];
-    }
-    const playerTwo = $gameStore.game.contest?.players.playerTwo;
-    if (!playerTwo) {
-      return [];
-    }
-    const occupyingIds = new Set(rift.occupyingTroopIds ?? []);
-    return playerTwo.troops
-      .filter((troop) => occupyingIds.has(troop.id))
-      .map((troop) => resolveTroopCombatant(playerTwo, troop, 'enemy', null, `player-two-held-${troop.id}`));
-  }
-
-  function isHumanBattleSide(record: CycleRecord, side: SideId): boolean {
-    const participant = record.battleInput.sideParticipants?.[side];
-    return participant?.kind === 'player' || participant?.playerId === 'playerOne' || participant?.playerId === 'human';
-  }
-
-  function getBattleAnimationSide(
-    record: CycleRecord,
-    side: SideId,
-    loses: boolean,
-    fallbackKind: BattleParticipantKind,
-    fallbackLabel: string,
-  ): RiftBattleAnimationSide {
-    const participant = record.battleInput.sideParticipants?.[side] ?? { kind: fallbackKind, label: fallbackLabel };
-    return {
-      label: participant.label,
-      kind: participant.kind,
-      playerId: participant.playerId,
-      loses,
-    };
-  }
-
-  function outcomeLoser(outcome: BattleOutcome, side: SideId): boolean {
-    if (outcome === 'draw') {
-      return true;
-    }
-    return side === 'player' ? outcome === 'defeat' : outcome === 'victory';
-  }
-
-  function buildRecordBattlePhase(record: CycleRecord, delayClass: RiftBattleAnimationPhase['delayClass'], key: string): RiftBattleAnimationPhase {
-    const playerSide = getBattleAnimationSide(record, 'player', outcomeLoser(record.outcome, 'player'), 'player', 'Player');
-    const enemySide = getBattleAnimationSide(record, 'enemy', outcomeLoser(record.outcome, 'enemy'), 'neutral', 'Neutral Guardians');
-    const neutralIsEnemy = enemySide.kind === 'neutral';
-    const playerIsRight = isHumanBattleSide(record, 'player') || neutralIsEnemy;
-    return {
-      key,
-      replayId: record.replay.id,
-      delayClass,
-      left: playerIsRight ? enemySide : playerSide,
-      leftSource: playerIsRight ? 'enemy' : 'player',
-      right: playerIsRight ? playerSide : enemySide,
-      rightSource: playerIsRight ? 'player' : 'enemy',
-    };
-  }
-
-  function getRecordForBattlePhase(phase: RiftBattleAnimationPhase): CycleRecord | null {
-    return $gameStore.cycleAnimation?.resolution.records.find((entry) => entry.replay.id === phase.replayId) ?? null;
-  }
-
-  function resultForBattleSource(outcome: BattleOutcome, source: SideId): BattleOutcome {
-    if (outcome === 'draw' || source === 'player') {
-      return outcome;
-    }
-    return outcome === 'victory' ? 'defeat' : 'victory';
-  }
-
-  function isHumanAnimationSide(side: RiftBattleAnimationSide): boolean {
-    return side.playerId === 'playerOne' || side.playerId === 'human' || (side.kind === 'player' && !side.playerId);
-  }
-
-  function healthToneForAnimationSide(side: RiftBattleAnimationSide): MiniReplayHealthTone {
-    if (isHumanAnimationSide(side)) {
-      return 'player';
-    }
-    if (side.kind === 'neutral') {
-      return 'neutral';
-    }
-    return 'opponent';
-  }
-
-  function phaseResultSource(phase: RiftBattleAnimationPhase): { source: SideId; opponentOutcome: boolean } {
-    if (isHumanAnimationSide(phase.left)) {
-      return { source: phase.leftSource, opponentOutcome: false };
-    }
-    if (isHumanAnimationSide(phase.right)) {
-      return { source: phase.rightSource, opponentOutcome: false };
-    }
-    if (phase.left.playerId === 'playerTwo' || phase.left.playerId === 'ai' || phase.left.kind === 'opponent') {
-      return { source: phase.leftSource, opponentOutcome: true };
-    }
-    if (phase.right.playerId === 'playerTwo' || phase.right.playerId === 'ai' || phase.right.kind === 'opponent') {
-      return { source: phase.rightSource, opponentOutcome: true };
-    }
-    return { source: phase.rightSource, opponentOutcome: true };
-  }
-
-  function battleParticipantKey(participant: RiftBattleAnimationSide | null): string {
-    if (!participant) {
-      return 'static';
-    }
-    return participant.playerId ? `player:${participant.playerId}` : `${participant.kind}:${participant.label}`;
-  }
-
-  function getAnimationCombatantsForSide(phase: RiftBattleAnimationPhase, side: 'left' | 'right'): ResolvedCombatantDefinition[] {
-    const record = $gameStore.cycleAnimation?.resolution.records.find((entry) => entry.replay.id === phase.replayId);
-    if (!record) {
-      return [];
-    }
-    const source = side === 'left' ? phase.leftSource : phase.rightSource;
-    return source === 'player' ? record.battleInput.playerCombatants : record.battleInput.enemyCombatants;
-  }
-
-  function getAssignedRiftCombatants(rift: RiftInstance): ResolvedCombatantDefinition[] {
-    return getTroopsAssignedToRift($gameStore.game, rift.id).map((troop) => getTroopEffectiveDefinition($gameStore.game, troop.id));
-  }
-
-  function getAnimationCombatantGroupsForSide(
-    rift: RiftInstance,
-    animation: RiftBattleAnimationView | null,
-    side: 'left' | 'right',
-  ): RiftAnimationCombatantGroup[] {
-    if (animation?.phases.length) {
-      const groups: RiftAnimationCombatantGroup[] = [];
-      animation.phases.forEach((phase) => {
-        const participant = phase[side];
-        const combatants = getAnimationCombatantsForSide(phase, side);
-        if (combatants.length === 0) {
-          return;
-        }
-        const key = battleParticipantKey(participant);
-        let group = groups.find((entry) => battleParticipantKey(entry.participant) === key);
-        if (!group) {
-          group = {
-            key: `${animation.riftId}:${side}:${phase.delayClass}:${key}`,
-            phaseClass: phase.delayClass,
-            combatants,
-            participant,
-            lossClass: null,
-          };
-          groups.push(group);
-        }
-        if (participant.loses) {
-          group.lossClass = phase.delayClass === 'phase-late' ? 'force-loses-late' : 'force-loses-now';
-        }
-      });
-      if (groups.length > 0) {
-        return groups;
-      }
-    }
-    return [
-      {
-        key: `${rift.id}:${side}:static`,
-        phaseClass: 'phase-static',
-        combatants: side === 'left' ? getVisibleRiftDefenders(rift) : getAssignedRiftCombatants(rift),
-        participant: null,
-        lossClass: null,
-      },
-    ];
-  }
-
-  function getAnimationLeftCombatantGroups(rift: RiftInstance, animation: RiftBattleAnimationView | null): RiftAnimationCombatantGroup[] {
-    return getAnimationCombatantGroupsForSide(rift, animation, 'left');
-  }
-
-  function getAnimationRightCombatantGroups(rift: RiftInstance, animation: RiftBattleAnimationView | null): RiftAnimationCombatantGroup[] {
-    return getAnimationCombatantGroupsForSide(rift, animation, 'right');
-  }
-
-  function getRiftBattleAnimationView(rift: RiftInstance): RiftBattleAnimationView | null {
-    const animation = $gameStore.cycleAnimation;
-    if (!animation) {
-      return null;
-    }
-    const records = animation.resolution.records.filter((record) => record.riftId === rift.id);
-    if (records.length === 0) {
-      return null;
-    }
-
-    const pvp = records.find((record) => record.contest?.kind === 'pvp') ?? null;
-    if (pvp) {
-      const humanGuardian =
-        records.find(
-          (record) =>
-            record.contest?.kind === 'guardian' &&
-            (record.contest.attackerId === 'playerOne' || record.contest.attackerId === 'human'),
-        ) ?? null;
-      return {
-        riftId: rift.id,
-        phases: [
-          buildRecordBattlePhase(humanGuardian ?? pvp, 'phase-now', `${rift.id}:guardian`),
-          buildRecordBattlePhase(pvp, 'phase-late', `${rift.id}:pvp`),
-        ],
-      };
-    }
-
-    const preferredRecords = records.filter((record) => record.contest?.kind !== 'pvp');
-
-    return {
-      riftId: rift.id,
-      phases: preferredRecords.map((record, index) => buildRecordBattlePhase(record, 'phase-now', `${rift.id}:${index}:${record.replay.id}`)),
-    };
+    return $gameSessionStore.multiplayer.playerNames[opponentId] ?? 'Rival';
   }
 
   function getCenterBoardLabel(): string {
-    if ($gameStore.centerMode === 'rifts') {
+    if ($gameSessionStore.centerMode === 'rifts') {
       return 'Rift board';
     }
-    if ($gameStore.centerMode === 'troops') {
+    if ($gameSessionStore.centerMode === 'troops') {
       return 'Races and troops board';
     }
-    return $gameStore.multiplayer ? `${getOpponentPlayerName()} info board` : 'Rival info board';
-  }
-
-  function getOpponentRaceUpgradeIds(opponent: ContestPlayerState, raceId: RaceId): UpgradeId[] {
-    return opponent.raceUpgradeIds.filter((upgradeId) => RACE_UPGRADES[upgradeId]?.raceId === raceId);
-  }
-
-  function getOpponentTroopClassUpgradeIds(opponent: ContestPlayerState, unitClassId: UnitClassId): UpgradeId[] {
-    return opponent.troopClassUpgradeIds.filter((upgradeId) => TROOP_CLASS_UPGRADES[upgradeId]?.unitClassId === unitClassId);
+    return $gameSessionStore.multiplayer ? `${getOpponentPlayerName()} info board` : 'Rival info board';
   }
 
   onMount(() => {
@@ -2956,155 +1269,36 @@
     }
     window.addEventListener('resize', handleResize);
     return () => {
-      clearAutoTimer();
-      if (cycleAnimationFinishTimer) {
-        window.clearTimeout(cycleAnimationFinishTimer);
-        cycleAnimationFinishTimer = null;
-      }
-      if (cycleLogArrivalTimer) {
-        window.clearTimeout(cycleLogArrivalTimer);
-        cycleLogArrivalTimer = null;
-      }
-      cycleLogArrivalReady = false;
-      if (essenceDraftHighlightTimer) {
-        window.clearTimeout(essenceDraftHighlightTimer);
-        essenceDraftHighlightTimer = null;
-      }
-      if (troopAssignmentHighlightTimer) {
-        window.clearTimeout(troopAssignmentHighlightTimer);
-        troopAssignmentHighlightTimer = null;
-      }
+      assignmentInteraction.dispose();
+      cyclePresentation.dispose();
+      planningAttention.dispose();
       if (multiplayerCopyMessageTimer) {
         window.clearTimeout(multiplayerCopyMessageTimer);
         multiplayerCopyMessageTimer = null;
       }
       window.removeEventListener('resize', handleResize);
-      teardownRenderer();
     };
   });
 
-  $: if ((!battleHost || $gameStore.screen !== 'replay') && renderer) {
-    teardownRenderer();
-  }
+  $: cyclePresentation.synchronize($gameSessionStore.cycleAnimation);
+  $: planningAttention.synchronize([
+    $gameSessionStore.activeSlotId ?? 'no-slot', $gameSessionStore.multiplayer?.roomId ?? 'local',
+    $gameSessionStore.game.campaignSeed, $gameSessionStore.game.gameMode,
+    $gameSessionStore.game.cycleNumber, $gameSessionStore.game.phase, $gameSessionStore.screen,
+  ].join('|'));
 
-  $: if (battleHost) {
-    void ensureRenderer();
-  }
-
-  $: if (renderer && $gameStore.screen === 'replay' && $gameStore.loadedReplay) {
-    syncRenderer();
-  }
-
-  $: if (renderer) {
-    const inReplay = $gameStore.screen === 'replay' && !!$gameStore.loadedReplay;
-    renderer.setHexInspectionVisible(inReplay && !replayEventLogCollapsed);
-    renderer.setTerrainVisible(inReplay && replayEventLogCollapsed);
-  }
-
-  $: if ($gameStore.screen === 'replay' && $gameStore.loadedReplay && $gameStore.autoPlay) {
-    if (
-      autoTimelineFrame === null ||
-      autoTimelineReplayId !== $gameStore.loadedReplay.id ||
-      autoTimelineRateMs !== $gameStore.rateMs
-    ) {
-      startAutoTimeline($gameStore.loadedReplay);
-    }
-  } else if (autoTimelineFrame !== null) {
-    clearAutoTimer();
-  }
-
-  $: if ($gameStore.loadedReplay && $gameStore.currentStep >= $gameStore.loadedReplay.steps.length - 1 && $gameStore.autoPlay) {
-    gameStore.setAutoPlay(false);
-  }
-
-  $: {
-    if ($gameStore.cycleAnimation && !cycleAnimationFinishTimer) {
-      const incomingCount = $gameStore.cycleAnimation.resolution.records.length;
-      const battleAnimationDuration = riftBattleHandoffDelay($gameStore.cycleAnimation.resolution.records);
-      const logArrivalDuration =
-        incomingCount > 0 ? BATTLE_LOG_ARRIVAL_FLIGHT_MS + Math.max(0, incomingCount - 1) * BATTLE_LOG_ARRIVAL_STAGGER_MS + 180 : 0;
-      cycleLogArrivalActive = false;
-      cycleLogArrivalReady = false;
-      cycleLogArrivalTimer = window.setTimeout(() => {
-        cycleLogArrivalTimer = null;
-        cycleLogArrivalActive = true;
-        cycleLogArrivalReady = false;
-        void tick().then(() => {
-          window.requestAnimationFrame(() => {
-            if ($gameStore.cycleAnimation && cycleLogArrivalActive) {
-              cycleLogArrivalReady = true;
-            }
-          });
-        });
-      }, battleAnimationDuration);
-      cycleAnimationFinishTimer = window.setTimeout(() => {
-        cycleAnimationFinishTimer = null;
-        cycleLogArrivalActive = false;
-        cycleLogArrivalReady = false;
-        gameStore.finishCycleAnimation();
-      }, battleAnimationDuration + logArrivalDuration);
-    }
-    if (!$gameStore.cycleAnimation && cycleAnimationFinishTimer) {
-      window.clearTimeout(cycleAnimationFinishTimer);
-      cycleAnimationFinishTimer = null;
-    }
-    if (!$gameStore.cycleAnimation && cycleLogArrivalTimer) {
-      window.clearTimeout(cycleLogArrivalTimer);
-      cycleLogArrivalTimer = null;
-    }
-    if (!$gameStore.cycleAnimation && cycleLogArrivalActive) {
-      cycleLogArrivalActive = false;
-      cycleLogArrivalReady = false;
-    }
-  }
-
-  $: if ($gameStore.tutorialProgress?.step === 'contest-results' && !$gameStore.cycleAnimation && $gameStore.game.replayIndex.length > 0) {
+  $: if ($gameSessionStore.tutorialProgress?.step === 'contest-results' && !$gameSessionStore.cycleAnimation && $gameSessionStore.game.replayIndex.length > 0) {
     signalTutorial('cycle-animation-finished');
   }
 
   $: uiDebugVisible = debugToolsEnabled && (showUiDebugNames || designModeEnabled);
-  $: if (
-    selectedTroopOfferUnlockId &&
-    !$gameStore.game.activeTroopOffer?.optionTroopUnlockIds.includes(selectedTroopOfferUnlockId)
-  ) {
-    selectedTroopOfferUnlockId = null;
-  }
+  $: draftSession.synchronize($gameSessionStore.game, [
+    $gameSessionStore.activeSlotId ?? 'multiplayer', $gameSessionStore.multiplayer?.roomId ?? 'local',
+    $gameSessionStore.game.gameMode, $gameSessionStore.game.campaignSeed,
+    $gameSessionStore.game.cycleNumber, $gameSessionStore.game.phase,
+  ].join('|'), !!multiplayerCycleEnded);
 
-  $: if (
-    selectedUpgradeOfferId &&
-    !$gameStore.game.activeUpgradeOffer?.optionUpgradeIds.includes(selectedUpgradeOfferId)
-  ) {
-    selectedUpgradeOfferId = null;
-  }
-
-  $: {
-    const draftGameKey = [
-      $gameStore.activeSlotId ?? 'multiplayer',
-      $gameStore.multiplayer?.roomId ?? 'local',
-      $gameStore.game.gameMode,
-      $gameStore.game.campaignSeed,
-      $gameStore.game.cycleNumber,
-      $gameStore.game.phase,
-    ].join('|');
-    if (lastDraftGameKey && draftGameKey !== lastDraftGameKey) {
-      selectedTroopOfferUnlockId = null;
-      selectedUpgradeOfferId = null;
-      confirmedTroopOfferUnlockId = null;
-      confirmedUpgradeOfferId = null;
-      hoveredUpgradeOfferId = null;
-    }
-    lastDraftGameKey = draftGameKey;
-  }
-
-  $: if ($gameStore.game.activeTroopOffer) {
-    confirmedTroopOfferUnlockId = null;
-  }
-
-  $: if ($gameStore.game.activeUpgradeOffer) {
-    confirmedUpgradeOfferId = null;
-  }
-
-  $: if ($gameStore.cycleEndConfirmationPending && $gameStore.centerMode !== 'rifts') {
+  $: if ($gameSessionStore.cycleEndConfirmationPending && $gameSessionStore.centerMode !== 'rifts') {
     gameStore.setCenterMode('rifts');
   }
 
@@ -3131,118 +1325,82 @@
     });
   }
 
-  $: if ($gameStore.centerMode === 'contest' && $gameStore.game.gameMode !== 'contest') {
+  $: if ($gameSessionStore.centerMode === 'contest' && $gameSessionStore.game.gameMode !== 'contest') {
     gameStore.setCenterMode('rifts');
   }
 
-  $: if ($gameStore.screen === 'overworld' && $gameStore.cycleAnimation && $gameStore.centerMode !== 'rifts') {
+  $: if ($gameSessionStore.screen === 'overworld' && $gameSessionStore.cycleAnimation && $gameSessionStore.centerMode !== 'rifts') {
     gameStore.setCenterMode('rifts');
   }
 
   $: if (
-    $gameStore.screen === 'overworld' &&
-    $gameStore.game.phase === 'planning' &&
+    $gameSessionStore.screen === 'overworld' &&
+    $gameSessionStore.game.phase === 'planning' &&
     !multiplayerCycleEnded &&
     !essenceDraftActive &&
-    !confirmedTroopOfferUnlockId &&
-    !confirmedUpgradeOfferId &&
+    !$draftSession.confirmedTroop &&
+    !$draftSession.confirmedUpgrade &&
     essenceDraftCost !== null &&
-    $gameStore.game.essence >= essenceDraftCost
+    $gameSessionStore.game.essence >= essenceDraftCost
   ) {
     revealEssenceDraft();
   }
 
   $: multiplayerCycleEnded = (() => {
-    const playerId = $gameStore.multiplayer?.playerId;
-    return !!playerId && !!$gameStore.multiplayer?.cycleEnded[playerId];
+    const playerId = $gameSessionStore.multiplayer?.playerId;
+    return !!playerId && !!$gameSessionStore.multiplayer?.cycleEnded[playerId];
   })();
   $: multiplayerStatus = (() => {
-    if (!$gameStore.multiplayer) {
+    if (!$gameSessionStore.multiplayer) {
       return null;
     }
-    const room = $gameStore.multiplayer.roomId ? `Room ${$gameStore.multiplayer.roomId}` : 'Connecting';
+    const room = $gameSessionStore.multiplayer.roomId ? `Room ${$gameSessionStore.multiplayer.roomId}` : 'Connecting';
     const player = getLocalPlayerName();
-    const message = multiplayerCycleEnded ? `Waiting for ${getOpponentPlayerName()}.` : ($gameStore.multiplayer.message ?? multiplayerCycleEndLabel());
+    const message = multiplayerCycleEnded ? `Waiting for ${getOpponentPlayerName()}.` : ($gameSessionStore.multiplayer.message ?? multiplayerCycleEndLabel());
     return `${room} - ${player} - ${message}`;
   })();
 
-  $: discoveredRifts = $gameStore.game.openRifts.filter((rift) => rift.state === 'discovered');
-  $: opponentInfo = $gameStore.game.gameMode === 'contest' ? $gameStore.game.contest?.opponentInfo ?? null : null;
-  $: opponentInfoAi = opponentInfo?.playerTwo ?? null;
-  $: opponentInfoRaceIds = opponentInfoAi
-    ? RACE_IDS.filter((raceId) => opponentInfoAi.unlockedRaceIds.includes(raceId))
-    : [];
-  $: currentOpponentOccupyingTroopIds = new Set(
-    $gameStore.game.openRifts
-      .filter((rift) => rift.occupyingPlayerId === 'playerTwo')
-      .flatMap((rift) => rift.occupyingTroopIds ?? []),
-  );
-  $: opponentMobileTroopCount = opponentInfoAi
-    ? opponentInfoAi.troops.filter((troop) => !currentOpponentOccupyingTroopIds.has(troop.id)).length
-    : 0;
-  $: raceRosterIds = RACE_IDS.filter((raceId) => $gameStore.game.unlockedRaceIds.includes(raceId));
-  $: selectedOpeningRaceIds = new Set($gameStore.game.troops.map((troop) => troop.raceId));
-  $: selectedOpeningUnitClassIds = new Set($gameStore.game.troops.map((troop) => troop.unitClassId));
-  $: selectedOpeningTroopUnlockIds = new Set($gameStore.game.troops.map((troop) => `${troop.raceId}/${troop.unitClassId}` as TroopUnlockId));
+  $: discoveredRifts = $gameSessionStore.game.openRifts.filter((rift) => rift.state === 'discovered');
+  $: raceRosterIds = RACE_IDS.filter((raceId) => $gameSessionStore.game.unlockedRaceIds.includes(raceId));
   $: {
     const inspectContextKey = [
-      $gameStore.activeSlotId ?? 'no-slot',
-      $gameStore.game.campaignSeed,
-      $gameStore.screen,
-      $gameStore.game.phase,
-      $gameStore.centerMode,
+      $gameSessionStore.activeSlotId ?? 'no-slot',
+      $gameSessionStore.game.campaignSeed,
+      $gameSessionStore.screen,
+      $gameSessionStore.game.phase,
+      $gameSessionStore.centerMode,
     ].join(':');
     if (inspectContextKey !== lastInspectContextKey) {
       lastInspectContextKey = inspectContextKey;
       resetZoneState();
     }
   }
-  $: activeDetail = pinnedDetails[0] ?? hoveredDetail ?? null;
-  $: secondaryUnitDetail =
-    pinnedDetails[1]?.kind === 'unit'
-      ? pinnedDetails[1]
-      : pinnedDetails[0]?.kind === 'unit' && hoveredDetail?.kind === 'unit' && hoveredDetail.detailKey !== pinnedDetails[0].detailKey
-        ? hoveredDetail
-        : null;
-  $: highlightedDetailKeys = new Set([
-    ...pinnedDetails.map((detail) => detail.detailKey),
-    ...(hoveredDetail ? [hoveredDetail.detailKey] : []),
-  ]);
-  $: currentAbilityOwnerKey =
-    activeDetail?.kind === 'unit'
-      ? activeDetail.detailKey
-      : selectedTroop && selectedTroopDefinition
-        ? `selected-troop:${selectedTroop.id}`
-        : null;
-  $: if (renderer && $gameStore.screen === 'replay') {
-    activeDetail;
-    pinnedReplayExplanationIndex;
-    syncRenderer();
-  }
-  $: essenceDraftCost = getEssenceDraftCost($gameStore.game);
+  $: highlightedDetailKeys = $planningInspection.highlightedKeys;
+  $: essenceDraftCost = getEssenceDraftCost($gameSessionStore.game);
   $: essenceDraftButtonLabel = essenceDraftCost === 1 ? 'Reveal One Unlock' : essenceDraftCost === 2 ? 'Reveal Unlock Draft' : 'Draft Unavailable';
-  $: essenceDraftActive = !!($gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer);
-  $: canRerollTroopDraft = !$gameStore.game.essenceDraftRerollUsed && !!$gameStore.game.activeTroopOffer;
-  $: canRerollUpgradeDraft = !$gameStore.game.essenceDraftRerollUsed && !!$gameStore.game.activeUpgradeOffer;
+  $: essenceDraftActive = !!($gameSessionStore.game.activeTroopOffer || $gameSessionStore.game.activeUpgradeOffer);
+  $: if ($gameSessionStore.tutorialProgress?.step === 'reveal-draft' && essenceDraftActive) {
+    signalTutorial('reveal-draft');
+  }
   $: mustSpendEssenceBeforeCycleEnd =
-    $gameStore.game.phase === 'planning' &&
-    (($gameStore.game.essence > 0 && essenceDraftCost !== null) || !!$gameStore.game.activeTroopOffer || !!$gameStore.game.activeUpgradeOffer);
-  $: assignmentBlockingIssues = validateAssignments($gameStore.game).issues.filter((issue) => issue.kind !== 'holding_only_no_new_attack');
-  $: mustAssignTroopsBeforeCycleEnd = $gameStore.game.phase === 'planning' && !mustSpendEssenceBeforeCycleEnd && assignmentBlockingIssues.length > 0;
+    $gameSessionStore.game.phase === 'planning' &&
+    (($gameSessionStore.game.essence > 0 && essenceDraftCost !== null) || !!$gameSessionStore.game.activeTroopOffer || !!$gameSessionStore.game.activeUpgradeOffer);
+  $: assignmentBlockingIssues = validateAssignments($gameSessionStore.game).issues.filter((issue) => issue.kind !== 'holding_only_no_new_attack');
+  $: mustAssignTroopsBeforeCycleEnd = $gameSessionStore.game.phase === 'planning' && !mustSpendEssenceBeforeCycleEnd && assignmentBlockingIssues.length > 0;
   $: cycleActionBlocked = mustSpendEssenceBeforeCycleEnd || mustAssignTroopsBeforeCycleEnd;
-  $: cycleHoverEssenceAttention = cycleActionHovered && mustSpendEssenceBeforeCycleEnd;
-  $: cycleHoverAssignmentAttention = cycleActionHovered && mustAssignTroopsBeforeCycleEnd;
+  $: cycleHoverEssenceAttention = $planningAttention.cycleHovered && mustSpendEssenceBeforeCycleEnd;
+  $: cycleHoverAssignmentAttention = $planningAttention.cycleHovered && mustAssignTroopsBeforeCycleEnd;
   $: cycleActionTooltip = mustSpendEssenceBeforeCycleEnd
-    ? $gameStore.game.activeTroopOffer || $gameStore.game.activeUpgradeOffer
+    ? $gameSessionStore.game.activeTroopOffer || $gameSessionStore.game.activeUpgradeOffer
       ? 'Finish the active Essence draft before ending the cycle.'
       : 'Spend your available Essence before ending the cycle.'
     : mustAssignTroopsBeforeCycleEnd
       ? 'Assign each ready troop to a valid Rift before ending the cycle.'
       : null;
   $: primaryCycleActionLabel =
-    cycleResolvePending || $gameStore.cycleAnimation
+    cycleResolvePending || $gameSessionStore.cycleAnimation
       ? 'Resolving...'
-      : $gameStore.multiplayer
+      : $gameSessionStore.multiplayer
         ? multiplayerCycleEndLabel()
         : 'End Cycle';
   $: assignmentHintPair = cycleHoverAssignmentAttention ? getAssignmentHintPair() : null;
@@ -3254,111 +1412,28 @@
   $: if (
     cycleResolvePending &&
     cycleResolvePendingCycle !== null &&
-    !$gameStore.cycleAnimation &&
-    ($gameStore.game.cycleNumber !== cycleResolvePendingCycle || $gameStore.game.phase !== 'planning')
+    !$gameSessionStore.cycleAnimation &&
+    ($gameSessionStore.game.cycleNumber !== cycleResolvePendingCycle || $gameSessionStore.game.phase !== 'planning')
   ) {
     cycleResolvePending = false;
     cycleResolvePendingCycle = null;
   }
   $: riftsNeedAttention =
-    $gameStore.game.phase === 'planning' &&
-    $gameStore.centerMode !== 'rifts' &&
+    $gameSessionStore.game.phase === 'planning' &&
+    $gameSessionStore.centerMode !== 'rifts' &&
     discoveredRifts.length > 0 &&
     !mustSpendEssenceBeforeCycleEnd &&
-    (!mustAssignTroopsBeforeCycleEnd || cycleActionHovered);
-  $: finalCycle = $gameStore.game.gameMode === 'contest' ? CONTEST_FINAL_CYCLE : $gameStore.game.gameMode === 'ladder' ? LADDER_FINAL_CYCLE : CAMPAIGN_FINAL_CYCLE;
-  $: cycleProgressLabel = $gameStore.game.cycleNumber > finalCycle ? `Postgame cycle ${$gameStore.game.cycleNumber}` : `Cycle ${$gameStore.game.cycleNumber} / ${finalCycle}`;
-  $: archiveEntriesPerPage = Math.max(4, Math.min(12, Math.floor((viewportHeight - 350) / 52)));
-  $: archivePageCount = Math.max(1, Math.ceil($gameStore.game.replayIndex.length / archiveEntriesPerPage));
-  $: if (archivePage > archivePageCount - 1) {
-    archivePage = archivePageCount - 1;
-  }
-  $: pagedReplayEntries = $gameStore.game.replayIndex.slice(archivePage * archiveEntriesPerPage, (archivePage + 1) * archiveEntriesPerPage);
-  $: systemMessageHasUnspentEssence = !!$gameStore.systemMessage && $gameStore.game.essence > 0 && /unspent Essence/i.test($gameStore.systemMessage);
-  $: starterGroups = getOpeningRaceOptionIds($gameStore.game).map((raceId) => ({
-    raceId,
-    label: RACES[raceId].label,
-    starterTroopUnlockId: getOpeningRaceStarterTroopUnlockIds($gameStore.game)[raceId],
-    options: getRaceNativeTroopUnlockIds(raceId),
-  }));
-
-  function isOpeningTroopSelected(troopUnlockId: TroopUnlockId): boolean {
-    return selectedOpeningTroopUnlockIds.has(troopUnlockId);
-  }
-
-  function canClaimOpeningTroop(troopUnlockId: TroopUnlockId): boolean {
-    const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
-    const starterTroopUnlockId = getOpeningRaceStarterTroopUnlockIds($gameStore.game)[raceId];
-    return (
-      $gameStore.game.troops.length < 2 &&
-      getOpeningRaceOptionIds($gameStore.game).includes(raceId) &&
-      starterTroopUnlockId === troopUnlockId &&
-      !selectedOpeningRaceIds.has(raceId) &&
-      !selectedOpeningUnitClassIds.has(unitClassId)
-    );
-  }
-
-  function isOpeningTroopIncompatible(troopUnlockId: TroopUnlockId): boolean {
-    return !isOpeningTroopSelected(troopUnlockId) && !canClaimOpeningTroop(troopUnlockId);
-  }
-
-  function toggleOpeningRace(troopUnlockId: TroopUnlockId): void {
-    if (isOpeningTroopSelected(troopUnlockId)) {
-      if (pinnedDetails.some((detail) => detail.detailKey === `opening:${troopUnlockId}`)) {
-        pinnedDetails = pinnedDetails.filter((detail) => detail.detailKey !== `opening:${troopUnlockId}`);
-      }
-      gameStore.unclaimOpeningTroop(troopUnlockId);
-      signalTutorial('race-deselect');
-      return;
-    }
-
-    if (canClaimOpeningTroop(troopUnlockId)) {
-      gameStore.claimOpeningTroop(troopUnlockId);
-      pinnedDetails = [];
-      hoveredDetail = null;
-      signalTutorial($gameStore.game.troops.length === 2 ? 'opening-confirmed' : 'race-select');
-    }
-  }
-
-  function getScheduledRaceRosterUnlockIds(raceId: RaceId): TroopUnlockId[] {
-    const offer = $gameStore.game.activeRaceUnlockOffer;
-    const offered = offer?.troopUnlockIdsByRaceId[raceId] ?? [];
-    return [...new Set([...getRaceNativeTroopUnlockIds(raceId), ...offered])];
-  }
-
-  function getAvailableRaceTroopUnlockIds(raceId: RaceId): TroopUnlockId[] {
-    return getAvailableTroopUnlockIds($gameStore.game).filter((troopUnlockId) => parseTroopUnlockId(troopUnlockId)[0] === raceId);
-  }
-
-  function getAffectedTroopsForUpgrade(upgradeId: UpgradeId) {
-    return $gameStore.game.troops.filter((troop) => upgradeAffectsTroop(upgradeId, troop));
-  }
-
-  function getAffectedDraftTroopsForUpgrade(upgradeId: UpgradeId): TroopUnlockId[] {
-    return ($gameStore.game.activeTroopOffer?.optionTroopUnlockIds ?? []).filter((troopUnlockId) => {
-      const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
-      return upgradeAffectsTroop(upgradeId, createTroopInstance(raceId, unitClassId));
-    });
-  }
-
-  function isUpgradeAffectingDraftTroop(troopUnlockId: TroopUnlockId): boolean {
-    const upgradeId = hoveredUpgradeOfferId ?? selectedUpgradeOfferId;
-    if (!upgradeId) {
-      return false;
-    }
-    const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId);
-    return upgradeAffectsTroop(upgradeId, createTroopInstance(raceId, unitClassId));
-  }
-
-  function selectedDraftChoicesHaveSynergy(): boolean {
-    return !!selectedTroopOfferUnlockId && !!selectedUpgradeOfferId && getAffectedDraftTroopsForUpgrade(selectedUpgradeOfferId).includes(selectedTroopOfferUnlockId);
-  }
+    (!mustAssignTroopsBeforeCycleEnd || $planningAttention.cycleHovered);
+  $: finalCycle = $gameSessionStore.game.gameMode === 'contest' ? CONTEST_FINAL_CYCLE : $gameSessionStore.game.gameMode === 'ladder' ? LADDER_FINAL_CYCLE : CAMPAIGN_FINAL_CYCLE;
+  $: cycleProgressLabel = $gameSessionStore.game.cycleNumber > finalCycle ? `Postgame cycle ${$gameSessionStore.game.cycleNumber}` : `Cycle ${$gameSessionStore.game.cycleNumber} / ${finalCycle}`;
+  $: archiveSession.synchronize($gameSessionStore.game.replayIndex, viewportHeight);
+  $: systemMessageHasUnspentEssence = !!$gameSessionStore.systemMessage && $gameSessionStore.game.essence > 0 && /unspent Essence/i.test($gameSessionStore.systemMessage);
 
   $: if (selectedRiftId && !discoveredRifts.some((rift) => rift.id === selectedRiftId)) {
     selectedRiftId = null;
   }
 
-  $: if (selectedTroopId && !$gameStore.game.troops.some((troop) => troop.id === selectedTroopId)) {
+  $: if (selectedTroopId && !$gameSessionStore.game.troops.some((troop) => troop.id === selectedTroopId)) {
     selectedTroopId = null;
   }
 
@@ -3366,307 +1441,27 @@
     selectedRaceId = null;
   }
 
-  $: if (selectedReplayId && !$gameStore.game.replayIndex.some((entry) => entry.replayId === selectedReplayId)) {
-    selectedReplayId = null;
-  }
+  $: selectedTroop = selectedTroopId ? $gameSessionStore.game.troops.find((troop) => troop.id === selectedTroopId) ?? null : null;
+  $: selectedTroopDefinition = selectedTroop ? getTroopEffectiveDefinition($gameSessionStore.game, selectedTroop.id) : null;
+  $: readyTroops = $gameSessionStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
 
-  $: selectedRift = selectedRiftId ? discoveredRifts.find((rift) => rift.id === selectedRiftId) ?? null : null;
-  $: selectedTroop = selectedTroopId ? $gameStore.game.troops.find((troop) => troop.id === selectedTroopId) ?? null : null;
-  $: selectedTroopDefinition = selectedTroop ? getTroopEffectiveDefinition($gameStore.game, selectedTroop.id) : null;
-  $: selectedReplayEntry = selectedReplayId
-    ? $gameStore.game.replayIndex.find((entry) => entry.replayId === selectedReplayId) ?? null
-    : null;
-  $: selectedReplayAvailable =
-    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.hasReplay(selectedReplayEntry.replayId) : false;
-  $: selectedArchivePayload =
-    selectedReplayEntry && !selectedReplayEntry.summaryOnly ? gameStore.getReplayPayload(selectedReplayEntry.replayId) : null;
-  $: selectedArchiveReplay =
-    selectedReplayEntry && selectedReplayAvailable ? gameStore.getReplay(selectedReplayEntry.replayId) : null;
-  $: selectedArchivePerformance = buildArchivePerformanceMap(selectedArchiveReplay);
-  $: selectedArchivePlayerUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'player');
-  $: selectedArchiveEnemyUpgradeIds = getRelevantArchiveUpgradeIds(selectedArchivePayload, 'enemy');
-  $: readyTroops = $gameStore.game.troops.filter((troop) => troop.recoveryCyclesRemaining === 0 && troop.assignmentRiftId === null);
-  $: selectedRiftAssignableTroops = selectedRift
-    ? selectedRift.controller === 'playerOne' || selectedRift.controller === 'human'
-      ? []
-      : $gameStore.game.troops.filter(
-          (troop) => troop.recoveryCyclesRemaining === 0 && (troop.assignmentRiftId === null || troop.assignmentRiftId === selectedRift.id),
-        )
-    : [];
-
-  $: replay = $gameStore.loadedReplay;
-  $: if ($gameStore.tutorialProgress?.step === 'play' && $gameStore.rateMs !== 500) {
+  $: replay = $replayPlaybackStore.loadedReplay;
+  $: if ($gameSessionStore.tutorialProgress?.step === 'play' && $replayPlaybackStore.rateMs !== 500) {
     gameStore.setRateMs(500);
   }
-  $: if ($gameStore.tutorialProgress?.step === 'timeline-event' && $gameStore.autoPlay) {
+  $: if ($gameSessionStore.tutorialProgress?.step === 'timeline-event' && $replayPlaybackStore.autoPlay) {
     gameStore.setAutoPlay(false);
   }
   $: if (
-    $gameStore.tutorialProgress?.step === 'finish-replay' &&
+    $gameSessionStore.tutorialProgress?.step === 'finish-replay' &&
     replay &&
-    $gameStore.currentStep >= replay.steps.length - 1
+    $replayPlaybackStore.currentStep >= replay.steps.length - 1
   ) {
     signalTutorial('replay-end');
   }
-  $: if ($gameStore.tutorialProgress?.step === 'game-start' && $gameStore.screen === 'replay') {
+  $: if ($gameSessionStore.tutorialProgress?.step === 'game-start' && $gameSessionStore.screen === 'replay') {
     gameStore.returnToMainMenu();
     mainMenuView = 'home';
-  }
-  $: replaySnapshot = replay ? currentSnapshot(replay) : [];
-  $: replayHealthRoster = replay ? getReplayHealthRoster(replay) : [];
-  $: replayHealthOverview = replay
-    ? [buildReplayHealthSide(replayHealthRoster, replaySnapshot, 'player'), buildReplayHealthSide(replayHealthRoster, replaySnapshot, 'enemy')]
-    : [];
-  $: currentUnitById = new Map(replaySnapshot.map((unit) => [unit.id, unit]));
-  $: replayProfilesByKey = getReplayProfilesByKey(replay);
-  $: replayHighlightedStepIndex = replay && $gameStore.currentStep >= 0 ? $gameStore.currentStep : null;
-  $: replayHighlightedStep = replay && replayHighlightedStepIndex !== null ? replay.steps[replayHighlightedStepIndex] ?? null : null;
-  $: replayPlayerAbilities = replay || replaySnapshot || replayHighlightedStep ? buildReplaySideAbilities('player') : [];
-  $: replayEnemyAbilities = replay || replaySnapshot || replayHighlightedStep ? buildReplaySideAbilities('enemy') : [];
-  $: replayActiveHighlightId = getReplayStepPrimaryUnitId(replayHighlightedStep);
-  $: replayPinnedEventStep = replay && pinnedReplayExplanationIndex !== null ? replay.steps[pinnedReplayExplanationIndex] ?? null : null;
-  $: replayEventAffectedUnitIds = new Set(activeDetail ? [] : getReplayStepAffectedUnitIds(replayPinnedEventStep));
-  $: replayStrongHighlightId =
-    pinnedReplayExplanationIndex === null && !activeDetail
-      ? lockedUnitId ?? hoverInfo?.unitId ?? (!$gameStore.autoPlay ? replayActiveHighlightId : null)
-      : null;
-  $: inspectedUnitId = replayStrongHighlightId;
-  $: inspectedUnit = inspectedUnitId ? replaySnapshot.find((unit) => unit.id === inspectedUnitId) ?? null : null;
-  $: inspectedProfile =
-    replay && inspectedUnit
-      ? replay.troopProfiles.find((profile) => profile.troopLabel === inspectedUnit.troopLabel && profile.side === inspectedUnit.side) ??
-        replay.troopProfiles.find((profile) => {
-          const initialUnit = replay.initial.units.find((unit) => unit.id === inspectedUnit.id);
-          return profile.troopLabel === inspectedUnit.troopLabel && profile.side === initialUnit?.side;
-        }) ??
-        null
-      : null;
-  $: inspectedUnitLiveStatLines = buildLiveStatBreakdownLines(replay, inspectedUnit?.id ?? null, $gameStore.currentStep);
-  $: hoveredReplayUnit =
-    hoverInfo?.unitId && hoverInfo.unitId !== lockedUnitId
-      ? replaySnapshot.find((unit) => unit.id === hoverInfo?.unitId) ?? null
-      : null;
-  $: hoveredReplayUnitProfile =
-    replay && hoveredReplayUnit
-      ? replay.troopProfiles.find((profile) => profile.troopLabel === hoveredReplayUnit.troopLabel && profile.side === hoveredReplayUnit.side) ??
-        replay.troopProfiles.find((profile) => {
-          const initialUnit = replay.initial.units.find((unit) => unit.id === hoveredReplayUnit.id);
-          return profile.troopLabel === hoveredReplayUnit.troopLabel && profile.side === initialUnit?.side;
-        }) ??
-        null
-      : null;
-  $: hoveredReplayUnitLiveStatLines = buildLiveStatBreakdownLines(replay, hoveredReplayUnit?.id ?? null, $gameStore.currentStep);
-  $: hoveredReplayUnitEngagedUnits =
-    hoveredReplayUnit && replaySnapshot.length > 0
-      ? hoveredReplayUnit.engagedWithIds.map((unitId) => replaySnapshot.find((unit) => unit.id === unitId)).filter(Boolean) as BattleUnit[]
-      : [];
-  $: hoveredReplayProfile = hoveredReplayProfileKey ? replayProfilesByKey.get(hoveredReplayProfileKey) ?? null : null;
-  $: selectedReplayProfile = selectedReplayProfileKey ? replayProfilesByKey.get(selectedReplayProfileKey) ?? null : null;
-  $: replayFocusProfile = hoveredReplayProfile ?? inspectedProfile ?? selectedReplayProfile;
-  $: aliveSummary = replay ? replay.aliveCounts[Math.max(0, $gameStore.currentStep + 1)] ?? replay.aliveCounts[0] : null;
-  $: aliveCountsBySide = replaySnapshot.reduce(
-    (groups, unit) => {
-      if (!unit.alive) {
-        return groups;
-      }
-      const target = unit.side === 'player' ? groups.player : groups.enemy;
-      target[unit.troopLabel] = (target[unit.troopLabel] ?? 0) + 1;
-      return groups;
-    },
-    { player: {} as Record<string, number>, enemy: {} as Record<string, number> },
-  );
-  $: alivePlayerGroups = Object.entries(aliveCountsBySide.player).sort((left, right) => left[0].localeCompare(right[0]));
-  $: aliveEnemyGroups = Object.entries(aliveCountsBySide.enemy).sort((left, right) => left[0].localeCompare(right[0]));
-  $: engagedUnits =
-    inspectedUnit && replaySnapshot.length > 0
-      ? inspectedUnit.engagedWithIds.map((unitId) => replaySnapshot.find((unit) => unit.id === unitId)).filter(Boolean) as BattleUnit[]
-      : [];
-  $: lockedUnitLastActionStep =
-    lockedUnitId && replay ? findLockedUnitActorStep(lockedUnitId, $gameStore.currentStep, 'prev') : null;
-  $: lockedUnitNextActionStep =
-    lockedUnitId && replay ? findLockedUnitActorStep(lockedUnitId, $gameStore.currentStep, 'next') : null;
-  $: replayRecap = replay ? getReplayRecap(replay) : [];
-  $: replayRecapPlayerTroops = replayRecap.filter((entry) => entry.side === 'player');
-  $: replayRecapEnemyTroops = replayRecap.filter((entry) => entry.side === 'enemy');
-  $: if ((replay?.id ?? null) !== lastReplayExplanationReplayId) {
-    lastReplayExplanationReplayId = replay?.id ?? null;
-    pinnedReplayExplanationIndex = null;
-  }
-  $: if (!replay || (pinnedReplayExplanationIndex !== null && !replay.steps[pinnedReplayExplanationIndex])) {
-    pinnedReplayExplanationIndex = null;
-  }
-  $: replayExplanationIndex = pinnedReplayExplanationIndex;
-  $: replayExplanationView =
-    replay && replayExplanationIndex !== null && replay.steps[replayExplanationIndex]
-      ? buildReplayStepExplanationView(replay.steps[replayExplanationIndex]!)
-      : null;
-  $: replayRecapSides = [
-    { side: 'player' as const, label: 'Player', troops: replayRecapPlayerTroops },
-    { side: 'enemy' as const, label: 'Enemy', troops: replayRecapEnemyTroops },
-  ];
-
-  function selectReplayProfile(side: SideId, troopLabel: string): void {
-    focusReplayProfileUnit(side, troopLabel, {
-      toggle: true,
-    });
-  }
-
-  function selectReplayEvent(index: number): void {
-    lockedUnitId = null;
-    hoverInfo = null;
-    selectedReplayProfileKey = null;
-    pinnedReplayExplanationIndex = index;
-    gameStore.setAutoPlay(false);
-    replayStepNavigationKind = 'event-select';
-    gameStore.selectEvent(index);
-    if ($gameStore.tutorialProgress?.step !== 'timeline-event' || index === 100) {
-      signalTutorial('event-select');
-    }
-  }
-
-  function goToReplayUnitActionStep(stepIndex: number | null): void {
-    if (stepIndex === null) {
-      return;
-    }
-
-    gameStore.setAutoPlay(false);
-    replayStepNavigationKind = 'event-select';
-    gameStore.selectEvent(stepIndex);
-    pinnedReplayExplanationIndex = null;
-    syncRenderer();
-  }
-
-  function pinReplayExplanation(index: number | null): void {
-    if (index === null) {
-      clearPinnedReplayEvent();
-      syncRenderer();
-      return;
-    }
-
-    lockedUnitId = null;
-    hoverInfo = null;
-    selectedReplayProfileKey = null;
-    replayStepNavigationKind = 'event-select';
-    gameStore.selectEvent(index);
-    pinnedReplayExplanationIndex = index;
-    syncRenderer();
-  }
-
-  function getReplayRecapTroopProfile(side: SideId, troopLabel: string) {
-    return replayProfilesByKey.get(replayProfileKey(side, troopLabel)) ?? null;
-  }
-
-  function getStepAbilityId(step: BattleStep | null): string | null {
-    if (!step) {
-      return null;
-    }
-    return (
-      (typeof step.metadata?.sourceAbilityId === 'string' ? step.metadata.sourceAbilityId : null) ??
-      (typeof step.metadata?.explanation?.ability?.abilityId === 'string' ? step.metadata.explanation.ability.abilityId : null)
-    );
-  }
-
-  function getStepActorSide(step: BattleStep | null): SideId | null {
-    const actorId = step?.actorIds[0];
-    if (!actorId) {
-      return null;
-    }
-    return (replaySnapshot.find((unit) => unit.id === actorId) ?? replay?.initial.units.find((unit) => unit.id === actorId))?.side ?? null;
-  }
-
-  function buildReplaySideAbilities(side: SideId): ReplaySideAbility[] {
-    const activeAbilityId = getStepAbilityId(replayHighlightedStep);
-    const activeSide = getStepActorSide(replayHighlightedStep);
-    const abilities = new Map<string, ReplaySideAbility>();
-    (replay?.troopProfiles ?? [])
-      .filter((profile) => profile.side === side)
-      .forEach((profile) => {
-        profile.abilities.forEach((ability) => {
-          const existing = abilities.get(ability.id);
-          if (existing) {
-            if (!existing.ownerLabels.includes(profile.troopLabel)) {
-              existing.ownerLabels.push(profile.troopLabel);
-            }
-            return;
-          }
-          abilities.set(ability.id, {
-            ability,
-            side,
-            ownerLabels: [profile.troopLabel],
-            active: activeSide === side && activeAbilityId === ability.id,
-          });
-        });
-      });
-    return [...abilities.values()].sort((left, right) => left.ability.label.localeCompare(right.ability.label));
-  }
-
-  function showReplayAbilityTooltip(entry: ReplaySideAbility): void {
-    replayAbilityTooltip = {
-      side: entry.side,
-      label: entry.ability.label,
-      description: `${formatAbilityDescription(entry.ability)} ${entry.ownerLabels.join(', ')}.`,
-    };
-    signalTutorial('ability-hover');
-  }
-
-  function clearReplayAbilityTooltip(): void {
-    replayAbilityTooltip = null;
-  }
-
-  function getReplayRecapUnitState(unitId: string): BattleUnit | null {
-    return currentUnitById.get(unitId) ?? null;
-  }
-
-  function getReplayRecapBarWidth(value: number, totalValue: number): string {
-    if (value <= 0 || totalValue <= 0) {
-      return '0%';
-    }
-
-    return `${Math.min(100, (value / totalValue) * 100)}%`;
-  }
-
-  function getReplayRecapSharedScaleTotal(troops: BattleRecapTroopEntry[]): number {
-    const damageTotal = troops.reduce((sum, troop) => sum + troop.damageDone, 0);
-    const healingTotal = troops.reduce((sum, troop) => sum + troop.healingDone, 0);
-    return Math.max(damageTotal, healingTotal);
-  }
-
-  function toggleReplayRecap(): void {
-    replayRecapOpen = !replayRecapOpen;
-    if (!replayRecapOpen) {
-      expandedReplayRecapTroopKey = null;
-    }
-  }
-
-  function toggleReplayRecapTroop(side: SideId, troopLabel: string): void {
-    const key = replayProfileKey(side, troopLabel);
-    expandedReplayRecapTroopKey = expandedReplayRecapTroopKey === key ? null : key;
-  }
-
-  function selectReplayRecapUnit(unitId: string, side: SideId, troopLabel: string): void {
-    if (!replay) {
-      return;
-    }
-
-    const currentStep = $gameStore.currentStep;
-    const targetStep = isUnitAliveAtStep(replay, unitId, currentStep) ? currentStep : findLastAliveStep(replay, unitId, currentStep);
-    gameStore.setAutoPlay(false);
-    if (targetStep !== currentStep) {
-      replayStepNavigationKind = 'event-select';
-      gameStore.jumpTo(targetStep);
-    }
-
-    setReplayUnitLock(unitId, {
-      profileKey: replayProfileKey(side, troopLabel),
-    });
-    replayRecapOpen = false;
-    expandedReplayRecapTroopKey = null;
-  }
-
-  function cycleReplayProfileUnit(side: SideId, troopLabel: string): void {
-    focusReplayProfileUnit(side, troopLabel, {
-      cycle: true,
-    });
   }
 </script>
 
@@ -3676,7 +1471,7 @@
   {#if abilityVerificationLabComponent}
     <svelte:component this={abilityVerificationLabComponent} />
   {/if}
-{:else if $gameStore.screen === 'main_menu'}
+{:else if $gameSessionStore.screen === 'main_menu'}
   <main class="menu-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
     <section class="menu-panel main-menu-shell ui-debug-target" data-ui-name="Main menu panel">
       <div class="menu-topline ui-debug-target" data-ui-name="Main menu header">
@@ -3685,92 +1480,29 @@
         </div>
       </div>
 
-      {#if $gameStore.systemMessage}
+      {#if $gameSessionStore.systemMessage}
         <div class="menu-system-message panel ui-debug-target" data-ui-name="Main menu system message">
           <strong>System Notice</strong>
-          <p>{$gameStore.systemMessage}</p>
+          <p>{$gameSessionStore.systemMessage}</p>
         </div>
       {/if}
 
       {#if mainMenuView === 'home'}
-        <div class="main-menu-actions ui-debug-target" data-ui-name="Main menu actions">
-          <button class="primary large" class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'game-start'} data-ui-name="Main menu Singleplayer" on:click={() => showMainMenuView('singleplayer')}>Singleplayer</button>
-          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('tutorial')}>Tutorial</button>
-          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('multiplayer')}>Multiplayer</button>
-          {#if debugToolsEnabled}
-            <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('debug')}>Debug</button>
-          {/if}
-          <button class="large" class:tutorial-scene-locked={tutorialSceneLockActive()} on:click={() => showMainMenuView('settings')}>Settings</button>
-        </div>
+        <MainMenuNavigation
+          onSelect={showMainMenuView}
+          {debugToolsEnabled}
+          tutorialLocked={tutorialSceneLockActive()}
+          tutorialStep={$gameSessionStore.tutorialProgress?.step}
+        />
       {:else if mainMenuView === 'singleplayer'}
-        <div class="slot-grid">
-          {#each $gameStore.slots as slot}
-            <article class="slot-card panel ui-debug-target" data-ui-name={`Save slot ${slot.slotId}`}>
-              <div class="slot-card-header">
-                <span class="slot-label">Slot {slot.slotId}</span>
-                <strong>{slot.status === 'occupied' ? 'Occupied' : 'Empty'}</strong>
-              </div>
-
-              {#if slot.status === 'occupied'}
-                <div class="slot-meta">
-                  <span>{slotModeLabel(slot.gameMode)}</span>
-                  <span>{slot.raceLabel ?? 'In progress'}</span>
-                  <span>Cycle {slot.cycleNumber}</span>
-                  <span>{slotPhaseLabel(slot.phase)}</span>
-                  <span>{slot.lastPlayedAt ? new Date(slot.lastPlayedAt).toLocaleString() : 'No timestamp'}</span>
-                </div>
-              {:else}
-                <p>Empty</p>
-              {/if}
-
-              <div class="actions-grid">
-                {#if slot.status === 'occupied'}
-                  <button class="primary ui-debug-target" class:tutorial-scene-locked={tutorialSceneLockActive()} data-ui-name={`Primary action for save slot ${slot.slotId}`} on:click={() => openSlot(slot)}>
-                    Load Slot
-                  </button>
-                  <DebugToolsMenu mode="campaign-button" reportSlotId={slot.slotId} />
-                {/if}
-                <button
-                  class:primary={slot.status === 'empty'}
-                  class="ui-debug-target"
-                  class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'start-contest'}
-                  data-ui-name={`Start new game for save slot ${slot.slotId}`}
-                  on:click={() => openNewGameMenu(slot)}
-                >
-                  Start New Game
-                </button>
-              </div>
-            </article>
-          {/each}
-        </div>
-        {#if newGameSlot}
-          <div class="new-game-modal-backdrop">
-            <button class="new-game-modal-dismiss" aria-label="Close new game menu" on:click={closeNewGameMenu}></button>
-            <section class="panel new-game-modal ui-debug-target" data-ui-name={`New game mode menu for save slot ${newGameSlot.slotId}`} role="dialog" aria-modal="true" aria-labelledby="new-game-title">
-              <div class="new-game-modal-header">
-                <div>
-                  <p class="eyebrow">Slot {newGameSlot.slotId}</p>
-                  <h2 id="new-game-title">Start New Game</h2>
-                </div>
-                <button class="new-game-close" type="button" aria-label="Close new game menu" on:click={closeNewGameMenu}>Close</button>
-              </div>
-              <div class="new-game-options">
-                {#each SINGLEPLAYER_GAME_MODES as gameMode}
-                  <button
-                    type="button"
-                    class="new-game-option primary ui-debug-target"
-                    class:tutorial-scene-locked={tutorialSceneLockActive() && !(gameMode === 'contest' && $gameStore.tutorialProgress?.step === 'start-contest')}
-                    data-ui-name={`${newGameActionLabel(newGameSlot, gameMode)} for save slot ${newGameSlot.slotId}`}
-                    on:click={() => chooseNewGameMode(newGameSlot, gameMode)}
-                    title={newGameModeDescription(gameMode)}
-                  >
-                    <span>{newGameActionLabel(newGameSlot, gameMode)}</span>
-                  </button>
-                {/each}
-              </div>
-            </section>
-          </div>
-        {/if}
+        <SaveSlotMenu
+          slots={$gameSessionStore.slots}
+          onLoad={openSlot}
+          onStart={startSlot}
+          onBlocked={showTutorialScenePrompt}
+          tutorialLocked={tutorialSceneLockActive()}
+          tutorialStep={$gameSessionStore.tutorialProgress?.step}
+        />
       {:else if mainMenuView === 'tutorial'}
         <section class="tutorial-menu panel ui-debug-target" data-ui-name="Tutorial menu">
           {#if gameStore.hasTutorialSave()}
@@ -3824,7 +1556,7 @@
           {#if debugToolsEnabled}
             <DebugToolsMenu
               selectedTroopId={selectedTroopId}
-              selectedReplayId={selectedReplayId}
+              selectedReplayId={$archiveSession.selectedId}
               selectedRiftId={selectedRiftId}
               rendererDiagnostics={rendererDiagnostics}
               onCampaignImport={handleCampaignReportImport}
@@ -3844,28 +1576,32 @@
       {/if}
     </section>
   </main>
-{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'opening_unlock'}
-  <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Opening unlock screen">
+{:else if $gameSessionStore.screen === 'overworld' && $gameSessionStore.game.phase === 'opening_unlock'}
+  <div class="overworld-surface" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
+    <OpeningUnlockScreen bind:this={openingUnlockScreen} game={$gameSessionStore.game} {getRacePortrait} {getRaceUnitPortrait}
+      actions={{ label: $gameSessionStore.multiplayer ? multiplayerCycleEndLabel() : `Begin ${gameModeLabel($gameSessionStore.game.gameMode)}`,
+        disabled: multiplayerCycleEnded, tutorialLocked: tutorialSceneLockActive() && $gameSessionStore.tutorialProgress?.step !== 'opening',
+        begin: beginOpeningCampaign, claim: claimOpeningPick, unclaim: unclaimOpeningPick }}>
+      <svelte:fragment slot="session">
       {#if multiplayerStatus}
         <div class="draft-screen-header opening-session-header">
           <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer opening status">{multiplayerStatus}</p>
           <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer opening room tools">
             <div class="multiplayer-room-card">
               <span>Room</span>
-              <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
-              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
+              <strong>{$gameSessionStore.multiplayer?.roomId ?? '...'}</strong>
+              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameSessionStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
               </button>
             </div>
             <div class="multiplayer-player-list">
               <span>Current Players</span>
-              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'playerOne')}</strong>
-              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameSessionStore.multiplayer?.playerId ?? 'playerOne')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameSessionStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
             </div>
           </div>
           <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer opening actions">
-            {#if !$gameStore.multiplayer?.connected}
+            {#if !$gameSessionStore.multiplayer?.connected}
               <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
             {/if}
             {#if multiplayerCycleEnded}
@@ -3878,236 +1614,33 @@
           </div>
         </div>
       {/if}
-      <div class="draft-layout">
-        <aside class="panel draft-focus-panel ui-debug-target" data-ui-name="Opening detail panel" role="presentation" on:mouseleave={clearDetail}>
-          {#if activeDetail}
-            <div class="detail-panel opening-detail-panel">
-              {#if activeDetail.kind !== 'unit'}
-                <p class="eyebrow">{getDetailInspectLabel(activeDetail)}</p>
-              {/if}
-              <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
-              {#if activeDetail.kind === 'unit'}
-                {@const abilityOwnerKey = activeDetail.detailKey}
-                <div class="unit-overview-strip">
-                  <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
-                    {#each unitIconCopies(activeDetail.quantity) as copy}
-                      <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                    {/each}
-                  </span>
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
-                </div>
-            <div class="ability-row detail-ability-row">
-                  <span>Abilities</span>
-                  <div class="ability-list">
-                    {#if activeDetail.abilities.length === 0}
-                      <span class="mutator-chip empty">None</span>
-                    {:else}
-                      {#each activeDetail.abilities as ability}
-                        <details class="ability-disclosure">
-                          <summary
-                            class="mutator-chip ability-chip"
-                            on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                            on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                          >
-                            <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                          </summary>
-                          <div class="ability-hover-tooltip">
-                            <strong>{ability.label}</strong>
-                            <p><InlineStatText text={ability.description} /></p>
-                          </div>
-                        </details>
-                      {/each}
-                    {/if}
-                  </div>
-                  {#if activeAbilityTooltipFor(activeDetail.detailKey)}
-                    <div class="ability-hover-tooltip">
-                      <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
-                      <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
-                    </div>
-                  {/if}
-                </div>
-              {:else if activeDetail.description}
-                <p><InlineStatText text={activeDetail.description} /></p>
-                {#if activeDetail.stats && activeDetail.stats.length > 0}
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
-                {/if}
-              {:else if activeDetail.stats && activeDetail.stats.length > 0}
-                <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
-              {/if}
-            </div>
-          {:else}
-            <div class="detail-panel opening-detail-panel opening-empty-detail">
-              <h2>Choose Two Starting Races</h2>
-              <p>Each race brings its included starter troop. Other native troops are shown as later unlock potential.</p>
-            </div>
-          {/if}
-        </aside>
-
-        <div class="draft-grid">
-          {#each starterGroups as group}
-            {@const raceDetail = buildRaceDetail(group.raceId)}
-            {@const starterTroopUnlockId = group.starterTroopUnlockId}
-            {@const starterSelected = selectedOpeningTroopUnlockIds.has(starterTroopUnlockId)}
-            {@const starterIncompatible = !starterSelected && !canClaimOpeningTroop(starterTroopUnlockId)}
-            {@const [starterRaceId, starterUnitClassId] = parseTroopUnlockId(starterTroopUnlockId)}
-            {@const starterTroopDef = TROOP_CATALOG[starterTroopUnlockId]}
-            {@const starterTroopDetail = buildResolvedUnitDetail(
-              `opening:${starterTroopUnlockId}`,
-              starterTroopDef.label,
-              starterRaceId,
-              starterUnitClassId,
-              starterTroopDef.stats,
-              starterTroopDef.quantity,
-              `Included starting troop for ${getRace(starterRaceId).label}. Other native recruits can be unlocked later.`,
-              starterTroopDef.abilities,
-            )}
-            <article
-              class="draft-card panel opening-race-card ui-debug-target"
-              class:selected={starterSelected}
-              class:incompatible={starterIncompatible}
-              data-ui-name={`Opening race card ${group.label}`}
-              on:mouseenter={() => previewDetail(raceDetail)}
-              on:mouseleave={clearDetail}
-            >
-              <button
-                type="button"
-                class="opening-card-select-button"
-                aria-label={`Choose ${group.label} with ${starterTroopDef.label}`}
-                aria-pressed={starterSelected}
-                disabled={starterIncompatible}
-                on:focus={() => previewDetail(raceDetail)}
-                on:blur={clearDetail}
-                on:click={() => toggleOpeningRace(starterTroopUnlockId)}
-              ></button>
-              <header class="draft-card-header">
-                <div class="draft-card-title">
-                  <strong>{group.label}</strong>
-                  <button
-                    type="button"
-                    class="sprite-inspect-button ui-debug-target"
-                    data-ui-name={`Inspect race ${group.label}`}
-                    class:selected={detailIsHighlighted(raceDetail.detailKey)}
-                    aria-label={`Inspect ${group.label} race modifiers`}
-                    on:mouseenter={() => previewDetail(raceDetail)}
-                    on:focus={() => previewDetail(raceDetail)}
-                    on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
-                    on:blur={clearDetail}
-                    on:click|stopPropagation={() => toggleOpeningRace(starterTroopUnlockId)}
-                  >
-                    <img class="race-name-art" src={getRacePortrait(group.raceId)} alt="" aria-hidden="true" />
-                  </button>
-                </div>
-              </header>
-
-              <div class="draft-section opening-included-section">
-                <span class="draft-section-label">Included starter</span>
-                <button
-                  type="button"
-                  class="draft-troop-icon opening-starter-tile ui-debug-target"
-                  class:selected={detailIsHighlighted(starterTroopDetail.detailKey)}
-                  class:incompatible={starterIncompatible}
-                  data-ui-name={`Opening included troop ${starterTroopDef.label}`}
-                  aria-label={`Inspect ${starterTroopDef.label}`}
-                  aria-pressed={pinnedDetails.some((detail) => detail.detailKey === starterTroopDetail.detailKey)}
-                  on:mouseenter={() => previewDetail(starterTroopDetail)}
-                  on:focus={() => previewDetail(starterTroopDetail)}
-                  on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
-                  on:blur={clearDetail}
-                  on:click|stopPropagation={() => togglePinnedDetail(starterTroopDetail)}
-                  disabled={starterIncompatible}
-                >
-                  <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(starterTroopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(starterTroopDef.quantity)}`} aria-label={`${starterTroopDef.quantity} ${starterTroopDef.label} units`}>
-                    {#each unitIconCopies(starterTroopDef.quantity) as copy}
-                      <img class="unit-button-art" src={getRaceUnitPortrait(starterRaceId, starterUnitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                    {/each}
-                  </span>
-                </button>
-              </div>
-
-              <div class="draft-section opening-future-section">
-                <span class="draft-section-label">Future unlocks</span>
-                <div class="draft-icon-row opening-future-grid">
-                  {#each group.options as troopUnlockId}
-                    {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
-                    {@const troopDef = TROOP_CATALOG[troopUnlockId]}
-                    {@const troopDetail = buildResolvedUnitDetail(
-                      `opening:${troopUnlockId}`,
-                      troopDef.label,
-                      raceId,
-                      unitClassId,
-                      troopDef.stats,
-                      troopDef.quantity,
-                      getRace(raceId).description,
-                      troopDef.abilities,
-                    )}
-                    {@const isIncludedStarter = troopUnlockId === group.starterTroopUnlockId}
-                    {#if !isIncludedStarter}
-                      <button
-                        type="button"
-                        class="draft-troop-icon troop-preview opening-future-tile ui-debug-target"
-                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
-                        data-ui-name={`Opening future troop ${troopDef.label}`}
-                        aria-label={`Inspect future unlock ${troopDef.label}`}
-                        on:mouseenter={() => previewDetail(troopDetail)}
-                        on:focus={() => previewDetail(troopDetail)}
-                        on:mouseleave={(event) => restoreOpeningRaceDetail(event, raceDetail)}
-                        on:blur={clearDetail}
-                        on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
-                      >
-                        <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                          {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                          {/each}
-                        </span>
-                      </button>
-                    {/if}
-                  {/each}
-                </div>
-              </div>
-            </article>
-          {/each}
-        </div>
-      </div>
-      <div class="opening-actions actions-grid">
-        <button
-          type="button"
-          class="primary large ui-debug-target"
-          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.tutorialProgress?.step !== 'opening'}
-          data-ui-name="Begin campaign button"
-          on:click={beginOpeningCampaign}
-          disabled={$gameStore.game.troops.length !== 2 || multiplayerCycleEnded}
-        >
-          {$gameStore.multiplayer ? multiplayerCycleEndLabel() : `Begin ${gameModeLabel($gameStore.game.gameMode)}`}
-        </button>
-      </div>
-    </section>
-  </main>
-{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'race_unlock' && $gameStore.game.activeRaceUnlockOffer}
-  <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="draft-panel opening-shell scheduled-race-shell ui-debug-target" data-ui-name="Scheduled race unlock screen">
-      <div class="draft-screen-header">
-        <p class="eyebrow">Cycle {$gameStore.game.cycleNumber} Muster</p>
-        <h1>Choose a Race</h1>
-        <p class="scheduled-unlock-instructions">Shown upgrades and included troops unlock immediately. The roster below shows what this race can unlock later.</p>
+      </svelte:fragment>
+    </OpeningUnlockScreen>
+  </div>
+{:else if $gameSessionStore.screen === 'overworld' && (($gameSessionStore.game.phase === 'race_unlock' && $gameSessionStore.game.activeRaceUnlockOffer) || ($gameSessionStore.game.phase === 'troop_class_unlock' && $gameSessionStore.game.activeTroopClassUnlockOffer))}
+  <div class="overworld-surface" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
+    <ScheduledUnlockScreen bind:this={scheduledUnlockScreen} game={$gameSessionStore.game} {getRacePortrait} {getRaceUnitPortrait}
+      actions={{ disabled: multiplayerCycleEnded, waitingLabel: $gameSessionStore.multiplayer && multiplayerCycleEnded ? multiplayerCycleEndLabel() : null,
+        claimRace: chooseRaceUnlock, claimTroop: chooseTroopClassUnlock }}>
+      <svelte:fragment slot="session">
         {#if multiplayerStatus}
-          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer race unlock status">{multiplayerStatus}</p>
-          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer race unlock room tools">
+          <p class="multiplayer-status-line ui-debug-target" data-ui-name={`Multiplayer ${$gameSessionStore.game.phase === 'race_unlock' ? 'race unlock' : 'troop unlock'} status`}>{multiplayerStatus}</p>
+          <div class="multiplayer-room-tools ui-debug-target" data-ui-name={`Multiplayer ${$gameSessionStore.game.phase === 'race_unlock' ? 'race unlock' : 'troop unlock'} room tools`}>
             <div class="multiplayer-room-card">
               <span>Room</span>
-              <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
-              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
+              <strong>{$gameSessionStore.multiplayer?.roomId ?? '...'}</strong>
+              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameSessionStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
               </button>
             </div>
             <div class="multiplayer-player-list">
               <span>Current Players</span>
-              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'playerOne')}</strong>
-              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
+              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameSessionStore.multiplayer?.playerId ?? 'playerOne')}</strong>
+              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameSessionStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
             </div>
           </div>
-          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer race unlock actions">
-            {#if !$gameStore.multiplayer?.connected}
+          <div class="multiplayer-session-actions ui-debug-target" data-ui-name={`Multiplayer ${$gameSessionStore.game.phase === 'race_unlock' ? 'race unlock' : 'troop unlock'} actions`}>
+            {#if !$gameSessionStore.multiplayer?.connected}
               <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
             {/if}
             {#if multiplayerCycleEnded}
@@ -4119,307 +1652,15 @@
             {/if}
           </div>
         {/if}
-      </div>
-
-      <div class="draft-layout scheduled-race-layout" class:has-detail={!!activeDetail}>
-        <aside class="panel draft-focus-panel ui-debug-target" class:empty={!activeDetail} data-ui-name="Scheduled race detail panel" role="presentation" on:mouseleave={clearDetail}>
-          {#if activeDetail}
-            <div class="detail-panel opening-detail-panel">
-              {#if activeDetail.kind !== 'unit'}
-                <p class="eyebrow">
-                  {getDetailInspectLabel(activeDetail)}
-                </p>
-              {/if}
-              <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
-              {#if activeDetail.kind === 'unit'}
-                {@const abilityOwnerKey = activeDetail.detailKey}
-                <div class="unit-overview-strip">
-                  <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
-                    {#each unitIconCopies(activeDetail.quantity) as copy}
-                      <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                    {/each}
-                  </span>
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
-                </div>
-                <div class="ability-row detail-ability-row">
-                  <span>Abilities</span>
-                  <div class="ability-list">
-                    {#if activeDetail.abilities.length === 0}
-                      <span class="mutator-chip empty">None</span>
-                    {:else}
-                      {#each activeDetail.abilities as ability}
-                        <details class="ability-disclosure">
-                          <summary
-                            class="mutator-chip ability-chip"
-                            on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                            on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                          >
-                            <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                          </summary>
-                          <div class="ability-hover-tooltip">
-                            <strong>{ability.label}</strong>
-                            <p><InlineStatText text={ability.description} /></p>
-                          </div>
-                        </details>
-                      {/each}
-                    {/if}
-                  </div>
-                  {#if activeAbilityTooltipFor(activeDetail.detailKey)}
-                    <div class="ability-hover-tooltip">
-                      <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
-                      <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
-                    </div>
-                  {/if}
-                </div>
-              {:else}
-                {#if activeDetail.description}
-                  <p><InlineStatText text={activeDetail.description} /></p>
-                {/if}
-                {#if activeDetail.stats && activeDetail.stats.length > 0}
-                  <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
-                {/if}
-              {/if}
-            </div>
-          {/if}
-        </aside>
-
-        <div class="draft-grid race-unlock-grid">
-          {#each $gameStore.game.activeRaceUnlockOffer.optionRaceIds as raceId}
-            {@const race = getRace(raceId)}
-            {@const raceDetail = buildRaceDetail(raceId)}
-            {@const grantedUpgradeIds = $gameStore.game.activeRaceUnlockOffer.upgradeIdsByRaceId[raceId] ?? []}
-            {@const grantedTroopUnlockIds = $gameStore.game.activeRaceUnlockOffer.troopUnlockIdsByRaceId?.[raceId] ?? []}
-            {@const rosterTroopUnlockIds = getScheduledRaceRosterUnlockIds(raceId)}
-            <article
-              class="draft-card panel race-unlock-card ui-debug-target"
-              class:selected={selectedScheduledRaceId === raceId}
-              data-ui-name={`Race unlock option ${race.label}`}
-            >
-              <button
-                type="button"
-                class="race-card-select-button"
-                class:selected={selectedScheduledRaceId === raceId}
-                aria-label={`Select ${race.label}`}
-                aria-pressed={selectedScheduledRaceId === raceId}
-                disabled={multiplayerCycleEnded}
-                on:click={() => selectScheduledRaceUnlock(raceId)}
-              ></button>
-              <header class="draft-card-header">
-                <div class="draft-card-title">
-                  <strong>{race.label}</strong>
-                  <button
-                    type="button"
-                    class="sprite-inspect-button"
-                    class:selected={detailIsHighlighted(raceDetail.detailKey)}
-                    aria-label={`Inspect ${race.label} race modifiers`}
-                    on:mouseenter={() => previewDetail(raceDetail)}
-                    on:focus={() => previewDetail(raceDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click|stopPropagation={() => selectScheduledRaceUnlock(raceId)}
-                  >
-                    <img class="race-name-art" src={getRacePortrait(raceId)} alt="" aria-hidden="true" />
-                  </button>
-                </div>
-              </header>
-
-              <div class="draft-section scheduled-included-section">
-                <span class="draft-section-label">Included troops</span>
-                <div class="draft-icon-row troop-preview-row included-troop-row">
-                  {#each grantedTroopUnlockIds as troopUnlockId}
-                    {@const [includedRaceId, includedUnitClassId] = parseTroopUnlockId(troopUnlockId)}
-                    {@const troopDetail = buildScheduledTroopDetail(
-                      troopUnlockId,
-                      grantedUpgradeIds,
-                      `Included troop unlocked immediately when ${getRace(includedRaceId).label} joins.`,
-                    )}
-                    <button
-                      type="button"
-                      class="draft-troop-icon troop-preview included-troop-preview"
-                      class:selected={detailIsHighlighted(troopDetail.detailKey)}
-                      aria-label={`Inspect included troop ${troopDetail.label}`}
-                      on:mouseenter={() => previewDetail(troopDetail)}
-                      on:focus={() => previewDetail(troopDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
-                    >
-                      <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
-                        {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
-                          <img class="unit-button-art" src={getRaceUnitPortrait(includedRaceId, includedUnitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                        {/each}
-                      </span>
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="draft-section">
-                <span class="draft-section-label">Granted upgrades</span>
-                <div class="unlock-row">
-                  {#each grantedUpgradeIds as upgradeId}
-                    {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                    <button
-                      type="button"
-                      class="list-button upgrade-grant"
-                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
-                      on:mouseenter={() => previewDetail(upgradeDetail)}
-                      on:focus={() => previewDetail(upgradeDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click|stopPropagation={() => selectScheduledRaceUnlock(raceId)}
-                    >
-                      <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="draft-section">
-                <span class="draft-section-label">Troop roster</span>
-                <div class="draft-icon-row troop-preview-row">
-                  {#each rosterTroopUnlockIds as troopUnlockId}
-                    {@const [rosterRaceId, rosterUnitClassId] = parseTroopUnlockId(troopUnlockId)}
-                    {@const isGrantedTroop = grantedTroopUnlockIds.includes(troopUnlockId)}
-                    {@const troopDetail = buildScheduledTroopDetail(
-                      troopUnlockId,
-                      grantedUpgradeIds,
-                      isGrantedTroop
-                        ? `Included troop unlocked immediately when ${getRace(rosterRaceId).label} joins.`
-                        : `${getRace(rosterRaceId).singularLabel} recruit shown as later unlock potential.`,
-                    )}
-                    {#if !isGrantedTroop}
-                      <button
-                        type="button"
-                        class="draft-troop-icon troop-preview"
-                        class:future={!isNativeTroopUnlockId(troopUnlockId)}
-                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
-                        aria-label={`Inspect ${troopDetail.label}`}
-                        title={getUnitClass(rosterUnitClassId).label}
-                        on:mouseenter={() => previewDetail(troopDetail)}
-                        on:focus={() => previewDetail(troopDetail)}
-                        on:mouseleave={clearDetail}
-                        on:blur={clearDetail}
-                        on:click|stopPropagation={() => togglePinnedDetail(troopDetail)}
-                      >
-                        <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDetail.kind === 'unit' ? troopDetail.quantity : 1)}`} aria-label={troopDetail.kind === 'unit' ? `${troopDetail.quantity} ${troopDetail.label} units` : troopDetail.label}>
-                          {#each unitIconCopies(troopDetail.kind === 'unit' ? troopDetail.quantity : 1) as copy}
-                            <img class="unit-button-art" src={getRaceUnitPortrait(rosterRaceId, rosterUnitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                          {/each}
-                        </span>
-                      </button>
-                    {/if}
-                  {/each}
-                </div>
-              </div>
-            </article>
-          {/each}
-        </div>
-      </div>
-      <div class="opening-actions">
-        <button class="primary large" disabled={!selectedScheduledRaceId || multiplayerCycleEnded} on:click={confirmScheduledRaceUnlock}>
-          {$gameStore.multiplayer && multiplayerCycleEnded ? multiplayerCycleEndLabel() : `Confirm ${selectedScheduledRaceId ? getRace(selectedScheduledRaceId).label : 'Race'}`}
-        </button>
-      </div>
-    </section>
-  </main>
-{:else if $gameStore.screen === 'overworld' && $gameStore.game.phase === 'troop_class_unlock' && $gameStore.game.activeTroopClassUnlockOffer}
-  <main class="draft-screen" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="draft-panel opening-shell ui-debug-target" data-ui-name="Scheduled troop class unlock screen">
-      <div class="draft-screen-header">
-        <p class="eyebrow">{getRace($gameStore.game.activeTroopClassUnlockOffer.raceId).label} Muster</p>
-        <h1>Choose Troop Class {$gameStore.game.activeTroopClassUnlockOffer.remainingChoices}</h1>
-        <p>Pick one troop for the new race. Remaining picks will follow immediately.</p>
-        {#if multiplayerStatus}
-          <p class="multiplayer-status-line ui-debug-target" data-ui-name="Multiplayer troop unlock status">{multiplayerStatus}</p>
-          <div class="multiplayer-room-tools ui-debug-target" data-ui-name="Multiplayer troop unlock room tools">
-            <div class="multiplayer-room-card">
-              <span>Room</span>
-              <strong>{$gameStore.multiplayer?.roomId ?? '...'}</strong>
-              <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer?.roomId} aria-label="Copy room link" title="Copy room link">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
-              </button>
-            </div>
-            <div class="multiplayer-player-list">
-              <span>Current Players</span>
-              <strong>{getLocalPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId ?? 'playerOne')}</strong>
-              <strong>{getOpponentPlayerName()} - {playerConnectionLabel($gameStore.multiplayer?.playerId === 'playerOne' ? 'playerTwo' : 'playerOne')}</strong>
-            </div>
-          </div>
-          <div class="multiplayer-session-actions ui-debug-target" data-ui-name="Multiplayer troop unlock actions">
-            {#if !$gameStore.multiplayer?.connected}
-              <button type="button" class="primary" on:click={reconnectMultiplayerContest}>Reconnect</button>
-            {/if}
-            {#if multiplayerCycleEnded}
-              <button type="button" on:click={cancelMultiplayerCycleEnd}>Cancel Cycle End</button>
-            {/if}
-            <button type="button" on:click={leaveMultiplayerContest}>Leave Room</button>
-            {#if multiplayerCopyMessage}
-              <span class="multiplayer-copy-indicator" role="status">{multiplayerCopyMessage}</span>
-            {/if}
-          </div>
-        {/if}
-      </div>
-
-      <div class="draft-grid troop-class-unlock-grid">
-        {#each $gameStore.game.activeTroopClassUnlockOffer.optionTroopUnlockIds as troopUnlockId}
-          {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
-          {@const troopDef = resolveTroopCombatant($gameStore.game, createTroopInstance(raceId, unitClassId), 'player')}
-          {@const troopDetail = buildResolvedUnitDetail(
-            `scheduled-troop:${troopUnlockId}`,
-            troopDef.label,
-            raceId,
-            unitClassId,
-            troopDef.stats,
-            troopDef.quantity,
-            'Troop class unlock for the newly joined race.',
-            troopDef.abilities,
-          )}
-          <button
-            type="button"
-            class="draft-option troop-class-choice troop-icon-option"
-            aria-label={`Inspect troop unlock ${troopDef.label}`}
-            on:mouseenter={() => previewDetail(troopDetail)}
-            on:focus={() => previewDetail(troopDetail)}
-            on:mouseleave={clearDetail}
-            on:blur={clearDetail}
-            on:click={() => chooseTroopClassUnlock(troopUnlockId)}
-          >
-            <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-              {#each unitIconCopies(troopDef.quantity) as copy}
-                <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-              {/each}
-            </span>
-          </button>
-        {/each}
-      </div>
-
-      {#if activeDetail}
-        <aside class="panel floating-detail-panel">
-          <h2>{activeDetail.label}</h2>
-          {#if activeDetail.kind === 'unit'}
-            <div class="unit-overview-strip">
-              <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
-                {#each unitIconCopies(activeDetail.quantity) as copy}
-                  <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                {/each}
-              </span>
-              <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
-            </div>
-          {:else}
-            <p><InlineStatText text={activeDetail.description} /></p>
-          {/if}
-        </aside>
-      {/if}
-    </section>
-  </main>
-{:else if $gameStore.screen === 'overworld'}
+      </svelte:fragment>
+    </ScheduledUnlockScreen>
+  </div>
+{:else if $gameSessionStore.screen === 'overworld'}
   <main
     class="shell overworld-shell"
-    class:rifts-mode={$gameStore.centerMode === 'rifts'}
-    class:troops-mode={$gameStore.centerMode === 'troops'}
-    class:contest-info-mode={$gameStore.centerMode === 'contest'}
+    class:rifts-mode={$gameSessionStore.centerMode === 'rifts'}
+    class:troops-mode={$gameSessionStore.centerMode === 'troops'}
+    class:contest-info-mode={$gameSessionStore.centerMode === 'contest'}
     class:ui-debug-visible={uiDebugVisible}
     class:design-mode-enabled={designModeEnabled}
   >
@@ -4434,25 +1675,25 @@
           on:mouseleave={clearTopbarTooltip}
           on:blur={clearTopbarTooltip}
         ><span>Cycle</span><strong>{cycleProgressLabel}</strong></button>
-        {#if $gameStore.game.gameMode === 'contest'}
+        {#if $gameSessionStore.game.gameMode === 'contest'}
           <div
             class="contest-score topbar-info-button ui-debug-target info-target"
             data-ui-name="Contest score counter"
           >
             <span>Contest VP</span>
-            <strong>{$gameStore.game.victoryPoints} - {$gameStore.game.contest?.players.playerTwo.victoryPoints ?? 0}</strong>
+            <strong>{$gameSessionStore.game.victoryPoints} - {$gameSessionStore.game.contest?.players.playerTwo.victoryPoints ?? 0}</strong>
           </div>
-          {#if $gameStore.multiplayer}
+          {#if $gameSessionStore.multiplayer}
             <div class="contest-score multiplayer-room-status ui-debug-target" data-ui-name="Multiplayer room status">
-              <span>Room {$gameStore.multiplayer.roomId ?? '...'}</span>
-              <strong>{$gameStore.multiplayer.connected ? multiplayerCycleEndLabel() : 'Offline'}</strong>
+              <span>Room {$gameSessionStore.multiplayer.roomId ?? '...'}</span>
+              <strong>{$gameSessionStore.multiplayer.connected ? multiplayerCycleEndLabel() : 'Offline'}</strong>
             </div>
           {/if}
         {:else}
           <div
             class="topbar-info-button ui-debug-target info-target"
             data-ui-name="Victory points counter"
-          ><span>Victory Points</span><strong>{$gameStore.game.victoryPoints}</strong></div>
+          ><span>Victory Points</span><strong>{$gameSessionStore.game.victoryPoints}</strong></div>
         {/if}
       </div>
       {#if topbarTooltip}
@@ -4465,31 +1706,31 @@
       <div class="mode-toggle ui-debug-target" data-ui-name="Top bar actions">
         <button
           class="ui-debug-target secondary-mode-button"
-          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'rifts' && !tutorialCanSwitchCenterMode('rifts')}
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameSessionStore.centerMode !== 'rifts' && !tutorialCanSwitchCenterMode('rifts')}
           data-ui-name="Show rifts view"
-          class:selected={$gameStore.centerMode === 'rifts'}
+          class:selected={$gameSessionStore.centerMode === 'rifts'}
           class:rifts-attention={riftsNeedAttention}
           data-tutorial-target="rifts-view-button"
-          on:click={() => ($gameStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialCenterMode('rifts', setRiftCenterMode))}
+          on:click={() => ($gameSessionStore.centerMode === 'rifts' ? setRiftCenterMode() : guardTutorialCenterMode('rifts', setRiftCenterMode))}
         >Rifts</button>
         <button
           class="ui-debug-target secondary-mode-button"
-          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'troops' && !tutorialCanSwitchCenterMode('troops')}
+          class:tutorial-scene-locked={tutorialSceneLockActive() && $gameSessionStore.centerMode !== 'troops' && !tutorialCanSwitchCenterMode('troops')}
           data-ui-name="Show races and troops view"
-          class:selected={$gameStore.centerMode === 'troops'}
+          class:selected={$gameSessionStore.centerMode === 'troops'}
           data-tutorial-target="troops-view-button"
-          on:click={() => ($gameStore.centerMode === 'troops' ? setTroopCenterMode() : guardTutorialCenterMode('troops', setTroopCenterMode))}
+          on:click={() => ($gameSessionStore.centerMode === 'troops' ? setTroopCenterMode() : guardTutorialCenterMode('troops', setTroopCenterMode))}
         >Races & Troops</button>
-        {#if $gameStore.game.gameMode === 'contest'}
+        {#if $gameSessionStore.game.gameMode === 'contest'}
           <button
             class="ui-debug-target secondary-mode-button"
-            class:tutorial-scene-locked={tutorialSceneLockActive() && $gameStore.centerMode !== 'contest' && !tutorialCanSwitchCenterMode('contest')}
+            class:tutorial-scene-locked={tutorialSceneLockActive() && $gameSessionStore.centerMode !== 'contest' && !tutorialCanSwitchCenterMode('contest')}
             data-ui-name="Show opponent info view"
-            class:selected={$gameStore.centerMode === 'contest'}
+            class:selected={$gameSessionStore.centerMode === 'contest'}
             data-tutorial-target="rival-info-button"
-            on:click={() => ($gameStore.centerMode === 'contest' ? setContestCenterMode() : guardTutorialCenterMode('contest', setContestCenterMode))}
+            on:click={() => ($gameSessionStore.centerMode === 'contest' ? setContestCenterMode() : guardTutorialCenterMode('contest', setContestCenterMode))}
           >
-            {$gameStore.multiplayer ? `${getOpponentPlayerName()} Info` : 'Rival Info'}
+            {$gameSessionStore.multiplayer ? `${getOpponentPlayerName()} Info` : 'Rival Info'}
           </button>
         {/if}
         <button
@@ -4500,14 +1741,14 @@
           title="Main menu"
           on:click={() => guardTutorialSceneChange(returnToMainMenu)}
         ><span aria-hidden="true"></span></button>
-        {#if $gameStore.multiplayer}
+        {#if $gameSessionStore.multiplayer}
           <div class="topbar-room-card ui-debug-target" data-ui-name="Multiplayer room link">
-            <span>{$gameStore.multiplayer.roomId ?? '...'}</span>
-            <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameStore.multiplayer.roomId} aria-label="Copy room link" title="Copy room link">
+            <span>{$gameSessionStore.multiplayer.roomId ?? '...'}</span>
+            <button type="button" class="link-icon-button" on:click={copyRoomLink} disabled={!$gameSessionStore.multiplayer.roomId} aria-label="Copy room link" title="Copy room link">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a3 3 0 0 1 4.2 4.2l-3.4 3.4a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l3.4-3.4a1 1 0 0 0-1.4-1.4L12 13.4a1 1 0 0 1-1.4 0Z" /><path d="M3.8 20.2a3 3 0 0 1 0-4.2l3.4-3.4a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-3.4 3.4a1 1 0 1 0 1.4 1.4l3.4-3.4a1 1 0 0 1 1.4 1.4L8 20.2a3 3 0 0 1-4.2 0Z" /></svg>
             </button>
           </div>
-          {#if !$gameStore.multiplayer.connected}
+          {#if !$gameSessionStore.multiplayer.connected}
             <button class="primary ui-debug-target" data-ui-name="Reconnect multiplayer room" on:click={reconnectMultiplayerContest}>Reconnect</button>
           {/if}
           {#if multiplayerCycleEnded}
@@ -4521,7 +1762,7 @@
         <DebugToolsMenu
           mode="campaign-button"
           selectedTroopId={selectedTroopId}
-          selectedReplayId={selectedReplayId}
+          selectedReplayId={$archiveSession.selectedId}
           selectedRiftId={selectedRiftId}
           rendererDiagnostics={rendererDiagnostics}
         />
@@ -4529,1196 +1770,42 @@
     </header>
 
     <section class="left-column ui-debug-target" data-ui-name="Left sidebar">
-      <div class="panel overworld-detail-panel ui-debug-target" data-ui-name="Detail panel">
-        {#if activeDetail}
-          <div class="detail-panel overworld-detail-panel" role="presentation" on:mouseleave={clearDetail}>
-            {#if activeDetail.kind !== 'unit'}
-              <p class="eyebrow">
-                {getDetailInspectLabel(activeDetail)}
-              </p>
-            {/if}
-            <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
-            {#if activeDetail.kind === 'unit'}
-              {@const abilityOwnerKey = activeDetail.detailKey}
-              <div class="unit-overview-strip">
-                <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
-                  {#each unitIconCopies(activeDetail.quantity) as copy}
-                    <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                  {/each}
-                </span>
-                <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
-              </div>
-                <div class="ability-row detail-ability-row">
-                <span>Abilities</span>
-                <div class="ability-list">
-                  {#if activeDetail.abilities.length === 0}
-                    <span class="mutator-chip empty">None</span>
-                  {:else}
-                    {#each activeDetail.abilities as ability}
-                      <details class="ability-disclosure">
-                        <summary
-                          class="mutator-chip ability-chip"
-                          on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                          on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                        >
-                          <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                        </summary>
-                        <div class="ability-hover-tooltip">
-                          <strong>{ability.label}</strong>
-                          <p><InlineStatText text={ability.description} /></p>
-                        </div>
-                      </details>
-                      {#each ability.summoned as summon}
-                        <button
-                          type="button"
-                          class="mutator-chip summon-preview-chip"
-                          aria-label={`Inspect summoned ${summon.label}`}
-                          on:mouseenter={() => previewDetail(summon.detail)}
-                          on:focus={() => previewDetail(summon.detail)}
-                          on:mouseleave={clearDetail}
-                          on:blur={clearDetail}
-                          on:click={() => togglePinnedDetail(summon.detail)}
-                        >
-                          <span class="icon-label"><img class="summon-chip-art" src={summon.detail.portraitUrl} alt="" aria-hidden="true" /><span>{summon.label}</span></span>
-                        </button>
-                      {/each}
-                    {/each}
-                  {/if}
-                </div>
-                {#if activeAbilityTooltipFor(activeDetail.detailKey)}
-                  <div class="ability-hover-tooltip">
-                    <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
-                    <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
-                  </div>
-                {/if}
-              </div>
-            {:else}
-              {#if activeDetail.description}
-                <p><InlineStatText text={activeDetail.description} /></p>
-              {/if}
-              {#if activeDetail.stats && activeDetail.stats.length > 0}
-                <StatBreakdownGrid stats={activeDetail.stats} columns={3} />
-              {/if}
-            {/if}
-          </div>
-          {#if secondaryUnitDetail}
-            <div class="detail-panel overworld-detail-panel secondary-unit-detail" role="presentation">
-              <h2 class="detail-title"><span>{secondaryUnitDetail.label}</span></h2>
-              <div class="unit-overview-strip">
-                <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(secondaryUnitDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(secondaryUnitDetail.quantity)}`} aria-label={`${secondaryUnitDetail.quantity} units in troop`}>
-                  {#each unitIconCopies(secondaryUnitDetail.quantity) as copy}
-                    <img class="hover-unit-art" src={secondaryUnitDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                  {/each}
-                </span>
-                <StatBreakdownGrid stats={secondaryUnitDetail.stats} columns={3} compact={true} />
-              </div>
-              <div class="ability-row detail-ability-row">
-                <span>Abilities</span>
-                <div class="ability-list">
-                  {#if secondaryUnitDetail.abilities.length === 0}
-                    <span class="mutator-chip empty">None</span>
-                  {:else}
-                    {#each secondaryUnitDetail.abilities as ability}
-                      <button
-                        type="button"
-                        class="mutator-chip ability-chip"
-                        on:mouseenter={() => showAbilityTooltip(ability, secondaryUnitDetail.detailKey)}
-                        on:focus={() => showAbilityTooltip(ability, secondaryUnitDetail.detailKey)}
-                        on:mouseleave={clearAbilityTooltip}
-                        on:blur={clearAbilityTooltip}
-                        on:click={() => togglePinnedAbilityTooltip(ability, secondaryUnitDetail.detailKey)}
-                      >
-                        <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                      </button>
-                    {/each}
-                  {/if}
-                </div>
-                {#if activeAbilityTooltipFor(secondaryUnitDetail.detailKey)}
-                  <div class="ability-hover-tooltip">
-                    <strong>{activeAbilityTooltipFor(secondaryUnitDetail.detailKey)?.label}</strong>
-                    <p><InlineStatText text={activeAbilityTooltipFor(secondaryUnitDetail.detailKey)?.description ?? ''} /></p>
-                  </div>
-                {/if}
-              </div>
-            </div>
-          {/if}
-        {:else if false && $gameStore.centerMode === 'rifts' && selectedRift}
-          {@const selectedRiftVisual = getRiftVisual(selectedRift)}
-          <p class="eyebrow">Selected Rift</p>
-          <div
-            class="title-button rift-title-card featured"
-            style={`--rift-tint:${selectedRiftVisual.tint}; --rift-glow:${selectedRiftVisual.glow}; --rift-rotation:${selectedRiftVisual.rotationDeg}deg;`}
-          >
-            <header>
-              <strong>Tier {selectedRift.tier}</strong>
-              <span>{selectedRift.id}</span>
-            </header>
-            <div class="rift-visual-shell inline">
-              <div class="rift-visual-frame">
-                <img
-                  class="rift-visual-image"
-                  src={selectedRiftVisual.imageUrl}
-                  alt=""
-                  aria-hidden="true"
-                  style={`filter:${selectedRiftVisual.filter};`}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="compact-list">
-            <div>
-              <span>VP Reward</span>
-              <strong>{selectedRift.victoryPoints}</strong>
-            </div>
-          </div>
-
-          <div class="mutator-row">
-            <span>Mutators</span>
-            <div class="mutator-list">
-              {#if selectedRift.mutatorIds.length === 0}
-                <span class="mutator-chip empty">None</span>
-              {:else}
-                {#each selectedRift.mutatorIds as mutatorId}
-                  <button
-                    class="mutator-chip"
-                    on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
-                    on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
-                  >
-                    <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
-                  </button>
-                {/each}
-              {/if}
-            </div>
-          </div>
-
-          <div class="compact-list enemy-list">
-            {#each getVisibleRiftDefenders(selectedRift) as enemy}
-              {@const enemyDetail = buildResolvedUnitDetail(
-                `enemy:${enemy.combatantId}`,
-                enemy.label,
-                enemy.raceId,
-                enemy.unitClassId,
-                enemy.stats,
-                enemy.quantity,
-                'Enemy troop',
-                enemy.abilities,
-                enemy.statBreakdowns,
-              )}
-              <button
-                class="unit-tile enemy-tile"
-                class:selected={detailIsHighlighted(enemyDetail.detailKey)}
-                on:mouseenter={() => previewDetail(enemyDetail)}
-                on:focus={() => previewDetail(enemyDetail)}
-                on:mouseleave={clearDetail}
-                on:blur={clearDetail}
-                on:click={() => togglePinnedDetail(enemyDetail)}
-              >
-                <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(enemy.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(enemy.quantity)}`} aria-label={`${enemy.quantity} ${enemy.label} units`}>
-                  {#each unitIconCopies(enemy.quantity) as copy}
-                    <img class="unit-tile-art" src={getRaceUnitPortrait(enemy.raceId, enemy.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                  {/each}
-                </span>
-              </button>
-            {/each}
-          </div>
-
-          <div class="assignment-panel">
-            {#if selectedRiftAssignableTroops.length === 0}
-              <p class="assignment-empty">No idle troops are ready for this Rift.</p>
-            {:else}
-              <div class="assignment-list">
-                {#each selectedRiftAssignableTroops as troop}
-                  {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
-                  {@const troopDetail = buildResolvedUnitDetail(
-                    `rift-ready:${selectedRift.id}:${troop.id}`,
-                    troopDef.label,
-                    troop.raceId,
-                    troop.unitClassId,
-                    troopDef.stats,
-                    troopDef.quantity,
-                    troop.assignmentRiftId === selectedRift.id ? 'Assigned to this Rift' : 'Available troop',
-                    troopDef.abilities,
-                    troopDef.statBreakdowns,
-                  )}
-                  <button
-                    class="unit-tile draggable-troop-tile"
-                    class:assigned={troop.assignmentRiftId === selectedRift.id}
-                    class:selected={detailIsHighlighted(troopDetail.detailKey)}
-                    aria-label={`Drag ${troopDef.label} to assign or move it`}
-                    on:pointerdown={(event) =>
-                      startTroopDrag(
-                        event,
-                        troop.id,
-                        troop.assignmentRiftId,
-                        troopDef.label,
-                        getRaceUnitPortrait(troop.raceId, troop.unitClassId),
-                      )}
-                    on:mousedown={(event) =>
-                      startMouseTroopDrag(
-                        event,
-                        troop.id,
-                        troop.assignmentRiftId,
-                        troopDef.label,
-                        getRaceUnitPortrait(troop.raceId, troop.unitClassId),
-                      )}
-                    on:click={() => handleRiftTroopClick(troop.id, troopDetail)}
-                    on:mouseenter={() => previewDetail(troopDetail)}
-                    on:focus={() => previewDetail(troopDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                  >
-                    <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                      {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-tile-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                      {/each}
-                    </span>
-                    {#if troop.assignmentRiftId === selectedRift.id}
-                      <small>✅</small>
-                    {/if}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {:else if $gameStore.centerMode === 'troops' && selectedTroop && selectedTroopDefinition}
-          <h2>{selectedTroopDefinition.label}</h2>
-          <div class="unit-overview-strip">
-            <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(selectedTroopDefinition.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(selectedTroopDefinition.quantity)}`} aria-label={`${selectedTroopDefinition.quantity} units in troop`}>
-              {#each unitIconCopies(selectedTroopDefinition.quantity) as copy}
-                <img class="hover-unit-art" src={getRaceUnitPortrait(selectedTroop.raceId, selectedTroop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-              {/each}
-            </span>
-              <StatBreakdownGrid
-                stats={buildStatEntries(selectedTroopDefinition.stats, selectedTroopDefinition.statBreakdowns, true, selectedTroopDefinition.quantity)}
-              columns={3}
-              compact={true}
-            />
-          </div>
-          <div class="ability-row">
-            <span>Abilities</span>
-            <div class="ability-list">
-              {#if selectedTroopDefinition.abilities.length === 0}
-                <span class="mutator-chip empty">None</span>
-              {:else}
-                {#each selectedTroopDefinition.abilities as ability}
-                  {@const selectedSummons = getSummonedUnitPreviews(ability, selectedTroop.raceId).map((preview) => buildResolvedUnitDetail(
-                    `selected-summon:${selectedTroop.id}:${ability.id}:${preview.unitClassId}:${preview.grantedAbilityIds.join(',')}`,
-                    preview.troop.label,
-                    preview.troop.raceId,
-                    preview.troop.unitClassId,
-                    preview.troop.stats,
-                    preview.troop.quantity,
-                    `${preview.count > 1 ? `${preview.count} units. ` : ''}${preview.consumesCorpse ? 'Requires a corpse. ' : ''}Summoned by ${ability.label}.`,
-                    preview.troop.abilities,
-                  ))}
-                  <button
-                    class="mutator-chip ability-chip"
-                    on:mouseenter={() => showAbilityTooltip(ability, `selected-troop:${selectedTroop.id}`)}
-                    on:focus={() => showAbilityTooltip(ability, `selected-troop:${selectedTroop.id}`)}
-                    on:mouseleave={clearAbilityTooltip}
-                    on:blur={clearAbilityTooltip}
-                    on:click={() => togglePinnedAbilityTooltip(ability, `selected-troop:${selectedTroop.id}`)}
-                  >
-                    <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                  </button>
-                  {#each selectedSummons as summonDetail}
-                    <button
-                      type="button"
-                      class="mutator-chip summon-preview-chip"
-                      aria-label={`Inspect summoned ${summonDetail.label}`}
-                      on:mouseenter={() => previewDetail(summonDetail)}
-                      on:focus={() => previewDetail(summonDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(summonDetail)}
-                    >
-                      <span class="icon-label"><img class="summon-chip-art" src={summonDetail.portraitUrl} alt="" aria-hidden="true" /><span>{summonDetail.label}</span></span>
-                    </button>
-                  {/each}
-                {/each}
-              {/if}
-            </div>
-            {#if activeAbilityTooltipFor(`selected-troop:${selectedTroop.id}`)}
-              <div class="ability-hover-tooltip">
-                <strong>{activeAbilityTooltipFor(`selected-troop:${selectedTroop.id}`)?.label}</strong>
-                <p><InlineStatText text={activeAbilityTooltipFor(`selected-troop:${selectedTroop.id}`)?.description ?? ''} /></p>
-              </div>
-            {/if}
-          </div>
-        {:else}
-          <h2>No Focus Item</h2>
-          <p>
-            {$gameStore.centerMode === 'rifts'
-              ? 'Hover or select a troop, enemy, or mutator from the Rift board to inspect it here.'
-              : $gameStore.centerMode === 'troops'
-                ? 'Choose a Rift or troop to inspect its roster, stats, and assignments.'
-                : 'Hover or select an opponent troop, race, or upgrade to inspect it here.'}
-          </p>
-        {/if}
-      </div>
+      <PlanningInspector inspection={planningInspection} centerMode={$gameSessionStore.centerMode}
+        {selectedTroop} {selectedTroopDefinition} {getRaceUnitPortrait} {previewDetail} {togglePinnedDetail} />
 
     </section>
 
     <section class="center-column ui-debug-target" data-ui-name={getCenterBoardLabel()}>
-      {#if $gameStore.centerMode === 'rifts'}
-        <div class="rift-grid">
-          {#each discoveredRifts as rift}
-            {@const riftVisual = getRiftVisual(rift)}
-            {@const battleAnimation = getRiftBattleAnimationView(rift)}
-            <article
-              class="rift-card ui-debug-target"
-              class:contest-neutral={$gameStore.game.gameMode === 'contest' && (!rift.controller || rift.controller === 'neutral')}
-              class:contest-human-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerOne' || rift.controller === 'human')}
-              class:contest-ai-held={$gameStore.game.gameMode === 'contest' && (rift.controller === 'playerTwo' || rift.controller === 'ai')}
-              class:archive-highlighted={selectedRiftId === rift.id}
-              class:assignment-hint-rift={assignmentHintPair?.riftId === rift.id}
-              class:drop-target-unavailable={!!troopDrag && !multiplayerCycleEnded && !$gameStore.cycleAnimation && !canAssignTroopToRift($gameStore.game, troopDrag.troopId, rift.id).ok}
-              data-ui-name={`Rift card ${formatRiftDisplayId(rift.id)}`}
-              data-rift-id={rift.id}
-              data-assignment-hint-rift={rift.id}
-              data-tutorial-target="rift-card"
-              class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'rift', rift.id)}
-              class:drop-target-blocked={multiplayerCycleEnded || !!getRiftDropValidationMessage(rift.id)}
-              data-rift-drop-target={canEditMultiplayerPlan() ? rift.id : undefined}
-              on:dragover={allowNativeTroopDrop}
-              on:drop={(event) => finishNativeTroopDrop(event, { kind: 'rift', riftId: rift.id })}
-            >
-              <div
-                class="title-button rift-title-card"
-                style={`--rift-tint:${riftVisual.tint}; --rift-glow:${riftVisual.glow}; --rift-rotation:${riftVisual.rotationDeg}deg;`}
-              >
-                <header class="rift-title-line">
-                  <button
-                    type="button"
-                    class="rift-tier-pill rift-info-pill ui-debug-target"
-                    data-ui-name={`Tier ${rift.tier} info on ${formatRiftDisplayId(rift.id)}`}
-                    aria-label={riftTierTooltip(rift.tier)}
-                    on:mouseenter={() => previewDetail(buildRiftTierDetail(rift))}
-                    on:focus={() => previewDetail(buildRiftTierDetail(rift))}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(buildRiftTierDetail(rift))}
-                  >{formatRiftTierLabel(rift.tier)}</button>
-                  {#if $gameStore.game.gameMode === 'contest'}
-                    <span class="control-pill">{getRiftControllerLabel(rift)}</span>
-                  {/if}
-                  {#if rift.mutatorIds.length === 0}
-                    <span class="mutator-chip empty rift-mutator-chip">None</span>
-                  {:else}
-                    {#each rift.mutatorIds as mutatorId}
-                      <button
-                        class="mutator-chip rift-mutator-chip ui-debug-target"
-                        data-ui-name={`Mutator ${getMutator(mutatorId).label} on ${formatRiftDisplayId(rift.id)}`}
-                        data-tutorial-target="rift-mutator"
-                        on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
-                        on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
-                        on:mouseleave={clearDetail}
-                        on:blur={clearDetail}
-                        on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
-                      >
-                        <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
-                      </button>
-                    {/each}
-                  {/if}
-                </header>
-                <div class="rift-visual-shell inline">
-                  <div class="rift-visual-frame">
-                    <img
-                      class="rift-visual-image"
-                      src={riftVisual.imageUrl}
-                      alt=""
-                      aria-hidden="true"
-                      style={`filter:${riftVisual.filter};`}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div class="rift-battle-lane">
-                <div class="assigned-strip enemy-strip rift-force-side rift-force-left">
-                  {#each getAnimationLeftCombatantGroups(rift, battleAnimation) as group (group.key)}
-                    <div class={`rift-force-combatant-group ${group.phaseClass} ${group.lossClass ?? ''}`}>
-                      {#each group.combatants as enemy}
-                        {@const enemyDetail = buildResolvedUnitDetail(
-                          `enemy:${rift.id}:${enemy.combatantId}`,
-                          enemy.label,
-                          enemy.raceId,
-                          enemy.unitClassId,
-                          enemy.stats,
-                          enemy.quantity,
-                          'Enemy troop',
-                          enemy.abilities,
-                          enemy.statBreakdowns,
-                        )}
-                        <button
-                          class="unit-tile enemy-tile ui-debug-target"
-                          data-ui-name={`Enemy troop ${enemy.label} on ${formatRiftDisplayId(rift.id)}`}
-                          data-tutorial-target="rift-enemy"
-                          class:selected={detailIsHighlighted(enemyDetail.detailKey)}
-                          on:mouseenter={() => previewDetail(enemyDetail)}
-                          on:focus={() => previewDetail(enemyDetail)}
-                          on:mouseleave={clearDetail}
-                          on:blur={clearDetail}
-                          on:click={() => togglePinnedDetail(enemyDetail)}
-                        >
-                          <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(enemy.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(enemy.quantity)}`} aria-label={`${enemy.quantity} ${enemy.label} units`}>
-                            {#each unitIconCopies(enemy.quantity) as copy}
-                              <img class="unit-tile-art" src={getRaceUnitPortrait(enemy.raceId, enemy.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                            {/each}
-                          </span>
-                        </button>
-                      {/each}
-                    </div>
-                  {/each}
-                </div>
-
-                <div class="rift-battle-center">
-                  {#if battleAnimation}
-                    <div class="rift-battle-animation" aria-hidden="true">
-                      {#each battleAnimation.phases as phase (phase.key)}
-                        {@const phaseRecord = getRecordForBattlePhase(phase)}
-                        {@const phasePerspective = phaseResultSource(phase)}
-                        <div class={`rift-battle-phase ${phase.delayClass}`} data-flight-replay-id={phaseRecord?.replay.id}>
-                          {#if phaseRecord}
-                            <RiftBattleMiniReplay
-                              replay={phaseRecord.replay}
-                              leftSource={phase.leftSource}
-                              rightSource={phase.rightSource}
-                              leftHealthTone={healthToneForAnimationSide(phase.left)}
-                              rightHealthTone={healthToneForAnimationSide(phase.right)}
-                              result={resultForBattleSource(phaseRecord.outcome, phasePerspective.source)}
-                              opponentOutcome={phasePerspective.opponentOutcome}
-                              delayMs={phase.delayClass === 'phase-late' ? RIFT_BATTLE_LATE_PHASE_DELAY_MS : 0}
-                              {portraits}
-                            />
-                          {/if}
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-
-                <div class="assigned-strip rift-force-side rift-force-right">
-                  {#if troopDrag?.active && troopDrag.dropTarget?.kind === 'rift' && troopDrag.dropTarget.riftId === rift.id && !getRiftDropValidationMessage(rift.id)}
-                    <div class="unit-tile drop-preview-tile">
-                      <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" aria-hidden="true" />
-                    </div>
-                  {/if}
-                  {#each getAnimationRightCombatantGroups(rift, battleAnimation) as group (group.key)}
-                    <div class={`rift-force-combatant-group ${group.phaseClass} ${group.lossClass ?? ''}`}>
-                    {#each group.combatants as combatant}
-                    {@const troopId = combatant.troopInstanceId}
-                    {@const assignedDetail = buildResolvedUnitDetail(
-                      `rift-right:${rift.id}:${combatant.combatantId}`,
-                      combatant.label,
-                      combatant.raceId,
-                      combatant.unitClassId,
-                      combatant.stats,
-                      combatant.quantity,
-                      group.participant ? `${group.participant.label} force` : 'Assigned to this Rift',
-                      combatant.abilities,
-                      combatant.statBreakdowns,
-                    )}
-                    <button
-                      class="unit-tile assigned-summary-tile draggable-troop-tile ui-debug-target"
-                      data-ui-name={`${group.participant?.label ?? 'Assigned'} troop ${combatant.label} on ${formatRiftDisplayId(rift.id)}`}
-                      class:enemy-tile={group.participant?.kind === 'opponent' || group.participant?.kind === 'neutral'}
-                      class:selected={(troopId !== null && selectedTroopId === troopId) || detailIsHighlighted(assignedDetail.detailKey)}
-                      class:dragging-source={troopId !== null && troopDrag?.troopId === troopId && troopDrag.active}
-                      class:upgrade-affected={troopId !== null && isUpgradeAffectingTroop(troopId)}
-                      class:holding={troopId !== null && isHoldingTroop(troopId)}
-                      class:conflict-pulse={troopId !== null && (assignmentConflict?.troopId === troopId || assignmentConflict?.conflictTroopId === troopId)}
-                      class:readonly-plan={multiplayerCycleEnded && troopId !== null && !group.participant}
-                      aria-label={troopId !== null && !group.participant && canEditMultiplayerPlan() ? `Drag ${combatant.label} to another Rift or Available Troops` : `Inspect ${combatant.label}`}
-                      on:pointerdown={(event) => {
-                        if (troopId !== null && !group.participant && canEditMultiplayerPlan()) {
-                          startTroopDrag(
-                            event,
-                            troopId,
-                            rift.id,
-                            combatant.label,
-                            getRaceUnitPortrait(combatant.raceId, combatant.unitClassId),
-                          );
-                        }
-                      }}
-                      on:mousedown={(event) => {
-                        if (troopId !== null && !group.participant && canEditMultiplayerPlan()) {
-                          startMouseTroopDrag(
-                            event,
-                            troopId,
-                            rift.id,
-                            combatant.label,
-                            getRaceUnitPortrait(combatant.raceId, combatant.unitClassId),
-                          );
-                        }
-                      }}
-                      on:mouseenter={() => previewDetail(assignedDetail)}
-                      on:focus={() => previewDetail(assignedDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => (troopId !== null && !group.participant ? handleRiftTroopClick(troopId, assignedDetail) : togglePinnedDetail(assignedDetail))}
-                    >
-                      <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
-                        {#each unitIconCopies(combatant.quantity) as copy}
-                          <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                        {/each}
-                      </span>
-                    </button>
-                    {/each}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-
-              {#if getRiftDropValidationMessage(rift.id)}
-                <p class="drop-conflict-message">{getRiftDropValidationMessage(rift.id)}</p>
-              {:else if assignmentConflict?.riftId === rift.id}
-                <p class="drop-conflict-message">{assignmentConflict.message}</p>
-              {/if}
-
-            </article>
-          {/each}
-        </div>
-      {:else if $gameStore.centerMode === 'troops'}
-        <div class="race-grid troop-race-grid">
-          {#each raceRosterIds as raceId}
-            {@const race = getRace(raceId)}
-            {@const raceDetail = buildRaceDetail(raceId)}
-            {@const raceUpgradeIds = $gameStore.game.raceUpgradeIds.filter((upgradeId) => RACE_UPGRADES[upgradeId]?.raceId === raceId)}
-            <section class="race-card panel ui-debug-target" data-ui-name={`Race card ${race.label}`}>
-              <header class="race-card-top">
-                <button
-                  class="title-button race-name-button ui-debug-target"
-                  data-ui-name={`Race header ${race.label}`}
-                  class:selected={detailIsHighlighted(raceDetail.detailKey) || selectedRaceId === raceId}
-                  on:mouseenter={() => previewDetail(raceDetail)}
-                  on:focus={() => previewDetail(raceDetail)}
-                  on:mouseleave={clearDetail}
-                  on:blur={clearDetail}
-                  on:click={() => handleRaceHeaderClick(raceId, raceDetail)}
-                >
-                  <span>{race.label}</span>
-                  <img class="race-name-art" src={getRacePortrait(raceId)} alt="" aria-hidden="true" />
-                </button>
-
-                {#if raceUpgradeIds.length > 0}
-                  <div class="unlock-row race-card-upgrades">
-                    {#each raceUpgradeIds as upgradeId}
-                      {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                      <button
-                        class="list-button ui-debug-target"
-                        data-ui-name={`Race upgrade ${getUpgradeDetails(upgradeId).label}`}
-                        class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
-                        on:mouseenter={() => previewDetail(upgradeDetail)}
-                        on:focus={() => previewDetail(upgradeDetail)}
-                        on:mouseleave={clearDetail}
-                        on:blur={clearDetail}
-                        on:click={() => togglePinnedDetail(upgradeDetail)}
-                      >
-                        <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-              </header>
-
-              <div class="troop-list race-troop-list">
-                {#each getRaceTroops($gameStore.game, raceId) as troop}
-                  {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
-                  {@const troopDetail = buildResolvedUnitDetail(
-                    `troop:${troop.id}`,
-                    troopDef.label,
-                    troop.raceId,
-                    troop.unitClassId,
-                    troopDef.stats,
-                    troopDef.quantity,
-                    troop.assignmentRiftId
-                      ? `Assigned to ${troop.assignmentRiftId}`
-                      : troop.recoveryCyclesRemaining > 0
-                        ? `Recovering ${troop.recoveryCyclesRemaining}`
-                        : 'Available',
-                    troopDef.abilities,
-                    troopDef.statBreakdowns,
-                  )}
-                  <button
-                    class="troop-chip ui-debug-target"
-                    data-ui-name={`Troop chip ${troopDef.label}`}
-                    class:selected={selectedTroopId === troop.id || detailIsHighlighted(troopDetail.detailKey)}
-                    aria-label={`Inspect troop ${troopDef.label}`}
-                    on:click={() => handleRosterTroopClick(troop.id, troopDetail)}
-                    on:mouseenter={() => previewDetail(troopDetail)}
-                    on:focus={() => previewDetail(troopDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                  >
-                    <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                      {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-button-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                      {/each}
-                    </span>
-                  </button>
-                {/each}
-              </div>
-
-              {#if (selectedRaceId === raceId || detailIsHighlighted(raceDetail.detailKey)) && getAvailableRaceTroopUnlockIds(raceId).length > 0}
-                <div class="available-troop-block">
-                  <span class="assignment-label">Available Troop Classes</span>
-                  <div class="troop-list race-troop-list">
-                    {#each getAvailableRaceTroopUnlockIds(raceId) as troopUnlockId}
-                      {@const [availableRaceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
-                      {@const troopDef = TROOP_CATALOG[troopUnlockId]}
-                      {@const troopDetail = buildResolvedUnitDetail(
-                        `available:${troopUnlockId}`,
-                        troopDef.label,
-                        availableRaceId,
-                        unitClassId,
-                        troopDef.stats,
-                        troopDef.quantity,
-                        'Available for future troop drafts.',
-                        troopDef.abilities,
-                      )}
-                      <button
-                        class="troop-chip available-troop-chip ui-debug-target"
-                        data-ui-name={`Available troop class ${troopDef.label}`}
-                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
-                        aria-label={`Inspect available troop ${troopDef.label}`}
-                        on:mouseenter={() => previewDetail(troopDetail)}
-                        on:focus={() => previewDetail(troopDetail)}
-                        on:mouseleave={clearDetail}
-                        on:blur={clearDetail}
-                        on:click={() => togglePinnedDetail(troopDetail)}
-                      >
-                        <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                          {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-button-art" src={getRaceUnitPortrait(availableRaceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                          {/each}
-                        </span>
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </section>
-          {/each}
-        </div>
+      {#if $gameSessionStore.centerMode === 'rifts'}
+        <RiftBoard game={$gameSessionStore.game} records={$gameSessionStore.cycleAnimation?.resolution.records ?? []}
+          resolving={!!$gameSessionStore.cycleAnimation} interaction={assignmentInteraction}
+          planning={{ editable: canEditMultiplayerPlan(), submitted: multiplayerCycleEnded, selectedRiftId, selectedTroopId,
+            hintRiftId: assignmentHintPair?.riftId ?? null, upgradeId: $draftSession.hoveredUpgrade ?? $draftSession.selectedUpgrade,
+            holdingTroopIds: new Set($gameSessionStore.game.troops.filter(troop => isHoldingTroop(troop.id)).map(troop => troop.id)),
+            selectTroop: handleRiftTroopClick }}
+          inspection={{ preview: previewDetail, clear: clearDetail, pin: togglePinnedDetail, highlightedKeys: highlightedDetailKeys }}
+          opponentName={getOpponentPlayerName()} {portraits} {getRaceUnitPortrait} />
+      {:else if $gameSessionStore.centerMode === 'troops'}
+        <TroopRosterBoard game={$gameSessionStore.game} {selectedRaceId} {selectedTroopId}
+          inspection={{ preview: previewDetail, clear: clearDetail, pin: togglePinnedDetail, highlightedKeys: highlightedDetailKeys }}
+          {getRacePortrait} {getRaceUnitPortrait} selectRace={handleRaceHeaderClick} selectTroop={handleRosterTroopClick} />
       {:else}
-        <div class="opponent-info-board">
-          {#if !opponentInfo || !opponentInfoAi}
-            <div class="opponent-empty-state panel ui-debug-target" data-ui-name="Opponent info unknown">
-              <p class="eyebrow">Rival Info</p>
-              <h2>No Intel Yet</h2>
-              <p>Contest details appear after the rival has completed a cycle.</p>
-            </div>
-          {:else}
-            {#if opponentInfoAi.troopClassUpgradeIds.length > 0}
-              <section class="panel opponent-upgrades-panel ui-debug-target" data-ui-name="Opponent troop class upgrades">
-                <p class="eyebrow">Troop Class Upgrades</p>
-                <div class="unlock-row opponent-upgrade-row">
-                  {#each opponentInfoAi.troopClassUpgradeIds as upgradeId}
-                    {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                    <button
-                      class="list-button opponent-upgrade-chip"
-                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
-                      on:mouseenter={() => previewDetail(upgradeDetail)}
-                      on:focus={() => previewDetail(upgradeDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(upgradeDetail)}
-                    >
-                      <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                    </button>
-                  {/each}
-                </div>
-              </section>
-            {/if}
-
-            <div class="race-grid opponent-race-grid">
-              {#each opponentInfoRaceIds as raceId}
-                {@const race = getRace(raceId)}
-                {@const raceDetail = buildRaceDetail(raceId)}
-                {@const raceUpgradeIds = getOpponentRaceUpgradeIds(opponentInfoAi, raceId)}
-                {@const raceTroops = opponentInfoAi.troops.filter((troop) => troop.raceId === raceId)}
-                <section class="race-card panel opponent-race-card ui-debug-target" data-ui-name={`Opponent race card ${race.label}`}>
-                  <header class="race-card-top opponent-race-card-top">
-                    <button
-                      class="title-button race-name-button ui-debug-target"
-                      data-ui-name={`Opponent race header ${race.label}`}
-                      class:selected={detailIsHighlighted(raceDetail.detailKey)}
-                      on:mouseenter={() => previewDetail(raceDetail)}
-                      on:focus={() => previewDetail(raceDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(raceDetail)}
-                    >
-                      <span>{race.label}</span>
-                      <img class="race-name-art" src={getRacePortrait(raceId)} alt="" aria-hidden="true" />
-                    </button>
-
-                    <div class="unlock-row race-card-upgrades">
-                      {#if raceUpgradeIds.length === 0}
-                        <span class="mutator-chip empty">No known race upgrades</span>
-                      {:else}
-                        {#each raceUpgradeIds as upgradeId}
-                          {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                          <button
-                            class="list-button ui-debug-target"
-                            data-ui-name={`Opponent race upgrade ${getUpgradeDetails(upgradeId).label}`}
-                            class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
-                            on:mouseenter={() => previewDetail(upgradeDetail)}
-                            on:focus={() => previewDetail(upgradeDetail)}
-                            on:mouseleave={clearDetail}
-                            on:blur={clearDetail}
-                            on:click={() => togglePinnedDetail(upgradeDetail)}
-                          >
-                            <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                          </button>
-                        {/each}
-                      {/if}
-                    </div>
-                  </header>
-
-                  <div class="troop-list race-troop-list opponent-troop-list">
-                    {#each raceTroops as troop}
-                      {@const troopDef = resolveTroopCombatant(opponentInfoAi, troop, 'enemy', null, `known-player-two:${troop.id}`)}
-                      {@const isMobileThreat = !currentOpponentOccupyingTroopIds.has(troop.id)}
-                      {@const troopDetail = buildResolvedUnitDetail(
-                        `opponent:${opponentInfo.cycleNumber}:${troop.id}`,
-                        troopDef.label,
-                        troop.raceId,
-                        troop.unitClassId,
-                        troopDef.stats,
-                        troopDef.quantity,
-                        isMobileThreat ? 'Known opponent troop not currently holding any Rift.' : 'Known opponent troop currently holding a Rift.',
-                        troopDef.abilities,
-                        troopDef.statBreakdowns,
-                      )}
-                      <button
-                        class="troop-chip opponent-troop-chip ui-debug-target"
-                        class:opponent-threat={isMobileThreat}
-                        data-ui-name={`Opponent troop ${troopDef.label}`}
-                        class:selected={detailIsHighlighted(troopDetail.detailKey)}
-                        aria-label={`Inspect opponent troop ${troopDef.label}`}
-                        on:mouseenter={() => previewDetail(troopDetail)}
-                        on:focus={() => previewDetail(troopDetail)}
-                        on:mouseleave={clearDetail}
-                        on:blur={clearDetail}
-                        on:click={() => togglePinnedDetail(troopDetail)}
-                      >
-                        <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                          {#each unitIconCopies(troopDef.quantity) as copy}
-                            <img class="unit-tile-art" src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                          {/each}
-                        </span>
-                      </button>
-                    {/each}
-                  </div>
-                </section>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        <RivalInfoBoard game={$gameSessionStore.game} {getRacePortrait} {getRaceUnitPortrait}
+          inspection={{ preview: previewDetail, clear: clearDetail, pin: togglePinnedDetail, highlightedKeys: highlightedDetailKeys }} />
       {/if}
     </section>
 
     <section class="right-column ui-debug-target" data-ui-name="Right sidebar">
-      {#if false && $gameStore.centerMode === 'troops'}
-        <div class="panel essence-draft-panel" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention}>
-          {#if !essenceDraftActive}
-            <p class="draft-helper-copy">Spend two Essence to reveal troop and upgrade packs together, then claim one option from each.</p>
 
-            <div class="actions-grid">
-              <button class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention} disabled={essenceDraftCost === null || $gameStore.game.essence < essenceDraftCost} on:click={() => gameStore.revealEssenceDraft()}>
-                <span>{essenceDraftButtonLabel}</span>
-                {#if essenceDraftCost}
-                  <span class="essence-cost"><i class="resource-icon essence"></i><strong>{essenceDraftCost}</strong></span>
-                {/if}
-              </button>
-            </div>
-          {/if}
-
-          {#if $gameStore.game.activeTroopOffer}
-            <div class="draft-offer-block" class:reroll-replace-preview={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}>
-              <span class="assignment-label">Choose one troop</span>
-              <div class="option-list troop-draft-option-list">
-                {#each $gameStore.game.activeTroopOffer.optionTroopUnlockIds as troopUnlockId}
-                  {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
-                  {@const troopDef = TROOP_CATALOG[troopUnlockId]}
-                  {@const troopDetail = buildResolvedUnitDetail(
-                    `offer:${troopUnlockId}`,
-                    troopDef.label,
-                    raceId,
-                    unitClassId,
-                    troopDef.stats,
-                    troopDef.quantity,
-                    'Draftable troop unlock.',
-                    troopDef.abilities,
-                  )}
-                  <button
-                    class="draft-option troop-icon-option"
-                    class:selected={selectedTroopOfferUnlockId === troopUnlockId}
-                    aria-label={`Inspect troop unlock ${troopDef.label}`}
-                    on:mouseenter={() => previewDetail(troopDetail)}
-                    on:focus={() => previewDetail(troopDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => selectTroopOfferUnlock(troopUnlockId, troopDetail)}
-                  >
-                    <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                      {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                      {/each}
-                    </span>
-                  </button>
-                {/each}
-              </div>
-              <button
-                type="button"
-                class="draft-reroll-button"
-                class:reroll-hovered={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}
-                class:reroll-other-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollTroopDraft}
-                disabled={!canRerollTroopDraft}
-                aria-label="Reroll troop draft options"
-                title="Reroll troop options"
-                on:mouseenter={() => (hoveredDraftRerollSide = 'troop')}
-                on:focus={() => (hoveredDraftRerollSide = 'troop')}
-                on:mouseleave={() => (hoveredDraftRerollSide = null)}
-                on:blur={() => (hoveredDraftRerollSide = null)}
-                on:click={() => rerollDraftSide('troop')}
-              >
-                <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
-                  <path d="M17.1 3.9v4.4h-4.4" />
-                  <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
-                  <path d="M6.9 20.1v-4.4h4.4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="primary"
-                disabled={!selectedTroopOfferUnlockId}
-                on:click={confirmTroopOfferUnlock}
-              >
-                Confirm Troop
-              </button>
-            </div>
-          {/if}
-
-          {#if $gameStore.game.activeUpgradeOffer}
-            <div class="draft-offer-block" class:reroll-replace-preview={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}>
-              <span class="assignment-label">Choose one upgrade</span>
-              <div class="unlock-row">
-                {#each $gameStore.game.activeUpgradeOffer.optionUpgradeIds as upgradeId}
-                  {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                  {@const affectedTroops = getAffectedTroopsForUpgrade(upgradeId)}
-                  <button
-                    class="list-button"
-                    class:selected={selectedUpgradeOfferId === upgradeId}
-                    on:mouseenter={() => { hoveredUpgradeOfferId = upgradeId; previewDetail(upgradeDetail); }}
-                    on:focus={() => { hoveredUpgradeOfferId = upgradeId; previewDetail(upgradeDetail); }}
-                    on:mouseleave={() => { hoveredUpgradeOfferId = null; clearDetail(); }}
-                    on:blur={() => { hoveredUpgradeOfferId = null; clearDetail(); }}
-                    on:click={() => selectUpgradeOffer(upgradeId, upgradeDetail)}
-                  >
-                    <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                    {#if affectedTroops.length > 0}
-                      <span class="affected-troop-strip" aria-label="Affected unlocked troops">
-                        {#each affectedTroops as troop}
-                          <img src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden="true" />
-                        {/each}
-                      </span>
-                    {/if}
-                  </button>
-                {/each}
-              </div>
-              <button
-                type="button"
-                class="draft-reroll-button"
-                class:reroll-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}
-                class:reroll-other-hovered={hoveredDraftRerollSide === 'troop' && canRerollUpgradeDraft}
-                disabled={!canRerollUpgradeDraft}
-                aria-label="Reroll upgrade draft options"
-                title="Reroll upgrade options"
-                on:mouseenter={() => (hoveredDraftRerollSide = 'upgrade')}
-                on:focus={() => (hoveredDraftRerollSide = 'upgrade')}
-                on:mouseleave={() => (hoveredDraftRerollSide = null)}
-                on:blur={() => (hoveredDraftRerollSide = null)}
-                on:click={() => rerollDraftSide('upgrade')}
-              >
-                <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
-                  <path d="M17.1 3.9v4.4h-4.4" />
-                  <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
-                  <path d="M6.9 20.1v-4.4h4.4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="primary"
-                disabled={!selectedUpgradeOfferId}
-                on:click={confirmUpgradeOffer}
-              >
-                Confirm Upgrade
-              </button>
-            </div>
-          {/if}
-
-        </div>
-      {/if}
-
-      {#if false && activeDetail && $gameStore.centerMode !== 'troops'}
-        <div class="panel detail-panel" role="presentation" on:mouseleave={clearDetail}>
-          <p class="eyebrow">
-            {getDetailInspectLabel(activeDetail)}
-          </p>
-          <h2>{activeDetail.label}</h2>
-          {#if activeDetail.kind === 'unit'}
-            {@const abilityOwnerKey = activeDetail.detailKey}
-            <div class="unit-overview-strip">
-              <span class={`unit-icon-cluster detail-unit-cluster ${unitIconDensityClass(activeDetail.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(activeDetail.quantity)}`} aria-label={`${activeDetail.quantity} units in troop`}>
-                {#each unitIconCopies(activeDetail.quantity) as copy}
-                  <img class="hover-unit-art" src={activeDetail.portraitUrl} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                {/each}
-              </span>
-              <StatBreakdownGrid stats={activeDetail.stats} columns={3} compact={true} />
-            </div>
-            <div class="ability-row detail-ability-row">
-              <span>Abilities</span>
-              <div class="ability-list">
-                {#if activeDetail.abilities.length === 0}
-                  <span class="mutator-chip empty">None</span>
-                {:else}
-                  {#each activeDetail.abilities as ability}
-                    <details class="ability-disclosure">
-                      <summary
-                        class="mutator-chip ability-chip"
-                        on:mouseenter={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                        on:focus={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                            on:click|preventDefault={(event) => openAbilityDisclosure(event, ability, abilityOwnerKey)}
-                      >
-                        <span class="icon-label"><GameIcon kind="ability" id={ability.id} label={ability.label} /><span>{ability.label}</span></span>
-                      </summary>
-                      <div class="ability-hover-tooltip">
-                        <strong>{ability.label}</strong>
-                        <p><InlineStatText text={ability.description} /></p>
-                      </div>
-                    </details>
-                  {/each}
-                {/if}
-              </div>
-              {#if activeAbilityTooltipFor(activeDetail.detailKey)}
-                <div class="ability-hover-tooltip">
-                  <strong>{activeAbilityTooltipFor(activeDetail.detailKey)?.label}</strong>
-                  <p><InlineStatText text={activeAbilityTooltipFor(activeDetail.detailKey)?.description ?? ''} /></p>
-                </div>
-              {/if}
-            </div>
-          {:else}
-            <p><InlineStatText text={activeDetail.description} /></p>
-          {/if}
-        </div>
-      {/if}
-
-      {#if $gameStore.centerMode === 'rifts' && selectedReplayEntry}
-        <div class="panel selected-archive-panel ui-debug-target" data-ui-name="Selected archive entry">
-          <button class="archive-back-button ui-debug-target" data-ui-name="Back to archive" on:click={() => (selectedReplayId = null)} aria-label="Back to archive">
-            <span aria-hidden="true">&larr;</span>
-          </button>
-          <div class="archive-inspect-heading">
-            <span
-              class="archive-result-mark"
-              class:rival-result={archiveResultShowsRivalArrow(selectedReplayEntry)}
-              class:defeat-result={archiveResultGlyph(selectedReplayEntry) === 'skull'}
-              aria-label={archiveResultLabel(selectedReplayEntry)}
-              title={archiveResultLabel(selectedReplayEntry)}
-            >
-              {#if archiveResultShowsRivalArrow(selectedReplayEntry)}
-                <span class="archive-rival-arrow" aria-hidden="true">&lt;-&gt;</span>
-              {/if}
-              {#if archiveResultGlyph(selectedReplayEntry) === 'crown'}
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3.5 8.2 8.4 12l3.6-7 3.6 7 4.9-3.8-2.1 10H5.6L3.5 8.2Z" />
-                  <path d="M6.2 20h11.6" />
-                </svg>
-              {:else if archiveResultGlyph(selectedReplayEntry) === 'skull'}
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 11.2C6 6.9 8.5 4.4 12 4.4s6 2.5 6 6.8c0 2.3-.7 4-2 5.1V20H8v-3.7c-1.3-1.1-2-2.8-2-5.1Z" />
-                  <circle cx="9.7" cy="11.5" r="1.25" />
-                  <circle cx="14.3" cy="11.5" r="1.25" />
-                  <path d="M12 14.1v2.1" />
-                </svg>
-              {:else}
-                <span class="archive-draw-mark" aria-hidden="true">=</span>
-              {/if}
-            </span>
-            <button
-              type="button"
-              class="archive-watch-button archive-inspect-watch-button"
-              aria-label={selectedReplayAvailable ? 'Watch Battle' : 'Replay unavailable'}
-              title={selectedReplayAvailable ? 'Watch Battle' : 'Replay unavailable'}
-              disabled={!selectedReplayAvailable}
-              on:click={openSelectedReplay}
-            >
-              <svg class="archive-watch-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M2.2 12s3.4-6.1 9.8-6.1 9.8 6.1 9.8 6.1-3.4 6.1-9.8 6.1S2.2 12 2.2 12Z" />
-                <circle cx="12" cy="12" r="3.25" />
-              </svg>
-            </button>
-          </div>
-          {#if selectedReplayEntry.riftLabel || selectedReplayEntry.riftId}
-            <p class="archive-rift-id">Rift {selectedReplayEntry.riftLabel ?? formatRiftDisplayId(selectedReplayEntry.riftId ?? '')}</p>
-          {/if}
-          {#if selectedReplayEntry.resultDrift}
-            <div class="archive-drift-note">
-              <strong>Rules changed this replay.</strong>
-              <span>It now resolves as {decorateArchiveSummary(selectedReplayEntry.resultDrift.currentSummary)}; archived result was {decorateArchiveSummary(selectedReplayEntry.resultDrift.originalSummary)}.</span>
-            </div>
-          {/if}
-          <div class="ability-row">
-            <span>Mutators</span>
-            <div class="ability-list">
-              {#if selectedReplayEntry.mutatorIds.length === 0}
-                <span class="mutator-chip empty">None</span>
-              {:else}
-                {#each selectedReplayEntry.mutatorIds as mutatorId}
-                  <button
-                    class="mutator-chip"
-                    class:selected={detailIsHighlighted(buildMutatorDetail(mutatorId).detailKey)}
-                    on:mouseenter={() => previewDetail(buildMutatorDetail(mutatorId))}
-                    on:focus={() => previewDetail(buildMutatorDetail(mutatorId))}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(buildMutatorDetail(mutatorId))}
-                  >
-                    <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
-                  </button>
-                {/each}
-              {/if}
-            </div>
-          </div>
-
-          {#if selectedArchivePayload}
-            <div class="archive-force-block">
-              <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('player').kind)}`}>{getArchiveForcesLabel('player')}</span>
-              <div class="assigned-strip archive-force-strip">
-                {#each getArchiveCombatants('player') as combatant}
-                  {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'player')}
-                  {@const performance = getArchiveCombatantPerformance('player', combatant)}
-                  <button
-                    class="unit-tile assigned-summary-tile archive-performance-tile ui-debug-target"
-                    data-ui-name={`Archive player force ${combatant.label}`}
-                    class:selected={detailIsHighlighted(combatantDetail.detailKey)}
-                    class:has-archive-performance={!!performance}
-                    style={archivePerformanceStyle(performance)}
-                    on:mouseenter={() => previewDetail(combatantDetail)}
-                    on:focus={() => previewDetail(combatantDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(combatantDetail)}
-                  >
-                    <span class="archive-health-indicator" aria-hidden="true"></span>
-                    <span class="archive-damage-indicator" aria-hidden="true"></span>
-                    <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
-                      {#each unitIconCopies(combatant.quantity) as copy}
-                        <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                      {/each}
-                    </span>
-                  </button>
-                {/each}
-              </div>
-              <div class="unlock-row archive-upgrade-row">
-                {#if selectedArchivePlayerUpgradeIds.length > 0}
-                  {#each selectedArchivePlayerUpgradeIds as upgradeId}
-                    {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                    <button
-                      class="list-button archive-upgrade-chip"
-                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
-                      on:mouseenter={() => previewDetail(upgradeDetail)}
-                      on:focus={() => previewDetail(upgradeDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(upgradeDetail)}
-                    >
-                      <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                    </button>
-                  {/each}
-                {/if}
-              </div>
-            </div>
-
-            <div class="archive-force-block">
-              <span class={`assignment-label archive-side-label ${archiveParticipantClass(getArchiveParticipant('enemy').kind)}`}>{getArchiveForcesLabel('enemy')}</span>
-              <div class="assigned-strip enemy-strip archive-force-strip">
-                {#each getArchiveCombatants('enemy') as combatant}
-                  {@const combatantDetail = buildArchiveCombatantDetail(combatant, 'enemy')}
-                  {@const performance = getArchiveCombatantPerformance('enemy', combatant)}
-                  <button
-                    class="unit-tile enemy-tile archive-performance-tile ui-debug-target"
-                    data-ui-name={`Archive enemy force ${combatant.label}`}
-                    class:selected={detailIsHighlighted(combatantDetail.detailKey)}
-                    class:has-archive-performance={!!performance}
-                    style={archivePerformanceStyle(performance)}
-                    on:mouseenter={() => previewDetail(combatantDetail)}
-                    on:focus={() => previewDetail(combatantDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => togglePinnedDetail(combatantDetail)}
-                  >
-                    <span class="archive-health-indicator" aria-hidden="true"></span>
-                    <span class="archive-damage-indicator" aria-hidden="true"></span>
-                    <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(combatant.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(combatant.quantity)}`} aria-label={`${combatant.quantity} ${combatant.label} units`}>
-                      {#each unitIconCopies(combatant.quantity) as copy}
-                        <img class="unit-tile-art" src={getRaceUnitPortrait(combatant.raceId, combatant.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                      {/each}
-                    </span>
-                  </button>
-                {/each}
-              </div>
-              {#if selectedArchiveEnemyUpgradeIds.length > 0}
-                <div class="unlock-row archive-upgrade-row">
-                  {#each selectedArchiveEnemyUpgradeIds as upgradeId}
-                    {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                    <button
-                      class="list-button archive-upgrade-chip"
-                      class:selected={detailIsHighlighted(upgradeDetail.detailKey)}
-                      on:mouseenter={() => previewDetail(upgradeDetail)}
-                      on:focus={() => previewDetail(upgradeDetail)}
-                      on:mouseleave={clearDetail}
-                      on:blur={clearDetail}
-                      on:click={() => togglePinnedDetail(upgradeDetail)}
-                    >
-                      <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          {:else}
-            <div class="compact-list">
-              <div>
-                <span>Troops Sent</span>
-                <strong>{selectedReplayEntry.playerTroopLabels.join(', ') || 'Unknown troop'}</strong>
-              </div>
-              <div>
-                <span>Replay Status</span>
-                <strong>{selectedReplayEntry.summaryOnly ? 'Summary only' : selectedReplayAvailable ? 'Replay available' : 'Replay missing'}</strong>
-              </div>
-            </div>
-          {/if}
-        </div>
-      {/if}
-
-      {#if $gameStore.centerMode === 'rifts' && !selectedReplayEntry}
-        <div class="panel archive-panel ui-debug-target" data-ui-name="Battle archive panel">
-          {#if $gameStore.game.replayIndex.length === 0 && !cycleLogArrivalActive}
-            <p>No archived battles yet.</p>
-          {:else}
-            <div class="archive-list">
-              {#if cycleLogArrivalActive && cycleLogArrivalReady}
+      <ArchivePanel game={$gameSessionStore.game} session={archiveSession} visible={$gameSessionStore.centerMode === 'rifts'}
+        arrivalActive={$cyclePresentation.arrivalActive}
+        replays={{ has: gameStore.hasReplay, payload: gameStore.getReplayPayload, replay: gameStore.getReplay }}
+        presentation={{ visual: battleLogVisualFromArchiveEntry, style: getArchiveCardStyle, opponent: isArchiveOpponentBattle }}
+        inspection={{ preview: previewDetail, clear: clearDetail, pin: togglePinnedDetail, highlightedKeys: highlightedDetailKeys }}
+        select={selectReplay} open={openReplayFromArchive} openSelected={openSelectedReplay}
+        previewRift={previewArchiveRift} {getRaceUnitPortrait}>
+        <svelte:fragment slot="incoming">
+              {#if $cyclePresentation.arrivalActive && $cyclePresentation.arrivalReady}
                 {@const incomingVisuals = incomingBattleLogVisuals()}
                 {#each incomingVisuals as visual, index (visual.key)}
                   {@const incomingRiftVisual = visual.riftVisualSource ? getRiftVisual(visual.riftVisualSource) : null}
@@ -5762,334 +1849,38 @@
                   </div>
                 {/each}
               {/if}
-              {#each pagedReplayEntries as replayEntry}
-                {@const archiveVisual = battleLogVisualFromArchiveEntry(replayEntry)}
-                {@const archiveRiftVisual = archiveVisual.riftVisualSource ? getRiftVisual(archiveVisual.riftVisualSource) : null}
-                <div class="archive-card-row" class:archive-opponent-record={isArchiveOpponentBattle(replayEntry)}>
-                  <button
-                    class="archive-card ui-debug-target"
-                    data-ui-name={`Archive entry ${replayEntry.summary}`}
-                    data-tutorial-target="archive-card"
-                    class:selected={selectedReplayId === replayEntry.replayId}
-                    style={getArchiveCardStyle(replayEntry)}
-                    on:mouseenter={() => previewArchiveRift(replayEntry)}
-                    on:focus={() => previewArchiveRift(replayEntry)}
-                    on:click={() => selectReplay(replayEntry.replayId)}
-                    aria-label={archiveVisual.ariaLabel}
-                  >
-                    {#if archiveRiftVisual}
-                      <span class="archive-rift-thumbnail" style={`--rift-tint:${archiveRiftVisual.tint}; --rift-glow:${archiveRiftVisual.glow}; --rift-rotation:${archiveRiftVisual.rotationDeg}deg;`}>
-                        <img src={archiveRiftVisual.imageUrl} alt="" aria-hidden="true" style={`filter:${archiveRiftVisual.filter};`} />
-                      </span>
-                    {/if}
-                    <BattleLogResultToken
-                      outcome={archiveVisual.outcome}
-                      opponentOutcome={archiveVisual.opponentOutcome}
-                      leftPercent={archiveVisual.leftPercent}
-                      rightPercent={archiveVisual.rightPercent}
-                      leftTone={archiveVisual.leftTone}
-                      rightTone={archiveVisual.rightTone}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    class="archive-watch-button"
-                    aria-label={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId) ? 'Replay unavailable' : 'Watch Battle'}
-                    title={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId) ? 'Replay unavailable' : 'Watch Battle'}
-                    disabled={replayEntry.summaryOnly || !gameStore.hasReplay(replayEntry.replayId)}
-                    on:click={() => openReplayFromArchive(replayEntry.replayId)}
-                  >
-                    <svg class="archive-watch-icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2.2 12s3.4-6.1 9.8-6.1 9.8 6.1 9.8 6.1-3.4 6.1-9.8 6.1S2.2 12 2.2 12Z" />
-                      <circle cx="12" cy="12" r="3.25" />
-                    </svg>
-                  </button>
-                </div>
-              {/each}
-            </div>
-            {#if archivePageCount > 1}
-              <div class="archive-pagination">
-                <button type="button" aria-label="Previous archive page" disabled={archivePage === 0} on:click={() => (archivePage = Math.max(0, archivePage - 1))}>&lt;</button>
-                <span>Page {archivePage + 1} / {archivePageCount}</span>
-                <button type="button" aria-label="Next archive page" disabled={archivePage >= archivePageCount - 1} on:click={() => (archivePage = Math.min(archivePageCount - 1, archivePage + 1))}>&gt;</button>
-              </div>
-            {/if}
-          {/if}
-        </div>
-      {/if}
+
+        </svelte:fragment>
+      </ArchivePanel>
     </section>
 
-    <footer class="action-rail" class:empty-action-rail={$gameStore.centerMode === 'contest' && !$gameStore.systemMessage && $gameStore.game.phase !== 'planning'}>
-        {#if $gameStore.game.phase === 'planning' && ($gameStore.centerMode === 'troops' || $gameStore.centerMode === 'rifts') && (mustSpendEssenceBeforeCycleEnd || confirmedTroopOfferUnlockId || confirmedUpgradeOfferId)}
-          <div class="panel essence-draft-panel footer-essence-draft-panel ui-debug-target" data-ui-name="Bottom essence draft panel" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention}>
-            {#if !essenceDraftActive && !confirmedTroopOfferUnlockId && !confirmedUpgradeOfferId}
-              <p class="draft-helper-copy">
-                Preparing the mandatory draft...
-              </p>
-              <div class="actions-grid">
-                <button type="button" class="primary reveal-draft-button" class:soft-highlight={essenceDraftHighlighted || cycleHoverEssenceAttention} on:click={revealEssenceDraft}>
-                  <span>{essenceDraftButtonLabel}</span>
-                  {#if essenceDraftCost}
-                    <span class="essence-cost"><i class="resource-icon essence"></i><strong>{essenceDraftCost}</strong></span>
-                  {/if}
-                </button>
-              </div>
-            {:else}
-              <div class="essence-draft-groups" class:has-synergy={selectedDraftChoicesHaveSynergy()}>
-                <div
-                  class="draft-offer-block"
-                  class:locked={!$gameStore.game.activeTroopOffer && !!confirmedTroopOfferUnlockId}
-                  class:reroll-replace-preview={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}
-                >
-                  <span class="assignment-label">Choose one troop</span>
-                  {#if $gameStore.game.activeTroopOffer}
-                    <div class="option-list troop-draft-option-list">
-                      {#each $gameStore.game.activeTroopOffer.optionTroopUnlockIds as troopUnlockId}
-                        {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
-                        {@const troopDef = TROOP_CATALOG[troopUnlockId]}
-                        {@const troopDetail = buildResolvedUnitDetail(
-                          `offer:${troopUnlockId}`,
-                          troopDef.label,
-                          raceId,
-                          unitClassId,
-                          troopDef.stats,
-                          troopDef.quantity,
-                          'Draftable troop unlock.',
-                          troopDef.abilities,
-                        )}
-                        <button
-                          class="draft-option troop-icon-option"
-                          data-tutorial-target="draft-troop-option"
-                          class:selected={selectedTroopOfferUnlockId === troopUnlockId}
-                          class:upgrade-affected={isUpgradeAffectingDraftTroop(troopUnlockId)}
-                          aria-label={`Inspect troop unlock ${troopDef.label}`}
-                          on:mouseenter={() => previewDetail(troopDetail)}
-                          on:focus={() => previewDetail(troopDetail)}
-                          on:mouseleave={clearDetail}
-                          on:blur={clearDetail}
-                          on:click={() => selectTroopOfferUnlock(troopUnlockId, troopDetail)}
-                        >
-                          <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                            {#each unitIconCopies(troopDef.quantity) as copy}
-                              <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                            {/each}
-                          </span>
-                          {#if isUpgradeAffectingDraftTroop(troopUnlockId)}
-                            <span class="upgrade-plus-badge" aria-hidden="true">+</span>
-                          {/if}
-                        </button>
-                      {/each}
-                    </div>
-                    <button
-                      type="button"
-                      class="draft-reroll-button"
-                      class:reroll-hovered={hoveredDraftRerollSide === 'troop' && canRerollTroopDraft}
-                      class:reroll-other-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollTroopDraft}
-                      disabled={!canRerollTroopDraft}
-                      aria-label="Reroll troop draft options"
-                      title="Reroll troop options"
-                      on:mouseenter={() => (hoveredDraftRerollSide = 'troop')}
-                      on:focus={() => (hoveredDraftRerollSide = 'troop')}
-                      on:mouseleave={() => (hoveredDraftRerollSide = null)}
-                      on:blur={() => (hoveredDraftRerollSide = null)}
-                      on:click={() => rerollDraftSide('troop')}
-                    >
-                      <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
-                        <path d="M17.1 3.9v4.4h-4.4" />
-                        <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
-                        <path d="M6.9 20.1v-4.4h4.4" />
-                      </svg>
-                    </button>
-                    <button type="button" class="primary" data-tutorial-target="confirm-draft-troop" disabled={!selectedTroopOfferUnlockId} on:click={confirmTroopOfferUnlock}>Confirm Troop</button>
-                  {:else if confirmedTroopOfferUnlockId}
-                    {@const [raceId, unitClassId] = parseTroopUnlockId(confirmedTroopOfferUnlockId)}
-                    <div class="locked-draft-card locked-draft-icon-card" aria-label={`Confirmed troop ${TROOP_CATALOG[confirmedTroopOfferUnlockId].label}`}>
-                      <span class={`unit-icon-cluster chip-unit-cluster ${unitIconDensityClass(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity)}`} aria-label={`${TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity} ${TROOP_CATALOG[confirmedTroopOfferUnlockId].label} units`}>
-                        {#each unitIconCopies(TROOP_CATALOG[confirmedTroopOfferUnlockId].quantity) as copy}
-                          <img class="unit-button-art" src={getRaceUnitPortrait(raceId, unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                        {/each}
-                      </span>
-                      <span class="confirmed-check" aria-hidden="true"></span>
-                    </div>
-                  {/if}
-                </div>
-
-                <div
-                  class="draft-offer-block"
-                  class:locked={!$gameStore.game.activeUpgradeOffer && !!confirmedUpgradeOfferId}
-                  class:reroll-replace-preview={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}
-                >
-                  <span class="assignment-label">Choose one upgrade</span>
-                  {#if $gameStore.game.activeUpgradeOffer}
-                    <div class="unlock-row">
-                      {#each $gameStore.game.activeUpgradeOffer.optionUpgradeIds as upgradeId}
-                        {@const upgradeDetail = buildUpgradeDetail(upgradeId)}
-                        {@const affectedTroops = getAffectedTroopsForUpgrade(upgradeId)}
-                        {@const affectedDraftTroops = getAffectedDraftTroopsForUpgrade(upgradeId)}
-                        <button
-                          class="list-button draft-upgrade-option"
-                          data-tutorial-target="draft-upgrade-option"
-                          class:selected={selectedUpgradeOfferId === upgradeId}
-                          on:mouseenter={() => { hoveredUpgradeOfferId = upgradeId; previewDetail(upgradeDetail); }}
-                          on:focus={() => { hoveredUpgradeOfferId = upgradeId; previewDetail(upgradeDetail); }}
-                          on:mouseleave={() => { hoveredUpgradeOfferId = null; clearDetail(); }}
-                          on:blur={() => { hoveredUpgradeOfferId = null; clearDetail(); }}
-                          on:click={() => selectUpgradeOffer(upgradeId, upgradeDetail)}
-                        >
-                          <span class="icon-label"><GameIcon kind="upgrade" id={upgradeId} label={getUpgradeDetails(upgradeId).label} /><span>{getUpgradeDetails(upgradeId).label}</span></span>
-                          {#if affectedTroops.length > 0 || affectedDraftTroops.length > 0}
-                            <span class="affected-troop-strip" aria-label="Affected troops">
-                              {#each affectedTroops as troop}
-                                <img src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden="true" />
-                              {/each}
-                              {#each affectedDraftTroops as troopUnlockId}
-                                {@const [raceId, unitClassId] = parseTroopUnlockId(troopUnlockId)}
-                                <img
-                                  class="draft-affected"
-                                  class:selected-draft-target={selectedTroopOfferUnlockId === troopUnlockId}
-                                  src={getRaceUnitPortrait(raceId, unitClassId)}
-                                  alt=""
-                                  aria-hidden="true"
-                                />
-                              {/each}
-                            </span>
-                          {/if}
-                        </button>
-                      {/each}
-                    </div>
-                    <button
-                      type="button"
-                      class="draft-reroll-button"
-                      class:reroll-hovered={hoveredDraftRerollSide === 'upgrade' && canRerollUpgradeDraft}
-                      class:reroll-other-hovered={hoveredDraftRerollSide === 'troop' && canRerollUpgradeDraft}
-                      disabled={!canRerollUpgradeDraft}
-                      aria-label="Reroll upgrade draft options"
-                      title="Reroll upgrade options"
-                      on:mouseenter={() => (hoveredDraftRerollSide = 'upgrade')}
-                      on:focus={() => (hoveredDraftRerollSide = 'upgrade')}
-                      on:mouseleave={() => (hoveredDraftRerollSide = null)}
-                      on:blur={() => (hoveredDraftRerollSide = null)}
-                      on:click={() => rerollDraftSide('upgrade')}
-                    >
-                      <svg class="recycle-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M7.2 7.4a6.5 6.5 0 0 1 10 .7" />
-                        <path d="M17.1 3.9v4.4h-4.4" />
-                        <path d="M16.8 16.6a6.5 6.5 0 0 1-10-.7" />
-                        <path d="M6.9 20.1v-4.4h4.4" />
-                      </svg>
-                    </button>
-                    <button type="button" class="primary" data-tutorial-target="confirm-draft-upgrade" disabled={!selectedUpgradeOfferId} on:click={confirmUpgradeOffer}>Confirm Upgrade</button>
-                  {:else if confirmedUpgradeOfferId}
-                    <div class="locked-draft-card locked-draft-icon-card" aria-label={`Confirmed upgrade ${getUpgradeDetails(confirmedUpgradeOfferId).label}`}>
-                      <GameIcon kind="upgrade" id={confirmedUpgradeOfferId} label={getUpgradeDetails(confirmedUpgradeOfferId).label} />
-                      <span class="confirmed-check" aria-hidden="true"></span>
-                    </div>
-                  {/if}
-                </div>
-              </div>
-            {/if}
-          </div>
+    <PlanningActionRail empty={$gameSessionStore.centerMode === 'contest' && !$gameSessionStore.systemMessage && $gameSessionStore.game.phase !== 'planning'}
+      cycle={{ visible: $gameSessionStore.game.phase === 'planning', label: primaryCycleActionLabel, blocked: cycleActionBlocked,
+        disabled: multiplayerCycleEnded || !!$gameSessionStore.cycleAnimation || cycleResolvePending, tooltip: cycleActionTooltip,
+        hovered: $planningAttention.cycleHovered, enter: handleCycleActionEnter, leave: handleCycleActionLeave, submit: handleEndCycle }}
+      notice={{ message: $gameSessionStore.systemMessage, unspentEssence: systemMessageHasUnspentEssence,
+        dismiss: gameStore.clearSystemMessage, focusEssence: focusEssenceDraft }}>
+      <svelte:fragment slot="draft">
+        {#if $gameSessionStore.game.phase === 'planning' && ($gameSessionStore.centerMode === 'troops' || $gameSessionStore.centerMode === 'rifts') && (mustSpendEssenceBeforeCycleEnd || $draftSession.confirmedTroop || $draftSession.confirmedUpgrade)}
+          <EssenceDraftPanel game={$gameSessionStore.game} session={draftSession}
+            disabled={multiplayerCycleEnded} highlighted={$planningAttention.essenceDraft || cycleHoverEssenceAttention}
+            cost={essenceDraftCost} revealLabel={essenceDraftButtonLabel} reveal={revealEssenceDraft}
+            {getRaceUnitPortrait} {previewDetail} {clearDetail} />
         {/if}
-        {#if $gameStore.systemMessage}
-          <div class="panel warning-panel system-message-popover ui-debug-target" data-ui-name="System message panel">
-            <button type="button" class="system-message-close ui-debug-target" data-ui-name="Dismiss system message" aria-label="Dismiss system message" on:click={() => gameStore.clearSystemMessage()}>X</button>
-            <p class="eyebrow">System Message</p>
-            <h2>System Notice</h2>
-            <p>{$gameStore.systemMessage}</p>
-            {#if systemMessageHasUnspentEssence}
-              <button type="button" class="primary" on:click={focusEssenceDraft}>Spend Essence</button>
-            {/if}
-          </div>
+      </svelte:fragment>
+      <svelte:fragment slot="ready">
+        {#if $gameSessionStore.centerMode === 'rifts'}
+          <ReadyTroopsPanel game={$gameSessionStore.game} interaction={assignmentInteraction} {getRaceUnitPortrait}
+            planning={{ editable: canEditMultiplayerPlan(), submitted: multiplayerCycleEnded, selectedTroopId,
+              hintTroopId: assignmentHintPair?.troopId ?? null, attention: cycleHoverAssignmentAttention,
+              upgradeId: $draftSession.hoveredUpgrade ?? $draftSession.selectedUpgrade, selectTroop: handleRiftTroopClick }}
+            inspection={{ preview: previewDetail, clear: clearDetail, highlightedKeys: highlightedDetailKeys }} />
         {/if}
-        {#if $gameStore.centerMode === 'rifts'}
-          <div
-            class="ready-troops-panel footer-ready-troops-panel ui-debug-target"
-            data-ui-name="Available troops panel"
-            class:drop-target-active={troopDrag?.active && isCurrentDropTarget(troopDrag.dropTarget, 'ready')}
-            role="region"
-            aria-label="Available Troops drop zone"
-            data-ready-drop-target={canEditMultiplayerPlan() ? 'true' : undefined}
-            on:dragover={allowNativeTroopDrop}
-            on:drop={(event) => finishNativeTroopDrop(event, { kind: 'ready' })}
-          >
-            {#if readyTroops.length === 0}
-              <p class="assignment-empty">No idle troops are ready right now.</p>
-            {:else}
-              <div
-                class="ready-troops-grid"
-                class:roster-count-8={readyTroops.length >= 8}
-                class:roster-count-12={readyTroops.length >= 12}
-                class:roster-count-16={readyTroops.length >= 16}
-              >
-                {#each readyTroops as troop}
-                  {@const troopDef = getTroopEffectiveDefinition($gameStore.game, troop.id)}
-                  {@const troopDetail = buildResolvedUnitDetail(
-                    `ready:${troop.id}`,
-                    troopDef.label,
-                    troop.raceId,
-                    troop.unitClassId,
-                    troopDef.stats,
-                    troopDef.quantity,
-                    'Available troop',
-                    troopDef.abilities,
-                    troopDef.statBreakdowns,
-                  )}
-                    <button
-                      class="unit-tile ready-troop-tile draggable-troop-tile ui-debug-target"
-                      data-ui-name={`Available troop ${troopDef.label}`}
-                      data-tutorial-target="ready-troop"
-                      class:selected={selectedTroopId === troop.id || detailIsHighlighted(troopDetail.detailKey)}
-                      class:dragging-source={troopDrag?.troopId === troop.id && troopDrag.active}
-                      class:upgrade-affected={isUpgradeAffectingTroop(troop.id)}
-                      class:assignment-attention={troopAssignmentHighlighted || cycleHoverAssignmentAttention}
-                      class:assignment-hint-troop={assignmentHintPair?.troopId === troop.id}
-                      class:conflict-pulse={assignmentConflict?.troopId === troop.id || assignmentConflict?.conflictTroopId === troop.id}
-                      class:readonly-plan={multiplayerCycleEnded}
-                      data-assignment-hint-troop={troop.id}
-                    aria-label={canEditMultiplayerPlan() ? `Drag ${troopDef.label} to a Rift` : `Inspect ${troopDef.label}`}
-                    on:pointerdown={(event) => {
-                      if (canEditMultiplayerPlan()) {
-                        startTroopDrag(
-                          event,
-                          troop.id,
-                          troop.assignmentRiftId,
-                          troopDef.label,
-                          getRaceUnitPortrait(troop.raceId, troop.unitClassId),
-                        );
-                      }
-                    }}
-                    on:mousedown={(event) => {
-                      if (canEditMultiplayerPlan()) {
-                        startMouseTroopDrag(
-                          event,
-                          troop.id,
-                          troop.assignmentRiftId,
-                          troopDef.label,
-                          getRaceUnitPortrait(troop.raceId, troop.unitClassId),
-                        );
-                      }
-                    }}
-                    on:mouseenter={() => previewDetail(troopDetail)}
-                    on:focus={() => previewDetail(troopDetail)}
-                    on:mouseleave={clearDetail}
-                    on:blur={clearDetail}
-                    on:click={() => handleRiftTroopClick(troop.id, troopDetail)}
-                  >
-                    <span class={`unit-icon-cluster tile-unit-cluster ${unitIconDensityClass(troopDef.quantity)}`} style={`--unit-cluster-columns:${unitIconColumns(troopDef.quantity)}`} aria-label={`${troopDef.quantity} ${troopDef.label} units`}>
-                      {#each unitIconCopies(troopDef.quantity) as copy}
-                        <img class="unit-tile-art available-bob-unit" style={`--bob-index:${copy}`} src={getRaceUnitPortrait(troop.raceId, troop.unitClassId)} alt="" aria-hidden={copy === 0 ? 'false' : 'true'} />
-                      {/each}
-                    </span>
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/if}
-        {#if $gameStore.tutorialProgress?.step === 'watch-battle' && (selectedReplayEntry?.replayId ?? getTutorialReplayId())}
-          {@const tutorialArchiveReplayId = selectedReplayEntry?.replayId ?? getTutorialReplayId()}
-          {@const tutorialArchiveEntry = tutorialArchiveReplayId ? $gameStore.game.replayIndex.find((entry) => entry.replayId === tutorialArchiveReplayId) : null}
+      </svelte:fragment>
+      <svelte:fragment slot="tutorial">
+        {#if $gameSessionStore.tutorialProgress?.step === 'watch-battle' && ($archiveSession.selectedId ?? getTutorialReplayId())}
+          {@const tutorialArchiveReplayId = $archiveSession.selectedId ?? getTutorialReplayId()}
+          {@const tutorialArchiveEntry = tutorialArchiveReplayId ? $gameSessionStore.game.replayIndex.find((entry) => entry.replayId === tutorialArchiveReplayId) : null}
           {@const tutorialArchiveAvailable = !!tutorialArchiveReplayId && !!tutorialArchiveEntry && !tutorialArchiveEntry.summaryOnly && gameStore.hasReplay(tutorialArchiveReplayId)}
           <div class="archive-actions-stack tutorial-archive-actions ui-debug-target" data-ui-name="Tutorial archive actions">
             <button
@@ -6104,35 +1895,8 @@
             </button>
           </div>
         {/if}
-        {#if $gameStore.game.phase === 'planning'}
-          <div
-            class="end-cycle-action"
-            class:blocking={cycleActionBlocked}
-            role="presentation"
-            on:mouseenter={handleCycleActionEnter}
-            on:focusin={handleCycleActionEnter}
-            on:mouseleave={handleCycleActionLeave}
-            on:focusout={handleCycleActionLeave}
-          >
-            <button
-              class="primary large end-cycle-button ui-debug-target"
-              class:blocking={cycleActionBlocked}
-              data-ui-name="End cycle button"
-              data-tutorial-target="end-cycle-button"
-              aria-disabled={cycleActionBlocked ? 'true' : 'false'}
-              aria-describedby={cycleActionTooltip ? 'end-cycle-tooltip' : undefined}
-              title={cycleActionTooltip ?? undefined}
-              on:click={handleEndCycle}
-              disabled={multiplayerCycleEnded || !!$gameStore.cycleAnimation || cycleResolvePending}
-            >
-              {primaryCycleActionLabel}
-            </button>
-            {#if cycleActionTooltip}
-              <div id="end-cycle-tooltip" class="end-cycle-tooltip" class:visible={cycleActionBlocked || cycleActionHovered} role="tooltip">{cycleActionTooltip}</div>
-            {/if}
-          </div>
-        {/if}
-    </footer>
+      </svelte:fragment>
+    </PlanningActionRail>
 
     {#if assignmentHintArrow}
       <svg class="assignment-hint-arrow" viewBox={`0 0 ${viewportWidth} ${viewportHeight}`} aria-hidden="true">
@@ -6145,507 +1909,25 @@
       </svg>
     {/if}
 
-    {#if troopDrag?.active}
-      <div class="troop-drag-ghost" style={`left:${troopDrag.x}px; top:${troopDrag.y}px;`} aria-hidden="true">
-        <img class="unit-tile-art" src={troopDrag.portraitUrl} alt="" />
+    {#if $assignmentInteraction.drag?.active}
+      <div class="troop-drag-ghost" style={`left:${$assignmentInteraction.drag.x}px; top:${$assignmentInteraction.drag.y}px;`} aria-hidden="true">
+        <img class="unit-tile-art" src={$assignmentInteraction.drag.portraitUrl} alt="" />
       </div>
     {/if}
 
-    {#if $gameStore.game.phase === 'game_over'}
-      <div class="unlock-race-overlay" role="presentation">
-        <div class="unlock-race-dialog panel ui-debug-target" data-ui-name="Game over dialog" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
-          <div class="unlock-race-dialog-header">
-            <div>
-              <p class="eyebrow">Cycle 10 reached</p>
-              <h2 id="game-over-title">Game officially over!</h2>
-            </div>
-          </div>
-
-          <p class="unlock-race-dialog-copy">You finished the scored run with {$gameStore.game.victoryPoints} VP.</p>
-
-          <div class="actions-grid">
-            <button class="primary ui-debug-target" data-ui-name="Continue playing button" on:click={() => gameStore.continuePlaying()}>Continue playing</button>
-            <button class="ui-debug-target" data-ui-name="Back to menu button" on:click={returnToMainMenu}>Back to menu</button>
-          </div>
-        </div>
-      </div>
+    {#if $gameSessionStore.game.phase === 'game_over'}
+      <GameOverDialog victoryPoints={$gameSessionStore.game.victoryPoints}
+        onContinue={() => gameStore.continuePlaying()} onReturnToMenu={returnToMainMenu} />
     {/if}
   </main>
 {:else}
-  <main class="replay-shell" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
-    <section class="left replay-left ui-debug-target" data-ui-name="Replay left sidebar">
-      <div class="replay-header ui-debug-target" data-ui-name="Replay header">
-        <div class="replay-title-row">
-          <p class="replay-name">{replay?.riftId ?? 'Debug Battle'}</p>
-        </div>
-        <div class="replay-actions replay-header-actions">
-          <button
-            class="replay-exit-button ui-debug-target"
-            class:tutorial-scene-locked={tutorialSceneLockActive()}
-            data-ui-name="Return to overworld"
-            on:click={() => guardTutorialSceneChange(() => gameStore.closeReplay())}
-          ><span aria-hidden="true">&larr;</span> Return to Rifts</button>
-          <button class="replay-exit-button replay-recap-button ui-debug-target" data-ui-name="Toggle battle recap" on:click={toggleReplayRecap}>
-            {replayRecapOpen ? 'Close Battle Recap' : 'Open Battle Recap'}
-          </button>
-        </div>
-      </div>
-      {#if debugToolsEnabled && $gameStore.loadedBattleReport}
-        <div class="panel battle-report-panel">
-          <p class="eyebrow">Imported Battle Report</p>
-          <h2>{$gameStore.loadedBattleReport.reportId}</h2>
-          <p>
-            Created {$gameStore.loadedBattleReport.createdAt}. Original replay {$gameStore.loadedBattleReport.summary.replayId}
-            with {$gameStore.loadedBattleReport.summary.stepCount} steps.
-          </p>
-          {#if $gameStore.loadedBattleReport.diagnostics.length > 0}
-            <div class="compact-list">
-              {#each $gameStore.loadedBattleReport.diagnostics as diagnostic}
-                <div>
-                  <span>{diagnostic.source} / {diagnostic.code}</span>
-                  <strong>{diagnostic.message}</strong>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p>No renderer diagnostics were captured with this report.</p>
-          {/if}
-        </div>
-      {/if}
-      <section class="panel focus-panel ui-debug-target" data-ui-name="Replay focus panel">
-        {#if activeDetail}
-          <div class="detail-panel replay-detail-panel">
-            <p class="eyebrow">{getDetailInspectLabel(activeDetail)}</p>
-            <h2 class="detail-title">{#if activeDetail.iconKind && activeDetail.iconId}<GameIcon kind={activeDetail.iconKind} id={activeDetail.iconId} label={activeDetail.label} />{/if}<span>{activeDetail.label}</span></h2>
-            <p><InlineStatText text={activeDetail.description} /></p>
-          </div>
-        {:else if replayExplanationView}
-          <div class="detail-panel replay-detail-panel replay-explanation-panel">
-            <div class="replay-explanation-header">
-              <p class="eyebrow">Battle Explanation</p>
-              {#if pinnedReplayExplanationIndex !== null}
-                <button type="button" class="replay-explanation-clear" on:click={() => pinReplayExplanation(null)}>Clear</button>
-              {/if}
-            </div>
-            <ReplayStepExplanation view={replayExplanationView} compact={true} />
-          </div>
-        {:else if replayFocusProfile || inspectedUnit}
-          <div class="replay-unit-focus-stack">
-            <UnitTooltip
-              unit={inspectedUnit}
-              profile={replayFocusProfile}
-              engagedUnits={engagedUnits}
-              getUnitPortraitUrl={getReplayUnitPortraitUrl}
-              getRaceUnitPortraitUrl={getRaceUnitPortrait}
-              x={hoverInfo?.x ?? 0}
-              y={hoverInfo?.y ?? 0}
-              locked={!!lockedUnitId}
-              lastActionStep={lockedUnitLastActionStep}
-              nextActionStep={lockedUnitNextActionStep}
-              onGoToLastAction={() => goToReplayUnitActionStep(lockedUnitLastActionStep)}
-              onGoToNextAction={() => goToReplayUnitActionStep(lockedUnitNextActionStep)}
-              docked={true}
-              liveBuffLines={inspectedUnitLiveStatLines}
-              onHoverStat={(key) => key === 'rate' && signalTutorial('rate-hover')}
-              onHoverAbility={() => signalTutorial('ability-hover')}
-              onPreviousAction={() => signalTutorial('unit-previous-action')}
-              onNextAction={() => signalTutorial('unit-next-action')}
-            />
-            {#if lockedUnitId && hoveredReplayUnit}
-              <UnitTooltip
-                unit={hoveredReplayUnit}
-                profile={hoveredReplayUnitProfile}
-                engagedUnits={hoveredReplayUnitEngagedUnits}
-                getUnitPortraitUrl={getReplayUnitPortraitUrl}
-                getRaceUnitPortraitUrl={getRaceUnitPortrait}
-                x={hoverInfo?.x ?? 0}
-                y={hoverInfo?.y ?? 0}
-                locked={false}
-                docked={true}
-                liveBuffLines={hoveredReplayUnitLiveStatLines}
-                onHoverStat={(key) => key === 'rate' && signalTutorial('rate-hover')}
-                onHoverAbility={() => signalTutorial('ability-hover')}
-              />
-            {/if}
-          </div>
-        {:else}
-          <div class="focus-empty">
-            <p class="eyebrow">Unit Focus</p>
-            <h2>Battle Reference</h2>
-            <p>Hover a mutator, field unit, or alive-count row to inspect it without leaving the replay.</p>
-          </div>
-        {/if}
-      </section>
-    </section>
+  <div class="replay-surface" class:ui-debug-visible={uiDebugVisible} class:design-mode-enabled={designModeEnabled}>
+    <ReplayViewer bind:this={replayViewer} {getRaceUnitPortrait} {debugToolsEnabled} {rendererDiagnostics}
+      onDiagnostic={rememberRendererDiagnostic} onExit={() => guardTutorialSceneChange(closeReplayToArchive)}
+      tutorial={{ view: $gameSessionStore.tutorialProgress ? tutorialReplayView : null, locked: tutorialSceneLockActive(), signal: signalTutorial, prompt: showTutorialScenePrompt }} />
+  </div>
 
-    <section class="center replay-center ui-debug-target" data-ui-name="Replay battlefield">
-      <div class="viewport-shell ui-debug-target" data-ui-name="Replay viewport shell">
-        <div class="replay-map-controls ui-debug-target" data-ui-name="Replay controls overlay">
-          <BattleControls
-            replayLength={replay?.steps.length ?? 0}
-            currentStep={$gameStore.currentStep}
-            autoPlay={$gameStore.autoPlay}
-            rateMs={$gameStore.rateMs}
-            onJumpStart={() => runManualReplayAction(() => gameStore.jumpTo(-1), 'reset')}
-            onStepBack={() => {
-              runManualReplayAction(() => gameStore.stepBackward());
-              signalTutorial('step-previous');
-            }}
-            onStepForward={() => {
-              runManualReplayAction(() => gameStore.stepForward());
-              signalTutorial('step-next');
-            }}
-            onToggleAuto={toggleReplayAutoPlay}
-            onSetRate={setReplayRate}
-          />
-        </div>
-        <div class="replay-zoom-controls ui-debug-target" data-ui-name="Replay zoom controls" aria-label="Replay zoom controls">
-          <button class="replay-zoom-button ui-debug-target" data-ui-name="Zoom in button" type="button" aria-label="Zoom In" title="Zoom In" on:click={zoomReplayIn}>+</button>
-          <button class="replay-zoom-button ui-debug-target" data-ui-name="Zoom out button" type="button" aria-label="Zoom Out" title="Zoom Out" on:click={zoomReplayOut}>-</button>
-          <button class="replay-reset-button ui-debug-target" data-ui-name="Reset zoom button" type="button" aria-label="Reset Zoom" title="Reset Zoom" on:click={resetReplayZoom}>Reset Zoom</button>
-        </div>
-        <div class="replay-map-mutators">
-          {#if (replay?.mutatorIds.length ?? 0) === 0}
-            <span class="mutator-chip empty">No mutators</span>
-          {:else}
-            {#each replay?.mutatorIds ?? [] as mutatorId}
-              <button
-                class="mutator-chip ui-debug-target"
-                data-ui-name={`Replay mutator ${getMutator(mutatorId).label}`}
-                on:mouseenter={() => showMutatorDetail(mutatorId)}
-                on:focus={() => showMutatorDetail(mutatorId)}
-                on:mouseleave={clearDetail}
-                on:blur={clearDetail}
-              >
-                <span class="icon-label"><GameIcon kind="mutator" id={mutatorId} label={getMutator(mutatorId).label} /><span>{getMutator(mutatorId).label}</span></span>
-              </button>
-            {/each}
-          {/if}
-        </div>
-        <div class="viewport ui-debug-target" data-ui-name="Battlefield canvas" bind:this={battleHost}></div>
-        {#if replayPlayerAbilities.length > 0 || replayEnemyAbilities.length > 0}
-          <div class="replay-ability-rails" aria-label="Replay side abilities">
-            <div class="replay-ability-rail player">
-              {#each replayPlayerAbilities as entry (entry.ability.id)}
-                <button
-                  type="button"
-                  class="replay-ability-button ui-debug-target"
-                  class:active={entry.active}
-                  data-ui-name={`Replay player ability ${entry.ability.label}`}
-                  aria-label={`${entry.ability.label}: ${formatAbilityDescription(entry.ability)}`}
-                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.rateMs * 1.5))}ms;`}
-                  on:mouseenter={() => showReplayAbilityTooltip(entry)}
-                  on:focus={() => showReplayAbilityTooltip(entry)}
-                  on:mouseleave={clearReplayAbilityTooltip}
-                  on:blur={clearReplayAbilityTooltip}
-                >
-                  <GameIcon kind="ability" id={entry.ability.id} label={entry.ability.label} />
-                </button>
-              {/each}
-            </div>
-            <div class="replay-ability-rail enemy">
-              {#each replayEnemyAbilities as entry (entry.ability.id)}
-                <button
-                  type="button"
-                  class="replay-ability-button ui-debug-target"
-                  class:active={entry.active}
-                  data-ui-name={`Replay enemy ability ${entry.ability.label}`}
-                  aria-label={`${entry.ability.label}: ${formatAbilityDescription(entry.ability)}`}
-                  style={`--replay-ability-flash-ms:${Math.round(Math.max(420, $gameStore.rateMs * 1.5))}ms;`}
-                  on:mouseenter={() => showReplayAbilityTooltip(entry)}
-                  on:focus={() => showReplayAbilityTooltip(entry)}
-                  on:mouseleave={clearReplayAbilityTooltip}
-                  on:blur={clearReplayAbilityTooltip}
-                >
-                  <GameIcon kind="ability" id={entry.ability.id} label={entry.ability.label} />
-                </button>
-              {/each}
-            </div>
-            {#if replayAbilityTooltip}
-              <div class={`replay-ability-tooltip ${replayAbilityTooltip.side}`} role="tooltip">
-                <strong>{replayAbilityTooltip.label}</strong>
-                <span><InlineStatText text={replayAbilityTooltip.description} /></span>
-              </div>
-            {/if}
-          </div>
-        {/if}
-      </div>
-    </section>
 
-    <section class="right replay-right ui-debug-target" data-ui-name="Replay right sidebar">
-      <section class="panel collapsible-panel ui-debug-target" data-ui-name="Deprecated alive counts panel" hidden>
-        <button class="panel-toggle ui-debug-target" data-ui-name="Toggle alive counts panel" on:click={() => (replayAliveCountsExpanded = !replayAliveCountsExpanded)}>
-          <div>
-            <p class="eyebrow">Alive Counts</p>
-            <strong>{replayAliveCountsExpanded ? 'Expanded Roster' : 'Side Totals'}</strong>
-          </div>
-          <span>{replayAliveCountsExpanded ? 'Hide' : 'Show'}</span>
-        </button>
-        {#if aliveSummary}
-          <div class="alive-sides" class:compact={!replayAliveCountsExpanded}>
-            <section class="alive-side">
-              <div class="alive-side-header">
-                <span>Player</span>
-                <strong>{aliveSummary.player}</strong>
-              </div>
-              {#if replayAliveCountsExpanded}
-                <div class="count-grid side-grid">
-                  {#each alivePlayerGroups as [label, count]}
-                    <div class="alive-unit-card ui-debug-target" data-ui-name={`Player alive card ${label}`} class:selected={selectedReplayProfileKey === replayProfileKey('player', label)}>
-                      <button
-                        type="button"
-                        class="alive-unit-main ui-debug-target"
-                        data-ui-name={`Player alive row ${label}`}
-                        on:click={() => selectReplayProfile('player', label)}
-                        on:mouseenter={() => previewReplayProfile('player', label)}
-                        on:focus={() => previewReplayProfile('player', label)}
-                        on:mouseleave={clearReplayProfilePreview}
-                        on:blur={clearReplayProfilePreview}
-                      >
-                        <span>Troop</span>
-                        <strong>{count}</strong>
-                      </button>
-                      <button type="button" class="alive-cycle-button ui-debug-target" data-ui-name={`Cycle player units ${label}`} aria-label={`Cycle ${label} units`} on:click={() => cycleReplayProfileUnit('player', label)}>
-                        ↻
-                      </button>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </section>
-
-            <section class="alive-side">
-              <div class="alive-side-header enemy">
-                <span>Enemy</span>
-                <strong>{aliveSummary.enemy}</strong>
-              </div>
-              {#if replayAliveCountsExpanded}
-                <div class="count-grid side-grid">
-                  {#each aliveEnemyGroups as [label, count]}
-                    <div class="alive-unit-card ui-debug-target" data-ui-name={`Enemy alive card ${label}`} class:selected={selectedReplayProfileKey === replayProfileKey('enemy', label)}>
-                      <button
-                        type="button"
-                        class="alive-unit-main ui-debug-target"
-                        data-ui-name={`Enemy alive row ${label}`}
-                        on:click={() => selectReplayProfile('enemy', label)}
-                        on:mouseenter={() => previewReplayProfile('enemy', label)}
-                        on:focus={() => previewReplayProfile('enemy', label)}
-                        on:mouseleave={clearReplayProfilePreview}
-                        on:blur={clearReplayProfilePreview}
-                      >
-                        <span>Troop</span>
-                        <strong>{count}</strong>
-                      </button>
-                      <button type="button" class="alive-cycle-button ui-debug-target" data-ui-name={`Cycle enemy units ${label}`} aria-label={`Cycle ${label} units`} on:click={() => cycleReplayProfileUnit('enemy', label)}>
-                        ↻
-                      </button>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </section>
-          </div>
-        {/if}
-      </section>
-
-      <section class="collapsible-stack ui-debug-target" data-ui-name="Replay event log stack" class:collapsed={replayEventLogCollapsed}>
-        <div class="replay-log-toolbar">
-          <button
-            class="panel panel-toggle event-log-toggle ui-debug-target"
-            data-ui-name="Toggle event log"
-            on:click={() => {
-              replayEventLogCollapsed = !replayEventLogCollapsed;
-              if (!replayEventLogCollapsed) {
-                signalTutorial('event-log-show');
-              } else if ($gameStore.tutorialProgress?.step === 'timeline-event') {
-                showTutorialScenePrompt('Re-open the Event Log to continue.');
-              }
-            }}
-          >
-            <span class="event-log-tab" class:active={replayEventLogCollapsed}>Overview</span>
-            <span class="event-log-tab" class:active={!replayEventLogCollapsed}>Event Log</span>
-          </button>
-          <DebugToolsMenu mode="battle-button" rendererDiagnostics={rendererDiagnostics} />
-        </div>
-        {#if replayEventLogCollapsed}
-          <section class="panel replay-health-overview ui-debug-target" data-ui-name="Collapsed event log health overview" aria-label="Replay health overview">
-            {#each replayHealthOverview as side}
-              <section class="replay-health-side" class:enemy={side.side === 'enemy'} style={`--replay-health-units-min-height: ${side.unitsMinHeight};`}>
-                <div class="replay-health-total">
-                  <div class="replay-health-total-label" title={side.hpTooltip} aria-label={side.hpTooltip}>
-                    <span>{side.label}</span>
-                  </div>
-                  <div class="replay-health-bar total" aria-hidden="true">
-                    <span style={`width: ${side.hpPercent}`}></span>
-                  </div>
-                </div>
-
-                {#if side.units.length === 0}
-                  <p class="replay-health-empty">No units standing.</p>
-                {:else}
-                  <div class="replay-health-units">
-                    {#each side.units as entry}
-                      <button
-                        type="button"
-                        class="replay-health-unit ui-debug-target"
-                        class:selected={lockedUnitId === entry.unit.id}
-                        class:active-highlight={replayStrongHighlightId === entry.unit.id}
-                        class:secondary-highlight={replayEventAffectedUnitIds.has(entry.unit.id)}
-                        data-ui-name={`Health overview ${side.label} ${entry.unit.id}`}
-                        data-tutorial-has-abilities={(replayProfilesByKey.get(replayProfileKey(entry.unit.side, entry.unit.troopLabel))?.abilities.length ?? 0) > 0 ? 'true' : undefined}
-                        aria-label={`${entry.unit.troopLabel} health ${entry.hpLabel}`}
-                        on:mouseenter={(event) => previewReplayUnit(entry.unit, event)}
-                        on:focus={(event) => previewReplayUnit(entry.unit, event)}
-                        on:mouseleave={() => clearReplayUnitPreview(entry.unit.id)}
-                        on:blur={() => clearReplayUnitPreview(entry.unit.id)}
-                        on:click={() => setReplayUnitLock(entry.unit.id, { toggle: true, profileKey: replayProfileKey(entry.unit.side, entry.unit.troopLabel) })}
-                      >
-                        <img src={entry.portraitUrl} alt="" aria-hidden="true" />
-                        <div class="replay-health-unit-main">
-                          <div
-                            class="replay-health-track"
-                            role="meter"
-                            aria-label={`${entry.unit.troopLabel} readiness ${formatFixed(entry.unit.readiness)} out of 100`}
-                            aria-valuemin="0"
-                            aria-valuemax="100"
-                            aria-valuenow={Math.max(0, Math.min(100, entry.unit.readiness))}
-                          >
-                            <div class="replay-health-bar" aria-hidden="true">
-                              <span style={`width: ${entry.hpPercent}`}></span>
-                            </div>
-                            <span
-                              class="replay-readiness-row replay-readiness-marker"
-                              class:ready={entry.readinessReady}
-                              style={`--readiness-position: ${entry.readinessPercent};`}
-                              on:mouseenter={(event) => showReadinessTooltip(entry.unit, event)}
-                              on:mouseleave={clearReadinessTooltip}
-                              aria-hidden="true"
-                            >
-                              {statIcon('rate')}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-              </section>
-            {/each}
-          </section>
-        {:else}
-          <div class="event-log-wrap">
-            <EventLog
-              steps={replay?.steps ?? []}
-              selected={$gameStore.selectedEvent}
-              currentStep={$gameStore.currentStep}
-              pinnedExplanationIndex={pinnedReplayExplanationIndex}
-              tutorialTargetIndex={$gameStore.tutorialProgress?.step === 'timeline-event' ? 100 : null}
-              showTitle={false}
-              onSelect={selectReplayEvent}
-              onPinExplanation={pinReplayExplanation}
-            />
-          </div>
-        {/if}
-      </section>
-    </section>
-
-    {#if replayRecapOpen}
-      <div class="replay-recap-backdrop">
-        <button class="replay-recap-dismiss" type="button" aria-label="Close battle recap" on:click={toggleReplayRecap}></button>
-        <section class="panel replay-recap-modal" role="dialog" aria-modal="true" aria-labelledby="battle-recap-title">
-          <div class="replay-recap-header">
-            <div>
-              <p class="eyebrow">Battle Recap</p>
-              <h2 id="battle-recap-title">Damage And Healing By Troop</h2>
-              <p>Click a troop to open its units. Clicking a unit focuses it on the battlefield and rewinds if needed.</p>
-            </div>
-            <button class="replay-recap-close" type="button" aria-label="Close battle recap" on:click={toggleReplayRecap}>Close</button>
-          </div>
-
-          <div class="replay-recap-sides">
-            {#each replayRecapSides as sideGroup}
-              <section class="replay-recap-side">
-                <div class="alive-side-header" class:enemy={sideGroup.side === 'enemy'}>
-                  <span>{sideGroup.label}</span>
-                  <strong>{sideGroup.troops.length}</strong>
-                </div>
-
-                {#if sideGroup.troops.length === 0}
-                  <p class="replay-recap-empty">No troops recorded.</p>
-                {:else}
-                  {@const sharedScaleTotal = getReplayRecapSharedScaleTotal(sideGroup.troops)}
-                  <div class="replay-recap-list">
-                    {#each sideGroup.troops as troop}
-                      {@const troopProfile = getReplayRecapTroopProfile(troop.side, troop.troopLabel)}
-                      <div class="replay-recap-group">
-                        <button
-                          type="button"
-                          class="replay-recap-row troop"
-                          class:expanded={expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel)}
-                          on:click={() => toggleReplayRecapTroop(troop.side, troop.troopLabel)}
-                        >
-                          {#if troopProfile}
-                            <img class="replay-recap-art" src={getRaceUnitPortrait(troopProfile.raceId, troopProfile.unitClassId)} alt="" aria-hidden="true" />
-                          {/if}
-                          <div class="replay-recap-main">
-                            <strong>{troop.troopLabel}</strong>
-                            <small>{expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel) ? 'Hide units' : 'Show units'}</small>
-                            <div class="replay-recap-bars">
-                              <div class="replay-recap-bar damage">
-                                <span style={`width: ${getReplayRecapBarWidth(troop.damageDone, sharedScaleTotal)}`}></span>
-                              </div>
-                              <div class="replay-recap-bar healing">
-                                <span style={`width: ${getReplayRecapBarWidth(troop.healingDone, sharedScaleTotal)}`}></span>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="replay-recap-stats">
-                            <span>Dmg {formatFixed(troop.damageDone)}</span>
-                            <span>Heal {formatFixed(troop.healingDone)}</span>
-                            <span>Kills {troop.kills}</span>
-                          </div>
-                        </button>
-
-                        {#if expandedReplayRecapTroopKey === replayProfileKey(troop.side, troop.troopLabel)}
-                          <div class="replay-recap-units">
-                            {#each troop.units as unit}
-                              {@const unitState = getReplayRecapUnitState(unit.unitId)}
-                              <button type="button" class="replay-recap-row unit" aria-label={`Inspect ${unit.unitLabel}`} on:click={() => selectReplayRecapUnit(unit.unitId, troop.side, troop.troopLabel)}>
-                                {#if troopProfile}
-                                  <img class="replay-recap-art small" src={getRaceUnitPortrait(troopProfile.raceId, troopProfile.unitClassId)} alt="" aria-hidden="true" />
-                                {/if}
-                                <div class="replay-recap-main">
-                                  <strong>{unit.unitLabel}</strong>
-                                  <small>{unitState?.alive ? 'Alive at this step' : 'Dead at this step'}</small>
-                                  <div class="replay-recap-bars">
-                                    <div class="replay-recap-bar damage">
-                                      <span style={`width: ${getReplayRecapBarWidth(unit.damageDone, sharedScaleTotal)}`}></span>
-                                    </div>
-                                    <div class="replay-recap-bar healing">
-                                      <span style={`width: ${getReplayRecapBarWidth(unit.healingDone, sharedScaleTotal)}`}></span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div class="replay-recap-stats">
-                                  <span>Dmg {formatFixed(unit.damageDone)}</span>
-                                  <span>Heal {formatFixed(unit.healingDone)}</span>
-                                  <span>Kills {unit.kills}</span>
-                                </div>
-                              </button>
-                            {/each}
-                          </div>
-                        {/if}
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-              </section>
-            {/each}
-          </div>
-        </section>
-      </div>
-    {/if}
-  </main>
 {/if}
 
 {#if !verificationLabMode && gameAssetProgress.active}
@@ -6658,13 +1940,6 @@
       </div>
       <p>{gameAssetProgress.label}</p>
     </div>
-  </div>
-{/if}
-
-{#if readinessTooltip}
-  <div class="readiness-tooltip" style={`left:${readinessTooltip.x}px; top:${readinessTooltip.y}px;`} role="tooltip">
-    <strong>{readinessTooltip.label}</strong>
-    <span>{readinessTooltip.description}</span>
   </div>
 {/if}
 
@@ -6681,13 +1956,13 @@
 {/if}
 
 {#if
-  $gameStore.tutorialProgress &&
-  $gameStore.activeSlotId === 'tutorial' &&
-  ($gameStore.screen !== 'main_menu' || $gameStore.tutorialProgress.step === 'game-start' || $gameStore.tutorialProgress.step === 'start-contest')
+  $gameSessionStore.tutorialProgress &&
+  $gameSessionStore.activeSlotId === 'tutorial' &&
+  ($gameSessionStore.screen !== 'main_menu' || $gameSessionStore.tutorialProgress.step === 'game-start' || $gameSessionStore.tutorialProgress.step === 'start-contest')
 }
   <button class="exit-tutorial-button" type="button" on:click={exitTutorial}>Exit Tutorial</button>
   <TutorialPopup
-    progress={$gameStore.tutorialProgress}
+    progress={$gameSessionStore.tutorialProgress}
     onBack={previousTutorialStep}
     onContinue={() => gameStore.continueTutorial()}
     onFinish={exitTutorial}
@@ -6698,7 +1973,9 @@
 {/if}
 
 <style>
-  :global(body) {
+.replay-surface,
+.overworld-surface { display: contents; }
+:global(body) {
     overflow: auto;
     color: #f4f7fb;
     background:
@@ -6706,36 +1983,29 @@
       radial-gradient(circle at bottom right, rgba(118, 56, 35, 0.22), transparent 28%),
       linear-gradient(180deg, #060a11, #0a1018 58%, #0d121a);
   }
-
-  button {
+button {
     cursor: pointer;
   }
-
-  button:not(:disabled):active {
+button:not(:disabled):active {
     transform: translateY(1px) scale(0.985);
     filter: brightness(0.9);
   }
-
-  .info-target {
+.info-target {
     cursor: help;
   }
-
-  h1,
-  h2,
-  p {
+h1,
+h2,
+p {
     margin: 0;
   }
-
-  .eyebrow {
+.eyebrow {
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ui-color-accent);
     font-size: var(--ui-text-label);
     line-height: var(--ui-line-label);
   }
-
-  .shell,
-  .replay-shell {
+.shell {
     min-height: 100vh;
     width: min(calc(var(--ui-shell-max-width) + (2 * var(--ui-shell-column)) + (2 * var(--ui-space-md))), 100%);
     margin: 0 auto;
@@ -6745,25 +2015,20 @@
     gap: var(--ui-space-md);
     padding: var(--ui-space-md);
   }
-
-  .overworld-shell,
-  .opening-shell {
+.overworld-shell {
     height: 100dvh;
     overflow: hidden;
   }
-
-  .overworld-shell {
+.overworld-shell {
     width: min(1700px, 100%);
     grid-template-columns: minmax(250px, 282px) minmax(760px, 1fr) minmax(260px, 320px);
     gap: 0.75rem;
     padding-block: 0.75rem;
   }
-
-  .overworld-shell.rifts-mode {
+.overworld-shell.rifts-mode {
     grid-template-rows: auto minmax(0, 1fr) auto;
   }
-
-  .topbar {
+.topbar {
     grid-column: 1 / -1;
     position: relative;
     display: grid;
@@ -6778,18 +2043,15 @@
       radial-gradient(circle at top left, rgba(190, 147, 92, 0.14), transparent 48%);
     box-shadow: var(--ui-shadow-panel);
   }
-
-  .resource-strip {
+.resource-strip {
     min-width: 0;
     display: flex;
     flex-wrap: nowrap;
     gap: 0.45rem;
     container-type: inline-size;
   }
-
-  .resource-strip > div,
-  .resource-strip > button,
-  .compact-list div {
+.resource-strip > div,
+.resource-strip > button {
     display: grid;
     gap: 0.15rem;
     padding: var(--ui-space-sm);
@@ -6797,43 +2059,31 @@
     border-radius: var(--ui-panel-radius-tight);
     background: var(--ui-color-surface-soft);
   }
-
-  .resource-strip > div,
-  .resource-strip > button {
+.resource-strip > div,
+.resource-strip > button {
     min-width: min(6.2rem, 100%);
     justify-items: center;
     text-align: center;
     overflow: hidden;
     white-space: nowrap;
   }
-
-  .resource-counter {
-    cursor: pointer;
-    text-align: left;
-  }
-
-  .topbar-info-button {
+.topbar-info-button {
     color: inherit;
     font: inherit;
     text-align: left;
     cursor: default;
   }
-
-  button.topbar-info-button {
+button.topbar-info-button {
     cursor: help;
   }
-
-  button.topbar-info-button:hover,
-  button.topbar-info-button:focus-visible,
-  .resource-counter:hover,
-  .resource-counter:focus-visible {
+button.topbar-info-button:hover,
+button.topbar-info-button:focus-visible {
     border-color: rgba(211, 176, 255, 0.58);
     box-shadow:
       inset 0 0 0 1px rgba(211, 176, 255, 0.38),
       0 8px 18px rgba(0, 0, 0, 0.18);
   }
-
-  .topbar-tooltip {
+.topbar-tooltip {
     position: absolute;
     top: calc(100% + 0.35rem);
     left: 1rem;
@@ -6849,46 +2099,12 @@
     color: var(--ui-color-text);
     font-size: var(--ui-text-small);
   }
-
-  .readiness-tooltip {
-    position: fixed;
-    z-index: 44;
-    display: grid;
-    gap: 0.18rem;
-    width: min(18rem, calc(100vw - 1rem));
-    padding: 0.5rem 0.62rem;
-    border: 1px solid rgba(214, 146, 54, 0.62);
-    border-radius: 8px;
-    background: rgba(8, 12, 18, 0.96);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
-    color: #f5f1e6;
-    font-size: 0.78rem;
-    pointer-events: none;
-    transform: translate(-50%, calc(-100% - 0.45rem));
-  }
-
-  .readiness-tooltip strong {
-    color: #ffcf73;
-    font-size: 0.82rem;
-  }
-
-  .readiness-tooltip span {
-    color: #c7d5e0;
-    line-height: 1.32;
-  }
-
-  .resource-strip span,
-  .compact-list span,
-  .slot-meta span,
-  .draft-section-label,
-  .assignment-label {
+.resource-strip span {
     color: var(--ui-color-text-dim);
     font-size: var(--ui-text-label);
     line-height: var(--ui-line-label);
   }
-
-  .resource-strip strong,
-  .compact-list strong {
+.resource-strip strong {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -6896,87 +2112,38 @@
     min-width: 0;
     white-space: nowrap;
   }
-
-  @container (max-width: 520px) {
-    .resource-strip {
+@container (max-width: 520px) {.resource-strip {
       gap: 0.28rem;
     }
-
-    .resource-strip > div,
-    .resource-strip > button {
+.resource-strip > div,
+.resource-strip > button {
       padding-inline: 0.45rem;
     }
-
-    .resource-strip strong,
-    .compact-list strong {
+.resource-strip strong {
       gap: 0.18rem;
       font-size: clamp(0.68rem, 16cqw, 0.95rem);
-    }
-  }
-
-  .resource-essence strong {
-    color: var(--ui-color-essence);
-  }
-
-  .essence-cost {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.28rem;
-    margin-left: 0.35rem;
-    color: #d3b0ff;
-  }
-
-  .essence-cost strong {
-    color: #b86cff;
-    font-family: var(--ui-font-mono);
-    font-weight: 700;
-  }
-
-  .contest-score strong {
+    }}
+.contest-score strong {
     color: #f2d080;
   }
-
-  .resource-icon {
-    display: inline-block;
-    width: 0.8rem;
-    height: 0.8rem;
-    border-radius: 50%;
-  }
-
-  .resource-icon.essence {
-    background: radial-gradient(circle at 30% 30%, #fff2ff, #c99bff 45%, #683f93 100%);
-    box-shadow: 0 0 10px rgba(201, 155, 255, 0.55);
-  }
-
-  .mode-toggle,
-  .actions-grid {
+.mode-toggle,
+.actions-grid {
     display: flex;
     flex-wrap: nowrap;
     gap: var(--ui-space-sm);
     align-items: center;
   }
-
-  .mode-toggle {
+.mode-toggle {
     justify-content: flex-end;
     min-width: 0;
   }
-
-  .mode-toggle button {
+.mode-toggle button {
     white-space: nowrap;
   }
-
-  .mode-toggle button,
-  .primary,
-  .actions-grid button,
-  .unlock-row button,
-  .archive-card,
-  .troop-chip,
-  .list-button,
-  .title-button,
-  .draft-option,
-  .slot-card button,
-  .draft-troop-icon,
-  .sprite-inspect-button {
+.mode-toggle button,
+.primary,
+.actions-grid button,
+.archive-card {
     border: 1px solid rgba(126, 157, 181, 0.2);
     border-radius: var(--ui-panel-radius-tight);
     background: var(--ui-color-surface-interactive);
@@ -6984,35 +2151,30 @@
     padding: var(--ui-space-sm);
     font: inherit;
   }
-
-  .mode-toggle button.selected,
-  .primary {
+.mode-toggle button.selected,
+.primary {
     background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
     color: #111;
     border-color: rgba(213, 178, 116, 0.6);
   }
-
-  .mode-toggle button.secondary-mode-button {
+.mode-toggle button.secondary-mode-button {
     border-color: rgba(126, 157, 181, 0.16);
     background: rgba(17, 26, 36, 0.58);
     color: #b6c6d4;
   }
-
-  .mode-toggle button.secondary-mode-button.selected {
+.mode-toggle button.secondary-mode-button.selected {
     border-color: rgba(134, 188, 218, 0.42);
     background: rgba(41, 62, 72, 0.86);
     color: #edf7fb;
   }
-
-  .mode-toggle button.menu-icon-button {
+.mode-toggle button.menu-icon-button {
     display: inline-grid;
     place-items: center;
     width: 2.45rem;
     height: 2.45rem;
     padding: 0;
   }
-
-  .menu-icon-button span {
+.menu-icon-button span {
     position: relative;
     display: block;
     width: 1.15rem;
@@ -7020,9 +2182,8 @@
     border-radius: 999px;
     background: currentColor;
   }
-
-  .menu-icon-button span::before,
-  .menu-icon-button span::after {
+.menu-icon-button span::before,
+.menu-icon-button span::after {
     content: '';
     position: absolute;
     left: 0;
@@ -7031,23 +2192,19 @@
     border-radius: 999px;
     background: currentColor;
   }
-
-  .menu-icon-button span::before {
+.menu-icon-button span::before {
     top: -0.38rem;
   }
-
-  .menu-icon-button span::after {
+.menu-icon-button span::after {
     top: 0.38rem;
   }
-
-  .mode-toggle button.rifts-attention {
+.mode-toggle button.rifts-attention {
     border-color: rgba(244, 205, 118, 0.72);
     animation: rifts-button-attention 1.8s ease-in-out infinite;
   }
-
-  @keyframes rifts-button-attention {
+@keyframes rifts-button-attention {
     0%,
-    100% {
+100% {
       box-shadow:
         0 0 0 0 rgba(244, 205, 118, 0.16),
         inset 0 0 0 1px rgba(244, 205, 118, 0.14);
@@ -7059,48 +2216,19 @@
         inset 0 0 0 1px rgba(244, 205, 118, 0.34);
     }
   }
-
-  button:disabled {
+button:disabled {
     cursor: not-allowed;
     opacity: 0.48;
   }
-
-  .opening-actions {
-    justify-content: flex-end;
-    padding-top: 0.15rem;
-  }
-
-  .opening-confirm-troop-button {
-    display: inline-grid;
-    grid-template-columns: 2rem minmax(0, auto) 2rem;
-    align-items: center;
-    justify-content: center;
-    gap: 0.65rem;
-  }
-
-  .opening-confirm-troop-button span {
-    min-width: 0;
-  }
-
-  .opening-action-art {
-    width: 2rem;
-    height: 2rem;
-    object-fit: contain;
-    image-rendering: pixelated;
-    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
-  }
-
-  .ui-debug-visible .ui-debug-target {
+.ui-debug-visible :global(.ui-debug-target) {
     position: relative;
   }
-
-  button.tutorial-scene-locked {
+button.tutorial-scene-locked {
     cursor: not-allowed;
     filter: grayscale(1);
     opacity: 0.48;
   }
-
-  .exit-tutorial-button {
+.exit-tutorial-button {
     position: fixed;
     z-index: 43;
     left: 0.75rem;
@@ -7117,8 +2245,7 @@
     font-size: 0.78rem;
     font-weight: 800;
   }
-
-  .tutorial-scene-prompt {
+.tutorial-scene-prompt {
     position: fixed;
     z-index: 42;
     left: 50%;
@@ -7133,8 +2260,7 @@
     font-size: 0.82rem;
     font-weight: 800;
   }
-
-  .ui-debug-visible .ui-debug-target::after {
+.ui-debug-visible :global(.ui-debug-target)::after {
     content: attr(data-ui-name);
     position: absolute;
     top: 0.35rem;
@@ -7154,30 +2280,25 @@
     pointer-events: none;
     white-space: normal;
   }
-
-  .design-mode-enabled .ui-debug-target {
+.design-mode-enabled :global(.ui-debug-target) {
     outline: 1px dashed rgba(244, 196, 92, 0.32);
     outline-offset: 1px;
   }
-
-  :global(.ui-debug-target[data-design-selected]) {
+:global(.ui-debug-target[data-design-selected]) {
     outline: 2px solid rgba(112, 219, 255, 0.92);
     outline-offset: 2px;
     box-shadow: 0 0 0 2px rgba(6, 10, 18, 0.82);
   }
-
-  :global(.ui-debug-target[data-design-tweaked]:not([data-design-selected])) {
+:global(.ui-debug-target[data-design-tweaked]:not([data-design-selected])) {
     outline-color: rgba(120, 245, 179, 0.65);
   }
-
-  :global(.tutorial-target-glow) {
+:global(.tutorial-target-glow) {
     outline: 2px solid rgba(119, 185, 255, 0.78);
     outline-offset: 3px;
     filter: drop-shadow(0 0 7px rgba(103, 179, 255, 0.54));
     animation: tutorial-target-pulse 1.45s ease-in-out infinite;
   }
-
-  :global(.battle-tutorial-unit-target.tutorial-target-glow) {
+:global(.battle-tutorial-unit-target.tutorial-target-glow) {
     border-radius: 4px;
     outline-offset: 1px;
     box-shadow:
@@ -7185,10 +2306,9 @@
       0 0 0 3px rgba(75, 158, 255, 0.16),
       0 0 18px rgba(91, 170, 255, 0.5);
   }
-
-  @keyframes tutorial-target-pulse {
+@keyframes tutorial-target-pulse {
     0%,
-    100% {
+100% {
       outline-color: rgba(119, 185, 255, 0.56);
       filter: drop-shadow(0 0 4px rgba(103, 179, 255, 0.36));
     }
@@ -7198,12 +2318,9 @@
       filter: drop-shadow(0 0 12px rgba(103, 179, 255, 0.7));
     }
   }
-
-  .left-column,
-  .center-column,
-  .right-column,
-  .left,
-  .right {
+.left-column,
+.center-column,
+.right-column {
     min-height: 0;
     display: grid;
     gap: 0.75rem;
@@ -7211,10 +2328,8 @@
     overflow: auto;
     padding-right: 0.2rem;
   }
-
-  .panel,
-  .menu-panel,
-  .draft-panel {
+.panel,
+.menu-panel {
     box-sizing: border-box;
     min-width: 0;
     display: grid;
@@ -7227,306 +2342,28 @@
       radial-gradient(circle at top right, rgba(95, 135, 170, 0.12), transparent 35%);
     box-shadow: var(--ui-shadow-panel);
   }
-
-  .panel *,
-  .menu-panel *,
-  .draft-panel * {
+.panel *,
+.menu-panel * {
     min-width: 0;
   }
-
-  .opening-shell {
-    width: min(1240px, 100%);
-  }
-
-  .opening-shell:not(.scheduled-race-shell) {
-    height: calc(100dvh - (2 * var(--ui-space-md)));
-    grid-template-rows: minmax(0, 1fr) auto;
-    overflow: hidden;
-  }
-
-  .opening-shell:not(.scheduled-race-shell):has(.opening-session-header) {
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
-  .opening-shell:not(.scheduled-race-shell) .draft-layout {
-    overflow: hidden;
-  }
-
-  .rift-grid,
-  .race-grid,
-  .slot-grid,
-  .draft-grid {
-    display: grid;
-    gap: var(--ui-space-md);
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-
-  .rift-grid {
-    align-content: start;
-    align-items: start;
-  }
-
-  .draft-grid {
-    min-height: 0;
-    overflow: auto;
-    align-content: start;
-    padding-right: 0.2rem;
-  }
-
-  .slot-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .archive-list,
-  .troop-list,
-  .unlock-row,
-  .assigned-strip,
-  .assignment-list,
-  .mutator-list,
-  .ability-list,
-  .option-list,
-  .enemy-list {
-    display: grid;
-    gap: var(--ui-space-sm);
-  }
-
-  .assigned-strip,
-  .assignment-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .enemy-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ability-list {
-    display: flex;
-    flex-wrap: wrap;
-  }
-
-  .option-list {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  }
-
-  .troop-draft-option-list {
-    grid-template-columns: repeat(3, var(--troop-icon-box-size, 3.8rem));
-    justify-content: space-between;
-    gap: 0.35rem;
-  }
-
-  .archive-card,
-  .troop-chip,
-  .title-button,
-  .list-button,
-  .draft-option {
+.archive-card {
     text-align: left;
   }
-
-  .list-button {
-    display: grid;
-    gap: 0.25rem;
-    align-items: center;
-  }
-
-  .list-button:has(:global(.game-icon)) {
-    grid-template-columns: auto minmax(0, 1fr);
-    column-gap: 0.45rem;
-  }
-
-  .draft-offer-block .list-button {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .draft-offer-block .list-button:has(:global(.game-icon)) {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .troop-icon-option {
-    display: grid;
-    place-items: center;
-    width: var(--troop-icon-box-size, 3.8rem);
-    height: var(--troop-icon-box-size, 3.8rem);
-    min-height: 0;
-    aspect-ratio: 1;
-    justify-self: center;
-    padding: 0.45rem;
-  }
-
-  .troop-icon-option .unit-button-art {
-    width: 2rem;
-    height: 2rem;
-  }
-
-  .icon-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-  }
-
-  .icon-label > span {
-    min-width: 0;
-  }
-
-  .archive-card,
-  .troop-chip,
-  .list-button,
-  .draft-option,
-  .draft-troop-icon,
-  .unit-tile {
+.archive-card {
     transition:
       transform 120ms ease,
       border-color 120ms ease,
       box-shadow 120ms ease,
       background 120ms ease;
   }
-
-  .archive-card:hover,
-  .troop-chip:hover,
-  .list-button:hover,
-  .draft-option:hover,
-  .draft-troop-icon:hover,
-  .unit-tile:hover,
-  .sprite-inspect-button:hover,
-  .mutator-chip:hover {
+.archive-card:hover {
     transform: none;
     border-color: rgba(213, 178, 116, 0.6);
     box-shadow:
       inset 0 0 0 1px rgba(213, 178, 116, 0.55),
       0 10px 22px rgba(0, 0, 0, 0.22);
   }
-
-  .archive-card.selected,
-  .troop-chip.selected,
-  .list-button.selected,
-  .title-button.selected,
-  .draft-option.selected,
-  .draft-troop-icon.selected,
-  .mutator-chip.selected,
-  .sprite-inspect-button.selected,
-  .unit-tile.selected {
-    background:
-      linear-gradient(145deg, rgba(44, 31, 15, 0.96), rgba(17, 22, 30, 0.96)),
-      radial-gradient(circle at top left, rgba(212, 173, 115, 0.18), transparent 42%);
-    box-shadow:
-      inset 0 0 0 2px #d4ad73,
-      0 10px 22px rgba(0, 0, 0, 0.22);
-  }
-
-  .readonly-plan {
-    cursor: help;
-    opacity: 0.78;
-  }
-
-  .mutator-chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: stretch;
-    gap: 0.35rem;
-    border: 1px solid rgba(124, 153, 176, 0.2);
-    border-radius: 999px;
-    padding: 0.3rem 0.6rem;
-    background: rgba(20, 28, 38, 0.76);
-    color: inherit;
-    font: inherit;
-    line-height: 1.1;
-  }
-
-  .mutator-chip :global(.game-icon),
-  .list-button :global(.game-icon),
-  .detail-title :global(.game-icon) {
-    --game-icon-size: 1.05rem;
-  }
-
-  .ability-chip :global(.game-icon.raster-icon) {
-    --game-icon-raster-scale: 1.45;
-  }
-
-  .ability-chip :global(.game-icon) {
-    --game-icon-size: 1.58rem;
-  }
-
-  .ability-disclosure {
-    display: grid;
-    gap: 0.3rem;
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-
-  .ability-disclosure > summary {
-    width: fit-content;
-    list-style: none;
-  }
-
-  .ability-disclosure > summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .ability-disclosure:not([open]):not(:hover):not(:focus-within) > .ability-hover-tooltip {
-    display: none;
-  }
-
-  .summon-preview-chip {
-    border-color: rgba(215, 221, 230, 0.34);
-    background: rgba(28, 34, 42, 0.82);
-    color: #d7dde6;
-  }
-
-  .summon-chip-art {
-    width: 1.05rem;
-    height: 1.05rem;
-    object-fit: contain;
-    image-rendering: pixelated;
-  }
-
-  .detail-title {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .detail-title :global(.game-icon) {
-    --game-icon-size: 1.35rem;
-  }
-
-  .unit-overview-strip {
-    display: grid;
-    grid-template-columns: minmax(3.1rem, 5.4rem) minmax(0, 1fr);
-    align-items: center;
-    gap: 0.55rem;
-    margin: 0.1rem 0 0.45rem;
-    min-width: 0;
-  }
-
-  .unit-overview-strip :global(.stats-grid.compact) {
-    min-width: 0;
-  }
-
-  .secondary-unit-detail {
-    border-color: rgba(124, 153, 176, 0.16);
-    background: rgba(12, 18, 28, 0.72);
-  }
-
-  .mutator-chip.empty {
-    color: #95a9ba;
-  }
-
-  .archive-drift-note {
-    display: grid;
-    gap: 0.2rem;
-    padding: 0.55rem 0.65rem;
-    border: 1px solid rgba(213, 178, 116, 0.34);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(50, 33, 17, 0.62);
-    color: #f0d4a6;
-  }
-
-  .archive-drift-note span {
-    color: #d7c3a4;
-    font-size: 0.78rem;
-  }
-
-  .archive-card {
+.archive-card {
     --archive-victory: rgba(74, 193, 111, 0.58);
     --archive-defeat: rgba(213, 75, 82, 0.58);
     --archive-draw: rgba(213, 178, 116, 0.52);
@@ -7545,8 +2382,7 @@
       ),
       var(--ui-color-surface-interactive);
   }
-
-  .archive-card::before {
+.archive-card::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -7554,421 +2390,11 @@
     border-right: 3px solid var(--archive-right-color);
     pointer-events: none;
   }
-
-  .archive-force-block {
-    display: grid;
-    gap: var(--ui-space-sm);
-  }
-
-  .selected-archive-panel {
-    position: relative;
-    padding-top: 2.55rem;
-  }
-
-  .archive-back-button {
-    position: absolute;
-    top: 0.6rem;
-    left: 0.6rem;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    display: inline-grid;
-    place-items: center;
-    border-radius: 999px;
-    font-size: 1rem;
-    line-height: 1;
-    background: rgba(38, 38, 52, 0.94);
-    border: 1px solid rgba(190, 184, 205, 0.72);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .archive-back-button span {
-    display: block;
-    width: 0.66rem;
-    height: 0.66rem;
-    overflow: hidden;
-    color: transparent;
-    border-left: 2px solid #f4f0ff;
-    border-bottom: 2px solid #f4f0ff;
-    transform: translateX(0.1rem) rotate(45deg);
-  }
-
-  .archive-back-button:not(:disabled):active,
-  .menu-back-button:not(:disabled):active {
+.menu-back-button:not(:disabled):active {
     transform: none;
     filter: brightness(0.92);
   }
-
-  .archive-side-label.archive-player,
-  .archive-side-label.archive-player strong {
-    color: #d8f4df;
-  }
-
-  .archive-side-label.archive-opponent,
-  .archive-side-label.archive-opponent strong {
-    color: #f1b1a8;
-  }
-
-  .archive-side-label.archive-neutral,
-  .archive-side-label.archive-neutral strong {
-    color: #c7d0d8;
-  }
-
-  .archive-force-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .archive-upgrade-row {
-    display: flex;
-    flex-wrap: wrap;
-  }
-
-  .archive-upgrade-chip {
-    min-width: 0;
-    padding: 0.35rem 0.5rem;
-    font-size: 0.74rem;
-  }
-
-  .reward-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.24rem 0.5rem;
-    border-radius: 999px;
-    border: 1px solid rgba(124, 153, 176, 0.18);
-    background: rgba(20, 28, 38, 0.72);
-    color: #dce7f2;
-    font-size: 0.74rem;
-  }
-
-  .rift-card,
-  .race-card,
-  .slot-card,
-  .draft-card {
-    display: grid;
-    gap: var(--ui-space-sm);
-    align-content: start;
-  }
-
-  .opening-race-card {
-    position: relative;
-    cursor: pointer;
-    transition:
-      border-color 160ms ease,
-      background 160ms ease,
-      box-shadow 160ms ease,
-      transform 160ms ease;
-  }
-
-  .opening-race-card > :not(.opening-card-select-button) {
-    position: relative;
-    z-index: 2;
-    pointer-events: none;
-  }
-
-  .opening-race-card button:not(.opening-card-select-button) {
-    pointer-events: auto;
-  }
-
-  .opening-card-select-button {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    border: 0;
-    border-radius: inherit;
-    background: transparent;
-    padding: 0;
-  }
-
-  .opening-race-card:hover,
-  .opening-race-card:focus-visible {
-    border-color: rgba(213, 178, 116, 0.44);
-    box-shadow:
-      var(--ui-shadow-panel),
-      inset 0 0 0 1px rgba(213, 178, 116, 0.18);
-  }
-
-  .opening-card-select-button:focus-visible {
-    outline: 2px solid rgba(244, 205, 118, 0.94);
-    outline-offset: 3px;
-  }
-
-  .opening-race-card.selected {
-    border-color: rgba(231, 190, 105, 0.82);
-    background:
-      linear-gradient(160deg, rgba(48, 38, 16, 0.92), rgba(24, 22, 16, 0.96)),
-      radial-gradient(circle at top right, rgba(243, 204, 105, 0.2), transparent 42%);
-    box-shadow:
-      0 18px 42px rgba(0, 0, 0, 0.34),
-      inset 0 0 0 2px rgba(237, 197, 111, 0.38);
-  }
-
-  .opening-race-card.incompatible {
-    cursor: not-allowed;
-    opacity: 0.68;
-  }
-
-  .opening-included-section {
-    margin-top: 0.1rem;
-  }
-
-  .opening-starter-tile {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: stretch;
-    align-items: stretch;
-    min-height: 4.2rem;
-    text-align: left;
-    border-color: rgba(213, 178, 116, 0.48);
-    background:
-      linear-gradient(135deg, rgba(44, 33, 17, 0.88), rgba(18, 25, 34, 0.88)),
-      radial-gradient(circle at 18% 18%, rgba(239, 199, 111, 0.18), transparent 58%);
-  }
-
-  .opening-starter-tile.selected {
-    border-color: rgba(244, 205, 118, 0.9);
-    background:
-      linear-gradient(135deg, rgba(64, 46, 18, 0.95), rgba(31, 26, 17, 0.97)),
-      radial-gradient(circle at 20% 15%, rgba(248, 218, 139, 0.26), transparent 58%);
-  }
-
-  .opening-future-section {
-    margin-top: 0.35rem;
-  }
-
-  .opening-future-grid {
-    grid-template-columns: repeat(auto-fit, var(--troop-icon-box-size, 3.8rem));
-    justify-content: start;
-  }
-
-  .opening-future-tile {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: stretch;
-    align-items: stretch;
-    min-height: 0;
-    border-style: dashed;
-    background: rgba(16, 25, 35, 0.68);
-    color: #c4d2df;
-  }
-
-  .opening-starter-tile .chip-unit-cluster,
-  .opening-future-tile .chip-unit-cluster {
-    --unit-cluster-icon-size: min(2.85rem, 78%);
-  }
-
-  .rift-card {
-    padding: 0.75rem;
-    border-radius: 20px;
-    border: 1px solid rgba(126, 157, 181, 0.16);
-    background:
-      linear-gradient(160deg, rgba(18, 27, 38, 0.94), rgba(10, 15, 24, 0.94)),
-      radial-gradient(circle at top right, rgba(95, 135, 170, 0.12), transparent 35%);
-  }
-
-  .rift-card.contest-neutral {
-    border-color: rgba(126, 157, 181, 0.22);
-  }
-
-  .rift-card.contest-human-held {
-    border-color: rgba(111, 190, 146, 0.45);
-    box-shadow: inset 0 0 0 1px rgba(111, 190, 146, 0.14);
-  }
-
-  .rift-card.contest-ai-held {
-    border-color: rgba(221, 106, 94, 0.48);
-    box-shadow: inset 0 0 0 1px rgba(221, 106, 94, 0.16);
-  }
-
-  .rift-card.archive-highlighted {
-    border-color: rgba(244, 205, 118, 0.92);
-    box-shadow:
-      0 0 0 2px rgba(244, 205, 118, 0.2),
-      0 0 28px rgba(244, 205, 118, 0.26),
-      var(--ui-shadow-panel);
-  }
-
-  .rift-card.assignment-hint-rift {
-    border-color: rgba(150, 220, 184, 0.8);
-    box-shadow:
-      0 0 0 2px rgba(150, 220, 184, 0.18),
-      0 0 26px rgba(76, 190, 135, 0.28),
-      var(--ui-shadow-panel);
-  }
-
-  .rift-battle-lane {
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 4fr) minmax(3.5rem, 2fr) minmax(0, 4fr);
-    align-items: stretch;
-    min-height: 3.65rem;
-    overflow: hidden;
-    border: 1px solid rgba(213, 178, 116, 0.24);
-    border-radius: 14px;
-    background:
-      radial-gradient(circle at center, rgba(239, 202, 124, 0.12), transparent 58%),
-      linear-gradient(90deg, rgba(45, 75, 62, 0.34), rgba(16, 21, 29, 0.82) 48%, rgba(83, 36, 38, 0.34));
-    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
-  }
-
-  .rift-force-side.assigned-strip {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    align-content: center;
-    gap: 0.28rem;
-    min-width: 0;
-    padding: 0.45rem;
-  }
-
-  .rift-force-combatant-group {
-    display: contents;
-  }
-
-  .rift-force-combatant-group.phase-now,
-  .rift-force-combatant-group.phase-late {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.28rem;
-  }
-
-  .rift-force-combatant-group.phase-now {
-    animation: rift-force-group-now 2.812s ease-in-out both;
-  }
-
-  .rift-force-combatant-group.phase-late {
-    opacity: 0;
-    animation: rift-force-group-late 2.812s ease-in-out both;
-  }
-
-  .rift-force-combatant-group.force-loses-now.phase-now {
-    animation-name: rift-force-group-now-loses;
-  }
-
-  .rift-force-combatant-group.force-loses-late.phase-now {
-    animation-name: rift-force-group-now-loses-late;
-  }
-
-  .rift-force-combatant-group.force-loses-late.phase-late {
-    animation-name: rift-force-group-late-loses;
-  }
-
-  .rift-force-left {
-    justify-content: flex-start;
-  }
-
-  .rift-force-right {
-    justify-content: flex-end;
-  }
-
-  .rift-battle-lane .unit-tile {
-    flex: 0 0 auto;
-    width: 2.55rem;
-    height: 2.55rem;
-    min-height: 2.55rem;
-    padding: 0.25rem;
-  }
-
-  .rift-battle-lane .unit-tile-art {
-    width: 1.85rem;
-    height: 1.85rem;
-  }
-
-  .rift-battle-center {
-    position: relative;
-    display: grid;
-    place-items: center;
-    min-width: 0;
-  }
-
-  .rift-battle-animation {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    pointer-events: none;
-  }
-
-  .rift-battle-phase {
-    grid-area: 1 / 1;
-    position: relative;
-    min-width: 0;
-    min-height: 0;
-    opacity: 1;
-  }
-
-  .rift-battle-phase.phase-late {
-    opacity: 0;
-    animation: rift-mini-phase-late 1ms linear 0.925s both;
-  }
-
-  @keyframes rift-force-group-now {
-    0%,
-    100% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  @keyframes rift-force-group-now-loses {
-    0%,
-    56.8% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-      filter: none;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(0.35rem) scale(0.86);
-      filter: grayscale(1) brightness(0.68);
-    }
-  }
-
-  @keyframes rift-force-group-now-loses-late {
-    0%,
-    59.5% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-      filter: none;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(0.35rem) scale(0.86);
-      filter: grayscale(1) brightness(0.68);
-    }
-  }
-
-  @keyframes rift-force-group-late {
-    0%,
-    32.4% {
-      opacity: 0;
-      transform: translateY(-0.15rem) scale(0.9);
-    }
-    39.2%,
-    100% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  @keyframes rift-force-group-late-loses {
-    0%,
-    32.4% {
-      opacity: 0;
-      transform: translateY(-0.15rem) scale(0.9);
-      filter: none;
-    }
-    39.2%,
-    59.5% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-      filter: none;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(0.35rem) scale(0.86);
-      filter: grayscale(1) brightness(0.68);
-    }
-  }
-
-  @keyframes rift-mini-phase-late {
+@keyframes rift-mini-phase-late {
     from {
       opacity: 0;
     }
@@ -7976,232 +2402,9 @@
       opacity: 1;
     }
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rift-battle-phase,
-    .rift-force-side {
-      animation-duration: 1ms;
-      animation-delay: 0ms;
-    }
-  }
-
-  .title-button {
-    width: 100%;
-  }
-
-  .rift-title-card {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .rift-title-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
-    min-width: 0;
-  }
-
-  .rift-tier-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 1.9rem;
-    padding: 0.16rem 0.56rem;
-    border-radius: 999px;
-    border: 1px solid rgba(213, 178, 116, 0.3);
-    background: rgba(31, 24, 16, 0.8);
-    color: #f5f0de;
-    font-size: 0.88rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .rift-info-pill {
-    font: inherit;
-    cursor: help;
-  }
-
-  .rift-info-pill:hover,
-  .rift-info-pill:focus-visible {
-    border-color: rgba(231, 190, 105, 0.72);
-    color: #fff6e5;
-    box-shadow: 0 0 0 2px rgba(213, 178, 116, 0.12);
-  }
-
-  .control-pill {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.65rem;
-    padding: 0.18rem 0.5rem;
-    border-radius: 999px;
-    border: 1px solid rgba(124, 153, 176, 0.22);
-    background: rgba(7, 10, 16, 0.68);
-    color: #dce7f2;
-    font-size: 0.72rem;
-    text-transform: uppercase;
-  }
-
-  .rift-name-text {
-    min-width: 0;
-    color: #9db2c4;
-    font-size: 0.74rem;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .rift-mutator-chip {
-    flex: 0 1 auto;
-    justify-content: center;
-    text-align: center;
-    min-height: 1.9rem;
-    min-width: 0;
-    max-width: 8.5rem;
-    padding-inline: 0.5rem;
-    font-size: 0.76rem;
-  }
-
-  .rift-visual-shell {
-    position: relative;
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    border-radius: 18px;
-    background:
-      radial-gradient(circle at center, var(--rift-glow), transparent 60%),
-      linear-gradient(180deg, rgba(13, 22, 31, 0.92), rgba(8, 12, 18, 0.98));
-  }
-
-  .rift-visual-shell::before {
-    content: '';
-    position: absolute;
-    inset: 10%;
-    border-radius: 50%;
-    filter: blur(18px);
-    background: radial-gradient(circle, var(--rift-tint), transparent 68%);
-    opacity: 0.46;
-    pointer-events: none;
-  }
-
-  .rift-visual-frame {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    width: min(100%, 11rem);
-    height: min(100%, 11rem);
-    place-items: center;
-    color: var(--rift-tint);
-    transform: rotate(var(--rift-rotation));
-  }
-
-  .rift-visual-image {
-    width: 72%;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
-
-  .rift-visual-shell.inline {
-    width: 3.8rem;
-    height: 3.8rem;
-    min-height: 3.8rem;
-    border-radius: 14px;
-  }
-
-  .rift-title-card.featured .rift-visual-shell.inline {
-    width: 5rem;
-    height: 5rem;
-    min-height: 5rem;
-  }
-
-  .unit-tile,
-  .troop-chip,
-  .draft-option {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.9rem;
-  }
-
-  .unit-tile {
-    position: relative;
-    width: var(--troop-icon-box-size, 3.8rem);
-    height: var(--troop-icon-box-size, 3.8rem);
-    min-height: 0;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: stretch;
-    justify-content: center;
-    padding: 0.45rem;
-    border: 1px solid rgba(126, 157, 181, 0.2);
-    border-radius: 14px;
-    background: rgba(22, 31, 42, 0.82);
-    color: inherit;
-    overflow: hidden;
-  }
-
-  .draggable-troop-tile {
-    justify-content: stretch;
-    cursor: grab;
-    touch-action: none;
-    user-select: none;
-  }
-
-  .draggable-troop-tile:active {
-    cursor: grabbing;
-  }
-
-  .unit-tile.selected {
-    border-color: rgba(237, 197, 111, 0.82);
-    box-shadow:
-      inset 0 0 0 2px rgba(237, 197, 111, 0.45),
-      0 0 0 1px rgba(237, 197, 111, 0.2);
-  }
-
-  .unit-tile:focus-visible {
-    outline: 2px dotted rgba(244, 247, 251, 0.86);
-    outline-offset: 3px;
-  }
-
-  .dragging-source {
-    opacity: 0.45;
-    filter: grayscale(0.35);
-  }
-
-  .unit-tile.holding {
-    cursor: help;
-    border-color: rgba(120, 207, 241, 0.58);
-    background:
-      linear-gradient(145deg, rgba(24, 54, 68, 0.9), rgba(20, 31, 40, 0.96)),
-      radial-gradient(circle at 30% 15%, rgba(137, 220, 255, 0.18), transparent 52%);
-  }
-
-  .unit-tile.upgrade-affected::after {
-    content: '+';
-    position: absolute;
-    top: -0.35rem;
-    right: -0.35rem;
-    width: 1.35rem;
-    height: 1.35rem;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: rgba(128, 229, 161, 0.28);
-    border: 1px solid rgba(156, 244, 185, 0.72);
-    color: #c8ffd5;
-    font-weight: 900;
-  }
-
-  .conflict-pulse {
-    animation: conflict-pulse 680ms ease-out 0s 2;
-  }
-
-  @keyframes conflict-pulse {
+@keyframes conflict-pulse {
     0%,
-    100% {
+100% {
       box-shadow: inset 0 0 0 1px rgba(238, 243, 246, 0.16);
     }
     45% {
@@ -8210,154 +2413,7 @@
         0 0 24px rgba(255, 80, 80, 0.34);
     }
   }
-
-  .unit-tile.assigned {
-    border-color: rgba(185, 195, 203, 0.54);
-    background:
-      linear-gradient(145deg, rgba(82, 88, 96, 0.92), rgba(37, 42, 49, 0.96)),
-      radial-gradient(circle at 30% 15%, rgba(234, 239, 242, 0.2), transparent 52%);
-    box-shadow:
-      inset 0 0 0 1px rgba(238, 243, 246, 0.18),
-      0 10px 20px rgba(0, 0, 0, 0.22);
-  }
-
-  .assigned-summary-tile {
-    border-color: rgba(185, 195, 203, 0.54);
-    background:
-      linear-gradient(145deg, rgba(78, 84, 92, 0.9), rgba(32, 37, 44, 0.96)),
-      radial-gradient(circle at 30% 15%, rgba(234, 239, 242, 0.18), transparent 52%);
-    box-shadow: inset 0 0 0 1px rgba(238, 243, 246, 0.16);
-  }
-
-  .unit-tile.assigned.selected,
-  .unit-tile.assigned-summary-tile.selected {
-    border-color: rgba(218, 190, 140, 0.72);
-    background:
-      linear-gradient(145deg, rgba(86, 93, 102, 0.94), rgba(35, 40, 47, 0.98)),
-      radial-gradient(circle at 28% 12%, rgba(246, 249, 250, 0.22), transparent 54%);
-    box-shadow:
-      inset 0 0 0 2px rgba(218, 190, 140, 0.45),
-      0 10px 22px rgba(0, 0, 0, 0.24);
-  }
-
-  .archive-performance-tile {
-    --archive-health-scale: 0;
-    --archive-damage-scale: 0;
-  }
-
-  .archive-performance-tile.has-archive-performance::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    pointer-events: none;
-    z-index: 6;
-  }
-
-  .archive-health-indicator,
-  .archive-damage-indicator {
-    position: absolute;
-    bottom: 0.32rem;
-    width: 0.2rem;
-    top: 0.32rem;
-    height: auto;
-    min-height: 0;
-    border-radius: 999px;
-    opacity: 0;
-    pointer-events: none;
-    transform: scaleY(var(--archive-health-scale));
-    transform-origin: bottom;
-    z-index: 7;
-  }
-
-  .archive-health-indicator {
-    left: 0.32rem;
-    background: linear-gradient(180deg, #a7f0a0, #48bd6c);
-    box-shadow: 0 0 0.38rem rgba(88, 220, 117, 0.34);
-  }
-
-  .archive-damage-indicator {
-    right: 0.32rem;
-    transform: scaleY(var(--archive-damage-scale));
-    background: linear-gradient(180deg, #ff9a82, #d84c43);
-    box-shadow: 0 0 0.38rem rgba(232, 72, 61, 0.34);
-  }
-
-  .has-archive-performance .archive-health-indicator,
-  .has-archive-performance .archive-damage-indicator {
-    opacity: 0.96;
-  }
-
-  .assignment-panel .unit-tile small {
-    display: none;
-  }
-
-  .drop-target-active {
-    border-color: rgba(218, 190, 140, 0.78);
-    box-shadow:
-      inset 0 0 0 2px rgba(218, 190, 140, 0.42),
-      0 0 28px rgba(218, 190, 140, 0.18);
-  }
-
-  .rift-card.drop-target-unavailable {
-    border-color: rgba(129, 139, 148, 0.34);
-    background:
-      linear-gradient(150deg, rgba(34, 39, 45, 0.78), rgba(13, 17, 23, 0.88)),
-      radial-gradient(circle at top right, rgba(132, 144, 154, 0.1), transparent 48%);
-    box-shadow: inset 0 0 0 2px rgba(104, 114, 124, 0.28);
-  }
-
-  .rift-card.drop-target-unavailable > :not(.drop-conflict-message) {
-    filter: grayscale(1) brightness(0.48);
-    opacity: 0.38;
-  }
-
-  .drop-target-blocked {
-    border-color: rgba(255, 102, 102, 0.8);
-    box-shadow:
-      inset 0 0 0 2px rgba(255, 102, 102, 0.38),
-      0 0 28px rgba(255, 80, 80, 0.18);
-  }
-
-  .drop-preview-tile {
-    border-style: dashed;
-    border-color: rgba(218, 190, 140, 0.78);
-    background: rgba(73, 57, 29, 0.62);
-  }
-
-  .drop-conflict-message {
-    margin-top: 0.35rem;
-    padding: 0.35rem 0.5rem;
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(82, 20, 20, 0.78);
-    color: #ffd5d5;
-    font-size: 0.75rem;
-  }
-
-  .quantity-stack {
-    display: grid;
-    gap: 0.12rem;
-    place-items: center;
-    min-width: 3rem;
-    padding: 0.3rem 0.42rem;
-    border: 1px solid rgba(237, 197, 111, 0.26);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(37, 28, 15, 0.64);
-  }
-
-  .quantity-stack strong {
-    color: #f4e6ba;
-    font-family: var(--ui-font-mono);
-  }
-
-  .quantity-stack span {
-    color: rgba(237, 197, 111, 0.68);
-    font-size: 0.56rem;
-    letter-spacing: 0.04rem;
-  }
-
-  .troop-drag-ghost {
+.troop-drag-ghost {
     position: fixed;
     z-index: 80;
     display: grid;
@@ -8375,481 +2431,39 @@
       0 18px 44px rgba(0, 0, 0, 0.5),
       inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   }
-
-  .enemy-tile {
-    justify-content: stretch;
-  }
-
-  .unit-tile-art,
-  .unit-button-art,
-  .hover-unit-art,
-  .race-name-art {
+.unit-tile-art {
     image-rendering: pixelated;
     object-fit: contain;
     filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
   }
-
-  .unit-tile-art,
-  .unit-button-art {
+.unit-tile-art {
     width: 2.2rem;
     height: 2.2rem;
     flex: 0 0 auto;
     display: block;
     margin: auto;
   }
-
-  .hover-unit-art {
-    width: 4rem;
-    height: 4rem;
-  }
-
-  .unit-icon-cluster {
-    --unit-cluster-hero-size: 76%;
-    --unit-cluster-bg-size: 23%;
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 100%;
-    justify-self: stretch;
-    align-self: stretch;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-    isolation: isolate;
-  }
-
-  .unit-tile:has(.unit-icon-cluster),
-  .rift-battle-lane .unit-tile:has(.unit-icon-cluster) {
-    justify-content: stretch;
-    justify-items: stretch;
-    place-items: stretch;
-  }
-
-  .tile-unit-cluster .unit-tile-art,
-  .chip-unit-cluster .unit-button-art,
-  .detail-unit-cluster .hover-unit-art {
-    position: absolute;
-    width: var(--unit-cluster-bg-size) !important;
-    height: var(--unit-cluster-bg-size) !important;
-    margin: 0 !important;
-    opacity: 0.72;
-    transform: translate(-50%, -50%);
-    transform-origin: center bottom;
-    z-index: 1;
-  }
-
-  .tile-unit-cluster .unit-tile-art:first-child,
-  .chip-unit-cluster .unit-button-art:first-child,
-  .detail-unit-cluster .hover-unit-art:first-child {
-    left: 50%;
-    top: 59%;
-    width: var(--unit-cluster-hero-size) !important;
-    height: var(--unit-cluster-hero-size) !important;
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.04);
-    filter:
-      drop-shadow(0 0 9px rgba(0, 0, 0, 0.48))
-      drop-shadow(0 3px 1px rgba(0, 0, 0, 0.3));
-    z-index: 5;
-  }
-
-  .tile-unit-cluster .unit-tile-art:not(:first-child),
-  .chip-unit-cluster .unit-button-art:not(:first-child),
-  .detail-unit-cluster .hover-unit-art:not(:first-child) {
-    filter:
-      saturate(0.9)
-      brightness(0.78)
-      drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 2),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 2),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 2) {
-    left: 24%;
-    top: 25%;
-    transform: translate(-50%, -50%) rotate(-9deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 3),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 3),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 3) {
-    left: 74%;
-    top: 27%;
-    transform: translate(-50%, -50%) rotate(8deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 4),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 4),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 4) {
-    left: 41%;
-    top: 18%;
-    transform: translate(-50%, -50%) rotate(3deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 5),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 5),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 5) {
-    left: 60%;
-    top: 19%;
-    transform: translate(-50%, -50%) rotate(-4deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 6),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 6),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 6) {
-    left: 18%;
-    top: 47%;
-    transform: translate(-50%, -50%) rotate(7deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 7),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 7),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 7) {
-    left: 83%;
-    top: 49%;
-    transform: translate(-50%, -50%) rotate(-8deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 8),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 8),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 8) {
-    left: 31%;
-    top: 64%;
-    transform: translate(-50%, -50%) rotate(5deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 9),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 9),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 9) {
-    left: 69%;
-    top: 65%;
-    transform: translate(-50%, -50%) rotate(-5deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 10),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 10),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 10) {
-    left: 47%;
-    top: 77%;
-    transform: translate(-50%, -50%) rotate(-2deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 11),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 11),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 11) {
-    left: 14%;
-    top: 73%;
-    transform: translate(-50%, -50%) rotate(-7deg);
-  }
-
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 12),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 12),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 12),
-  .tile-unit-cluster .unit-tile-art:nth-child(12n + 13),
-  .chip-unit-cluster .unit-button-art:nth-child(12n + 13),
-  .detail-unit-cluster .hover-unit-art:nth-child(12n + 13) {
-    left: 88%;
-    top: 76%;
-    transform: translate(-50%, -50%) rotate(6deg);
-  }
-
-  .tile-unit-cluster.density-1,
-  .chip-unit-cluster.density-1,
-  .detail-unit-cluster.density-1 {
-    --unit-cluster-hero-size: 82%;
-    --unit-cluster-bg-size: 0%;
-  }
-
-  .tile-unit-cluster.density-4,
-  .chip-unit-cluster.density-4,
-  .detail-unit-cluster.density-4 {
-    --unit-cluster-hero-size: 77%;
-    --unit-cluster-bg-size: 24%;
-  }
-
-  .tile-unit-cluster.density-6,
-  .chip-unit-cluster.density-6,
-  .detail-unit-cluster.density-6 {
-    --unit-cluster-hero-size: 76%;
-    --unit-cluster-bg-size: 21%;
-  }
-
-  .tile-unit-cluster.density-9,
-  .chip-unit-cluster.density-9,
-  .detail-unit-cluster.density-9 {
-    --unit-cluster-hero-size: 75%;
-    --unit-cluster-bg-size: 18%;
-  }
-
-  .tile-unit-cluster.density-12,
-  .chip-unit-cluster.density-12,
-  .detail-unit-cluster.density-12 {
-    --unit-cluster-hero-size: 74%;
-    --unit-cluster-bg-size: 15.5%;
-  }
-
-  .tile-unit-cluster.density-20,
-  .chip-unit-cluster.density-20,
-  .detail-unit-cluster.density-20 {
-    --unit-cluster-hero-size: 73%;
-    --unit-cluster-bg-size: 13%;
-  }
-
-  .tile-unit-cluster.density-24,
-  .chip-unit-cluster.density-24,
-  .detail-unit-cluster.density-24 {
-    --unit-cluster-hero-size: 72%;
-    --unit-cluster-bg-size: 9.8%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:not(:first-child),
-  .chip-unit-cluster.density-24 .unit-button-art:not(:first-child),
-  .detail-unit-cluster.density-24 .hover-unit-art:not(:first-child) {
-    opacity: 0.82;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(2),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(2),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(2) {
-    left: 13%;
-    top: 20%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(3),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(3),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(3) {
-    left: 26%;
-    top: 14%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(4),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(4),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(4) {
-    left: 40%;
-    top: 10%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(5),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(5),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(5) {
-    left: 55%;
-    top: 10%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(6),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(6),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(6) {
-    left: 70%;
-    top: 14%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(7),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(7),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(7) {
-    left: 84%;
-    top: 22%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(8),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(8),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(8) {
-    left: 8%;
-    top: 38%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(9),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(9),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(9) {
-    left: 20%;
-    top: 33%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(10),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(10),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(10) {
-    left: 32%;
-    top: 27%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(11),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(11),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(11) {
-    left: 66%;
-    top: 27%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(12),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(12),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(12) {
-    left: 79%;
-    top: 34%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(13),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(13),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(13) {
-    left: 92%;
-    top: 41%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(14),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(14),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(14) {
-    left: 9%;
-    top: 57%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(15),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(15),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(15) {
-    left: 21%;
-    top: 66%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(16),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(16),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(16) {
-    left: 33%;
-    top: 75%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(17),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(17),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(17) {
-    left: 48%;
-    top: 82%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(18),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(18),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(18) {
-    left: 63%;
-    top: 76%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(19),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(19),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(19) {
-    left: 76%;
-    top: 67%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(20),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(20),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(20) {
-    left: 89%;
-    top: 59%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(21),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(21),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(21) {
-    left: 25%;
-    top: 49%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(22),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(22),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(22) {
-    left: 37%;
-    top: 39%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(23),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(23),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(23) {
-    left: 61%;
-    top: 40%;
-  }
-
-  .tile-unit-cluster.density-24 .unit-tile-art:nth-child(24),
-  .chip-unit-cluster.density-24 .unit-button-art:nth-child(24),
-  .detail-unit-cluster.density-24 .hover-unit-art:nth-child(24) {
-    left: 73%;
-    top: 50%;
-  }
-
-  .detail-unit-cluster {
-    width: 5.4rem;
-    height: 5.4rem;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .detail-unit-cluster .hover-unit-art {
-    width: 100%;
-    height: 100%;
-  }
-
-  .race-name-art {
-    width: 2.6rem;
-    height: 2.6rem;
-  }
-
-  .race-name-button,
-  .draft-card-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
-  }
-
-  .unit-button-copy {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.7rem;
-    min-width: 0;
-  }
-
-  .assignment-empty,
-  .intro,
-  .warning-panel p,
-  .slot-card p,
-  .detail-panel p,
-  .replay-header p {
-    color: #a7b8c8;
-  }
-
-  .archive-card-row {
+.archive-card-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 2.45rem;
     gap: 0.4rem;
     align-items: stretch;
   }
-
-  .archive-card-row.archive-opponent-record {
-    grid-template-columns: 2.45rem minmax(0, 1fr);
-  }
-
-  .archive-card-row.archive-opponent-record .archive-watch-button {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .archive-card-row.archive-opponent-record .archive-card {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .archive-card {
+.archive-card {
     display: grid;
     align-items: center;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.55rem;
     text-align: left;
   }
-
-  .incoming-archive-card-row {
+.incoming-archive-card-row {
     grid-template-columns: minmax(0, 1fr);
     height: 0;
     min-height: 0;
     overflow: visible;
     animation: incoming-archive-row-expand 260ms ease-out var(--arrival-delay) both;
   }
-
-  .incoming-archive-card {
+.incoming-archive-card {
     position: fixed;
     left: 0;
     top: 0;
@@ -8865,89 +2479,20 @@
     opacity: 1;
     animation: incoming-archive-card-fly var(--arrival-flight) cubic-bezier(0.18, 0.84, 0.22, 1) var(--arrival-delay) both;
   }
-
-  .incoming-flight-mini,
-  .incoming-flight-archive {
+.incoming-flight-mini,
+.incoming-flight-archive {
     position: absolute;
     inset: 0;
   }
-
-  .incoming-flight-mini {
+.incoming-flight-mini {
     opacity: 1;
     animation: incoming-flight-mini-fade var(--arrival-flight) ease-in-out var(--arrival-delay) both;
   }
-
-  .incoming-flight-archive {
+.incoming-flight-archive {
     opacity: 0;
     animation: incoming-flight-archive-fade var(--arrival-flight) ease-in-out var(--arrival-delay) both;
   }
-
-  .archive-inspect-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
-  .archive-result-mark {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.42rem;
-    min-height: 3rem;
-    color: #f4e6ba;
-  }
-
-  .archive-result-mark svg {
-    width: 2.65rem;
-    height: 2.65rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 1.7;
-    filter: drop-shadow(0 0 0.5rem rgba(235, 190, 86, 0.26));
-  }
-
-  .archive-result-mark:not(.rival-result) svg {
-    width: 3.05rem;
-    height: 3.05rem;
-  }
-
-  .archive-result-mark.defeat-result {
-    color: #ff9a82;
-  }
-
-  .archive-result-mark.defeat-result svg {
-    filter: drop-shadow(0 0 0.5rem rgba(232, 72, 61, 0.28));
-  }
-
-  .archive-result-mark .archive-rival-arrow {
-    color: #9eb4c7;
-    font-family: var(--ui-font-mono);
-    font-size: 0.78rem;
-    font-weight: 900;
-  }
-
-  .archive-result-mark .archive-draw-mark {
-    display: inline-grid;
-    width: 2.65rem;
-    height: 2.65rem;
-    place-items: center;
-    border: 1px solid rgba(213, 178, 116, 0.48);
-    border-radius: 999px;
-    color: #e6c88d;
-    font-family: var(--ui-font-mono);
-    font-size: 1.6rem;
-    font-weight: 900;
-  }
-
-  .archive-rift-id {
-    color: #9db2c4;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-  }
-
-  .archive-rift-thumbnail {
+.archive-rift-thumbnail {
     width: 2.55rem;
     height: 2.55rem;
     display: grid;
@@ -8957,15 +2502,13 @@
     background: radial-gradient(circle, var(--rift-glow), rgba(10, 14, 20, 0.84) 68%);
     overflow: hidden;
   }
-
-  .archive-rift-thumbnail img {
+.archive-rift-thumbnail img {
     width: 100%;
     height: 100%;
     object-fit: contain;
     transform: rotate(var(--rift-rotation));
   }
-
-  @keyframes incoming-archive-row-expand {
+@keyframes incoming-archive-row-expand {
     from {
       height: 0;
       margin-top: 0;
@@ -8977,8 +2520,7 @@
       margin-bottom: 0;
     }
   }
-
-  @keyframes incoming-archive-card-fly {
+@keyframes incoming-archive-card-fly {
     0% {
       width: var(--flight-from-width, 8rem);
       height: var(--flight-from-height, 3rem);
@@ -9004,77 +2546,38 @@
       filter: none;
     }
   }
-
-  @keyframes incoming-flight-mini-fade {
+@keyframes incoming-flight-mini-fade {
     0%,
-    54% {
+54% {
       opacity: 1;
     }
     86%,
-    100% {
+100% {
       opacity: 0;
     }
   }
-
-  @keyframes incoming-flight-archive-fade {
+@keyframes incoming-flight-archive-fade {
     0%,
-    54% {
+54% {
       opacity: 0;
     }
     86%,
-    100% {
+100% {
       opacity: 1;
     }
   }
-
-  .archive-watch-button {
-    display: grid;
-    min-height: 2.45rem;
-    min-width: 0;
-    place-items: center;
-    border: 1px solid rgba(126, 157, 181, 0.2);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(20, 29, 39, 0.9);
-    color: #f4e6ba;
-    font-size: 0;
-    font-weight: 800;
-  }
-
-  .archive-watch-icon {
-    width: 1.25rem;
-    height: 1.25rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 1.8;
-  }
-
-  .archive-inspect-watch-button {
-    width: 2.8rem;
-    border-color: rgba(229, 188, 88, 0.82);
-    box-shadow: inset 0 0 0 1px rgba(255, 220, 125, 0.18), 0 0 0.85rem rgba(217, 164, 48, 0.24);
-  }
-
-  .draft-screen-header {
+.draft-screen-header {
     display: grid;
     gap: 0.55rem;
     margin-bottom: var(--ui-space-md);
     max-width: 920px;
   }
-
-  .draft-screen-header h1 {
-    margin: 0;
-    font-size: var(--ui-text-title);
-  }
-
-  .draft-screen-header p {
+.draft-screen-header p {
     max-width: 70ch;
     margin: 0;
     color: #a7b8c8;
   }
-
-  .draft-screen-header .multiplayer-status-line {
+.draft-screen-header .multiplayer-status-line {
     max-width: none;
     width: fit-content;
     border: var(--ui-border-strong);
@@ -9083,737 +2586,24 @@
     color: var(--ui-color-text);
     background: rgba(213, 178, 116, 0.12);
   }
-
-  .draft-screen-header .scheduled-unlock-instructions {
-    max-width: none;
-    color: #c8d5df;
-    font-size: clamp(0.95rem, 0.9vw, 1.08rem);
-    line-height: 1.45;
-    white-space: normal;
-  }
-
-  .scheduled-race-shell {
-    width: min(1780px, 100%);
-    max-height: calc(100vh - (2 * var(--ui-space-md)));
-    overflow: auto;
-  }
-
-  .scheduled-race-layout,
-  .scheduled-race-layout.has-detail {
-    grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
-  }
-
-  .scheduled-race-layout .draft-grid {
-    overflow: visible;
-  }
-
-  .race-unlock-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  }
-
-  .race-unlock-card {
-    position: relative;
-    display: grid;
-    gap: 0.9rem;
-    align-content: start;
-    cursor: pointer;
-    overflow: hidden;
-  }
-
-  .race-unlock-card > :not(.race-card-select-button) {
-    position: relative;
-    z-index: 2;
-    pointer-events: none;
-  }
-
-  .race-unlock-card button:not(.race-card-select-button) {
-    pointer-events: auto;
-  }
-
-  .race-card-select-button {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    border: 0;
-    border-radius: inherit;
-    background: transparent;
-    padding: 0;
-  }
-
-  .race-unlock-card:hover,
-  .race-unlock-card:focus-within {
-    border-color: rgba(213, 178, 116, 0.5);
-    box-shadow:
-      var(--ui-shadow-panel),
-      inset 0 0 0 1px rgba(213, 178, 116, 0.2);
-    outline: none;
-  }
-
-  .race-card-select-button:focus-visible {
-    outline: 2px solid rgba(244, 205, 118, 0.94);
-    outline-offset: 3px;
-  }
-
-  .race-unlock-card.selected {
-    border-color: rgba(231, 190, 105, 0.82);
-    background:
-      linear-gradient(160deg, rgba(48, 38, 16, 0.92), rgba(24, 22, 16, 0.96)),
-      radial-gradient(circle at top right, rgba(243, 204, 105, 0.2), transparent 42%);
-    box-shadow:
-      0 18px 42px rgba(0, 0, 0, 0.34),
-      inset 0 0 0 2px rgba(237, 197, 111, 0.38);
-  }
-
-  .race-unlock-card .draft-section {
-    display: grid;
-    gap: 0.45rem;
-    min-width: 0;
-  }
-
-  .troop-preview-row {
-    grid-template-columns: repeat(auto-fit, minmax(var(--troop-icon-box-size, 3.8rem), 1fr));
-    justify-items: center;
-  }
-
-  .troop-preview {
-    display: grid;
-    justify-items: center;
-    gap: 0.25rem;
-    min-height: 4.6rem;
-    padding: 0.45rem;
-    border: 1px solid rgba(124, 153, 176, 0.18);
-    border-radius: var(--ui-panel-radius-tight);
-    color: #edf4fa;
-    text-align: center;
-    font-size: 0.82rem;
-  }
-
-  .included-troop-row {
-    justify-content: start;
-  }
-
-  .included-troop-preview {
-    border-color: rgba(213, 178, 116, 0.56);
-    background:
-      linear-gradient(135deg, rgba(44, 33, 17, 0.88), rgba(18, 25, 34, 0.88)),
-      radial-gradient(circle at 18% 18%, rgba(239, 199, 111, 0.18), transparent 58%);
-  }
-
-  .scheduled-race-shell .troop-preview {
-    width: var(--troop-icon-box-size, 3.8rem);
-    min-height: var(--troop-icon-box-size, 3.8rem);
-    aspect-ratio: 1;
-    padding: 0.35rem;
-    font-size: 0.76rem;
-  }
-
-  .scheduled-race-shell .troop-preview .unit-button-art {
-    width: 1.65rem;
-    height: 1.65rem;
-  }
-
-  .troop-preview.native {
-    background: rgba(24, 41, 48, 0.74);
-  }
-
-  .troop-preview.future {
-    border-style: dashed;
-    background: rgba(50, 36, 20, 0.7);
-    color: #f5d6a1;
-  }
-
-  .troop-preview.empty {
-    place-items: center;
-    color: #a7b8c8;
-  }
-
-  .upgrade-grant {
-    border-color: rgba(213, 178, 116, 0.48);
-    background: rgba(45, 34, 18, 0.78);
-    min-height: 2.35rem;
-    padding-block: 0.45rem;
-  }
-
-  .troop-class-unlock-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-
-  .troop-class-choice {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    justify-content: start;
-  }
-
-  .troop-class-choice .unit-button-art {
-    width: 1.75rem;
-    height: 1.75rem;
-  }
-
-  .floating-detail-panel {
-    position: fixed;
-    right: var(--ui-space-md);
-    bottom: var(--ui-space-md);
-    z-index: 21;
-    width: min(360px, calc(100vw - (2 * var(--ui-space-md))));
-    max-height: min(44vh, 360px);
-    overflow: auto;
-  }
-
-  .ability-row,
-  .mutator-row,
-  .assignment-panel,
-  .draft-offer-block {
-    display: grid;
-    gap: 0.45rem;
-  }
-
-  .draft-helper-copy {
-    color: var(--ui-color-text-dim);
-    font-size: 0.82rem;
-    line-height: 1.35;
-  }
-
-  .rift-card-section,
-  .ready-troops-header {
-    display: grid;
-    gap: 0.35rem;
-  }
-
-  .ready-status-counts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-  }
-
-  .ready-status-counts span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.18rem 0.42rem;
-    border-radius: var(--ui-panel-radius-pill);
-    background: rgba(14, 22, 31, 0.72);
-    color: #a7b8c8;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-  }
-
-  .ready-status-counts strong {
-    color: #f4e6ba;
-    font-family: var(--ui-font-mono);
-  }
-
-  .assignment-panel,
-  .warning-panel,
-  .draft-offer-block {
-    padding-top: var(--ui-space-xs);
-  }
-
-  .ability-hover-tooltip {
-    display: grid;
-    gap: 0.3rem;
-    padding: 0.7rem 0.8rem;
-    border-radius: 14px;
-    border: 1px solid rgba(124, 153, 176, 0.18);
-    background: rgba(12, 18, 28, 0.96);
-  }
-
-  .hover-unit-detail {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.75rem;
-    align-items: center;
-  }
-
-  .warning-panel {
-    background:
-      linear-gradient(160deg, rgba(46, 25, 23, 0.96), rgba(17, 14, 18, 0.96)),
-      radial-gradient(circle at top right, rgba(170, 95, 95, 0.18), transparent 36%);
-  }
-
-  .essence-draft-panel.soft-highlight {
-    border-color: rgba(211, 176, 255, 0.72);
-    box-shadow:
-      0 0 0 2px rgba(211, 176, 255, 0.2),
-      0 0 28px rgba(155, 95, 220, 0.34),
-      var(--ui-shadow-panel);
-  }
-
-  .essence-draft-panel {
-    gap: 0.55rem;
-  }
-
-  .footer-essence-draft-panel {
-    grid-column: 1;
-    grid-row: 2;
-    width: fit-content;
-    max-width: 100%;
-    justify-self: start;
-    align-self: end;
-    padding: 0.6rem 0.7rem;
-    border-radius: 12px;
-    --troop-icon-box-size: 2.9rem;
-  }
-
-  .essence-draft-groups {
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 0.7rem;
-    align-items: stretch;
-  }
-
-  .footer-essence-draft-panel .essence-draft-groups {
-    grid-template-columns: max-content max-content;
-    gap: 0.45rem;
-    align-items: start;
-  }
-
-  .footer-essence-draft-panel .draft-offer-block {
-    min-width: 0;
-    gap: 0.25rem;
-    padding-top: 0;
-    justify-items: stretch;
-  }
-
-  .footer-essence-draft-panel .troop-draft-option-list {
-    grid-template-columns: repeat(3, minmax(2.75rem, var(--troop-icon-box-size, 3rem)));
-    justify-content: start;
-    gap: 0.15rem;
-  }
-
-  .footer-essence-draft-panel .troop-icon-option {
-    padding: 0.3rem;
-  }
-
-  .footer-essence-draft-panel .unlock-row {
-    gap: 1px;
-    justify-items: start;
-  }
-
-  .footer-essence-draft-panel .draft-upgrade-option {
-    display: inline-flex;
-    width: fit-content;
-    max-width: min(31rem, calc(100vw - 2.4rem));
-    min-height: 2.25rem;
-    padding: 0.32rem 0.44rem;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.16rem;
-  }
-
-  .footer-essence-draft-panel .draft-upgrade-option .icon-label {
-    width: auto;
-    line-height: 1.15;
-  }
-
-  .footer-essence-draft-panel .draft-upgrade-option .icon-label > span {
-    overflow-wrap: anywhere;
-    white-space: normal;
-  }
-
-  .footer-essence-draft-panel .affected-troop-strip {
-    flex: 0 0 auto;
-    max-width: 4.5rem;
-  }
-
-  .footer-essence-draft-panel .affected-troop-strip img {
-    width: 1.15rem;
-    height: 1.15rem;
-  }
-
-  .footer-essence-draft-panel .primary {
-    min-height: 2.15rem;
-    padding: 0.35rem 0.55rem;
-  }
-
-  .draft-reroll-button {
-    position: relative;
-    z-index: 2;
-    justify-self: center;
-    display: grid;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    border: 1px solid rgba(124, 153, 176, 0.26);
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 50% 42%, rgba(244, 205, 118, 0.12), transparent 58%),
-      rgba(11, 18, 27, 0.82);
-    color: #c6d5df;
-    cursor: pointer;
-    transition:
-      border-color 140ms ease,
-      color 140ms ease,
-      filter 140ms ease,
-      opacity 140ms ease,
-      transform 140ms ease;
-  }
-
-  .draft-reroll-button:hover,
-  .draft-reroll-button:focus-visible,
-  .draft-reroll-button.reroll-hovered {
-    border-color: rgba(244, 205, 118, 0.66);
-    color: #f4d886;
-    transform: translateY(-1px);
-    outline: none;
-  }
-
-  .draft-reroll-button:disabled {
-    cursor: default;
-    opacity: 0.34;
-    transform: none;
-  }
-
-  .draft-reroll-button.reroll-other-hovered {
-    border-color: rgba(175, 83, 83, 0.56);
-    color: #78808a;
-    filter: grayscale(1) brightness(0.68);
-    opacity: 0.58;
-  }
-
-  .draft-reroll-button.reroll-other-hovered::before,
-  .draft-reroll-button.reroll-other-hovered::after {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 1.55rem;
-    height: 0.18rem;
-    border-radius: 999px;
-    background: #d84646;
-    box-shadow: 0 0 8px rgba(216, 70, 70, 0.46);
-    content: '';
-    transform-origin: center;
-  }
-
-  .draft-reroll-button.reroll-other-hovered::before {
-    transform: translate(-50%, -50%) rotate(45deg);
-  }
-
-  .draft-reroll-button.reroll-other-hovered::after {
-    transform: translate(-50%, -50%) rotate(-45deg);
-  }
-
-  .recycle-icon {
-    width: 1.18rem;
-    height: 1.18rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .draft-reroll-button.reroll-hovered .recycle-icon,
-  .draft-reroll-button:hover:not(:disabled) .recycle-icon,
-  .draft-reroll-button:focus-visible:not(:disabled) .recycle-icon {
-    animation: recycle-spin 760ms linear infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .draft-reroll-button.reroll-hovered .recycle-icon,
-    .draft-reroll-button:hover:not(:disabled) .recycle-icon,
-    .draft-reroll-button:focus-visible:not(:disabled) .recycle-icon {
-      animation: none;
-    }
-  }
-
-  @keyframes recycle-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .draft-offer-block.reroll-replace-preview {
-    position: relative;
-  }
-
-  .draft-offer-block.reroll-replace-preview > :not(.assignment-label):not(.draft-reroll-button) {
-    animation: draft-replace-fade 900ms ease-in-out infinite;
-    filter: brightness(0.52) saturate(0.72);
-  }
-
-  .draft-offer-block.reroll-replace-preview > .assignment-label {
-    color: rgba(166, 176, 185, 0.72);
-  }
-
-  .draft-offer-block.reroll-replace-preview::after {
-    position: absolute;
-    inset: 1.55rem 0 2.25rem;
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(3, 6, 10, 0.34);
-    box-shadow: inset 0 0 0 1px rgba(216, 70, 70, 0.14);
-    content: '';
-    pointer-events: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .draft-offer-block.reroll-replace-preview > :not(.assignment-label):not(.draft-reroll-button) {
-      animation: none;
-      opacity: 0.48;
-    }
-  }
-
-  @keyframes draft-replace-fade {
-    0%,
-    100% {
-      opacity: 0.58;
-    }
-
-    50% {
-      opacity: 0.34;
-    }
-  }
-
-  .draft-offer-block.locked {
-    border-color: rgba(111, 190, 146, 0.38);
-    background: rgba(19, 42, 32, 0.58);
-  }
-
-  .locked-draft-card {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.55rem;
-    border: 1px solid rgba(111, 190, 146, 0.34);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(9, 20, 16, 0.46);
-    color: #d8f4df;
-  }
-
-  .locked-draft-icon-card {
-    grid-template-columns: auto auto;
-    width: fit-content;
-    min-height: 2.35rem;
-    justify-content: start;
-  }
-
-  .confirmed-check {
-    position: relative;
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-    border-radius: 50%;
-    background: rgba(64, 190, 112, 0.2);
-    border: 1px solid rgba(133, 240, 168, 0.72);
-    box-shadow: 0 0 10px rgba(64, 190, 112, 0.28);
-  }
-
-  .confirmed-check::after {
-    position: absolute;
-    left: 0.28rem;
-    top: 0.15rem;
-    width: 0.32rem;
-    height: 0.56rem;
-    border-right: 2px solid #9cf4b0;
-    border-bottom: 2px solid #9cf4b0;
-    content: '';
-    transform: rotate(45deg);
-  }
-
-  .draft-option.upgrade-affected,
-  .ready-troop-tile.upgrade-affected {
-    position: relative;
-  }
-
-  .upgrade-plus-badge,
-  .ready-troop-tile.upgrade-affected::after {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    content: '+';
-    color: rgba(154, 255, 180, 0.72);
-    font-size: 2.6rem;
-    font-weight: 900;
-    line-height: 1;
-    pointer-events: none;
-    text-shadow: 0 0 12px rgba(70, 211, 111, 0.44);
-  }
-
-  .draft-upgrade-option {
-    align-content: start;
-  }
-
-  .affected-troop-strip .draft-affected {
-    border-color: rgba(128, 196, 255, 0.58);
-    filter: grayscale(1) brightness(0.62);
-    opacity: 0.42;
-    transition:
-      filter 120ms ease,
-      opacity 120ms ease;
-  }
-
-  .affected-troop-strip .draft-affected.selected-draft-target {
-    filter: none;
-    opacity: 1;
-  }
-
-  .essence-draft-panel .primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25rem;
-  }
-
-  .reveal-draft-button.soft-highlight {
-    box-shadow:
-      inset 0 0 0 2px rgba(238, 216, 255, 0.72),
-      0 0 24px rgba(184, 108, 255, 0.5);
-  }
-
-  .system-message-popover {
-    position: fixed;
-    right: var(--ui-space-md);
-    bottom: 5.35rem;
-    width: min(360px, 100%);
-    padding-right: 2.65rem;
-    z-index: 12;
-  }
-
-  .system-message-close {
-    position: absolute;
-    top: 0.45rem;
-    right: 0.45rem;
-    width: 1.55rem;
-    height: 1.55rem;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border: 1px solid rgba(255, 153, 153, 0.38);
-    border-radius: 999px;
-    background: rgba(111, 24, 29, 0.92);
-    color: #ffdada;
-    font: inherit;
-    font-size: 0.75rem;
-    line-height: 1;
-  }
-
-  .warnings {
-    margin: 0;
-    padding-left: 1.2rem;
-    display: grid;
-    gap: 0.35rem;
-  }
-
-  .action-rail {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: minmax(260px, max-content) minmax(0, 1fr) auto;
-    grid-auto-rows: auto;
-    align-items: end;
-    justify-items: start;
-    gap: 0.75rem;
-    min-height: 8.6rem;
-    padding-bottom: 0.4rem;
-  }
-
-  .action-rail:has(.footer-essence-draft-panel) {
-    min-height: 6.4rem;
-  }
-
-  .action-rail:not(:has(.footer-ready-troops-panel)):not(:has(.footer-essence-draft-panel)):not(:has(.system-message-popover)):not(:has(.archive-actions-stack)) {
-    min-height: 3.5rem;
-  }
-
-  .action-rail.empty-action-rail {
-    display: none;
-    min-height: 0;
-    padding: 0;
-    gap: 0;
-  }
-
-  .action-rail > button:only-child,
-  .action-rail > .end-cycle-action:only-child {
-    grid-column: 3;
-  }
-
-  .archive-actions-stack {
+.archive-actions-stack {
     grid-column: 3;
     display: grid;
     gap: 0.75rem;
     justify-items: end;
   }
-
-  .tutorial-archive-actions {
+.tutorial-archive-actions {
     justify-self: end;
   }
-
-  .tutorial-watch-battle-button {
+.tutorial-watch-battle-button {
     min-width: 220px;
   }
-
-  .end-cycle-action {
-    grid-column: 3;
-    grid-row: 2;
-    justify-self: end;
-    align-self: end;
-    position: relative;
-    z-index: 1;
-  }
-
-  .end-cycle-button {
-    width: 100%;
-  }
-
-  .end-cycle-button.blocking {
-    border-color: rgba(126, 157, 181, 0.2);
-    background: linear-gradient(135deg, rgba(62, 69, 76, 0.86), rgba(32, 38, 45, 0.92));
-    color: #b6c2cc;
-    box-shadow: none;
-    cursor: not-allowed;
-  }
-
-  .end-cycle-action.blocking:hover .end-cycle-button,
-  .end-cycle-action.blocking:focus-within .end-cycle-button {
-    border-color: rgba(213, 178, 116, 0.52);
-    box-shadow:
-      0 0 0 2px rgba(213, 178, 116, 0.14),
-      0 0 18px rgba(213, 178, 116, 0.18);
-  }
-
-  .end-cycle-tooltip {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 0.45rem);
-    z-index: 24;
-    width: min(18rem, calc(100vw - 2rem));
-    padding: 0.55rem 0.65rem;
-    border: 1px solid rgba(213, 178, 116, 0.38);
-    border-radius: var(--ui-panel-radius-tight);
-    background: rgba(9, 13, 19, 0.97);
-    color: #f2ebd6;
-    box-shadow: var(--ui-shadow-panel);
-    font-size: 0.78rem;
-    line-height: 1.35;
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(0.18rem);
-    transition:
-      opacity 0.14s ease,
-      transform 0.14s ease,
-      visibility 0.14s ease;
-  }
-
-  .end-cycle-action.blocking:hover .end-cycle-tooltip,
-  .end-cycle-action.blocking:focus-within .end-cycle-tooltip,
-  .end-cycle-tooltip.visible {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-  }
-
-  .large {
+.large {
     min-width: 220px;
     padding: 0.9rem 1.2rem;
     font-size: 1rem;
   }
-
-  .menu-screen,
-  .draft-screen {
+.menu-screen {
     min-height: 100dvh;
     box-sizing: border-box;
     display: grid;
@@ -9821,73 +2611,40 @@
     align-items: start;
     padding: var(--ui-space-md);
   }
-
-  .menu-panel,
-  .draft-panel {
+.menu-panel {
     width: min(calc(var(--ui-shell-max-width) + (2 * var(--ui-shell-column))), 100%);
   }
-
-  .menu-copy,
-  .slot-card,
-  .draft-layout,
-  .draft-focus-panel,
-  .detail-panel,
-  .replay-left,
-  .replay-right,
-  .replay-center {
+.menu-copy {
     display: grid;
     gap: var(--ui-space-sm);
     align-content: start;
   }
-
-  .menu-panel {
+.menu-panel {
     max-width: 980px;
     position: relative;
   }
-
-  .menu-topline {
+.menu-topline {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: var(--ui-space-md);
     position: relative;
   }
-
-  .menu-copy {
+.menu-copy {
     grid-template-columns: minmax(0, 1fr);
     min-width: 0;
     max-width: 36rem;
   }
-
-  .menu-copy h1 {
+.menu-copy h1 {
     font-size: clamp(2rem, 3vw, var(--ui-text-display));
     line-height: var(--ui-line-display);
   }
-
-  .intro {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-
-  .main-menu-shell {
+.main-menu-shell {
     min-height: min(680px, calc(100vh - (2 * var(--ui-space-md))));
     align-content: center;
     padding-bottom: 4.5rem;
   }
-
-  .main-menu-actions {
-    width: min(360px, 100%);
-    justify-self: center;
-    display: grid;
-    gap: var(--ui-space-sm);
-  }
-
-  .main-menu-actions button {
-    min-height: 3.3rem;
-    font-size: 1rem;
-  }
-
-  .menu-back-button {
+.menu-back-button {
     position: absolute;
     left: var(--ui-space-md);
     bottom: var(--ui-space-md);
@@ -9903,8 +2660,7 @@
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     transform: none;
   }
-
-  .menu-back-button::before {
+.menu-back-button::before {
     content: '';
     display: block;
     width: 0.72rem;
@@ -9914,185 +2670,40 @@
     transform: translateX(0.12rem) rotate(45deg);
     transform-origin: center;
   }
-
-
-  .slot-card {
-    min-height: 0;
-    padding: var(--ui-space-sm);
-  }
-
-  .menu-system-message {
+.menu-system-message {
     display: grid;
     gap: 0.35rem;
     padding: var(--ui-space-sm);
     border-color: rgba(213, 178, 116, 0.34);
   }
-
-  .menu-system-message strong {
+.menu-system-message strong {
     color: var(--ui-color-accent);
     font-size: var(--ui-text-label);
     line-height: var(--ui-line-label);
     text-transform: uppercase;
     letter-spacing: 0;
   }
-
-  .menu-system-message p {
+.menu-system-message p {
     margin: 0;
     color: var(--ui-color-text);
   }
-
-  .slot-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--ui-space-sm);
-  }
-
-  .slot-label {
-    color: var(--ui-color-text-dim);
-    font-size: var(--ui-text-label);
-    line-height: var(--ui-line-label);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .slot-meta {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--ui-space-xs) var(--ui-space-sm);
-  }
-
-  .slot-meta span:last-child {
-    grid-column: 1 / -1;
-  }
-
-  .slot-card .actions-grid {
-    flex-wrap: wrap;
-    gap: var(--ui-space-sm);
-  }
-
-  .slot-card .actions-grid button {
-    flex: 1 1 10rem;
-    min-height: var(--ui-space-hit);
-  }
-
-  .new-game-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 15;
-    display: grid;
-    place-items: center;
-    padding: var(--ui-space-md);
-  }
-
-  .new-game-modal-dismiss {
-    position: absolute;
-    inset: 0;
-    border: 0;
-    border-radius: 0;
-    background: rgba(3, 7, 12, 0.68);
-    backdrop-filter: blur(8px);
-  }
-
-  .new-game-modal {
-    position: relative;
-    z-index: 1;
-    width: min(420px, 100%);
-    gap: var(--ui-space-md);
-  }
-
-  .new-game-modal-header {
-    display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: var(--ui-space-sm);
-  }
-
-  .new-game-modal-header h2 {
-    margin: 0;
-    font-size: 1.35rem;
-    line-height: 1.15;
-  }
-
-  .new-game-close {
-    min-height: 2rem;
-    padding: 0.35rem 0.65rem;
-    border-radius: var(--ui-panel-radius-pill);
-    border: 1px solid rgba(196, 214, 227, 0.22);
-    background: rgba(12, 18, 28, 0.52);
-    color: #f4f7fb;
-    font: inherit;
-    font-size: 0.72rem;
-  }
-
-  .new-game-options {
-    display: grid;
-    gap: 0.65rem;
-  }
-
-  .new-game-option {
-    position: relative;
-    display: grid;
-    min-height: var(--ui-space-hit);
-    padding: 0.75rem 0.85rem;
-    align-content: center;
-    border: 1px solid rgba(126, 157, 181, 0.24);
-    border-radius: 8px;
-    background: var(--ui-color-surface-interactive);
-    color: var(--ui-color-text);
-    font: inherit;
-    text-align: left;
-  }
-
-  .new-game-option.primary {
-    border-color: rgba(213, 178, 116, 0.6);
-    background: linear-gradient(135deg, var(--ui-color-accent-strong), var(--ui-color-accent-deep));
-    color: #111;
-  }
-
-  .new-game-option:hover,
-  .new-game-option:focus,
-  .new-game-option:focus-visible {
-    border-color: rgba(213, 178, 116, 0.58);
-    outline: none;
-  }
-
-  .new-game-option.primary:hover,
-  .new-game-option.primary:focus,
-  .new-game-option.primary:focus-visible {
-    border-color: rgba(244, 205, 118, 0.78);
-    background: linear-gradient(135deg, #e0bd79, var(--ui-color-accent-strong));
-    box-shadow: 0 0 18px rgba(244, 205, 118, 0.24);
-  }
-
-  .new-game-option span {
-    color: inherit;
-    font-size: 0.9rem;
-    font-weight: 700;
-    line-height: 1.15;
-    text-transform: uppercase;
-  }
-
-  .multiplayer-menu {
+.multiplayer-menu {
     display: grid;
     gap: var(--ui-space-sm);
     padding: var(--ui-space-sm);
   }
-
-  .multiplayer-identity-controls,
-  .multiplayer-room-choice {
+.multiplayer-identity-controls,
+.multiplayer-room-choice {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ui-space-sm);
     align-items: end;
   }
-
-  .multiplayer-room-choice {
+.multiplayer-room-choice {
     grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr);
     align-items: stretch;
   }
-
-  .join-room-box {
+.join-room-box {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--ui-space-sm);
@@ -10101,9 +2712,8 @@
     border-radius: var(--ui-panel-radius-tight);
     background: rgba(213, 178, 116, 0.06);
   }
-
-  .multiplayer-identity-controls label,
-  .join-room-box label {
+.multiplayer-identity-controls label,
+.join-room-box label {
     display: grid;
     gap: 5px;
     color: var(--ui-color-text-dim);
@@ -10112,12 +2722,10 @@
     text-transform: uppercase;
     letter-spacing: 0;
   }
-
-  .multiplayer-server-details {
+.multiplayer-server-details {
     min-width: 0;
   }
-
-  .multiplayer-server-details summary {
+.multiplayer-server-details summary {
     min-height: var(--ui-space-hit);
     display: grid;
     align-items: center;
@@ -10127,13 +2735,11 @@
     color: var(--ui-color-text-dim);
     cursor: pointer;
   }
-
-  .multiplayer-server-details[open] summary {
+.multiplayer-server-details[open] summary {
     margin-bottom: 5px;
   }
-
-  .multiplayer-identity-controls input,
-  .join-room-box input {
+.multiplayer-identity-controls input,
+.join-room-box input {
     box-sizing: border-box;
     min-width: 0;
     border: var(--ui-border-subtle);
@@ -10142,16 +2748,14 @@
     color: var(--ui-color-text);
     background: rgba(255, 255, 255, 0.06);
   }
-
-  .multiplayer-room-tools {
+.multiplayer-room-tools {
     display: grid;
     grid-template-columns: minmax(180px, 0.55fr) minmax(220px, 1fr);
     gap: var(--ui-space-sm);
   }
-
-  .multiplayer-room-card,
-  .multiplayer-player-list,
-  .topbar-room-card {
+.multiplayer-room-card,
+.multiplayer-player-list,
+.topbar-room-card {
     min-width: 0;
     display: grid;
     gap: 0.25rem;
@@ -10160,72 +2764,61 @@
     border-radius: var(--ui-panel-radius-tight);
     background: rgba(255, 255, 255, 0.055);
   }
-
-  .multiplayer-room-card {
+.multiplayer-room-card {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }
-
-  .multiplayer-room-card > span,
-  .multiplayer-player-list > span,
-  .topbar-room-card > span {
+.multiplayer-room-card > span,
+.multiplayer-player-list > span,
+.topbar-room-card > span {
     color: var(--ui-color-text-dim);
     font-size: var(--ui-text-label);
     line-height: var(--ui-line-label);
     text-transform: uppercase;
     letter-spacing: 0;
   }
-
-  .multiplayer-room-card strong {
+.multiplayer-room-card strong {
     grid-column: 1;
     overflow-wrap: anywhere;
   }
-
-  .multiplayer-player-list strong {
+.multiplayer-player-list strong {
     font-size: var(--ui-text-small);
     line-height: var(--ui-line-small);
   }
-
-  .link-icon-button {
+.link-icon-button {
     width: 2.35rem;
     height: 2.35rem;
     display: grid;
     place-items: center;
     padding: 0;
   }
-
-  .link-icon-button svg {
+.link-icon-button svg {
     width: 1.25rem;
     height: 1.25rem;
     fill: currentColor;
   }
-
-  .topbar-room-card {
+.topbar-room-card {
     grid-template-columns: auto auto;
     align-items: center;
     padding: 0.25rem 0.35rem 0.25rem 0.65rem;
   }
-
-  .multiplayer-session-actions {
+.multiplayer-session-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--ui-space-xs);
   }
-
-  .multiplayer-session-actions button {
+.multiplayer-session-actions button {
     min-height: 2.1rem;
     padding: 0.45rem 0.7rem;
   }
-
-  .multiplayer-session-actions span {
+.multiplayer-session-actions span {
     color: var(--ui-color-text-dim);
     font-size: var(--ui-text-label);
     line-height: var(--ui-line-label);
   }
-
-  .multiplayer-session-actions .multiplayer-copy-indicator,
-  .topbar-copy-indicator {
+.multiplayer-session-actions .multiplayer-copy-indicator,
+.topbar-copy-indicator {
     display: inline-flex;
     align-items: center;
     gap: 0.32rem;
@@ -10238,8 +2831,7 @@
     box-shadow: 0 0 0 1px rgba(91, 165, 116, 0.12), 0 0 18px rgba(91, 165, 116, 0.18);
     animation: copy-indicator-pop 220ms ease-out both;
   }
-
-  .multiplayer-copy-indicator::before {
+.multiplayer-copy-indicator::before {
     content: '';
     width: 0.52rem;
     height: 0.32rem;
@@ -10247,8 +2839,7 @@
     border-bottom: 2px solid currentColor;
     transform: rotate(-45deg) translateY(-1px);
   }
-
-  @keyframes copy-indicator-pop {
+@keyframes copy-indicator-pop {
     from {
       opacity: 0;
       transform: translateY(0.18rem) scale(0.96);
@@ -10258,313 +2849,58 @@
       transform: translateY(0) scale(1);
     }
   }
-
-  .draft-layout {
-    min-height: 0;
-    grid-template-columns: minmax(264px, 288px) minmax(0, 1fr);
-    align-items: start;
-    gap: 0.75rem;
-  }
-
-  .opening-shell:not(.scheduled-race-shell) .draft-layout {
-    align-items: start;
-  }
-
-  .draft-section {
-    display: grid;
-    gap: 0.55rem;
-  }
-
-  .draft-focus-panel {
-    min-height: 0;
-    max-height: none;
-    overflow: auto;
-  }
-
-  .opening-shell:not(.scheduled-race-shell) .draft-focus-panel,
-  .opening-shell:not(.scheduled-race-shell) .draft-grid {
-    max-height: 100%;
-  }
-
-  .opening-shell:not(.scheduled-race-shell) .draft-focus-panel {
-    align-self: start;
-  }
-
-  .draft-icon-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-    gap: var(--ui-space-sm);
-  }
-
-  .draft-troop-icon {
-    display: grid;
-    justify-items: center;
-    gap: var(--ui-space-xs);
-    text-align: center;
-    padding: var(--ui-space-sm);
-  }
-
-  .draft-troop-icon.incompatible {
-    cursor: not-allowed;
-    border-color: rgba(126, 157, 181, 0.12);
-    background: rgba(20, 28, 38, 0.42);
-    color: rgba(167, 184, 200, 0.58);
-    filter: grayscale(0.85);
-    opacity: 0.56;
-  }
-
-  .draft-troop-icon.incompatible:hover {
-    transform: none;
-    border-color: rgba(126, 157, 181, 0.12);
-    box-shadow: none;
-  }
-
-  .sprite-inspect-button {
-    display: grid;
-    place-items: center;
-    padding: 0.35rem;
-  }
-
-  .draft-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-
-  .draft-card-header,
-  .race-card > header {
-    display: grid;
-    gap: var(--ui-space-xs);
-  }
-
-  .left-column,
-  .right-column {
+.left-column,
+.right-column {
     grid-auto-rows: min-content;
   }
-
-  .center-column {
+.center-column {
     min-width: 0;
     grid-auto-rows: minmax(0, 1fr);
     align-content: stretch;
   }
-
-  .overworld-shell.rifts-mode .center-column {
+.overworld-shell.rifts-mode .center-column {
     grid-template-rows: auto minmax(0, 1fr);
     grid-auto-rows: auto;
     overflow: hidden;
   }
-
-  .overworld-shell.rifts-mode .right-column {
+.overworld-shell.rifts-mode .right-column {
     grid-column: 3;
     grid-row: 2 / 4;
     grid-template-rows: minmax(0, 1fr);
     grid-auto-rows: minmax(0, 1fr);
     align-content: stretch;
     overflow: hidden;
-    padding-bottom: 4.5rem;
+    padding-bottom: 8.6rem;
   }
-
-  .overworld-shell.rifts-mode .action-rail {
+.overworld-shell.rifts-mode :global(.action-rail) {
     grid-row: 3;
   }
-
-  .center-column > .rift-grid,
-  .center-column > .race-grid,
-  .center-column > .opponent-info-board {
+.center-column > :global(.rift-grid),
+.center-column > :global(.race-grid),
+.center-column > :global(.opponent-info-board) {
     min-height: 100%;
   }
-
-  .center-column > .rift-grid,
-  .center-column > .troop-race-grid {
+.center-column > :global(.rift-grid),
+.center-column > :global(.troop-race-grid) {
     min-height: 0;
   }
-
-  .overworld-detail-panel,
-  .opening-detail-panel {
-    min-height: 0;
-    align-content: start;
-    overflow: auto;
-  }
-
-  .compact-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .detail-panel {
-    min-height: 0;
-  }
-
-  .opening-detail-panel {
-    gap: 0.65rem;
-  }
-
-  .opening-empty-detail {
-    align-content: center;
-    min-height: 100%;
-  }
-
-  .opening-detail-panel h2,
-  .overworld-detail-panel h2 {
-    line-height: 1.08;
-  }
-
-  .opening-detail-panel .ability-list,
-  .overworld-detail-panel .ability-list {
-    max-height: 8rem;
-    overflow: auto;
-    padding-right: 0.15rem;
-  }
-
-  .warning-panel {
-    gap: var(--ui-space-sm);
-  }
-
-  .archive-panel,
-  .selected-archive-panel {
-    min-width: 0;
-    min-height: 0;
-    height: 100%;
-  }
-
-  .archive-panel {
-    grid-template-rows: minmax(0, 1fr) auto;
-    align-content: stretch;
-    overflow: hidden;
-  }
-
-  .archive-panel > p {
-    align-self: start;
-  }
-
-  .archive-list {
-    min-height: 0;
-    align-content: start;
-    overflow: auto;
-    padding-right: 0.15rem;
-  }
-
-  .selected-archive-panel {
-    align-content: start;
-    overflow: auto;
-  }
-
-  .archive-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-
-  .archive-pagination button {
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid rgba(126, 157, 181, 0.2);
-    border-radius: 999px;
-    background: rgba(20, 28, 38, 0.82);
-    color: #f1f4f8;
-    font: inherit;
-  }
-
-  .archive-pagination span {
-    color: #a7b8c8;
-    font-family: var(--ui-font-mono);
-    font-size: 0.74rem;
-  }
-
-  .assignment-panel .assignment-list {
-    gap: var(--ui-space-xs);
-  }
-
-  .enemy-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.35rem;
-  }
-
-  .enemy-strip .unit-tile {
-    gap: 0.4rem;
-    place-items: stretch;
-    padding: 0.4rem 0.3rem;
-  }
-
-  .enemy-strip .unit-tile-art {
-    width: 1.8rem;
-    height: 1.8rem;
-  }
-
-  .enemy-strip strong {
-    font-size: 0.88rem;
-  }
-
-  .ready-troops-panel {
-    gap: 0.55rem;
-    padding: 0.25rem 0.4rem;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  .footer-ready-troops-panel {
-    width: min(620px, 100%);
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: center;
-  }
-
-  .ready-troops-grid {
-    display: grid;
-    gap: 0.72rem;
-    grid-template-columns: repeat(auto-fit, minmax(5.1rem, 6.3rem));
-    align-items: start;
-    justify-content: center;
-    padding-bottom: 0.15rem;
-  }
-
-  .ready-troop-tile {
-    width: 6.3rem;
-    height: 6.3rem;
-    min-height: 0;
-    padding: 0.55rem;
-  }
-
-  .ready-troop-tile.assignment-attention {
-    border-color: rgba(211, 176, 255, 0.72);
-    animation: assignment-attention-pulse 800ms ease-in-out 0s 3;
-    box-shadow:
-      0 0 0 2px rgba(211, 176, 255, 0.2),
-      0 0 28px rgba(155, 95, 220, 0.34),
-      var(--ui-shadow-panel);
-  }
-
-  .ready-troop-tile.assignment-hint-troop {
-    border-color: rgba(150, 220, 184, 0.86);
-    box-shadow:
-      0 0 0 2px rgba(150, 220, 184, 0.24),
-      0 0 24px rgba(76, 190, 135, 0.36),
-      var(--ui-shadow-panel);
-  }
-
-  .ready-troop-tile .available-bob-unit {
-    animation: available-unit-bob calc(1450ms + (var(--bob-index) * 47ms)) ease-in-out infinite;
-    animation-delay: calc(var(--bob-index) * -83ms);
-  }
-
-  @keyframes available-unit-bob {
+@keyframes available-unit-bob {
     0%,
-    100% {
+100% {
       translate: 0 0;
     }
     50% {
       translate: 0 -5px;
     }
   }
-
-  .assignment-hint-arrow {
+.assignment-hint-arrow {
     position: fixed;
     inset: 0;
     z-index: 18;
     pointer-events: none;
     overflow: visible;
   }
-
-  .assignment-hint-arrow > path {
+.assignment-hint-arrow > path {
     fill: none;
     stroke: rgba(150, 220, 184, 0.92);
     stroke-width: 4;
@@ -10574,20 +2910,17 @@
     stroke-dasharray: 14 10;
     animation: assignment-arrow-flow 900ms linear infinite;
   }
-
-  .assignment-hint-arrow marker path {
+.assignment-hint-arrow marker path {
     fill: rgba(150, 220, 184, 0.96);
   }
-
-  @keyframes assignment-arrow-flow {
+@keyframes assignment-arrow-flow {
     to {
       stroke-dashoffset: -24;
     }
   }
-
-  @keyframes assignment-attention-pulse {
+@keyframes assignment-attention-pulse {
     0%,
-    100% {
+100% {
       border-color: rgba(211, 176, 255, 0.54);
       box-shadow:
         0 0 0 1px rgba(211, 176, 255, 0.14),
@@ -10602,420 +2935,7 @@
         var(--ui-shadow-panel);
     }
   }
-
-  .ready-troops-grid.roster-count-8 {
-    grid-template-columns: repeat(auto-fit, minmax(4.6rem, 5.55rem));
-  }
-
-  .ready-troops-grid.roster-count-8 .ready-troop-tile {
-    width: 5.55rem;
-    height: 5.55rem;
-    padding: 0.45rem;
-  }
-
-  .ready-troops-grid.roster-count-12 {
-    grid-template-columns: repeat(auto-fit, minmax(4rem, 4.85rem));
-  }
-
-  .ready-troops-grid.roster-count-12 .ready-troop-tile {
-    width: 4.85rem;
-    height: 4.85rem;
-    padding: 0.35rem;
-  }
-
-  .ready-troops-grid.roster-count-16 {
-    grid-template-columns: repeat(auto-fit, minmax(3.45rem, 4.15rem));
-  }
-
-  .ready-troops-grid.roster-count-16 .ready-troop-tile {
-    width: 4.15rem;
-    height: 4.15rem;
-    padding: 0.26rem;
-  }
-
-  .ready-troops-grid.roster-count-12 .unit-tile-art {
-    width: 1.85rem;
-    height: 1.85rem;
-  }
-
-  .ready-troops-grid.roster-count-16 .unit-tile-art {
-    width: 1.55rem;
-    height: 1.55rem;
-  }
-
-  .race-grid {
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    align-items: start;
-  }
-
-  .troop-race-grid {
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-    gap: 0.65rem;
-    align-content: start;
-  }
-
-  .opponent-info-board {
-    display: grid;
-    gap: var(--ui-space-md);
-    align-content: start;
-  }
-
-  .opponent-upgrades-panel {
-    align-content: start;
-  }
-
-  .opponent-empty-state {
-    min-height: 100%;
-  }
-
-  .opponent-upgrade-row {
-    display: flex;
-    flex-wrap: wrap;
-  }
-
-  .opponent-upgrade-chip {
-    min-width: 0;
-  }
-
-  .opponent-race-grid {
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-    gap: 0.65rem;
-  }
-
-  .opponent-race-card-top {
-    grid-template-columns: minmax(140px, 0.85fr) minmax(170px, 1.15fr);
-  }
-
-  .opponent-troop-list {
-    grid-template-columns: repeat(auto-fit, var(--troop-icon-box-size, 3.8rem));
-    justify-content: start;
-  }
-
-  .opponent-troop-chip {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-    place-items: stretch;
-    width: var(--troop-icon-box-size, 3.8rem);
-    height: var(--troop-icon-box-size, 3.8rem);
-    min-height: 0;
-    aspect-ratio: 1;
-    gap: 0;
-  }
-
-  .opponent-troop-chip.opponent-threat {
-    border-color: rgba(221, 106, 94, 0.72);
-    background:
-      linear-gradient(145deg, rgba(48, 20, 18, 0.92), rgba(17, 22, 30, 0.96)),
-      radial-gradient(circle at top left, rgba(221, 106, 94, 0.18), transparent 42%);
-    box-shadow: inset 0 0 0 1px rgba(221, 106, 94, 0.24);
-  }
-
-  .rift-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  }
-
-  .rift-card {
-    padding: var(--ui-space-sm);
-  }
-
-  @media (max-width: 560px) {
-    .draft-screen-header .scheduled-unlock-instructions {
-      white-space: normal;
-    }
-
-    .rift-title-card {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .rift-title-line {
-      order: 2;
-    }
-
-    .rift-title-card .rift-visual-shell.inline {
-      order: 1;
-      justify-self: end;
-    }
-  }
-
-  .race-card {
-    padding: var(--ui-space-sm);
-  }
-
-  .troops-mode .race-card {
-    gap: 0.55rem;
-    padding: 0.7rem;
-  }
-
-  .race-name-button {
-    width: 100%;
-  }
-
-  .race-card-top {
-    display: grid;
-    grid-template-columns: minmax(150px, 0.9fr) minmax(170px, 1.1fr);
-    gap: 0.55rem;
-    align-items: stretch;
-  }
-
-  .race-card-top .race-name-button {
-    min-height: 4.5rem;
-  }
-
-  .race-card-upgrades {
-    gap: 0.35rem;
-  }
-
-  .race-card-upgrades .list-button {
-    min-height: 2rem;
-  }
-
-  .race-troop-list {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 0.45rem;
-  }
-
-  .available-troop-block {
-    display: grid;
-    gap: 0.4rem;
-    padding-top: 0.15rem;
-  }
-
-  .available-troop-chip {
-    border-style: dashed;
-    opacity: 0.82;
-  }
-
-  .troop-chip,
-  .draft-option {
-    padding: var(--ui-space-sm);
-  }
-
-  .troops-mode .troop-list,
-  .troops-mode .unlock-row,
-  .troops-mode .assignment-list {
-    gap: 0.45rem;
-  }
-
-  .troops-mode .footer-essence-draft-panel .unlock-row {
-    gap: 1px;
-  }
-
-  .troops-mode .troop-list {
-    grid-template-columns: repeat(auto-fit, var(--troop-icon-box-size, 3.8rem));
-    justify-content: start;
-  }
-
-  .troops-mode .race-card {
-    grid-template-columns: minmax(0, 1fr);
-    align-content: start;
-  }
-
-  .troops-mode .troop-chip,
-  .troops-mode .list-button {
-    padding: 0.55rem 0.65rem;
-  }
-
-  .troops-mode .troop-chip {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-    place-items: center;
-    width: var(--troop-icon-box-size, 3.8rem);
-    height: var(--troop-icon-box-size, 3.8rem);
-    aspect-ratio: 1;
-    justify-content: center;
-    min-height: 0;
-  }
-
-  .troops-mode .unit-button-copy {
-    justify-content: center;
-    gap: 0;
-  }
-
-  .troops-mode .unit-button-art {
-    width: 2.2rem;
-    height: 2.2rem;
-  }
-
-  .scheduled-race-shell .draft-screen-header {
-    max-width: none;
-  }
-
-  .scheduled-race-shell .scheduled-race-layout {
-    grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
-  }
-
-  .draft-focus-panel.empty {
-    visibility: hidden;
-    pointer-events: none;
-  }
-
-  .scheduled-race-shell .race-unlock-grid {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  }
-
-  .affected-troop-strip {
-    display: inline-flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.2rem;
-  }
-
-  .affected-troop-strip img {
-    width: 1.35rem;
-    height: 1.35rem;
-    image-rendering: pixelated;
-    object-fit: contain;
-  }
-
-  .opening-detail-panel p,
-  .overworld-detail-panel p {
-    line-height: 1.35;
-  }
-
-  .unlock-race-overlay {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: var(--ui-space-md);
-    background: rgba(4, 7, 12, 0.72);
-    backdrop-filter: blur(10px);
-    z-index: 20;
-  }
-
-  .unlock-race-dialog {
-    width: min(480px, 100%);
-  }
-
-  .unlock-race-dialog-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: start;
-  }
-
-  .unlock-race-dialog-copy {
-    color: #c7d3df;
-  }
-
-  .replay-shell {
-    min-height: 100dvh;
-    height: 100dvh;
-    grid-template-columns: var(--ui-replay-left-width) minmax(0, 1fr) var(--ui-replay-right-width);
-    grid-template-rows: minmax(0, 1fr);
-    align-items: stretch;
-    overflow: hidden;
-    background:
-      radial-gradient(circle at top left, rgba(25, 48, 71, 0.28), transparent 25%),
-      radial-gradient(circle at bottom right, rgba(118, 56, 35, 0.22), transparent 28%),
-      linear-gradient(180deg, #060a11, #0a1018 58%, #0d121a);
-  }
-
-  .replay-left,
-  .replay-right,
-  .replay-center {
-    min-height: 0;
-  }
-
-  .replay-left {
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
-    gap: 0.65rem;
-    overflow: hidden;
-  }
-
-  .replay-right {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 0.65rem;
-    overflow: hidden;
-  }
-
-  .replay-header {
-    display: grid;
-    gap: 0.55rem;
-    align-content: start;
-    padding: 0.1rem 0;
-  }
-
-  .replay-title-row {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    min-width: 0;
-  }
-
-  .replay-name {
-    font-size: 0.82rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #d8e1e9;
-  }
-
-  .replay-map-mutators {
-    position: absolute;
-    top: 0.75rem;
-    left: 50%;
-    z-index: 5;
-    transform: translateX(-50%);
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ui-space-xs);
-    justify-content: center;
-    max-width: min(34rem, calc(100% - 11rem));
-    pointer-events: auto;
-  }
-
-  .replay-center {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr);
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .viewport-shell,
-  .viewport {
-    min-height: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .viewport-shell {
-    display: grid;
-    position: relative;
-    min-height: clamp(340px, 50vh, 560px);
-    border-radius: var(--ui-panel-radius);
-    overflow: hidden;
-    background:
-      radial-gradient(circle at top left, rgba(41, 73, 104, 0.34), transparent 28%),
-      linear-gradient(180deg, rgba(10, 15, 24, 0.98), rgba(5, 8, 13, 0.98));
-  }
-
-  .replay-map-controls {
-    position: absolute;
-    top: 0.75rem;
-    left: 0.75rem;
-    z-index: 6;
-    pointer-events: auto;
-  }
-
-  .viewport {
-    display: block;
-    position: relative;
-    width: 100%;
-    height: 100%;
-    min-height: clamp(340px, 50vh, 560px);
-    border: 1px solid rgba(126, 157, 181, 0.2);
-    border-radius: calc(var(--ui-panel-radius) + var(--ui-space-sm));
-    background:
-      radial-gradient(circle at 50% 20%, rgba(46, 70, 89, 0.9), transparent 42%),
-      linear-gradient(180deg, #10202c, #08101a 62%, #06090f);
-    box-shadow: inset 0 0 0 1px rgba(201, 171, 124, 0.06);
-  }
-
-  .loading-screen {
+.loading-screen {
     display: grid;
     place-items: center;
     color: #f4f7fb;
@@ -11023,14 +2943,12 @@
       radial-gradient(circle at 50% 18%, rgba(54, 87, 114, 0.52), transparent 36%),
       linear-gradient(180deg, rgba(8, 13, 21, 0.96), rgba(5, 8, 13, 0.98));
   }
-
-  .game-loading-screen {
+.game-loading-screen {
     position: fixed;
     inset: 0;
     z-index: 80;
   }
-
-  .loading-panel {
+.loading-panel {
     width: min(24rem, calc(100% - 2rem));
     display: grid;
     gap: 0.75rem;
@@ -11040,19 +2958,16 @@
     background: rgba(10, 17, 26, 0.84);
     box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.34);
   }
-
-  .loading-panel h2 {
+.loading-panel h2 {
     font-size: 1.2rem;
     line-height: 1.2;
   }
-
-  .loading-panel p:last-child {
+.loading-panel p:last-child {
     min-height: 1.25rem;
     color: #cbd8e3;
     font-size: 0.88rem;
   }
-
-  .loading-progress-track {
+.loading-progress-track {
     width: 100%;
     height: 0.6rem;
     overflow: hidden;
@@ -11060,1039 +2975,92 @@
     border: 1px solid rgba(203, 216, 227, 0.18);
     background: rgba(5, 9, 15, 0.72);
   }
-
-  .loading-progress-track span {
+.loading-progress-track span {
     display: block;
     height: 100%;
     border-radius: inherit;
     background: linear-gradient(90deg, #71c6d1, #e4c170);
     transition: width 160ms ease;
   }
-
-  .replay-ability-rails {
-    position: absolute;
-    inset: auto 0 0 0;
-    z-index: 3;
-    pointer-events: none;
-  }
-
-  .replay-ability-rail {
-    position: absolute;
-    bottom: 0.55rem;
-    display: grid;
-    grid-auto-rows: 1.9rem;
-    gap: 0.28rem;
-    max-height: min(38vh, 18rem);
-    overflow: visible;
-    pointer-events: auto;
-  }
-
-  .replay-ability-rail.player {
-    left: 0.55rem;
-  }
-
-  .replay-ability-rail.enemy {
-    right: 0.55rem;
-  }
-
-  .replay-ability-button {
-    width: 1.9rem;
-    height: 1.9rem;
-    min-height: 1.9rem;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border-radius: 8px;
-    border: 1px solid rgba(128, 157, 181, 0.26);
-    background: rgba(7, 11, 18, 0.72);
-    backdrop-filter: blur(8px);
-  }
-
-  .replay-ability-button :global(.game-icon) {
-    --game-icon-size: 1.18rem;
-  }
-
-  .replay-ability-button :global(.game-icon.raster-icon) {
-    --game-icon-raster-scale: 1.42;
-  }
-
-  .replay-ability-button.active {
-    animation: replay-ability-flash var(--replay-ability-flash-ms, 750ms) ease-out both;
-  }
-
-  .replay-ability-tooltip {
-    position: absolute;
-    bottom: 0.55rem;
-    width: min(20rem, 38vw);
-    display: grid;
-    gap: 0.25rem;
-    padding: 0.58rem 0.68rem;
-    border: 1px solid rgba(213, 178, 116, 0.34);
-    border-radius: 8px;
-    color: #edf4fb;
-    background: rgba(8, 12, 18, 0.9);
-    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
-    pointer-events: none;
-  }
-
-  .replay-ability-tooltip.player {
-    left: 2.85rem;
-  }
-
-  .replay-ability-tooltip.enemy {
-    right: 2.85rem;
-  }
-
-  .replay-ability-tooltip strong {
-    color: var(--ui-color-accent);
-    font-size: 0.88rem;
-    line-height: 1.1;
-  }
-
-  .replay-ability-tooltip span {
-    color: #c9d6e2;
-    font-size: 0.78rem;
-    line-height: 1.25;
-  }
-
-  @keyframes replay-ability-flash {
-    0% {
-      border-color: rgba(255, 235, 174, 0.9);
-      box-shadow: 0 0 0 0 rgba(255, 219, 133, 0.72), 0 0 22px rgba(255, 219, 133, 0.45);
-      transform: scale(1);
-    }
-    45% {
-      transform: scale(1.16);
-    }
-    100% {
-      border-color: rgba(128, 157, 181, 0.26);
-      box-shadow: 0 0 0 0.55rem rgba(255, 219, 133, 0);
-      transform: scale(1);
-    }
-  }
-
-  .viewport :global(.battle-tutorial-unit-targets) {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .viewport :global(.battle-tutorial-unit-target) {
-    position: absolute;
-    pointer-events: none;
-  }
-
-  .focus-panel {
-    min-height: 0;
-    align-content: start;
-    overflow: auto;
-  }
-
-  .focus-empty,
-  .replay-detail-panel {
-    display: grid;
-    gap: 0.55rem;
-    align-content: start;
-  }
-
-  .replay-unit-focus-stack {
-    display: grid;
-    gap: 0.55rem;
-    min-width: 0;
-  }
-
-  .replay-explanation-panel {
-    gap: 0.75rem;
-  }
-
-  .replay-explanation-header {
-    display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
-  .replay-explanation-clear {
-    min-height: 1.8rem;
-    padding: 0.25rem 0.55rem;
-    border-radius: 999px;
-    border: 1px solid rgba(196, 214, 227, 0.22);
-    background: rgba(12, 18, 28, 0.52);
-    color: #d8e4f0;
-    font: inherit;
-    font-size: 0.72rem;
-  }
-
-  .panel-toggle {
-    width: 100%;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: var(--ui-space-sm);
-    padding: 0;
-    background: transparent;
-    border: 0;
-    color: inherit;
-    text-align: left;
-  }
-
-  .panel-toggle strong {
-    display: block;
-    font-size: 1rem;
-    color: #f0f5fb;
-    line-height: 1.18;
-    overflow-wrap: anywhere;
-  }
-
-  .panel-toggle > span {
-    color: #9db2c4;
-    font-size: 0.82rem;
-    line-height: 1.1;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    white-space: nowrap;
-  }
-
-  .collapsible-panel {
-    gap: 0.65rem;
-  }
-
-  .collapsible-panel[hidden] {
-    display: none;
-  }
-
-  .event-log-toggle {
-    --replay-log-panel-bg: #121c29;
-    display: flex;
-    align-items: end;
-    gap: 0.25rem;
-    padding: 0;
-    border-bottom: 0;
-    background: transparent;
-  }
-
-  .replay-log-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.45rem;
-    align-items: stretch;
-  }
-
-  .event-log-tab {
-    min-width: 0;
-    padding: 0.55rem 0.78rem 0.48rem;
-    border: 1px solid rgba(89, 105, 126, 0.62);
-    border-bottom-color: rgba(89, 105, 126, 0.28);
-    border-radius: 10px 10px 0 0;
-    background: rgba(12, 16, 24, 0.78);
-    color: #b9c7d4;
-    font-size: 0.8rem;
-    font-weight: 800;
-    line-height: 1.1;
-    text-transform: none;
-    letter-spacing: 0;
-    white-space: nowrap;
-  }
-
-  .event-log-tab.active {
-    padding-top: 0.68rem;
-    background: var(--replay-log-panel-bg);
-    border-color: rgba(107, 137, 168, 0.78);
-    border-bottom-color: var(--replay-log-panel-bg);
-    color: #f0f5fb;
-  }
-
-  .collapsible-stack {
-    --replay-log-panel-bg: #121c29;
-    min-height: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 0;
-    align-content: start;
-  }
-
-  .collapsible-stack.collapsed {
-    grid-template-rows: auto auto;
-  }
-
-  .event-log-wrap {
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .event-log-wrap :global(.panel) {
-    height: 100%;
-    border-top-color: rgba(107, 137, 168, 0.78);
-    border-radius: 0 0 var(--ui-panel-radius) var(--ui-panel-radius);
-    background: var(--replay-log-panel-bg);
-  }
-
-  .event-log-wrap :global(.log) {
-    max-height: none;
-    min-height: 0;
-  }
-
-  .replay-health-overview {
-    min-height: 0;
-    overflow: auto;
-    column-gap: 1.15rem;
-    row-gap: 0.75rem;
-    padding: 0.65rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-content: start;
-    border-top-color: rgba(107, 137, 168, 0.78);
-    border-radius: 0 0 var(--ui-panel-radius) var(--ui-panel-radius);
-    background: var(--replay-log-panel-bg);
-  }
-
-  .replay-health-side {
-    display: grid;
-    grid-template-rows: 2.75rem auto;
-    gap: 0.45rem;
-    align-content: start;
-    min-width: 0;
-  }
-
-  .replay-health-total {
-    display: grid;
-    grid-template-rows: 1.5rem 0.52rem;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.35rem;
-    min-height: 2.37rem;
-    min-width: 0;
-    container-type: inline-size;
-  }
-
-  .replay-health-total-label {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: baseline;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-
-  .replay-health-total-label span {
-    color: #c9d8e5;
-    font-size: 0.82rem;
-    letter-spacing: 0.08em;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: clip;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  @container (max-width: 230px) {
-    .replay-health-total-label {
-      gap: 0.25rem;
-    }
-
-    .replay-health-total-label span {
-      font-size: clamp(0.62rem, 10cqw, 0.82rem);
-      letter-spacing: 0.02em;
-    }
-
-  }
-
-  .replay-health-bar {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    height: 0.35rem;
-    overflow: hidden;
-    border: 1px solid rgba(100, 171, 242, 0.84);
-    border-radius: var(--ui-panel-radius-pill);
-    background: rgba(5, 9, 14, 0.74);
-  }
-
-  .replay-health-bar.total {
-    height: 0.52rem;
-  }
-
-  .replay-health-bar span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #4eaf69, #8ed66c);
-    transition: width 140ms ease-out;
-  }
-
-  .replay-health-side.enemy .replay-health-bar:not(.readiness) {
-    border-color: rgba(235, 94, 94, 0.84);
-  }
-
-  .replay-health-units {
-    display: grid;
-    grid-auto-rows: 1.9rem;
-    gap: 0.28rem;
-    min-height: var(--replay-health-units-min-height, 0);
-  }
-
-  .replay-health-unit {
-    display: grid;
-    grid-template-columns: 1.5rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.35rem;
-    min-height: 1.9rem;
-    height: 1.9rem;
-    width: 100%;
-    padding: 0.22rem 0.28rem;
-    border: 1px solid rgba(124, 153, 176, 0.13);
-    border-radius: 8px;
-    background: rgba(15, 22, 31, 0.72);
-    color: #f4f7fb;
-    text-align: left;
-  }
-
-  .replay-health-unit:hover,
-  .replay-health-unit:focus-visible,
-  .replay-health-unit.selected {
-    border-color: rgba(213, 178, 116, 0.55);
-    background: rgba(35, 29, 21, 0.82);
-  }
-
-  .replay-health-unit.active-highlight {
-    border-color: rgba(232, 184, 84, 0.9);
-    box-shadow: inset 0 0 0 1px rgba(232, 184, 84, 0.65);
-  }
-
-  .replay-health-unit.secondary-highlight {
-    border-color: rgba(215, 221, 230, 0.78);
-    box-shadow: inset 0 0 0 1px rgba(215, 221, 230, 0.42);
-  }
-
-  .replay-health-unit img {
-    width: 1.5rem;
-    height: 1.5rem;
-    object-fit: contain;
-    image-rendering: pixelated;
-  }
-
-  .replay-health-unit-main {
-    display: grid;
-    gap: 0.18rem;
-    min-width: 0;
-  }
-
-  .replay-health-track {
-    position: relative;
-    display: block;
-    padding: 0.42rem 0;
-    margin: -0.42rem 0;
-  }
-
-  .replay-health-track .replay-health-bar {
-    height: 0.42rem;
-  }
-
-  .replay-readiness-marker {
-    --readiness-marker-size: 0.9rem;
-    position: absolute;
-    left: clamp(
-      calc(var(--readiness-marker-size) / 2),
-      var(--readiness-position),
-      calc(100% - var(--readiness-marker-size) / 2)
-    );
-    top: 50%;
-    display: grid;
-    place-items: center;
-    width: var(--readiness-marker-size);
-    height: var(--readiness-marker-size);
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    color: inherit;
-    font-size: 0.82rem;
-    line-height: 1;
-    text-shadow:
-      -0.04rem 0 #05070a,
-      0.04rem 0 #05070a,
-      0 -0.04rem #05070a,
-      0 0.04rem #05070a;
-    transform: translate(-50%, -50%);
-    transition:
-      left 140ms ease-out,
-      text-shadow 140ms ease-out,
-      filter 140ms ease-out;
-    pointer-events: auto;
-  }
-
-  .replay-readiness-marker.ready {
-    filter: saturate(1.2) brightness(1.12);
-    text-shadow:
-      -0.04rem 0 #05070a,
-      0.04rem 0 #05070a,
-      0 -0.04rem #05070a,
-      0 0.04rem #05070a,
-      0 0 0.22rem rgba(255, 232, 160, 0.9),
-      0 0 0.55rem rgba(255, 190, 71, 0.9);
-  }
-
-  .replay-readiness-marker.ready::after {
-    content: '';
-    position: absolute;
-    inset: -0.08rem 0.08rem 0.08rem -0.08rem;
-    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.62) 48%, transparent 66%);
-    clip-path: polygon(34% 0, 72% 0, 45% 44%, 74% 44%, 24% 100%, 42% 54%, 18% 54%);
-    mix-blend-mode: screen;
-    pointer-events: none;
-  }
-
-  .replay-health-empty {
-    margin: 0;
-    min-height: var(--replay-health-units-min-height, 0);
-    color: #97a9ba;
-    font-size: 0.8rem;
-  }
-
-  .count-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.55rem;
-  }
-
-  .alive-sides {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--ui-space-sm);
-  }
-
-  .alive-sides.compact {
-    gap: var(--ui-space-sm);
-  }
-
-  .alive-side {
-    display: grid;
-    gap: var(--ui-space-sm);
-    align-content: start;
-  }
-
-  .alive-side-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding-bottom: 0.45rem;
-    border-bottom: 1px solid rgba(126, 157, 181, 0.16);
-  }
-
-  .alive-side-header span {
-    color: #c9d8e5;
-    font-size: 0.95rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .alive-side-header strong {
-    font-size: 1.5rem;
-  }
-
-  .alive-side-header.enemy strong {
-    color: #ffb8b8;
-  }
-
-  .side-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .alive-unit-card {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--ui-space-sm);
-    width: 100%;
-    padding: var(--ui-space-sm);
-    border: 1px solid rgba(124, 153, 176, 0.15);
-    border-radius: var(--ui-panel-radius-tight);
-    background: var(--ui-color-surface-soft);
-    color: #f4f7fb;
-  }
-
-  .alive-unit-card:hover,
-  .alive-unit-card.selected {
-    border-color: rgba(213, 178, 116, 0.55);
-    background: rgba(36, 28, 18, 0.75);
-  }
-
-  .alive-unit-main {
-    display: grid;
-    gap: 0.15rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    text-align: left;
-    font: inherit;
-  }
-
-  .alive-cycle-button {
-    width: var(--ui-space-hit);
-    height: var(--ui-space-hit);
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(196, 214, 227, 0.18);
-    border-radius: var(--ui-panel-radius-pill);
-    background: rgba(12, 18, 28, 0.48);
-    color: rgba(238, 245, 250, 0.9);
-    font-size: 1rem;
-    line-height: 1;
-  }
-
-  .replay-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .replay-header-actions {
-    justify-content: flex-start;
-  }
-
-  .replay-exit-button {
-    min-width: 0;
-    min-height: 2.1rem;
-    padding: 0.45rem 0.7rem;
-    border-radius: var(--ui-panel-radius-pill);
-    border: var(--ui-border-strong);
-    background: rgba(20, 26, 34, 0.92);
-    color: #f4f7fb;
-    font: inherit;
-    font-size: 0.76rem;
-    letter-spacing: 0.04em;
-  }
-
-  .replay-recap-button {
-    border-color: rgba(120, 169, 219, 0.34);
-    background: rgba(15, 27, 39, 0.96);
-  }
-
-  .replay-recap-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 12;
-    display: grid;
-    place-items: center;
-    padding: var(--ui-space-md);
-  }
-
-  .replay-recap-dismiss {
-    position: absolute;
-    inset: 0;
-    border: 0;
-    background: rgba(3, 7, 12, 0.68);
-    backdrop-filter: blur(8px);
-  }
-
-  .replay-recap-modal {
-    position: relative;
-    z-index: 1;
-    width: min(880px, 100%);
-    max-height: min(88dvh, 760px);
-    overflow: hidden;
-    gap: var(--ui-space-sm);
-  }
-
-  .replay-recap-header {
-    display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: 0.85rem;
-  }
-
-  .replay-recap-header h2 {
-    margin: 0.15rem 0 0.25rem;
-    font-size: 1.2rem;
-  }
-
-  .replay-recap-header p:last-child {
-    margin: 0;
-    color: #9db2c4;
-  }
-
-  .replay-recap-close {
-    padding: 0.45rem 0.75rem;
-    border-radius: 999px;
-    border: 1px solid rgba(196, 214, 227, 0.22);
-    background: rgba(12, 18, 28, 0.52);
-    color: #f4f7fb;
-    font: inherit;
-  }
-
-  .replay-recap-sides {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--ui-space-md);
-    min-height: 0;
-    overflow: auto;
-  }
-
-  .replay-recap-side {
-    display: grid;
-    gap: 0.55rem;
-    align-content: start;
-    min-height: 0;
-  }
-
-  .replay-recap-list,
-  .replay-recap-units {
-    display: grid;
-    gap: 0.4rem;
-  }
-
-  .replay-recap-group {
-    display: grid;
-    gap: 0.4rem;
-  }
-
-  .replay-recap-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.55rem;
-    width: 100%;
-    padding: 0.55rem 0.65rem;
-    border-radius: 14px;
-    border: 1px solid rgba(124, 153, 176, 0.15);
-    background: rgba(20, 28, 38, 0.7);
-    color: #f4f7fb;
-    text-align: left;
-    font: inherit;
-  }
-
-  .replay-recap-row.troop.expanded,
-  .replay-recap-row:hover,
-  .replay-recap-row:focus-visible {
-    border-color: rgba(213, 178, 116, 0.55);
-    background: rgba(36, 28, 18, 0.75);
-  }
-
-  .replay-recap-row.unit {
-    margin-left: 0.75rem;
-    width: calc(100% - 0.75rem);
-    background: rgba(14, 21, 31, 0.88);
-  }
-
-  .replay-recap-main {
-    display: grid;
-    gap: 0.18rem;
-    min-width: 0;
-  }
-
-  .replay-recap-art {
-    width: 2.2rem;
-    height: 2.2rem;
-    object-fit: contain;
-    image-rendering: pixelated;
-    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.28));
-  }
-
-  .replay-recap-art.small {
-    width: 1.9rem;
-    height: 1.9rem;
-  }
-
-  .replay-recap-bars {
-    display: grid;
-    gap: 0.28rem;
-    margin-top: 0.18rem;
-  }
-
-  .replay-recap-bar {
-    height: 0.4rem;
-    overflow: hidden;
-    border-radius: 999px;
-    background: rgba(116, 140, 161, 0.22);
-  }
-
-  .replay-recap-bar span {
-    display: block;
-    height: 100%;
-    min-width: 0;
-    border-radius: inherit;
-  }
-
-  .replay-recap-bar.damage span {
-    background: linear-gradient(90deg, rgba(224, 123, 91, 0.9), rgba(255, 185, 122, 0.92));
-  }
-
-  .replay-recap-bar.healing span {
-    background: linear-gradient(90deg, rgba(82, 198, 140, 0.9), rgba(147, 240, 183, 0.95));
-  }
-
-  .replay-recap-main small {
-    color: #9db2c4;
-  }
-
-  .replay-recap-stats {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.45rem;
-    color: #d8e1e9;
-    font-size: 0.82rem;
-  }
-
-  .replay-zoom-controls {
-    position: absolute;
-    top: 0.45rem;
-    right: 0.45rem;
-    bottom: auto;
-    left: auto;
-    z-index: 2;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.22rem;
-    padding: 0.22rem;
-    width: max-content;
-    max-width: calc(100% - 0.9rem);
-    border-radius: 999px;
-    border: 1px solid rgba(126, 157, 181, 0.18);
-    background: rgba(7, 11, 18, 0.6);
-    backdrop-filter: blur(10px);
-  }
-
-  .replay-zoom-button,
-  .replay-reset-button {
-    min-height: 1.75rem;
-    border: 1px solid rgba(124, 153, 176, 0.22);
-    background: rgba(15, 23, 35, 0.96);
-    color: #f4f7fb;
-    font: inherit;
-  }
-
-  .replay-zoom-button {
-    width: 1.75rem;
-    padding: 0;
-    border-radius: 999px;
-    display: grid;
-    place-items: center;
-  }
-
-  .replay-reset-button {
-    padding: 0 0.55rem;
-    border-radius: 999px;
-    font-size: 0.68rem;
-    letter-spacing: 0.04em;
-  }
-
-  .event-log-wrap,
-  .alive-sides {
-    min-height: 0;
-  }
-
-  .alive-sides {
-    overflow: auto;
-  }
-
-  .replay-recap-empty {
-    margin: 0;
-    color: #8fa3b5;
-  }
-
-  @media (max-width: 1280px) {
-    .shell,
-    .replay-shell,
-    .draft-layout {
+@media (max-width: 1280px) {.shell {
       grid-template-columns: 1fr;
     }
-
-    .opening-shell:not(.scheduled-race-shell) .draft-layout {
-      grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .opening-shell:not(.scheduled-race-shell) .draft-focus-panel {
-      min-height: 0;
-      max-height: 15rem;
-    }
-
-    .draft-focus-panel.empty {
-      display: none;
-    }
-
-    .shell,
-    .replay-shell {
+.shell {
       grid-template-rows: auto auto auto auto;
     }
-
-    .topbar {
+.topbar {
       grid-template-columns: minmax(0, 1fr) auto;
     }
-
-    .slot-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .resource-strip {
+.resource-strip {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-
-    .viewport {
-      min-height: 420px;
-    }
-
-    .overworld-shell {
+.overworld-shell {
       height: auto;
       min-height: 100dvh;
       overflow: visible;
     }
-
-    .overworld-shell.rifts-mode {
+.overworld-shell.rifts-mode {
       height: 100dvh;
       min-height: 100dvh;
       grid-template-rows: auto minmax(0, 1fr) auto;
       overflow: hidden;
     }
-
-    .overworld-shell.rifts-mode .left-column,
-    .overworld-shell.rifts-mode .right-column {
+.overworld-shell.rifts-mode .left-column,
+.overworld-shell.rifts-mode .right-column {
       display: none;
     }
-
-    .overworld-shell.troops-mode {
+.overworld-shell.troops-mode {
       width: min(1240px, 100%);
       grid-template-columns: 1fr;
     }
-
-    .overworld-shell .left-column,
-    .overworld-shell .center-column,
-    .overworld-shell .right-column {
+.overworld-shell .left-column,
+.overworld-shell .center-column,
+.overworld-shell .right-column {
       overflow: visible;
     }
-
-    .overworld-shell.rifts-mode .center-column {
+.overworld-shell.rifts-mode .center-column {
       grid-column: 1;
       grid-row: 2;
       overflow: hidden;
     }
-
-    .overworld-shell.rifts-mode .action-rail {
+.overworld-shell.rifts-mode :global(.action-rail) {
       grid-column: 1;
       grid-row: 3;
       min-height: 0;
       align-content: end;
     }
-
-    .overworld-shell.rifts-mode .action-rail:has(.footer-essence-draft-panel) {
+.overworld-shell.rifts-mode :global(.action-rail):has(:global(.footer-essence-draft-panel)) {
       min-height: 0;
-    }
-
-    .action-rail {
-      min-height: 0;
-    }
-
-    .alive-sides,
-    .replay-recap-sides {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 820px) {
-    .resource-strip,
-    .assigned-strip,
-    .assignment-list,
-    .draft-icon-row {
+    }}
+@media (max-width: 820px) {.resource-strip {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-
-    .menu-topline {
+.menu-topline {
       flex-direction: column;
     }
-
-    .multiplayer-identity-controls,
-    .multiplayer-room-choice,
-    .join-room-box,
-    .multiplayer-room-tools {
+.multiplayer-identity-controls,
+.multiplayer-room-choice,
+.join-room-box,
+.multiplayer-room-tools {
       grid-template-columns: 1fr;
     }
-
-    .multiplayer-room-choice button,
-    .join-room-box button {
+.multiplayer-room-choice button,
+.join-room-box button {
       box-sizing: border-box;
       width: 100%;
       min-height: var(--ui-space-hit);
     }
-
-
-    .action-rail {
-      grid-template-columns: 1fr;
-    }
-
-    .essence-draft-groups {
-      grid-template-columns: 1fr;
-    }
-
-    .footer-essence-draft-panel .essence-draft-groups {
-      grid-template-columns: 1fr;
-    }
-
-    .footer-essence-draft-panel {
-      width: calc(100vw - 1.5rem);
-      max-width: calc(100vw - 1.5rem);
-      justify-self: stretch;
-    }
-
-    .footer-essence-draft-panel .draft-offer-block {
-      width: 100%;
-    }
-
-    .footer-essence-draft-panel .troop-draft-option-list {
-      grid-template-columns: repeat(3, minmax(2.75rem, 1fr));
-      width: 100%;
-    }
-
-    .footer-essence-draft-panel .unlock-row {
-      width: 100%;
-    }
-
-    .footer-essence-draft-panel .draft-upgrade-option {
-      width: 100%;
-      max-width: none;
-    }
-
-    .action-rail > button:only-child,
-    .end-cycle-button,
-    .system-message-popover,
-    .archive-actions-stack,
-    .footer-ready-troops-panel,
-    .footer-essence-draft-panel {
+.archive-actions-stack {
       grid-column: 1;
     }
-
-    .archive-actions-stack,
-    .system-message-popover,
-    .end-cycle-button {
+.archive-actions-stack {
       justify-self: stretch;
     }
-
-    .footer-ready-troops-panel {
-      justify-self: stretch;
-    }
-
-    .end-cycle-button {
-      width: 100%;
-    }
-
-    .system-message-popover {
-      right: 0.75rem;
-      bottom: 5.15rem;
-      width: calc(100% - 1.5rem);
-    }
-
-    .menu-screen,
-    .draft-screen,
-    .shell,
-    .replay-shell {
+.menu-screen,
+.shell {
       padding: 0.75rem;
     }
-
-    .menu-panel {
+.menu-panel {
       width: 100%;
-    }
-
-    .slot-meta,
-    .compact-list {
-      grid-template-columns: 1fr;
-    }
-  }
+    }}
 </style>

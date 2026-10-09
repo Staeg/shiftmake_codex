@@ -19,20 +19,20 @@ function playbackScale(rateMs: number): number {
   return Number.isFinite(rateMs) && rateMs > 0 ? rateMs / BASE_STEP_MS : 1;
 }
 
-function cueTiming(step: BattleStep): { durationMs: number; spacingMs: number } | null {
+function cueTiming(step: BattleStep): { kind: BattlePresentationCueKind; durationMs: number; spacingMs: number } | null {
   switch (step.kind) {
     case 'attack':
-      return step.metadata?.mode === 'melee' ? { durationMs: 520, spacingMs: 190 } : { durationMs: 680, spacingMs: 210 };
+      return step.metadata?.mode === 'melee' ? { kind: step.kind, durationMs: 520, spacingMs: 190 } : { kind: step.kind, durationMs: 680, spacingMs: 210 };
     case 'move':
-      return { durationMs: 320, spacingMs: 240 };
+      return { kind: step.kind, durationMs: 320, spacingMs: 240 };
     case 'engage':
-      return { durationMs: 360, spacingMs: 260 };
+      return { kind: step.kind, durationMs: 360, spacingMs: 260 };
     case 'death':
-      return { durationMs: 700, spacingMs: 220 };
+      return { kind: step.kind, durationMs: 700, spacingMs: 220 };
     case 'heal':
-      return { durationMs: 660, spacingMs: 170 };
+      return { kind: step.kind, durationMs: 660, spacingMs: 170 };
     case 'buff':
-      return step.metadata?.effect === 'summon' ? { durationMs: 720, spacingMs: 190 } : { durationMs: 580, spacingMs: 160 };
+      return step.metadata?.effect === 'summon' ? { kind: step.kind, durationMs: 720, spacingMs: 190 } : { kind: step.kind, durationMs: 580, spacingMs: 160 };
     default:
       return null;
   }
@@ -54,7 +54,7 @@ export function buildBattlePresentationTimeline(replay: BattleReplay, rateMs = B
     const spacingMs = Math.max(1, Math.round(timing.spacingMs * scale));
     cues.push({
       stepIndex: step.index,
-      kind: step.kind,
+      kind: timing.kind,
       startMs: cursorMs,
       durationMs,
     });

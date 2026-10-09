@@ -3,3 +3,6 @@ tmp/
 node_modules/
 dist/
 .codex-tmp/
+/*.log
+/canvas-capture.png
+/artifacts/

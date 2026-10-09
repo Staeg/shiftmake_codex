@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { get } from 'svelte/store';
+import { resolveBattle } from '../engine/battle';
+import { unitOnceEffectInput } from '../engine/__fixtures__/unitOnceEffectInputs';
 import { decodeBattleReport } from '../engine/battleReport';
 import { decodeCampaignReport } from '../engine/campaignReport';
 import { claimOpeningTroop, getOpeningRaceOptionIds, getOpeningRaceStarterTroopUnlockIds, serializeGameState, startNewGame, startOpeningCampaign } from '../engine/game';
 import { generateBaselineLadderPayload } from '../engine/ladder';
 import type { CampaignReportUiContext, GameState, ReplayIndexEntry, ReplayPayloadWrite, StoredReplayPayload, TroopUnlockId, UpgradeId } from '../engine/types';
-import { gameStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
+import { gameStore, gameSessionStore, replayPlaybackStore, persistReplayPayloadWrites, readLastMultiplayerPlayerName, readLastMultiplayerServerUrl } from './gameStore';
+import { saveToSlot, writeSlotReplay } from './saveSlots';
+import { makeTutorialProgress, TUTORIAL_SAVE_ID, writeTutorialProgress } from './tutorial';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -265,7 +270,8 @@ describe('gameStore progression flow', () => {
   });
 
   it('does not enter tutorial mode from persisted progress on main-menu initialization', () => {
-    gameStore.startTutorial();
+    saveToSlot(storage, TUTORIAL_SAVE_ID, startNewGame(1, 'contest'));
+    writeTutorialProgress(storage, makeTutorialProgress());
 
     gameStore.initialize();
 
@@ -280,6 +286,47 @@ describe('gameStore progression flow', () => {
       activeSlotId: null,
       tutorialProgress: null,
     });
+  });
+
+  it('isolates playback notifications while preserving archive loading and the public flat API', () => {
+    const payload: StoredReplayPayload = { version: 1, input: unitOnceEffectInput('stoneblood') };
+    const replay = resolveBattle(payload.input);
+    const secondPayload: StoredReplayPayload = { version: 1, input: { ...unitOnceEffectInput('fade'), riftId: 'playback-switch' } };
+    const secondReplay = resolveBattle(secondPayload.input);
+    saveToSlot(storage, 1, { ...startNewGame(1), replayIndex: [makeReplayIndexEntry(replay.id), makeReplayIndexEntry(secondReplay.id)] });
+    writeSlotReplay(storage, 1, replay.id, JSON.stringify(payload));
+    writeSlotReplay(storage, 1, secondReplay.id, JSON.stringify(secondPayload));
+    gameStore.loadSlot(1);
+    gameStore.openReplay(replay.id);
+    const game = get(gameSessionStore).game;
+    const session = vi.fn();
+    const stop = gameSessionStore.subscribe(session);
+    const saved = storage.getItem('shiftmake:slot:1:save:v3');
+
+    gameStore.stepForward();
+    const firstStep = get(replayPlaybackStore).currentStep;
+    gameStore.stepForward();
+    gameStore.stepBackward();
+    expect(get(replayPlaybackStore).currentStep).toBe(firstStep);
+    gameStore.setAutoPlay(true);
+    gameStore.setRateMs(500);
+    gameStore.selectEvent(2);
+    gameStore.jumpTo(1);
+    expect(session).toHaveBeenCalledTimes(1);
+    expect(get(gameSessionStore).game).toBe(game);
+    expect(storage.getItem('shiftmake:slot:1:save:v3')).toBe(saved);
+    expect(get(gameStore)).toMatchObject({ currentStep: 1, selectedEvent: null, autoPlay: true, rateMs: 500 });
+
+    gameStore.openReplay(secondReplay.id);
+    expect(get(replayPlaybackStore).loadedReplay?.id).toBe(secondReplay.id);
+    expect(get(replayPlaybackStore).loadedReplayPayload?.input).toEqual(secondPayload.input);
+    expect(get(replayPlaybackStore)).toMatchObject({ currentStep: -1, selectedEvent: null, autoPlay: false, rateMs: 500 });
+    gameStore.openReplay(replay.id);
+    expect(get(replayPlaybackStore).loadedReplay?.id).toBe(replay.id);
+    gameStore.closeReplay();
+    expect(get(gameSessionStore).screen).toBe('overworld');
+    expect(get(replayPlaybackStore)).toMatchObject({ loadedReplay: null, loadedReplayPayload: null, currentStep: -1, autoPlay: false });
+    stop();
   });
 
   it('shows one system notice grouped by retired save-content category when loading a repaired slot', () => {
@@ -345,9 +392,17 @@ describe('gameStore progression flow', () => {
 
   it('exits tutorial mode and clears persisted tutorial progress', () => {
     gameStore.startTutorial();
+    const replayId = get(gameSessionStore).game.replayIndex[0]!.replayId;
+    gameStore.openReplay(replayId);
+    expect(get(gameSessionStore).screen).toBe('replay');
+    const loadedReplay = get(replayPlaybackStore).loadedReplay;
+    expect(loadedReplay).not.toBeNull();
     gameStore.recordTutorialAction('watch-battle');
+    expect(get(gameSessionStore).tutorialProgress?.step).toBe('battle-layout');
+    expect(get(replayPlaybackStore).loadedReplay).toBe(loadedReplay);
 
     gameStore.exitTutorial();
+    expect(get(replayPlaybackStore)).toMatchObject({ loadedReplay: null, currentStep: -1, autoPlay: false });
     expect(
       currentStoreState<{
         screen: string;
@@ -753,6 +808,40 @@ describe('gameStore progression flow', () => {
     }
     expect(decoded.payload.summary.phase).toBe('planning');
     expect(decoded.payload.uiContext.screen).toBe('main_menu');
+  });
+
+  it.each(['cycle-submitted', 'cycle-canceled', 'cycle-resolved', 'contest-updated'])('uses %s code for notices and animation regardless of wording', (statusCode) => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const room = startNewGame(123, 'contest');
+    gameStore.connectMultiplayerContest('ws://test-room', 'CODE', 'Player 1');
+    const socket = FakeWebSocket.instances[0]!;
+    const snapshot = {
+      kind: 'room-snapshot', roomId: 'CODE', playerId: 'playerOne', playerToken: 'token',
+      game: room, cycleEnded: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
+      replayPayloads: {}, message: null, statusCode: 'idle',
+    };
+    socket.receive(snapshot);
+    socket.receive({ ...snapshot, statusCode, message: 'Reworded status', replayPayloads: { reference: makeReplayPayload(123) } });
+    expect(currentStoreState<{ systemMessage: string | null; cycleAnimation: unknown }>()).toMatchObject({ systemMessage: null });
+    expect(currentStoreState<{ cycleAnimation: unknown }>().cycleAnimation).not.toBeNull();
+    gameStore.openReplay('reference');
+    expect(get(gameSessionStore).screen).toBe('replay');
+    expect(get(replayPlaybackStore)).toMatchObject({ loadedReplayPayload: { input: { seed: 123 } }, currentStep: -1, autoPlay: false });
+    gameStore.closeReplay();
+    expect(get(replayPlaybackStore).loadedReplay).toBeNull();
+  });
+
+  it.each(['resolving', 'error', 'future-code'])('preserves %s feedback even with legacy routine wording', (statusCode) => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    gameStore.connectMultiplayerContest('ws://test-room', 'CODE', 'Player 1');
+    FakeWebSocket.instances[0]!.receive({
+      kind: 'room-snapshot', roomId: 'CODE', playerId: 'playerOne', playerToken: 'token',
+      game: startNewGame(123, 'contest'), cycleEnded: { playerOne: false, playerTwo: false },
+      playerNames: { playerOne: 'Player 1', playerTwo: 'Player 2' },
+      replayPayloads: {}, statusCode, message: 'Cycle end canceled.',
+    });
+    expect(currentStoreState<{ systemMessage: string | null }>().systemMessage).toBe('Cycle end canceled.');
   });
 
   it('preserves unsubmitted multiplayer edits when the other player ends the cycle', () => {

@@ -16,6 +16,7 @@ import projectileUrl from '../assets/sprites/projectile.svg';
 import { getAbilityFallbackIcon, type AbilityFallbackIcon, type AbilityFallbackIconShape } from '../presentation/iconAssets';
 import { loadRaceUnitTextures } from './unitVisuals';
 import { BASE_STEP_MS } from './renderingConstants';
+import { animate } from './animation';
 import type { BattleReportDiagnostic } from '../engine/types';
 
 const HEX_SIZE = 30;
@@ -96,42 +97,6 @@ function hexCorners(center: PixelPoint, radius = HEX_SIZE): PixelPoint[] {
       y: center.y + radius * Math.sin(angle),
     };
   });
-}
-
-function animate(
-  durationMs: number,
-  onUpdate: (t: number) => void,
-  onFinish?: () => void,
-  onCancel?: () => void,
-): () => void {
-  const start = performance.now();
-  let cancelled = false;
-  let finished = false;
-
-  const frame = (now: number) => {
-    if (cancelled || finished) {
-      return;
-    }
-    const elapsed = now - start;
-    const t = Math.min(1, elapsed / durationMs);
-    onUpdate(t);
-    if (t < 1) {
-      requestAnimationFrame(frame);
-    } else {
-      finished = true;
-      onFinish?.();
-    }
-  };
-
-  requestAnimationFrame(frame);
-
-  return () => {
-    if (cancelled || finished) {
-      return;
-    }
-    cancelled = true;
-    onCancel?.();
-  };
 }
 
 function distributedOffset(index: number, count: number, maxRadius: number, squashX = 1): PixelPoint {
@@ -304,6 +269,7 @@ export class BattleRenderer {
   private resizeObserver: ResizeObserver | null = null;
 
   private pendingViewportRefreshFrame: number | null = null;
+  private dragResetTimer: ReturnType<typeof window.setTimeout> | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -384,6 +350,10 @@ export class BattleRenderer {
 
   destroy(): void {
     this.clearEffects();
+    if (this.dragResetTimer !== null) {
+      window.clearTimeout(this.dragResetTimer);
+      this.dragResetTimer = null;
+    }
     if (this.pendingViewportRefreshFrame !== null) {
       cancelAnimationFrame(this.pendingViewportRefreshFrame);
       this.pendingViewportRefreshFrame = null;
@@ -2041,7 +2011,11 @@ export class BattleRenderer {
     this.setCanvasCursor('grab');
 
     if (this.didDragDuringPointer) {
-      window.setTimeout(() => {
+      if (this.dragResetTimer !== null) {
+        window.clearTimeout(this.dragResetTimer);
+      }
+      this.dragResetTimer = window.setTimeout(() => {
+        this.dragResetTimer = null;
         this.didDragDuringPointer = false;
       }, 0);
     }

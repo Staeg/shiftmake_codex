@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { BattleOutcome } from '../engine/types';
-  import type { MiniReplayHealthTone } from './RiftBattleMiniReplay.svelte';
+  import type { MiniReplayHealthTone } from './riftBattlePresentation';
 
   export let outcome: BattleOutcome = 'draw';
   export let opponentOutcome = false;
